@@ -1,0 +1,68 @@
+# backend/app/crud/crud_auth.py
+from sqlalchemy.orm import Session
+from datetime import datetime
+from app.models.models import User, Player, AuthOtp, Role
+from app.schemas.auth_schemas import RegisterRequest
+from app.core.security import get_password_hash
+
+def get_user_by_email(db: Session, email: str):
+    return db.query(User).filter(User.email == email).first()
+
+# --- BỔ SUNG HÀM NÀY ---
+def get_user_by_id(db: Session, user_id: int):
+    return db.query(User).filter(User.id == user_id).first()
+# -----------------------
+
+def create_otp_record(db: Session, email: str, otp_code: str, expire_time: datetime):
+    new_otp = AuthOtp(
+        target_email=email,
+        otp_code=otp_code,
+        purpose="signup",
+        expired_at=expire_time
+    )
+    db.add(new_otp)
+    db.commit()
+    db.refresh(new_otp)
+    return new_otp
+
+def get_valid_otp(db: Session, email: str, otp_code: str):
+    return db.query(AuthOtp).filter(
+        AuthOtp.target_email == email,
+        AuthOtp.otp_code == otp_code,
+        AuthOtp.purpose == "signup",
+        AuthOtp.is_used == False
+    ).order_by(AuthOtp.created_at.desc()).first()
+
+def get_role_by_key(db: Session, role_key: str):
+    return db.query(Role).filter(Role.role_key == role_key).first()
+
+def create_user_and_player_transaction(db: Session, request: RegisterRequest, role_id: int):
+    try:
+        # 1. Tạo User
+        new_user = User(
+            email=request.email,
+            password_hash=get_password_hash(request.password),
+            full_name=request.full_name,
+            account_type="member",
+            role_id=role_id,
+            is_verified=True 
+        )
+        db.add(new_user)
+        db.flush()
+
+        # 2. Tạo Player Profile (Elo mặc định 1000)
+        new_player = Player(
+            user_id=new_user.id,
+            elo_points=1000,
+            matches_played=0,
+            wins=0,
+            losses=0
+        )
+        db.add(new_player)
+        
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+    except Exception as e:
+        db.rollback()
+        raise e
