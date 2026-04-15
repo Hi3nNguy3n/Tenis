@@ -2,6 +2,13 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from typing import List
+
+class TeamMember(BaseModel):
+    name: str
+    phone: str
+    email: Optional[str] = None
+    account_code: Optional[str] = None
 
 class RegistrationBase(BaseModel):
     tournament_id: int
@@ -9,6 +16,11 @@ class RegistrationBase(BaseModel):
     player_id: Optional[int] = None
     team_id: Optional[int] = None
     notes: Optional[str] = None
+    partner_name: Optional[str] = None
+    partner_phone: Optional[str] = None
+    partner_email: Optional[str] = None
+    partner_user_id: Optional[int] = None
+    team_members_data: Optional[List[TeamMember]] = None
 
 class RegistrationCreate(RegistrationBase):
     pass
@@ -24,6 +36,27 @@ class RegistrationResponse(RegistrationBase):
     hold_expires_at: Optional[datetime] = None
     registered_at: datetime
     qr_code_url: Optional[str] = None
+    
+    # Optional fields for display
+    tournament_name: Optional[str] = None
+    player_name: Optional[str] = None
+    location: Optional[str] = None
+    
+    # Detailed fields for "View Details"
+    tournament_date: Optional[datetime] = None
+    category_type: Optional[str] = None
+    entry_fee: Optional[float] = None
+    entry_fee_team: Optional[float] = None
+    player_phone: Optional[str] = None
+    player_email: Optional[str] = None
+    player_skill: Optional[str] = None
+    
+    partner_name: Optional[str] = None
+    partner_phone: Optional[str] = None
+    partner_email: Optional[str] = None
+    partner_user_id: Optional[int] = None
+    team_members_data: Optional[List[TeamMember]] = None
+
     
     class Config:
         from_attributes = True

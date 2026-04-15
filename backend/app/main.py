@@ -1,34 +1,46 @@
 # backend/app/main.py
 from fastapi import FastAPI
-from app.api import auth, players, tournaments, registrations
-from app.db.seed import seed_data  # <-- Bổ sung import hàm seed_data
+from fastapi.middleware.cors import CORSMiddleware
+from app.api import auth, players, tournaments, registrations, payments, courts, matches, logs, news, upload
+from app.db.seed import seed_data
+from app.core.config import settings
 from app.core.cloudinary_setup import init_cloudinary
 from app.core.tasks import start_scheduler
 
 app = FastAPI(title="Saigon Tennis Tour API")
 
-# Định nghĩa sự kiện chạy 1 lần duy nhất khi khởi động Uvicorn
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.on_event("startup")
 async def startup_event():
     print("\n" + "="*50)
-    print("🔍 Đang khởi tạo kết nối Cloudinary...")
-    init_cloudinary() # <-- BỔ SUNG DÒNG NÀY
-    print("🔍 Đang kiểm tra và khởi tạo dữ liệu mẫu (Seed Data)...")
+    print("[INIT] Dang khoi tao ket noi Cloudinary...")
+    init_cloudinary()
+    print("[INIT] Dang kiem tra va khoi tao du lieu mau (Seed Data)...")
     seed_data()
-    print("🔍 Đang khởi động trình dọn dẹp tự động (Scheduler)...")
+    print("[INIT] Dang khoi dong trinh don dep tu dong (Scheduler)...")
     start_scheduler()
-    print("✅ API Server đã sẵn sàng phục vụ!")
+    print("[SUCCESS] API Server da san sang phuc vu!")
     print("="*50 + "\n")
 
 # Nhúng các router vào app
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(players.router, prefix="/api/players", tags=["Players"])
-
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(players.router, prefix="/api/players", tags=["Players"])
 app.include_router(tournaments.router, prefix="/api/tournaments", tags=["Tournaments"])
-
 app.include_router(registrations.router, prefix="/api/registrations", tags=["Registrations"])
+app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
+app.include_router(courts.router, prefix="/api/courts", tags=["Courts"])
+app.include_router(matches.router, prefix="/api/matches", tags=["Matches"])
+app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
+app.include_router(news.router, prefix="/api/news", tags=["News"])
+app.include_router(upload.router, prefix="/api/upload", tags=["Upload System"]) # 2. Khai báo
 
 @app.get("/")
 def root():

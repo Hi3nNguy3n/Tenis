@@ -1,8 +1,8 @@
-"""init_optimized_26_tables
+"""init_phase3_models
 
-Revision ID: 7546cafcb046
+Revision ID: 6136d4e5706b
 Revises: 
-Create Date: 2026-04-13 15:13:36.082593
+Create Date: 2026-04-14 21:39:00.748322
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '7546cafcb046'
+revision: str = '6136d4e5706b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -140,6 +140,7 @@ def upgrade() -> None:
     sa.Column('location', sa.String(length=255), nullable=True),
     sa.Column('surface_type', sa.String(length=30), nullable=True),
     sa.Column('entry_fee', sa.Numeric(precision=15, scale=2), nullable=True),
+    sa.Column('entry_fee_team', sa.Numeric(precision=15, scale=2), nullable=True),
     sa.Column('max_participants', sa.Integer(), nullable=True),
     sa.Column('version', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
@@ -438,7 +439,14 @@ def upgrade() -> None:
     sa.Column('approved_at', sa.DateTime(), nullable=True),
     sa.Column('notes', sa.String(length=255), nullable=True),
     sa.Column('group_code', sa.String(length=20), nullable=True),
+    sa.Column('partner_name', sa.String(length=150), nullable=True),
+    sa.Column('partner_phone', sa.String(length=20), nullable=True),
+    sa.Column('partner_email', sa.String(length=255), nullable=True),
+    sa.Column('partner_user_id', sa.BigInteger(), nullable=True),
+    sa.Column('team_members_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
+    sa.Column('qr_code_url', sa.String(length=255), nullable=True),
+    sa.ForeignKeyConstraint(['partner_user_id'], ['users.id'], ),
     sa.ForeignKeyConstraint(['player_id'], ['players.id'], ),
     sa.ForeignKeyConstraint(['team_id'], ['teams.id'], ),
     sa.ForeignKeyConstraint(['tournament_id'], ['tournaments.id'], ),
@@ -447,6 +455,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_registrations_deleted_at'), 'registrations', ['deleted_at'], unique=False)
     op.create_index(op.f('ix_registrations_hold_expires_at'), 'registrations', ['hold_expires_at'], unique=False)
     op.create_index(op.f('ix_registrations_id'), 'registrations', ['id'], unique=False)
+    op.create_index(op.f('ix_registrations_partner_user_id'), 'registrations', ['partner_user_id'], unique=False)
     op.create_index(op.f('ix_registrations_payment_status'), 'registrations', ['payment_status'], unique=False)
     op.create_index(op.f('ix_registrations_player_id'), 'registrations', ['player_id'], unique=False)
     op.create_index(op.f('ix_registrations_registered_at'), 'registrations', ['registered_at'], unique=False)
@@ -495,8 +504,8 @@ def upgrade() -> None:
     sa.Column('group_id', sa.BigInteger(), nullable=True),
     sa.Column('round_code', sa.String(length=20), nullable=False),
     sa.Column('match_no', sa.Integer(), nullable=False),
-    sa.Column('side_a_registration_id', sa.BigInteger(), nullable=False),
-    sa.Column('side_b_registration_id', sa.BigInteger(), nullable=False),
+    sa.Column('side_a_registration_id', sa.BigInteger(), nullable=True),
+    sa.Column('side_b_registration_id', sa.BigInteger(), nullable=True),
     sa.Column('winner_side', sa.String(length=5), nullable=True),
     sa.Column('winner_registration_id', sa.BigInteger(), nullable=True),
     sa.Column('court_id', sa.BigInteger(), nullable=True),
@@ -520,6 +529,12 @@ def upgrade() -> None:
     sa.Column('set2_b', sa.SmallInteger(), nullable=True),
     sa.Column('set3_a', sa.SmallInteger(), nullable=True),
     sa.Column('set3_b', sa.SmallInteger(), nullable=True),
+    sa.Column('tie_break_1_a', sa.SmallInteger(), nullable=True),
+    sa.Column('tie_break_1_b', sa.SmallInteger(), nullable=True),
+    sa.Column('tie_break_2_a', sa.SmallInteger(), nullable=True),
+    sa.Column('tie_break_2_b', sa.SmallInteger(), nullable=True),
+    sa.Column('tie_break_3_a', sa.SmallInteger(), nullable=True),
+    sa.Column('tie_break_3_b', sa.SmallInteger(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.Column('deleted_at', sa.DateTime(), nullable=True),
@@ -694,6 +709,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_registrations_registered_at'), table_name='registrations')
     op.drop_index(op.f('ix_registrations_player_id'), table_name='registrations')
     op.drop_index(op.f('ix_registrations_payment_status'), table_name='registrations')
+    op.drop_index(op.f('ix_registrations_partner_user_id'), table_name='registrations')
     op.drop_index(op.f('ix_registrations_id'), table_name='registrations')
     op.drop_index(op.f('ix_registrations_hold_expires_at'), table_name='registrations')
     op.drop_index(op.f('ix_registrations_deleted_at'), table_name='registrations')

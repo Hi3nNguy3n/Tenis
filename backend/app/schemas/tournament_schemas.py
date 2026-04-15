@@ -18,6 +18,7 @@ class TournamentBase(BaseModel):
     location: Optional[str] = None
     surface_type: Optional[str] = None
     entry_fee: Optional[float] = None
+    entry_fee_team: Optional[float] = None
     max_participants: Optional[int] = None
 
 class TournamentCreate(TournamentBase):
@@ -39,11 +40,13 @@ class TournamentUpdate(BaseModel):
     location: Optional[str] = None
     surface_type: Optional[str] = None
     entry_fee: Optional[float] = None
+    entry_fee_team: Optional[float] = None
     max_participants: Optional[int] = None
 
 class TournamentResponse(TournamentBase):
     id: int
     version: int
+    current_participants: int = 0
     created_at: datetime
     updated_at: Optional[datetime] = None
 

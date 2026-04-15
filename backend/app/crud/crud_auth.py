@@ -8,10 +8,26 @@ from app.core.security import get_password_hash
 def get_user_by_email(db: Session, email: str):
     return db.query(User).filter(User.email == email).first()
 
-# --- BỔ SUNG HÀM NÀY ---
 def get_user_by_id(db: Session, user_id: int):
     return db.query(User).filter(User.id == user_id).first()
-# -----------------------
+
+def get_role_by_key(db: Session, role_key: str):
+    return db.query(Role).filter(Role.role_key == role_key).first()
+
+def get_role_by_id(db: Session, role_id: int):
+    return db.query(Role).filter(Role.id == role_id).first()
+
+def update_password(db: Session, user: User, new_password: str):
+    user.password_hash = get_password_hash(new_password)
+    db.commit()
+    db.refresh(user)
+    return user
+
+def update_last_login(db: Session, user: User):
+    user.last_login_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user)
+    return user
 
 def create_otp_record(db: Session, email: str, otp_code: str, expire_time: datetime):
     new_otp = AuthOtp(
@@ -33,24 +49,23 @@ def get_valid_otp(db: Session, email: str, otp_code: str):
         AuthOtp.is_used == False
     ).order_by(AuthOtp.created_at.desc()).first()
 
-def get_role_by_key(db: Session, role_key: str):
-    return db.query(Role).filter(Role.role_key == role_key).first()
-
 def create_user_and_player_transaction(db: Session, request: RegisterRequest, role_id: int):
     try:
-        # 1. Tạo User
         new_user = User(
             email=request.email,
             password_hash=get_password_hash(request.password),
             full_name=request.full_name,
-            account_type="member",
+            account_type=request.account_type or "user",
+            phone=request.phone,
+            province=request.province,
+            date_of_birth=request.date_of_birth,
+            gender=request.gender,
             role_id=role_id,
             is_verified=True 
         )
         db.add(new_user)
         db.flush()
 
-        # 2. Tạo Player Profile (Elo mặc định 1000)
         new_player = Player(
             user_id=new_user.id,
             elo_points=1000,

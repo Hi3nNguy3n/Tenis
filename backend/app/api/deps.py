@@ -7,9 +7,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.crud import crud_auth
 from app.core.config import settings
-from app.models.models import Role, User
+from app.models.models import User
 
-# Sử dụng HTTPBearer để tạo ô dán token thủ công trên Swagger UI
 security = HTTPBearer()
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
@@ -19,10 +18,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        # Lấy chuỗi token nguyên bản mà bạn dán vào
         token = credentials.credentials 
-        
-        # Giải mã Token
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
@@ -30,7 +26,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     except JWTError:
         raise credentials_exception
         
-    # Gọi hàm CRUD để lấy thông tin User
     user = crud_auth.get_user_by_id(db, user_id=int(user_id))
     
     if user is None:
@@ -45,11 +40,7 @@ def get_current_admin(
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    """
-    Kiểm tra User hiện tại có mang quyền Admin không.
-    Nếu không, ném lỗi 403 Forbidden.
-    """
-    role = db.query(Role).filter(Role.id == current_user.role_id).first()
+    role = crud_auth.get_role_by_id(db, role_id=current_user.role_id)
     if not role or role.role_key != "admin":
         raise HTTPException(
             status_code=403, 
