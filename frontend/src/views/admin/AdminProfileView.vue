@@ -71,7 +71,7 @@ onMounted(() => {
 
 .profile-card {
   padding: 24px;
-  border-radius: 28px;
+  border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 18px 34px rgba(18, 30, 27, 0.06);
 }

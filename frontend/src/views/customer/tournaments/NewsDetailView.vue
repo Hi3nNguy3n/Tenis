@@ -101,7 +101,7 @@ const formatDate = (dateStr) => {
 <style scoped>
 .article-wrapper { background: white; min-height: 100vh; position: relative; }
 .reading-progress { position: fixed; top: 0; left: 0; width: 100%; height: 5px; background: transparent; z-index: 1000; }
-.progress-fill { height: 100%; background: #006953; transition: width 0.1s linear; }
+.progress-fill { height: 100%; background: var(--primary); transition: width 0.1s linear; }
 
 .container { max-width: 1100px; margin: 0 auto; padding: 60px 20px; }
 .article-layout { display: grid; grid-template-columns: 80px 1fr; gap: 50px; }
@@ -117,11 +117,11 @@ const formatDate = (dateStr) => {
 .article-hero-img img { width: 100%; height: auto; display: block; }
 
 /* TYPOGRAPHY CHO CONTENT */
-.article-content { font-size: 1.3rem; line-height: 1.85; color: #334155; font-family: 'Inter', sans-serif; }
+.article-content { font-size: 1.3rem; line-height: 1.85; color: #334155; font-family: Arial, sans-serif; }
 .article-content :deep(p) { margin-bottom: 30px; }
 .article-content :deep(h2) { font-size: 2.2rem; color: #0f172a; margin: 50px 0 20px; font-weight: 800; }
-.article-content :deep(img) { width: 100%; border-radius: 20px; margin: 40px 0; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-.article-content :deep(blockquote) { border-left: 6px solid #006953; background: #f0fdf4; padding: 40px; margin: 40px 0; font-style: italic; font-size: 1.5rem; color: #006953; border-radius: 0 20px 20px 0; }
+.article-content :deep(img) { width: 100%; border-radius: 8px; margin: 40px 0; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+.article-content :deep(blockquote) { border-left: 6px solid var(--primary); background: #f0fdf4; padding: 40px; margin: 40px 0; font-style: italic; font-size: 1.5rem; color: var(--primary); border-radius: 0 20px 20px 0; }
 
 .article-footer { margin-top: 80px; padding-top: 40px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
 .mr-2 { margin-right: 12px; }

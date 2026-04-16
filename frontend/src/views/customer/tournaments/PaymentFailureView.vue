@@ -67,15 +67,15 @@ h1 { color: #ba1a1a; font-size: 2.2rem; margin-bottom: 1.5rem; }
 .action-section { display: flex; flex-direction: column; gap: 1rem; }
 
 .btn-primary {
-  padding: 1.2rem; border: none; border-radius: 18px;
-  background: #123f34; color: white; font-weight: 800; font-size: 1.1rem;
+  padding: 1.2rem; border: none; border-radius: 8px;
+  background: var(--text-dark); color: white; font-weight: 800; font-size: 1.1rem;
   cursor: pointer; transition: 0.2s;
 }
 .btn-primary:hover { background: #000; transform: translateY(-3px); }
 
 .btn-secondary {
   padding: 1.2rem; background: transparent; border: 2px solid #eef1f1;
-  border-radius: 18px; color: #4e6073; font-weight: 700; cursor: pointer; transition: 0.2s;
+  border-radius: 8px; color: #4e6073; font-weight: 700; cursor: pointer; transition: 0.2s;
 }
 .btn-secondary:hover { background: #f8f9f9; }
 

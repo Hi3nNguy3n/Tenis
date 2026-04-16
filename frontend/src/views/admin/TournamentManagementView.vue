@@ -504,11 +504,11 @@ onMounted(() => {
 <style scoped>
 .module-shell { display: grid; gap: 18px; }
 .hero-card, .summary-card, .filter-card, .table-card, .detail-card {
-  border-radius: 28px; background: rgba(255, 255, 255, 0.94);
+  border-radius: 8px; background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 18px 40px rgba(18, 30, 27, 0.07);
 }
 .hero-card { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 28px; }
-.section-kicker { display: inline-flex; margin-bottom: 12px; padding: 8px 12px; border-radius: 999px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
+.section-kicker { display: inline-flex; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
 .hero-card h2 { margin-bottom: 10px; font-size: 2.5rem; color: #132722; }
 .hero-card p { max-width: 760px; color: #59706a; }
 .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -519,7 +519,7 @@ onMounted(() => {
 .content-grid { display: grid; grid-template-columns: 1.6fr 0.9fr; gap: 18px; }
 .table-card, .detail-card { padding: 20px; }
 .detail-stack { display: grid; gap: 18px; }
-.detail-hero { display: flex; align-items: center; justify-content: space-between; padding: 18px; border-radius: 20px; background: #f0f7f5; }
+.detail-hero { display: flex; align-items: center; justify-content: space-between; padding: 18px; border-radius: 8px; background: #f0f7f5; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .detail-grid span { font-size: 0.7rem; font-weight: 800; color: #71837d; text-transform: uppercase; }
 .detail-grid strong { display: block; color: #152a24; }

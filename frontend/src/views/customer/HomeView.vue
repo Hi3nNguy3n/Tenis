@@ -27,6 +27,33 @@ const featureCards = [
     brands: ['WILSON', 'BABOLAT', 'HEAD'],
   },
 ]
+
+const newsItems = [
+  {
+    id: 1,
+    title: 'Giải quần vợt Saigontennistours Center Mở Rộng 2026',
+    date: '15/04/2026',
+    category: 'Giải đấu',
+    excerpt: 'Giải đấu quy tụ hơn 100 vận động viên chuyên nghiệp và bán chuyên trên toàn quốc.',
+    image: 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: 2,
+    title: 'Khai trương cụm sân mới tại Cao Thắng',
+    date: '10/04/2026',
+    category: 'Sân bãi',
+    excerpt: 'Cụm sân tennis tiêu chuẩn quốc tế với hệ thống đèn LED hiện đại và mặt sân cao cấp.',
+    image: 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: 3,
+    title: 'Lớp học Tennis buổi sáng cho người mới bắt đầu',
+    date: '05/04/2026',
+    category: 'Huấn luyện',
+    excerpt: 'Chương trình ưu đãi giảm 20% học phí cho học viên đăng ký trong tháng 4.',
+    image: 'https://images.unsplash.com/photo-1510832198440-a52376950479?auto=format&fit=crop&q=80&w=800'
+  }
+]
 </script>
 
 <template>
@@ -70,112 +97,97 @@ const featureCards = [
 
     <section class="featured-section container">
       <div class="bento-grid">
-        <article class="bento-card bento-feature bento-coaching">
-          <div class="feature-image"></div>
-          <div class="feature-overlay"></div>
-          <div class="feature-content">
-            <span class="feature-badge">{{ featureCards[0].badge }}</span>
-            <h2>{{ featureCards[0].title }}</h2>
-            <p>{{ featureCards[0].description }}</p>
-          </div>
-        </article>
-
-        <article class="bento-card bento-lounge">
-          <div class="icon-wrap">✦</div>
-          <div>
-            <h3>{{ featureCards[1].title }}</h3>
-            <p>{{ featureCards[1].description }}</p>
-          </div>
-          <div class="capacity-block">
-            <div class="capacity-track">
-              <div class="capacity-fill"></div>
+        <div class="grid-left-col">
+          <article class="bento-card bento-feature bento-coaching">
+            <div class="feature-image"></div>
+            <div class="feature-overlay"></div>
+            <div class="feature-content">
+              <span class="feature-badge">{{ featureCards[0].badge }}</span>
+              <h2>{{ featureCards[0].title }}</h2>
+              <p>{{ featureCards[0].description }}</p>
             </div>
-            <span>Capacity: {{ featureCards[1].stat }}</span>
-          </div>
-        </article>
+          </article>
 
-        <article class="bento-card bento-mixers">
-          <div class="icon-wrap calendar">◌</div>
-          <h3>{{ featureCards[2].title }}</h3>
-          <p>{{ featureCards[2].description }}</p>
-          <RouterLink id="weekly-mixers-link" to="/matches" class="inline-link">
-            {{ featureCards[2].cta }}
-            <span>→</span>
-          </RouterLink>
-        </article>
-
-        <article class="bento-card bento-shop">
-          <div class="shop-copy">
-            <h3>{{ featureCards[3].title }}</h3>
-            <p>{{ featureCards[3].description }}</p>
-            <div class="brand-list">
-              <span v-for="brand in featureCards[3].brands" :key="brand">{{ brand }}</span>
+          <article class="bento-card bento-shop">
+            <div class="shop-copy">
+              <h3>{{ featureCards[3].title }}</h3>
+              <p>{{ featureCards[3].description }}</p>
+              <div class="brand-list">
+                <span v-for="brand in featureCards[3].brands" :key="brand">{{ brand }}</span>
+              </div>
             </div>
+            <div class="shop-visual">
+              <div class="racket-card"></div>
+            </div>
+          </article>
+        </div>
+
+        <div class="grid-right-col">
+          <article class="bento-card bento-lounge">
+            <div class="icon-wrap">✦</div>
+            <div>
+              <h3>{{ featureCards[1].title }}</h3>
+              <p>{{ featureCards[1].description }}</p>
+            </div>
+            <div class="capacity-block">
+              <div class="capacity-track">
+                <div class="capacity-fill"></div>
+              </div>
+              <span>Capacity: {{ featureCards[1].stat }}</span>
+            </div>
+          </article>
+
+          <article class="bento-card bento-mixers">
+            <div class="icon-wrap calendar">◌</div>
+            <h3>{{ featureCards[2].title }}</h3>
+            <p>{{ featureCards[2].description }}</p>
+            <RouterLink id="weekly-mixers-link" to="/matches" class="inline-link">
+              {{ featureCards[2].cta }}
+              <span>→</span>
+            </RouterLink>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="news-section container">
+      <div class="section-header">
+        <span class="section-kicker">Tin mới nhất</span>
+        <h2>Tin tức Tennis</h2>
+      </div>
+      
+      <div class="news-grid">
+        <article v-for="news in newsItems" :key="news.id" class="news-card">
+          <div class="news-img-wrap">
+            <img :src="news.image" :alt="news.title" />
+            <span class="news-cat">{{ news.category }}</span>
           </div>
-          <div class="shop-visual">
-            <div class="racket-card"></div>
+          <div class="news-body">
+            <span class="news-date">{{ news.date }}</span>
+            <h3>{{ news.title }}</h3>
+            <p>{{ news.excerpt }}</p>
+            <RouterLink :to="'/news/' + news.id" class="news-link">Xem chi tiết <span>→</span></RouterLink>
           </div>
         </article>
       </div>
     </section>
 
-    <section class="club-footer-section">
-      <div class="container footer-shell">
-        <div class="footer-branding">
-          <h2>Saigon Tennis.</h2>
-          <p>
-            Nâng tầm tennis tại TP.HCM với hệ sinh thái thi đấu, huấn luyện, cộng đồng và công nghệ
-            vận hành dành cho câu lạc bộ hiện đại.
-          </p>
-        </div>
-
-        <div class="footer-links-grid">
-          <div>
-            <h4>Club</h4>
-            <ul>
-              <li><RouterLink to="/">Về chúng tôi</RouterLink></li>
-              <li><RouterLink to="/players">Vận động viên</RouterLink></li>
-              <li><RouterLink to="/tournaments">Giải đấu</RouterLink></li>
-            </ul>
-          </div>
-          <div>
-            <h4>Support</h4>
-            <ul>
-              <li><RouterLink to="/register-otp">Đăng ký</RouterLink></li>
-              <li><RouterLink to="/login">Đăng nhập</RouterLink></li>
-              <li><RouterLink to="/matches">Lịch đấu</RouterLink></li>
-            </ul>
-          </div>
-          <div>
-            <h4>Follow</h4>
-            <div class="social-links">
-              <span>Share</span>
-              <span>Global</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="container footer-bottom-bar">
-        © 2026 Saigon Tennis Club. All rights reserved. Professionalism in every swing.
-      </div>
-    </section>
   </div>
 </template>
 
 <style scoped>
 .home-page {
-  background: #f8f9f9;
-  color: #191c1c;
+  background: var(--bg-main);
+  color: var(--text-dark);
 }
 
 .hero-section {
   position: relative;
-  min-height: 920px;
+  min-height: 380px;
   display: flex;
   align-items: center;
   overflow: hidden;
-  background: #f3f4f4;
+  background: var(--text-dark);
 }
 
 .hero-media,
@@ -186,18 +198,20 @@ const featureCards = [
 }
 
 .hero-media {
+  background-image: url('/src/assets/hero_bg.png');
   background-size: cover;
-  background-position: center;
-  transform: scale(1.04);
+  background-position: center 20%;
+  opacity: 0.4;
+  transform: scale(1.02);
 }
 
 .hero-overlay {
-  background: linear-gradient(90deg, rgba(248, 249, 249, 0.98) 0%, rgba(248, 249, 249, 0.78) 36%, rgba(248, 249, 249, 0.18) 100%);
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.6) 50%, rgba(15, 23, 42, 0) 100%);
 }
 
 .hero-grid {
-  background-image: linear-gradient(45deg, rgba(189, 201, 195, 0.12) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
   opacity: 0.5;
 }
 
@@ -208,19 +222,19 @@ const featureCards = [
 }
 
 .hero-copy {
-  max-width: 720px;
-  padding: 4rem 0;
+  max-width: 680px;
+  padding: 3rem 0;
 }
 
 .hero-pill {
   display: inline-flex;
   align-items: center;
   padding: 0.65rem 1rem;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #d1e4fb;
   color: #091d2e;
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   margin-bottom: 1.5rem;
@@ -228,24 +242,26 @@ const featureCards = [
 
 .hero-copy h1 {
   margin-bottom: 1.5rem;
-  font-size: clamp(3.6rem, 8vw, 6rem);
+  font-size: clamp(2.4rem, 5vw, 4.2rem);
   line-height: 1;
-  letter-spacing: -0.05em;
-  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-weight: 500;
+  color: #fff;
 }
 
 .hero-copy h1 span {
   display: inline-block;
-  color: #006953;
-  font-style: italic;
+  color: var(--primary);
+  font-style: normal;
+  margin-left: 0.5rem;
 }
 
 .hero-copy p {
-  max-width: 620px;
-  margin-bottom: 2.2rem;
-  font-size: 1.15rem;
-  line-height: 1.8;
-  color: #3e4945;
+  max-width: 580px;
+  margin-bottom: 2rem;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: #cbd5e1;
 }
 
 .hero-actions {
@@ -256,32 +272,40 @@ const featureCards = [
 
 .btn-primary-solid,
 .btn-secondary-ghost {
-  min-height: 56px;
+  min-height: 52px;
   padding: 0 2rem;
-  border-radius: 18px;
+  border-radius: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 1rem;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .btn-primary-solid {
-  background: linear-gradient(135deg, #006953 0%, #13846a 100%);
+  background: var(--primary);
   color: #ffffff;
-  box-shadow: 0 18px 34px rgba(0, 105, 83, 0.22);
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.2);
 }
 
-.btn-primary-solid:hover,
-.btn-secondary-ghost:hover {
-  transform: translateY(-2px) scale(1.01);
+.btn-primary-solid:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
 }
 
 .btn-secondary-ghost {
-  background: rgba(255, 255, 255, 0.9);
-  color: #006953;
-  border: 1px solid rgba(110, 122, 116, 0.18);
+  background: transparent;
+  color: var(--primary);
+  border: 2px solid var(--primary);
+}
+
+.btn-secondary-ghost:hover {
+  background: var(--primary);
+  color: #ffffff;
+  transform: translateY(-2px);
 }
 
 .hero-accent-card {
@@ -293,10 +317,10 @@ const featureCards = [
   align-items: center;
   gap: 1rem;
   padding: 0.65rem 0.65rem 0.65rem 1.2rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(0, 105, 83, 0.1);
-  box-shadow: 0 20px 40px rgba(0, 105, 83, 0.12);
+  border-radius: 4px;
+  background: var(--glass-bg);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
 }
 
 .glass-card {
@@ -314,21 +338,21 @@ const featureCards = [
 .pulse-dot {
   width: 10px;
   height: 10px;
-  border-radius: 999px;
-  background: #006953;
-  box-shadow: 0 0 0 0 rgba(0, 105, 83, 0.45);
+  border-radius: 50%;
+  background: var(--secondary);
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
   animation: pulse 1.8s infinite;
 }
 
 @keyframes pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(0, 105, 83, 0.45);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
   }
   70% {
-    box-shadow: 0 0 0 12px rgba(0, 105, 83, 0);
+    box-shadow: 0 0 0 12px rgba(34, 197, 94, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(0, 105, 83, 0);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
   }
 }
 
@@ -336,101 +360,107 @@ const featureCards = [
   width: 48px;
   height: 48px;
   border: none;
-  border-radius: 999px;
-  background: #006953;
+  border-radius: 4px;
+  background: var(--primary);
   color: #ffffff;
   font-size: 1.6rem;
   cursor: pointer;
 }
 
 .featured-section {
-  padding-top: 7rem;
-  padding-bottom: 7rem;
+  padding-top: 3rem;
+  padding-bottom: 5rem;
 }
 
 .bento-grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 1.5rem;
+  display: flex;
+  gap: 1.25rem;
+}
+
+.grid-left-col {
+  flex: 0 0 calc(66.66% - 0.625rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.grid-right-col {
+  flex: 0 0 calc(33.33% - 0.625rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .bento-card {
   position: relative;
   overflow: hidden;
-  border-radius: 28px;
-  min-height: 320px;
-  box-shadow: 0 24px 50px rgba(25, 28, 28, 0.06);
+  border-radius: 8px; /* Softer radius */
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-light);
+  width: 100%;
 }
 
 .bento-feature {
-  grid-column: span 8;
-  min-height: 520px;
-}
-
-.feature-image,
-.feature-overlay {
-  position: absolute;
-  inset: 0;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .feature-image {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
-    linear-gradient(135deg, rgba(0, 105, 83, 0.18), rgba(19, 132, 106, 0.04)),
-    url('/src/assets/hero_bg.png') center/cover;
-  transition: transform 0.7s ease;
-}
-
-.bento-feature:hover .feature-image {
-  transform: scale(1.07);
+  position: relative;
+  height: 360px;
+  background: url('/src/assets/hero_bg.png') center/cover;
+  border-bottom: 4px solid var(--primary);
 }
 
 .feature-overlay {
-  background: linear-gradient(180deg, transparent 15%, rgba(25, 28, 28, 0.82) 100%);
+  display: none; /* Removed gradient */
 }
 
 .feature-content {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 2;
-  padding: 2.2rem;
-  color: #ffffff;
+  position: relative;
+  padding: 1.8rem;
+  color: var(--text-dark);
+  background: #ffffff;
 }
 
 .feature-badge {
   display: inline-flex;
-  margin-bottom: 0.9rem;
-  padding: 0.45rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  font-size: 0.72rem;
-  font-weight: 700;
+  margin-bottom: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 2px;
+  background: var(--bg-soft);
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .feature-content h2 {
-  margin-bottom: 0.85rem;
-  font-size: 2.2rem;
-  line-height: 1.1;
+  margin-bottom: 0.6rem;
+  font-size: 1.8rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text-dark);
 }
 
 .feature-content p {
-  max-width: 520px;
-  color: rgba(255, 255, 255, 0.86);
-  line-height: 1.7;
+  color: var(--text-muted);
+  line-height: 1.6;
+  font-size: 0.95rem;
+  max-width: 100%;
 }
 
 .bento-lounge {
-  grid-column: span 4;
-  padding: 2.2rem;
-  background: linear-gradient(180deg, #13846a 0%, #0f745e 100%);
-  color: #f5fff9;
+  padding: 1.8rem;
+  background: var(--text-dark);
+  color: #ffffff;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  border: none;
 }
 
 .icon-wrap {
@@ -439,37 +469,45 @@ const featureCards = [
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 20px;
+  border-radius: 12px;
   margin-bottom: 1.5rem;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.15);
   font-size: 1.8rem;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .bento-lounge h3,
 .bento-mixers h3,
 .bento-shop h3 {
-  margin-bottom: 0.8rem;
-  font-size: 2rem;
-  line-height: 1.15;
+  margin-bottom: 0.5rem;
+  font-size: 1.4rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .bento-lounge p,
 .bento-mixers p,
 .shop-copy p {
-  line-height: 1.75;
+  line-height: 1.6;
+  font-size: 0.9rem;
+}
+
+.bento-lounge p {
+  color: #cbd5e1;
 }
 
 .capacity-block {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
 }
 
 .capacity-track {
   width: 100%;
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
 }
 
@@ -477,26 +515,26 @@ const featureCards = [
   width: 68%;
   height: 100%;
   border-radius: inherit;
-  background: #f5fff9;
+  background: var(--primary);
 }
 
 .capacity-block span {
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  color: #94a3b8;
 }
 
 .bento-mixers {
-  grid-column: span 4;
-  padding: 2.2rem;
-  background: #e7e8e8;
-  color: #191c1c;
+  padding: 1.8rem;
+  background: #ffffff;
+  color: var(--text-dark);
 }
 
 .calendar {
-  color: #006953;
-  background: rgba(0, 105, 83, 0.1);
+  color: var(--primary);
+  background: var(--bg-soft);
 }
 
 .inline-link {
@@ -504,8 +542,9 @@ const featureCards = [
   align-items: center;
   gap: 0.6rem;
   margin-top: 1rem;
-  color: #006953;
-  font-weight: 800;
+  color: var(--primary);
+  font-weight: 500;
+  text-transform: uppercase;
 }
 
 .inline-link span {
@@ -517,10 +556,8 @@ const featureCards = [
 }
 
 .bento-shop {
-  grid-column: span 8;
-  padding: 2.6rem;
+  padding: 1.8rem;
   background: #ffffff;
-  border: 1px solid rgba(189, 201, 195, 0.4);
   display: flex;
   align-items: center;
   gap: 2rem;
@@ -539,10 +576,10 @@ const featureCards = [
 
 .brand-list span {
   padding: 0.75rem 1rem;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #f8f9f9;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.12em;
 }
 
@@ -553,98 +590,24 @@ const featureCards = [
 }
 
 .racket-card {
-  width: 220px;
-  height: 260px;
-  border-radius: 28px;
-  transform: rotate(6deg) scale(1.04);
+  width: 180px;
+  height: 220px;
+  border-radius: 4px;
+  transform: rotate(4deg);
   background:
-    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.28), transparent 18%),
-    radial-gradient(circle at 58% 70%, rgba(225, 255, 0, 0.26), transparent 18%),
-    linear-gradient(135deg, rgba(0, 105, 83, 0.18), rgba(19, 132, 106, 0.04)),
-    #eef1f1;
-  box-shadow: 0 30px 50px rgba(25, 28, 28, 0.08);
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.8), transparent 18%),
+    radial-gradient(circle at 58% 70%, rgba(34, 197, 94, 0.4), transparent 18%),
+    #e2e8f0;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
 }
 
-.club-footer-section {
-  padding: 5rem 0 2.2rem;
-  background: #ffffff;
-  border-top: 1px solid rgba(189, 201, 195, 0.3);
-}
-
-.footer-shell {
-  display: flex;
-  justify-content: space-between;
-  gap: 3rem;
-}
-
-.footer-branding {
-  max-width: 420px;
-}
-
-.footer-branding h2 {
-  margin-bottom: 1rem;
-  font-size: 3rem;
-  line-height: 1;
-  letter-spacing: -0.05em;
-  color: #123f34;
-}
-
-.footer-branding p {
-  color: #4e6073;
-  line-height: 1.8;
-}
-
-.footer-links-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 2.5rem;
-}
-
-.footer-links-grid h4 {
-  margin-bottom: 1rem;
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #006953;
-}
-
-.footer-links-grid ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 0.9rem;
-}
-
-.footer-links-grid li,
-.social-links span {
-  color: #4e6073;
-}
-
-.social-links {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.footer-bottom-bar {
-  margin-top: 4rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid rgba(189, 201, 195, 0.3);
-  color: rgba(78, 96, 115, 0.8);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-@media (max-width: 1100px) {
-  .bento-feature,
-  .bento-lounge,
-  .bento-mixers,
-  .bento-shop {
-    grid-column: span 12;
+@media (max-width: 1024px) {
+  .bento-grid {
+    flex-direction: column;
+  }
+  
+  .grid-left-col, .grid-right-col {
+    flex: 1 1 100%;
   }
 
   .bento-shop {
@@ -654,60 +617,158 @@ const featureCards = [
 
   .shop-visual {
     width: 100%;
-    justify-content: flex-start;
-  }
-
-  .footer-shell {
-    flex-direction: column;
+    justify-content: center;
   }
 }
 
+.news-section {
+  padding-bottom: 5rem;
+}
+
+.section-header {
+  margin-bottom: 2.5rem;
+}
+
+.section-kicker {
+  display: block;
+  color: var(--primary);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.section-header h2 {
+  font-family: var(--font-main);
+  font-size: 2.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--text-dark);
+  letter-spacing: -0.01em;
+}
+
+.news-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.news-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+}
+
+.news-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+.news-img-wrap {
+  position: relative;
+  height: 200px;
+}
+
+.news-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.news-cat {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: var(--primary);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-radius: 2px;
+}
+
+.news-body {
+  padding: 1.5rem;
+}
+
+.news-date {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.news-body h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.8rem;
+  line-height: 1.3;
+  color: var(--text-dark);
+}
+
+.news-body p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 1.2rem;
+  line-height: 1.6;
+}
+
+.news-link {
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.news-link span {
+  transition: transform 0.2s ease;
+}
+
+.news-link:hover span {
+  transform: translateX(4px);
+}
+
+
 @media (max-width: 768px) {
   .hero-section {
-    min-height: 760px;
-  }
-
-  .hero-copy {
-    padding: 3rem 0 5rem;
-  }
-
-  .hero-copy h1 {
-    font-size: 3.2rem;
-  }
-
-  .hero-copy p {
-    font-size: 1rem;
-  }
-
-  .hero-accent-card {
-    right: 16px;
-    left: 16px;
-    bottom: 16px;
-    justify-content: space-between;
-  }
-
-  .featured-section {
-    padding-top: 4.5rem;
-    padding-bottom: 4.5rem;
-  }
-
-  .bento-card,
-  .bento-feature {
     min-height: auto;
   }
 
-  .bento-feature {
-    min-height: 420px;
+  .hero-copy {
+    padding: 3rem 0;
   }
 
-  .bento-mixers,
-  .bento-lounge,
-  .bento-shop {
-    padding: 1.6rem;
+  .hero-copy h1 {
+    font-size: 2.2rem;
   }
 
-  .footer-links-grid {
-    grid-template-columns: 1fr;
+  .hero-accent-card {
+    display: none;
+  }
+
+  .featured-section {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+
+  .feature-image {
+    height: 240px;
+  }
+
+  .section-header h2 {
+    font-size: 1.8rem;
+  }
+
+  .news-img-wrap {
+    height: 180px;
   }
 }
 </style>

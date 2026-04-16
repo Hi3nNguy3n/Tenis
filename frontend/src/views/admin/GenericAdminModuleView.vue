@@ -55,7 +55,7 @@ const nextSteps = computed(() => [
 
 .hero-card,
 .info-card {
-  border-radius: 28px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 22px 40px rgba(16, 30, 26, 0.08);
 }
@@ -76,7 +76,7 @@ const nextSteps = computed(() => [
   display: inline-flex;
   margin-bottom: 12px;
   padding: 8px 12px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(20, 98, 80, 0.08);
   color: #0f5c4d;
   font-size: 0.76rem;
@@ -102,7 +102,7 @@ const nextSteps = computed(() => [
 .status-chip {
   min-width: 108px;
   padding: 10px 14px;
-  border-radius: 999px;
+  border-radius: 8px;
   text-align: center;
   background: linear-gradient(135deg, #d7f171 0%, #b4db55 100%);
   color: #193126;

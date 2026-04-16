@@ -198,20 +198,19 @@ router.beforeEach(async (to) => {
     await authStore.fetchCurrentProfile()
   }
 
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    return {
-      name: 'login',
-      query: { redirect: to.fullPath },
-    }
-  }
-
   if (to.meta.adminLayout && !authStore.isAdmin) {
     if (authStore.isAuthenticated) {
-      // Nếu đã login nhưng không phải admin, buộc logout để login lại bằng account admin
       authStore.logout()
     }
     return {
       name: 'admin-login',
+      query: { redirect: to.fullPath },
+    }
+  }
+
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    return {
+      name: 'login',
       query: { redirect: to.fullPath },
     }
   }

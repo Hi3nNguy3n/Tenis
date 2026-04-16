@@ -124,7 +124,7 @@ const handleResetPassword = async () => {
   position: absolute;
   top: -10%; right: -5%;
   width: 40vw; height: 40vw;
-  background: radial-gradient(circle, rgba(0, 105, 83, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(21, 128, 61, 0.08) 0%, transparent 70%);
   z-index: 1;
 }
 
@@ -151,14 +151,14 @@ const handleResetPassword = async () => {
 .brand-logotype {
   font-size: 1.5rem;
   font-weight: 800;
-  color: #006953;
+  color: var(--primary);
   margin-bottom: 2rem;
   letter-spacing: -0.05em;
 }
 
 .auth-header h1 {
   font-size: 2rem;
-  color: #123f34;
+  color: var(--text-dark);
   margin-bottom: 0.8rem;
   line-height: 1.1;
   letter-spacing: -0.02em;
@@ -197,17 +197,17 @@ const handleResetPassword = async () => {
 }
 
 .input-wrapper input:focus {
-  border-color: #006953; background: white; outline: none;
+  border-color: var(--primary); background: white; outline: none;
 }
 
 .submit-btn {
   width: 100%; padding: 1.2rem; border-radius: 16px; border: none;
-  background: #006953; color: white; font-weight: 800; font-size: 1.05rem;
+  background: var(--primary); color: white; font-weight: 800; font-size: 1.05rem;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  gap: 12px; box-shadow: 0 15px 30px rgba(0, 105, 83, 0.15); transition: 0.2s;
+  gap: 12px; box-shadow: 0 15px 30px rgba(21, 128, 61, 0.15); transition: 0.2s;
 }
 
-.submit-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 20px 40px rgba(0, 105, 83, 0.2); }
+.submit-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 20px 40px rgba(21, 128, 61, 0.2); }
 .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .btn-arrow { transition: 0.2s; }
@@ -215,12 +215,12 @@ const handleResetPassword = async () => {
 
 .back-link-btn {
   width: 100%; background: none; border: none; padding: 1rem;
-  color: #006953; font-weight: 700; cursor: pointer; font-size: 0.9rem;
+  color: var(--primary); font-weight: 700; cursor: pointer; font-size: 0.9rem;
 }
 
 .auth-footer { text-align: center; border-top: 1px solid #f0f2f2; padding-top: 2rem; }
 .auth-footer a { color: #4e6073; text-decoration: none; font-weight: 700; font-size: 0.95rem; }
-.auth-footer a:hover { color: #006953; }
+.auth-footer a:hover { color: var(--primary); }
 
 @media (max-width: 480px) {
   .auth-card { padding: 2.5rem 1.5rem; }

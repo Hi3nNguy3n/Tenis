@@ -108,7 +108,7 @@ const login = async () => {
       <section class="brand-panel">
         <div class="brand-content">
           <div>
-            <p class="brand-kicker">Member Lounge</p>
+            <p class="brand-kicker">KHU VỰC THÀNH VIÊN</p>
             <h1 id="login-page-heading">Saigon Tennis</h1>
             <p class="brand-description">
               Nâng tầm trải nghiệm tennis ngay tại trung tâm thành phố với hệ sinh thái thi đấu,
@@ -227,7 +227,7 @@ const login = async () => {
   padding: 24px;
   background:
     radial-gradient(circle at top right, rgba(120, 216, 186, 0.12), transparent 28%),
-    radial-gradient(circle at bottom left, rgba(0, 105, 83, 0.12), transparent 26%),
+    radial-gradient(circle at bottom left, rgba(21, 128, 61, 0.12), transparent 26%),
     linear-gradient(180deg, #f8f9f9 0%, #eef1f1 100%);
   color: #191c1c;
 }
@@ -238,7 +238,7 @@ const login = async () => {
   margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(420px, 0.8fr);
-  border-radius: 28px;
+  border-radius: 8px;
   overflow: hidden;
   background: #ffffff;
   box-shadow: 0 24px 60px rgba(25, 28, 28, 0.08);
@@ -253,8 +253,8 @@ const login = async () => {
     45deg,
     transparent,
     transparent 40px,
-    rgba(189, 201, 195, 0.08) 40px,
-    rgba(189, 201, 195, 0.08) 41px
+    rgba(226, 232, 240, 0.08) 40px,
+    rgba(226, 232, 240, 0.08) 41px
   );
   pointer-events: none;
 }
@@ -266,7 +266,7 @@ const login = async () => {
   justify-content: space-between;
   padding: 56px;
   overflow: hidden;
-  background: linear-gradient(135deg, #006953 0%, #13846a 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: #ffffff;
 }
 
@@ -316,7 +316,7 @@ const login = async () => {
   bottom: -100px;
   width: 380px;
   height: 380px;
-  border-radius: 999px;
+  border-radius: 8px;
   border: 32px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -327,7 +327,7 @@ const login = async () => {
   transform: translateY(-50%);
   width: 260px;
   height: 260px;
-  border-radius: 999px;
+  border-radius: 8px;
   background:
     radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.36), transparent 26%),
     radial-gradient(circle at 50% 50%, rgba(148, 245, 214, 0.7), rgba(120, 216, 186, 0.18));
@@ -365,7 +365,7 @@ const login = async () => {
   font-size: 1.9rem;
   font-weight: 800;
   letter-spacing: -0.05em;
-  color: #006953;
+  color: var(--primary);
 }
 
 .form-header {
@@ -410,7 +410,7 @@ const login = async () => {
 .feedback-success {
   background: rgba(19, 132, 106, 0.1);
   border-color: rgba(19, 132, 106, 0.16);
-  color: #006953;
+  color: var(--primary);
 }
 
 .auth-form {
@@ -442,22 +442,22 @@ const login = async () => {
 .field-label-row a {
   font-size: 0.84rem;
   font-weight: 600;
-  color: #006953;
+  color: var(--primary);
 }
 
 .field-control {
   position: relative;
   display: flex;
   align-items: center;
-  border-radius: 18px;
+  border-radius: 8px;
   background: #f3f4f4;
   border: 1px solid transparent;
   transition: 0.25s ease;
 }
 
 .field-control:focus-within {
-  border-color: rgba(0, 105, 83, 0.22);
-  box-shadow: 0 0 0 4px rgba(0, 105, 83, 0.08);
+  border-color: rgba(21, 128, 61, 0.22);
+  box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.08);
 }
 
 .field-control svg {
@@ -500,7 +500,7 @@ const login = async () => {
   right: 14px;
   border: none;
   background: transparent;
-  color: #006953;
+  color: var(--primary);
   font: inherit;
   font-size: 0.88rem;
   font-weight: 700;
@@ -515,21 +515,21 @@ const login = async () => {
   min-height: 60px;
   margin-top: 8px;
   border: none;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #006953 0%, #13846a 100%);
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: #ffffff;
   font: inherit;
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow: 0 18px 30px rgba(0, 105, 83, 0.22);
+  box-shadow: 0 18px 30px rgba(21, 128, 61, 0.22);
   transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
 }
 
 .submit-button:hover:not(:disabled) {
   transform: translateY(-1px) scale(1.01);
-  box-shadow: 0 22px 36px rgba(0, 105, 83, 0.26);
+  box-shadow: 0 22px 36px rgba(21, 128, 61, 0.26);
 }
 
 .submit-button:disabled {
@@ -555,7 +555,7 @@ const login = async () => {
 .form-footer a {
   margin-left: 6px;
   font-weight: 800;
-  color: #006953;
+  color: var(--primary);
 }
 
 @media (max-width: 1080px) {
@@ -575,7 +575,7 @@ const login = async () => {
 
   .login-shell {
     min-height: calc(100vh - 32px);
-    border-radius: 24px;
+    border-radius: 8px;
   }
 
   .brand-panel {
