@@ -168,12 +168,12 @@ onMounted(loadCourts)
 <style scoped>
 .module-shell { display: grid; gap: 24px; }
 .hero-card, .filter-card, .table-card {
-  background: white; padding: 24px; border-radius: 28px;
+  background: white; padding: 24px; border-radius: 8px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.03);
 }
 .hero-card { display: flex; justify-content: space-between; align-items: flex-end; }
-.section-kicker { font-size: 0.75rem; font-weight: 800; color: #006953; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px; }
-.hero-card h2 { font-size: 2.22rem; color: #123f34; margin: 0; }
+.section-kicker { font-size: 0.75rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px; }
+.hero-card h2 { font-size: 2.22rem; color: var(--text-dark); margin: 0; }
 .hero-card p { color: #6e7a74; margin-top: 8px; }
 .filter-card { display: flex; gap: 15px; }
 </style>

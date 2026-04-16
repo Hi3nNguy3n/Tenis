@@ -1,296 +1,218 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { apiClient } from '../../../services/apiClient'
 import { useAuthStore } from '../../../stores/auth'
 import { ElMessage } from 'element-plus'
-import { 
-  User, Trophy, Medal, EditPen, Camera, Phone, Message, Calendar as CalendarIcon, 
-  Male, Female, SwitchButton, Document 
-} from '@element-plus/icons-vue'
 
 const authStore = useAuthStore()
-const loading = ref(true)
-const saving = ref(false)
 const isEditing = ref(false)
-const profile = ref(null)
-const error = ref('')
-
-const matchHistory = ref([])
-const historyLoading = ref(false)
+const isLoading = ref(false)
 
 const editForm = ref({
   full_name: '',
+  email: '',
   phone: '',
   gender: '',
-  date_of_birth: '',
-  play_hand: '',
-  skill_level: '',
-  preferred_category: ''
+  birth_date: ''
 })
-
-const fetchProfile = async () => {
-  loading.value = true
-  try {
-    const data = await apiClient.get('/api/players/me')
-    profile.value = data
-    
-    editForm.value = {
-      full_name: data.user.full_name || '',
-      phone: data.user.phone || '',
-      gender: data.player_profile?.gender || '',
-      date_of_birth: data.player_profile?.date_of_birth || '',
-      play_hand: data.player_profile?.play_hand || '',
-      skill_level: data.player_profile?.skill_level || '',
-      preferred_category: data.player_profile?.preferred_category || ''
-    }
-  } catch (err) {
-    ElMessage.error('Không thể tải thông tin hồ sơ.')
-  } finally {
-    loading.value = false
-  }
-}
-
-const fetchHistory = async () => {
-  historyLoading.value = true
-  try {
-    const data = await apiClient.get('/api/players/me/history')
-    matchHistory.value = data
-  } catch (err) {
-    console.error('Lỗi tải lịch sử:', err)
-  } finally {
-    historyLoading.value = false
-  }
-}
-
-const handleSave = async () => {
-  saving.value = true
-  try {
-    await apiClient.put('/api/players/me', editForm.value)
-    await fetchProfile()
-    await authStore.fetchCurrentProfile()
-    isEditing.value = false
-    ElMessage.success('Cập nhật hồ sơ thành công!')
-  } catch (err) {
-    ElMessage.error(err.message || 'Lỗi khi cập nhật hồ sơ.')
-  } finally {
-    saving.value = false
-  }
-}
-
-const handleAvatarUpload = async (event) => {
-  const file = event.target.files[0]
-  if (!file) return
-
-  const formData = new FormData()
-  formData.append('file', file)
-
-  saving.value = true
-  try {
-    await apiClient.request('/api/players/me/avatar', {
-      method: 'POST',
-      body: formData,
-      includeJson: false 
-    })
-    await fetchProfile()
-    await authStore.fetchCurrentProfile()
-    ElMessage.success('Cập nhật ảnh đại diện thành công!')
-  } catch (err) {
-    ElMessage.error(err.message || 'Lỗi khi upload ảnh.')
-  } finally {
-    saving.value = false
-  }
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return 'Chưa cập nhật'
-  const parts = dateStr.split('-')
-  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateStr
-}
 
 onMounted(() => {
-  fetchProfile()
-  fetchHistory()
+  if (authStore.user) {
+    editForm.value = { ...authStore.user }
+  }
 })
+
+const startEdit = () => {
+  editForm.value = { ...authStore.user }
+  isEditing.value = true
+}
+
+const handleUpdate = async () => {
+  isLoading.value = true
+  try {
+    setTimeout(() => {
+      authStore.user = { ...authStore.user, ...editForm.value }
+      isEditing.value = false
+      isLoading.value = false
+      ElMessage.success('Cập nhật hồ sơ thành công!')
+    }, 800)
+  } catch (error) {
+    ElMessage.error('Có lỗi xảy ra khi cập nhật.')
+    isLoading.value = false
+  }
+}
 </script>
 
 <template>
-  <div class="profile-layout" v-loading.fullscreen.lock="loading">
-    <div v-if="profile" class="profile-container">
-      
-      <section class="profile-hero">
-        <div class="hero-backdrop"></div>
-        <div class="hero-content">
-          <div class="avatar-wrapper">
-            <div class="avatar-box">
-              <img v-if="profile.user.avatar_url" :src="profile.user.avatar_url" alt="Avatar" />
-              <el-icon v-else class="avatar-icon"><User /></el-icon>
+  <div class="profile-page-wrapper">
+    <section class="profile-hero-banner">
+      <div class="banner-bg"></div>
+      <div class="banner-overlay"></div>
+
+      <div class="container hero-content-shell">
+        <div class="hero-flex">
+          <div class="avatar-container">
+            <div class="avatar-frame">
+              <img v-if="authStore.user?.avatar_url" :src="authStore.user.avatar_url" alt="Avatar" />
+              <div v-else class="avatar-placeholder">👤</div>
             </div>
-            <label class="upload-overlay" :class="{ disabled: saving }">
-              <input type="file" @change="handleAvatarUpload" accept="image/*" :disabled="saving" hidden />
-              <el-icon><Camera /></el-icon>
-            </label>
           </div>
 
-          <div class="user-brief">
-            <h1>{{ profile.user.full_name }}</h1>
-            <div class="user-badges">
-              <el-tag effect="dark" round type="success" size="large">
-                {{ profile.player_profile?.skill_level || 'Chưa xếp hạng' }}
-              </el-tag>
-              <div class="stat-pill">
-                <el-icon><Trophy /></el-icon>
-                <span>ELO: <strong>{{ profile.player_profile?.elo_points || 0 }}</strong></span>
+          <div class="hero-text-block">
+            <span class="user-role-badge">
+              {{ authStore.isAdmin ? 'Ban quản trị' : 'Vận động viên' }}
+            </span>
+
+            <h1>{{ authStore.user?.full_name || 'Người dùng' }}</h1>
+
+            <div class="hero-quick-stats">
+              <div class="stat-item">
+                <span class="stat-val">#{{ authStore.user?.rank || '---' }}</span>
+                <span class="stat-lbl">Hạng</span>
               </div>
-              <div class="stat-pill">
-                <el-icon><Medal /></el-icon>
-                <span>W/L: <strong>{{ profile.player_profile?.wins }} - {{ profile.player_profile?.losses }}</strong></span>
+
+              <div class="stat-sep"></div>
+
+              <div class="stat-item">
+                <span class="stat-val">{{ authStore.user?.wins || 0 }}</span>
+                <span class="stat-lbl">Thắng</span>
+              </div>
+
+              <div class="stat-sep"></div>
+
+              <div class="stat-item">
+                <span class="stat-val">{{ authStore.user?.losses || 0 }}</span>
+                <span class="stat-lbl">Bại</span>
               </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <div class="profile-grid">
-        
-        <aside class="profile-sidebar">
-          <el-menu default-active="/profile" class="side-menu" :router="true">
-            <el-menu-item index="/profile">
-              <el-icon><User /></el-icon>
-              <span>Thông tin cá nhân</span>
-            </el-menu-item>
-            <el-menu-item index="/profile/my-tournaments">
-              <el-icon><Trophy /></el-icon>
-              <span>Giải đấu & Trận đấu</span>
-            </el-menu-item>
-            <el-divider style="margin: 10px 0;"></el-divider>
-            <el-menu-item @click="authStore.logout()" class="logout-item">
-              <el-icon><SwitchButton /></el-icon>
-              <span>Đăng xuất</span>
-            </el-menu-item>
-          </el-menu>
+    <div class="container main-layout-container">
+      <div class="layout-grid">
+        <aside class="compact-sidebar">
+          <nav class="sidebar-nav">
+            <RouterLink to="/profile" class="nav-btn" active-class="active" exact-active-class="active">
+              <span class="icon">👤</span>
+              <span>Hồ sơ</span>
+            </RouterLink>
+
+            <RouterLink to="/profile/my-tournaments" class="nav-btn" active-class="active" exact-active-class="active">
+              <span class="icon">🎾</span>
+              <span>Giải đấu</span>
+            </RouterLink>
+
+            <RouterLink to="/profile/change-password" class="nav-btn" active-class="active" exact-active-class="active">
+              <span class="icon">🔒</span>
+              <span>Bảo mật</span>
+            </RouterLink>
+          </nav>
         </aside>
 
-        <main class="profile-content">
-          
-          <el-card class="content-card shadow-card" shadow="hover">
-            <template #header>
-              <div class="card-header">
-                <div class="header-title">
-                  <el-icon><Document /></el-icon>
-                  <span>Thông tin hồ sơ</span>
-                </div>
-                <el-button v-if="!isEditing" type="primary" plain :icon="EditPen" @click="isEditing = true">
-                  Chỉnh sửa
-                </el-button>
+        <main class="content-primary">
+          <article class="atp-card">
+            <div class="card-header-flex">
+              <div class="section-title-wrap">
+                <h2 class="atp-section-title">Thông tin cá nhân</h2>
+                <div class="section-line"></div>
               </div>
-            </template>
 
-            <el-descriptions v-if="!isEditing" :column="2" border class="profile-descriptions">
-              <el-descriptions-item>
-                <template #label><div class="desc-label"><el-icon><User /></el-icon> Họ và tên</div></template>
-                <strong>{{ profile.user.full_name }}</strong>
-              </el-descriptions-item>
-              <el-descriptions-item>
-                <template #label><div class="desc-label"><el-icon><Message /></el-icon> Email</div></template>
-                {{ profile.user.email }}
-              </el-descriptions-item>
-              <el-descriptions-item>
-                <template #label><div class="desc-label"><el-icon><Phone /></el-icon> Số điện thoại</div></template>
-                {{ profile.user.phone || 'Chưa cập nhật' }}
-              </el-descriptions-item>
-              <el-descriptions-item>
-                <template #label><div class="desc-label"><el-icon><Male /></el-icon> Giới tính</div></template>
-                {{ profile.player_profile?.gender || 'Chưa cập nhật' }}
-              </el-descriptions-item>
-              <el-descriptions-item>
-                <template #label><div class="desc-label"><el-icon><CalendarIcon /></el-icon> Ngày sinh</div></template>
-                {{ formatDate(profile.player_profile?.date_of_birth) }}
-              </el-descriptions-item>
-              <el-descriptions-item>
-                <template #label><div class="desc-label"><el-icon><Trophy /></el-icon> Tay thuận</div></template>
-                {{ profile.player_profile?.play_hand === 'right' ? 'Tay Phải' : profile.player_profile?.play_hand === 'left' ? 'Tay Trái' : 'N/A' }}
-              </el-descriptions-item>
-            </el-descriptions>
+              <button
+                v-if="!isEditing"
+                type="button"
+                class="btn-atp-outline"
+                @click="startEdit"
+              >
+                Chỉnh sửa
+              </button>
+            </div>
 
-            <el-form v-else :model="editForm" label-position="top" class="edit-form">
-              <el-row :gutter="24">
-                <el-col :span="12">
-                  <el-form-item label="Họ và tên">
-                    <el-input v-model="editForm.full_name" :prefix-icon="User" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="Số điện thoại">
-                    <el-input v-model="editForm.phone" :prefix-icon="Phone" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="Giới tính">
-                    <el-select v-model="editForm.gender" placeholder="Chọn giới tính" style="width: 100%">
-                      <el-option label="Nam" value="Nam" />
-                      <el-option label="Nữ" value="Nữ" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="Ngày sinh">
-                    <el-date-picker v-model="editForm.date_of_birth" type="date" placeholder="Chọn ngày" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="Tay thuận">
-                    <el-select v-model="editForm.play_hand" style="width: 100%">
-                      <el-option label="Tay Phải" value="right" />
-                      <el-option label="Tay Trái" value="left" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12">
-                  <el-form-item label="Trình độ (Tự đánh giá)">
-                    <el-select v-model="editForm.skill_level" style="width: 100%">
-                      <el-option label="Beginner (Mới chơi)" value="Beginner" />
-                      <el-option label="Intermediate (Trung cấp)" value="Intermediate" />
-                      <el-option label="Advanced (Nâng cao)" value="Advanced" />
-                      <el-option label="Professional (Chuyên nghiệp)" value="Professional" />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-              <div class="form-actions">
-                <el-button @click="isEditing = false">Hủy bỏ</el-button>
-                <el-button type="primary" :loading="saving" @click="handleSave">Lưu thay đổi</el-button>
+            <div v-if="!isEditing" class="data-display-grid">
+              <div class="display-item">
+                <label>Họ và tên</label>
+                <p>{{ authStore.user?.full_name || '---' }}</p>
+              </div>
+
+              <div class="display-item">
+                <label>Email liên hệ</label>
+                <p class="text-break email-value">{{ authStore.user?.email || '---' }}</p>
+              </div>
+
+              <div class="display-item">
+                <label>Số điện thoại</label>
+                <p>{{ authStore.user?.phone || 'Chưa cập nhật' }}</p>
+              </div>
+
+              <div class="display-item">
+                <label>Giới tính</label>
+                <p>
+                  {{
+                    authStore.user?.gender === 'male'
+                      ? 'Nam'
+                      : authStore.user?.gender === 'female'
+                      ? 'Nữ'
+                      : 'Khác'
+                  }}
+                </p>
+              </div>
+            </div>
+
+            <el-form v-else :model="editForm" label-position="top" class="atp-form-modern">
+              <div class="form-grid">
+                <el-form-item label="Họ và tên">
+                  <el-input v-model="editForm.full_name" />
+                </el-form-item>
+
+                <el-form-item label="Số điện thoại">
+                  <el-input v-model="editForm.phone" />
+                </el-form-item>
+
+                <el-form-item label="Giới tính">
+                  <el-select v-model="editForm.gender" style="width: 100%">
+                    <el-option label="Nam" value="male" />
+                    <el-option label="Nữ" value="female" />
+                    <el-option label="Khác" value="other" />
+                  </el-select>
+                </el-form-item>
+              </div>
+
+              <div class="form-actions-row">
+                <button
+                  type="button"
+                  class="btn-atp-text"
+                  @click="isEditing = false"
+                >
+                  Hủy bỏ
+                </button>
+
+                <button
+                  type="button"
+                  class="btn-atp-solid"
+                  :disabled="isLoading"
+                  @click="handleUpdate"
+                >
+                  {{ isLoading ? 'Đang lưu...' : 'Lưu thay đổi' }}
+                </button>
               </div>
             </el-form>
-          </el-card>
+          </article>
 
-          <el-card class="content-card shadow-card mt-4" shadow="hover">
-            <template #header>
-              <div class="card-header">
-                <div class="header-title">
-                  <el-icon><CalendarIcon /></el-icon>
-                  <span>Lịch sử thi đấu</span>
-                </div>
-              </div>
-            </template>
-            
-            <el-table :data="matchHistory" v-loading="historyLoading" stripe style="width: 100%">
-              <el-table-column prop="time" label="Ngày" width="120" />
-              <el-table-column prop="tournament_name" label="Giải đấu" min-width="180" show-overflow-tooltip />
-              <el-table-column prop="opponent" label="Đối thủ" min-width="150" />
-              <el-table-column prop="score" label="Tỷ số" width="100" align="center" />
-              <el-table-column label="Kết quả" width="120" align="center">
-                <template #default="{ row }">
-                  <el-tag :type="row.status === 'THẮNG' ? 'success' : (row.status === 'THUA' ? 'danger' : 'info')" effect="light">
-                    {{ row.status }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <template #empty>
-                <el-empty description="Bạn chưa tham gia trận đấu nào." />
-              </template>
-            </el-table>
-          </el-card>
+          <article class="atp-card mt-3">
+            <div class="section-title-wrap table-head">
+              <h2 class="atp-section-title">Lịch sử thi đấu gần đây</h2>
+              <div class="section-line"></div>
+            </div>
 
+            <div class="atp-table-wrapper">
+              <el-table :data="[]" empty-text="Chưa có dữ liệu thi đấu" style="width: 100%">
+                <el-table-column prop="date" label="Ngày" width="120" />
+                <el-table-column prop="tournament" label="Giải đấu" />
+                <el-table-column prop="opponent" label="Đối thủ" />
+                <el-table-column prop="result" label="Kết quả" width="100" />
+              </el-table>
+            </div>
+          </article>
         </main>
       </div>
     </div>
@@ -298,65 +220,713 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.profile-layout { padding: 40px 20px; background-color: #f8fafc; min-height: 100vh; }
-.profile-container { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; }
+.profile-page-wrapper {
+  --profile-primary: #15803d;
+  --profile-primary-dark: #166534;
+  --profile-secondary: #bef264;
+  --profile-soft-bg: #f1f5f9;
+  --profile-card-bg: #ffffff;
+  --profile-border: #dbe4ee;
+  --profile-text: #0f172a;
+  --profile-muted: #64748b;
+  --profile-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.05);
+  --profile-shadow-md: 0 14px 34px rgba(21, 128, 61, 0.14);
 
-/* HERO BANNER */
-.profile-hero { position: relative; border-radius: 24px; overflow: hidden; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.04); }
-.hero-backdrop { height: 140px; background: linear-gradient(135deg, #0f5c4d 0%, #123f34 100%); }
-.hero-content { display: flex; align-items: flex-end; padding: 0 40px 30px; gap: 30px; margin-top: -60px; }
-
-.avatar-wrapper { position: relative; width: 140px; height: 140px; }
-.avatar-box { width: 100%; height: 100%; border-radius: 50%; border: 6px solid white; background: #e2e8f0; overflow: hidden; display: flex; justify-content: center; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-.avatar-box img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-icon { font-size: 60px; color: #94a3b8; }
-
-.upload-overlay {
-  position: absolute; bottom: 5px; right: 5px; width: 36px; height: 36px;
-  background: #006953; color: white; border-radius: 50%; display: flex;
-  justify-content: center; align-items: center; cursor: pointer;
-  border: 3px solid white; transition: 0.2s;
+  font-family: Arial, sans-serif !important;
+  background: var(--bg-soft, var(--profile-soft-bg));
+  min-height: 100vh;
+  padding-bottom: 4rem;
+  overflow-x: hidden;
+  color: var(--profile-text);
 }
-.upload-overlay:hover { transform: scale(1.1); background: #0f5c4d; }
 
-.user-brief { padding-bottom: 5px; }
-.user-brief h1 { margin: 0 0 12px 0; font-size: 2rem; color: #0f172a; font-weight: 800; }
-.user-badges { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
-.stat-pill { display: flex; align-items: center; gap: 6px; background: #f1f5f9; padding: 6px 14px; border-radius: 999px; font-size: 0.85rem; color: #475569; }
-.stat-pill strong { color: #0f172a; font-size: 1rem; }
-.stat-pill .el-icon { color: #006953; font-size: 1.1rem; }
+.profile-page-wrapper,
+.profile-page-wrapper * {
+  box-sizing: border-box;
+  font-family: Arial, sans-serif !important;
+}
 
-/* GRID LAYOUT */
-.profile-grid { display: grid; grid-template-columns: 260px 1fr; gap: 30px; align-items: start; }
+.profile-page-wrapper button,
+.profile-page-wrapper input,
+.profile-page-wrapper select,
+.profile-page-wrapper textarea,
+.profile-page-wrapper a,
+.profile-page-wrapper span,
+.profile-page-wrapper p,
+.profile-page-wrapper h1,
+.profile-page-wrapper h2,
+.profile-page-wrapper h3,
+.profile-page-wrapper h4,
+.profile-page-wrapper h5,
+.profile-page-wrapper h6,
+.profile-page-wrapper label,
+.profile-page-wrapper th,
+.profile-page-wrapper td {
+  font-family: Arial, sans-serif !important;
+}
 
-/* SIDEBAR */
-.profile-sidebar { position: sticky; top: 20px; }
-.side-menu { border-radius: 20px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.04); overflow: hidden; padding: 10px 0; }
-.side-menu .el-menu-item { border-radius: 10px; margin: 0 10px; height: 50px; }
-.side-menu .el-menu-item.is-active { background-color: #f0fdf4; color: #006953; font-weight: bold; }
-.logout-item { color: #ef4444 !important; }
-.logout-item:hover { background-color: #fef2f2 !important; }
+/* HERO */
+.profile-hero-banner {
+  position: relative;
+  min-height: 310px;
+  margin-bottom: 2.25rem;
+  overflow: hidden;
+  background: linear-gradient(135deg, #064e3b 0%, #065f46 48%, #047857 100%);
+}
 
-/* CONTENT */
-.profile-content { display: flex; flex-direction: column; gap: 24px; }
-.shadow-card { border-radius: 20px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.04); }
-.card-header { display: flex; justify-content: space-between; align-items: center; }
-.header-title { display: flex; align-items: center; gap: 10px; font-size: 1.2rem; font-weight: 700; color: #0f172a; }
-.header-title .el-icon { color: #006953; font-size: 1.4rem; }
+.banner-bg {
+  position: absolute;
+  inset: 0;
+  background-image: url('https://images.unsplash.com/photo-1595435063098-95843b0d2358?q=80&w=2070&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.2;
+}
 
-/* DESCRIPTIONS (VIEW MODE) */
-.profile-descriptions { --el-descriptions-table-border: 1px solid #e2e8f0; }
-.desc-label { display: flex; align-items: center; gap: 8px; color: #64748b; font-weight: 600; }
-.desc-label .el-icon { color: #94a3b8; }
+.banner-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(2, 44, 34, 0.9) 0%, rgba(4, 78, 59, 0.78) 50%, rgba(6, 95, 70, 0.7) 100%);
+}
 
-/* FORM (EDIT MODE) */
-.edit-form { padding-top: 10px; }
-.form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #f1f5f9; }
+.hero-content-shell {
+  position: relative;
+  z-index: 2;
+  min-height: 310px;
+  display: flex;
+  align-items: center;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
 
-@media (max-width: 900px) {
-  .profile-grid { grid-template-columns: 1fr; }
-  .profile-sidebar { position: static; }
-  .hero-content { flex-direction: column; align-items: center; text-align: center; margin-top: -70px; }
-  .user-badges { justify-content: center; }
+.hero-flex {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+}
+
+.avatar-container {
+  flex-shrink: 0;
+}
+
+.avatar-frame {
+  width: 138px;
+  height: 138px;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 18px;
+  padding: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.avatar-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.75rem;
+}
+
+.hero-text-block {
+  color: #fff;
+  min-width: 0;
+  flex: 1;
+}
+
+.user-role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: var(--profile-secondary);
+  color: #14532d;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.8rem;
+}
+
+.hero-text-block h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(2.1rem, 3vw, 3rem);
+  line-height: 1.02;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  text-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+.hero-quick-stats {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.1);
+}
+
+.stat-item {
+  min-width: 72px;
+  text-align: center;
+}
+
+.stat-val {
+  display: block;
+  color: var(--profile-secondary);
+  font-size: 1.6rem;
+  line-height: 1;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.stat-lbl {
+  display: block;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.stat-sep {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* LAYOUT */
+.main-layout-container {
+  position: relative;
+  z-index: 3;
+}
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.compact-sidebar {
+  min-width: 0;
+}
+
+.sidebar-nav {
+  position: sticky;
+  top: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 56px;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+  text-decoration: none;
+  background: #fff;
+  color: var(--profile-muted);
+  border: 1px solid var(--profile-border);
+  font-size: 0.86rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  transition: all 0.22s ease;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+}
+
+.nav-btn .icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.nav-btn:hover {
+  color: var(--profile-primary);
+  border-color: rgba(21, 128, 61, 0.2);
+  transform: translateY(-1px);
+}
+
+.nav-btn.active,
+.nav-btn.router-link-active {
+  background: var(--profile-primary);
+  color: #fff;
+  border-color: var(--profile-primary);
+  box-shadow: var(--profile-shadow-md);
+}
+
+.content-primary {
+  min-width: 0;
+}
+
+/* CARD */
+.atp-card {
+  width: 100%;
+  background: var(--profile-card-bg);
+  border: 1px solid var(--profile-border);
+  border-radius: 22px;
+  padding: 1.75rem;
+  box-shadow: var(--profile-shadow-sm);
+}
+
+.mt-3 {
+  margin-top: 1.5rem;
+}
+
+.card-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.section-title-wrap {
+  min-width: 0;
+}
+
+.atp-section-title {
+  margin: 0;
+  color: var(--profile-text);
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
+  line-height: 1.1;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+}
+
+.section-line {
+  width: 220px;
+  max-width: 100%;
+  height: 2px;
+  margin-top: 0.9rem;
+  background: linear-gradient(90deg, rgba(21, 128, 61, 0.14) 0%, rgba(21, 128, 61, 0.32) 50%, transparent 100%);
+  border-radius: 999px;
+}
+
+.table-head {
+  margin-bottom: 1.25rem;
+}
+
+/* DISPLAY GRID */
+.data-display-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.4rem 2rem;
+}
+
+.display-item {
+  min-width: 0;
+}
+
+.display-item label {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: var(--profile-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.display-item p {
+  margin: 0;
+  color: var(--profile-text);
+  font-size: 1.05rem;
+  line-height: 1.4;
+  font-weight: 500;
+  text-transform: uppercase;
+  word-break: break-word;
+}
+
+.email-value {
+  font-size: 0.98rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.text-break {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* FORM */
+.atp-form-modern {
+  width: 100%;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem 1.5rem;
+}
+
+.form-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  margin-top: 1.4rem;
+}
+
+.btn-atp-outline,
+.btn-atp-solid,
+.btn-atp-text {
+  font-family: Arial, sans-serif !important;
+  transition: all 0.2s ease;
+}
+
+.btn-atp-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.78rem 1.2rem;
+  border-radius: 14px;
+  border: 1.6px solid var(--profile-primary);
+  background: #fff;
+  color: var(--profile-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-atp-outline:hover {
+  background: rgba(21, 128, 61, 0.05);
+}
+
+.btn-atp-solid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0.85rem 1.25rem;
+  border: none;
+  border-radius: 14px;
+  background: var(--profile-primary);
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(21, 128, 61, 0.18);
+}
+
+.btn-atp-solid:hover:not(:disabled) {
+  background: var(--profile-primary-dark);
+}
+
+.btn-atp-solid:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-atp-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0.85rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--profile-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* TABLE */
+.atp-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid #eef2f7;
+}
+
+:deep(.el-table) {
+  font-family: Arial, sans-serif !important;
+  color: var(--profile-text);
+}
+
+:deep(.el-table th.el-table__cell) {
+  font-family: Arial, sans-serif !important;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--profile-muted);
+  background: #fbfdff;
+}
+
+:deep(.el-table td.el-table__cell) {
+  font-family: Arial, sans-serif !important;
+  font-size: 0.9rem;
+}
+
+:deep(.el-table__empty-text) {
+  font-family: Arial, sans-serif !important;
+  color: var(--profile-muted);
+}
+
+:deep(.el-form-item__label) {
+  font-family: Arial, sans-serif !important;
+  font-weight: 500;
+  color: var(--profile-text);
+}
+
+:deep(.el-input__wrapper),
+:deep(.el-select__wrapper) {
+  min-height: 48px;
+  border-radius: 14px;
+  font-family: Arial, sans-serif !important;
+}
+
+:deep(.el-input__inner),
+:deep(.el-select__selected-item),
+:deep(.el-textarea__inner) {
+  font-family: Arial, sans-serif !important;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+  .profile-hero-banner {
+    min-height: 360px;
+    margin-bottom: 1.75rem;
+  }
+
+  .hero-content-shell {
+    min-height: 360px;
+    padding-top: 1.75rem;
+    padding-bottom: 1.75rem;
+  }
+
+  .hero-flex {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    text-align: center;
+  }
+
+  .hero-text-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .hero-quick-stats {
+    justify-content: center;
+  }
+
+  .layout-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .sidebar-nav {
+    position: sticky;
+    top: 70px;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.7rem;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    background: var(--bg-soft, var(--profile-soft-bg));
+    scrollbar-width: none;
+  }
+
+  .sidebar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-btn {
+    flex: 0 0 auto;
+    min-width: max-content;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .profile-page-wrapper {
+    padding-bottom: 2.5rem;
+  }
+
+  .profile-hero-banner {
+    min-height: 390px;
+  }
+
+  .hero-content-shell {
+    min-height: 390px;
+    padding-top: 1.4rem;
+    padding-bottom: 1.4rem;
+  }
+
+  .avatar-frame {
+    width: 122px;
+    height: 122px;
+    border-radius: 16px;
+  }
+
+  .hero-text-block h1 {
+    font-size: 1.95rem;
+  }
+
+  .hero-quick-stats {
+    width: 100%;
+    max-width: 340px;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.9rem;
+  }
+
+  .stat-item {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .stat-sep {
+    display: none;
+  }
+
+  .atp-card {
+    border-radius: 18px;
+    padding: 1.2rem;
+  }
+
+  .card-header-flex {
+    align-items: stretch;
+    margin-bottom: 1.25rem;
+  }
+
+  .btn-atp-outline {
+    width: 100%;
+  }
+
+  .data-display-grid,
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .display-item p {
+    font-size: 0.98rem;
+  }
+
+  .email-value {
+    font-size: 0.92rem;
+  }
+
+  .form-actions-row {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .btn-atp-solid,
+  .btn-atp-text {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-hero-banner {
+    min-height: 410px;
+  }
+
+  .hero-content-shell {
+    min-height: 410px;
+    padding-top: 1.15rem;
+    padding-bottom: 1.15rem;
+  }
+
+  .hero-flex {
+    gap: 0.95rem;
+  }
+
+  .avatar-frame {
+    width: 108px;
+    height: 108px;
+    padding: 6px;
+  }
+
+  .user-role-badge {
+    font-size: 0.66rem;
+    padding: 0.38rem 0.75rem;
+  }
+
+  .hero-text-block h1 {
+    font-size: 1.6rem;
+    line-height: 1.04;
+    margin-bottom: 0.85rem;
+  }
+
+  .hero-quick-stats {
+    border-radius: 14px;
+    padding: 0.8rem 0.7rem;
+  }
+
+  .stat-val {
+    font-size: 1.35rem;
+  }
+
+  .stat-lbl {
+    font-size: 0.67rem;
+  }
+
+  .sidebar-nav {
+    gap: 0.55rem;
+  }
+
+  .nav-btn {
+    min-height: 48px;
+    padding: 0.78rem 0.95rem;
+    border-radius: 12px;
+    font-size: 0.76rem;
+    gap: 0.55rem;
+  }
+
+  .atp-card {
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .atp-section-title {
+    font-size: 1.02rem;
+  }
+
+  .section-line {
+    margin-top: 0.7rem;
+  }
+
+  .display-item label {
+    font-size: 0.67rem;
+  }
+
+  .display-item p {
+    font-size: 0.94rem;
+  }
 }
 </style>

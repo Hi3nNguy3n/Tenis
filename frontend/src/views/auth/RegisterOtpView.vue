@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
+import { User, Lock, Phone, Location, Calendar, Warning, Check, Female, Male, Loading } from '@element-plus/icons-vue'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 const SEND_OTP_ENDPOINT = `${API_BASE_URL}/api/auth/send-otp`
@@ -13,7 +14,6 @@ const errorMessage = ref('')
 const successMessage = ref('')
 const showPassword = ref(false)
 
-// Danh sách 34 Tỉnh/Thành phố Việt Nam (Cập nhật mới nhất sau sáp nhập)
 const vietnamProvinces = [
   "An Giang", "Bắc Ninh", "Cà Mau", "Cao Bằng", "Đắk Lắk", 
   "Điện Biên", "Đồng Nai", "Đồng Tháp", "Gia Lai", "Hà Tĩnh", 
@@ -92,51 +92,31 @@ const persistPendingRegistration = () => {
   )
 }
 
-const passwordStrengthLabel = () => {
-  if (form.value.password.length >= 10) {
-    return 'Độ mạnh mật khẩu: Tốt'
-  }
-
-  if (form.value.password.length >= 6) {
-    return 'Độ mạnh mật khẩu: Trung bình'
-  }
-
-  return 'Độ mạnh mật khẩu: Yếu'
-}
-
 const startRegistration = async () => {
   clearMessages()
-
-  if (!validateForm()) {
-    return
-  }
+  if (!validateForm()) return
 
   isSendingOtp.value = true
 
   try {
     const response = await fetch(SEND_OTP_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: form.value.email.trim(),
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.value.email.trim() }),
     })
 
     if (!response.ok) {
-      errorMessage.value = await handleApiError(
-        response,
-        'Không thể gửi mã OTP. Vui lòng kiểm tra email và thử lại.'
-      )
+      errorMessage.value = await handleApiError(response, 'Không thể gửi mã OTP. Vui lòng kiểm tra lại.')
       return
     }
 
     persistPendingRegistration()
-    successMessage.value = 'Mã OTP đã được gửi. Đang chuyển sang bước xác thực...'
-    router.push({ name: 'register-otp-verify' })
+    successMessage.value = 'Mã OTP đã được gửi. Đang chuyển hướng...'
+    setTimeout(() => {
+      router.push({ name: 'register-otp-verify' })
+    }, 1200)
   } catch {
-    errorMessage.value = 'Không kết nối được tới backend. Hãy kiểm tra API server và thử lại.'
+    errorMessage.value = 'Không kết nối được tới server.'
   } finally {
     isSendingOtp.value = false
   }
@@ -144,566 +124,471 @@ const startRegistration = async () => {
 </script>
 
 <template>
-  <div class="register-page">
-    <div class="ghost-lines"></div>
-
-    <header class="register-header">
-      <div class="brand-mark">Saigon Tennis</div>
-    </header>
-
-    <main class="register-main">
-      <section class="register-card">
-        <div class="court-decor" aria-hidden="true">
-          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <rect x="10" y="10" width="80" height="80" fill="none" stroke="currentColor" stroke-width="2" />
-            <line x1="10" y1="50" x2="90" y2="50" stroke="currentColor" stroke-width="2" />
-            <line x1="50" y1="10" x2="50" y2="90" stroke="currentColor" stroke-width="2" />
-          </svg>
+  <div class="veridian-register-layout">
+    <!-- Visual Panel -->
+    <div class="visual-panel">
+      <div class="grid-overlay"></div>
+      <div class="brand-content">
+        <div class="hero-text">
+          <h2 class="text-top">CÔNG NGHỆ</h2>
+          <h2 class="text-bottom">VƯỢT TRỘI</h2>
         </div>
-
-        <header class="register-copy">
-          <p class="copy-kicker">Member Onboarding</p>
-          <h1 id="register-otp-heading">Tạo tài khoản</h1>
-          <p>
-            Gia nhập cộng đồng Saigon Tennis. Chỉ cần nhập thông tin đăng ký, hệ thống sẽ gửi OTP
-            qua email để xác thực ở bước tiếp theo.
-          </p>
-        </header>
-
-        <div v-if="errorMessage" class="feedback feedback-error" role="alert">
-          {{ errorMessage }}
+        <div class="kicker-line">
+          <span class="lime-bar"></span>
+          <p>QUẢN LÝ GIẢI ĐẤU CHUYÊN NGHIỆP</p>
         </div>
-
-        <div v-if="successMessage" class="feedback feedback-success" role="status">
-          {{ successMessage }}
-        </div>
-
-        <form class="register-form" @submit.prevent="startRegistration">
-          <div class="form-grid">
-            <label class="field-group" for="register-full-name">
-              <span>Họ và tên</span>
-              <input
-                id="register-full-name"
-                v-model="form.full_name"
-                type="text"
-                placeholder="Nguyễn Văn A"
-                autocomplete="name"
-                required
-              />
-            </label>
-
-            <label class="field-group" for="register-phone">
-              <span>Số điện thoại</span>
-              <input
-                id="register-phone"
-                v-model="form.phone"
-                type="tel"
-                placeholder="09xx..."
-                required
-              />
-            </label>
-          </div>
-
-          <label class="field-group" for="register-email">
-            <span>Email</span>
-            <div class="input-shell">
-              <input
-                id="register-email"
-                v-model="form.email"
-                type="email"
-                placeholder="name@example.com"
-                autocomplete="email"
-                required
-              />
-            </div>
-          </label>
-
-          <div class="form-grid">
-            <label class="field-group" for="register-province">
-              <span>Tỉnh / Thành</span>
-              <el-select 
-                id="register-province"
-                v-model="form.province" 
-                placeholder="Chọn Tỉnh / Thành" 
-                filterable 
-                style="width: 100%; border-radius: 12px;"
-                size="large"
-              >
-                <el-option 
-                  v-for="province in vietnamProvinces" 
-                  :key="province" 
-                  :label="province" 
-                  :value="province" 
-                />
-              </el-select>
-            </label>
-            <label class="field-group" for="register-dob">
-              <span>Ngày sinh</span>
-              <input
-                id="register-dob"
-                v-model="form.date_of_birth"
-                type="date"
-              />
-            </label>
-          </div>
-
-          <div class="form-grid">
-            <label class="field-group" for="register-gender">
-              <span>Giới tính</span>
-              <select id="register-gender" v-model="form.gender" class="custom-select">
-                <option value="male">Nam</option>
-                <option value="female">Nữ</option>
-                <option value="other">Khác</option>
-              </select>
-            </label>
-            
-            <div class="field-group empty-slot" aria-hidden="true"></div>
-          </div>
-
-          <label class="field-group" for="register-password">
-            <span>Mật khẩu</span>
-            <div class="input-shell with-action">
-              <input
-                id="register-password"
-                v-model="form.password"
-                :type="showPassword ? 'text' : 'password'"
-                placeholder="••••••••"
-                autocomplete="new-password"
-                minlength="6"
-                required
-              />
-              <button
-                id="toggle-register-password"
-                class="toggle-password-btn"
-                type="button"
-                @click="showPassword = !showPassword"
-              >
-                {{ showPassword ? 'Ẩn' : 'Hiện' }}
-              </button>
-            </div>
-            <p class="password-note">{{ passwordStrengthLabel() }}</p>
-          </label>
-
-          <button
-            id="register-submit-button"
-            class="submit-button"
-            type="submit"
-            :disabled="isSendingOtp"
-          >
-            {{ isSendingOtp ? 'Đang gửi OTP...' : 'Đăng ký' }}
-          </button>
-
-          <div class="register-footer">
-            <p>
-              Đã có tài khoản?
-              <RouterLink id="go-login-link" to="/login">Đăng nhập</RouterLink>
-            </p>
-          </div>
-        </form>
-      </section>
-    </main>
-
-    <div class="floating-image floating-image-left" aria-hidden="true"></div>
-    <div class="floating-image floating-image-right" aria-hidden="true"></div>
-
-    <footer class="register-footer-bar">
-      <span>© 2026 SAIGON TENNIS CLUB</span>
-      <div>
-        <span>Privacy</span>
-        <span>Terms</span>
-        <span>Support</span>
       </div>
-    </footer>
+
+      <div class="status-box">
+        <div class="status-inner">
+          <div class="status-label-group">
+            <span class="status-title">TRẠNG THÁI HỆ THỐNG</span>
+            <span class="status-desc">Xác thực Truy cập Sân</span>
+          </div>
+          <div class="status-badge">LIVE</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Panel -->
+    <div class="form-panel">
+      <div class="scroll-container">
+        <div class="onboarding-box">
+          <header class="veridian-header">
+            <p class="pre-title">QUẢN TRỊ VIÊN SAIGON TENNIS</p>
+            <h1>Đăng ký Thành viên</h1>
+            <p class="intro-p">Tạo tài khoản chính thức để đăng ký giải đấu và truy cập hệ thống quản lý.</p>
+          </header>
+
+          <transition name="fade">
+            <div v-if="errorMessage" class="alert-box error">{{ errorMessage }}</div>
+            <div v-else-if="successMessage" class="alert-box success">{{ successMessage }}</div>
+          </transition>
+
+          <form @submit.prevent="startRegistration" class="onboarding-form">
+            <div class="form-row">
+              <div class="field">
+                <label>HỌ VÀ TÊN</label>
+                <div class="input-wrap">
+                  <el-icon class="icon"><User /></el-icon>
+                  <input v-model="form.full_name" type="text" placeholder="Nhập họ và tên" required />
+                </div>
+              </div>
+              <div class="field">
+                <label>SỐ ĐIỆN THOẠI</label>
+                <div class="input-wrap">
+                  <el-icon class="icon"><Phone /></el-icon>
+                  <input v-model="form.phone" type="tel" placeholder="09xxxxxx" required />
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>EMAIL ĐỊNH DANH (NHẬN OTP)</label>
+              <div class="input-wrap">
+                <el-icon class="icon"><User /></el-icon>
+                <input v-model="form.email" type="email" placeholder="email@vi-du.com" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label>KHU VỰC / TỈNH THÀNH</label>
+                <div class="input-wrap">
+                  <el-icon class="icon"><Location /></el-icon>
+                  <select v-model="form.province" class="custom-native-select">
+                    <option value="" disabled selected>Chọn Tỉnh / Thành</option>
+                    <option v-for="p in vietnamProvinces" :key="p" :value="p">{{ p }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label>NGÀY SINH</label>
+                <div class="input-wrap">
+                  <el-icon class="icon"><Calendar /></el-icon>
+                  <input v-model="form.date_of_birth" type="date" />
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="field">
+                <label>GIỚI TÍNH</label>
+                <div class="gender-radio-group">
+                  <label class="radio-item" :class="{ active: form.gender === 'male' }">
+                    <input type="radio" v-model="form.gender" value="male">
+                    <span>NAM</span>
+                  </label>
+                  <label class="radio-item" :class="{ active: form.gender === 'female' }">
+                    <input type="radio" v-model="form.gender" value="female">
+                    <span>NỮ</span>
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <label>MẬT KHẨU TRUY CẬP</label>
+                <div class="input-wrap">
+                  <el-icon class="icon"><Lock /></el-icon>
+                  <input 
+                    v-model="form.password" 
+                    :type="showPassword ? 'text' : 'password'" 
+                    placeholder="••••••••" 
+                    required 
+                  />
+                  <el-button link class="eye-btn" @click="showPassword = !showPassword">
+                    <el-icon v-if="!showPassword"><View /></el-icon><el-icon v-else><Hide /></el-icon>
+                  </el-button>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-options">
+               <label class="remember-check">
+                 <input type="checkbox"> <span>Ghi nhớ phiên đăng nhập</span>
+               </label>
+               <router-link to="/login" class="login-redirect">Đã có tài khoản?</router-link>
+            </div>
+
+            <button type="submit" :disabled="isSendingOtp" class="btn-initialize-session">
+              <span v-if="!isSendingOtp">KHỞI TẠO TÀI KHOẢN <el-icon><Check /></el-icon></span>
+              <el-icon v-else class="is-loading"><Loading /></el-icon>
+            </button>
+          </form>
+
+          <footer class="veridian-footer">
+            <p class="system-version">HỆ THỐNG SAIGON TENNIS V4.2</p>
+            <div class="footer-nav">
+              <a href="#">HỖ TRỢ</a>
+              <a href="#">TRẠNG THÁI MẠNG</a>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.register-page {
-  position: relative;
+.veridian-register-layout {
+  display: flex;
   min-height: 100vh;
+  background: #f7f9fa;
+  color: #1a1c1e;
+  font-family: Arial, sans-serif;
   overflow: hidden;
-  background:
-    radial-gradient(circle at top right, rgba(120, 216, 186, 0.14), transparent 26%),
-    linear-gradient(180deg, #f8f9f9 0%, #eef1f1 100%);
-  color: #191c1c;
 }
 
-.ghost-lines {
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(45deg, transparent 48%, rgba(189, 201, 195, 0.12) 49%, rgba(189, 201, 195, 0.12) 51%, transparent 52%),
-    linear-gradient(-45deg, transparent 48%, rgba(189, 201, 195, 0.12) 49%, rgba(189, 201, 195, 0.12) 51%, transparent 52%);
-  background-size: 60px 60px;
-  pointer-events: none;
-}
-
-.register-header,
-.register-main,
-.register-footer-bar {
+/* --- Visual Side (Left) --- */
+.visual-panel {
+  flex: 1.1;
   position: relative;
-  z-index: 2;
-}
-
-.register-header {
-  padding: 32px 32px 0;
-}
-
-.brand-mark {
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  color: #006953;
-}
-
-.register-main {
-  min-height: calc(100vh - 164px);
+  background: linear-gradient(135deg, #abb1ab 0%, #878c87 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  border-right: 1px solid rgba(0,0,0,0.05);
 }
 
-.register-card {
-  position: relative;
-  width: min(100%, 500px);
-  padding: 40px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 24px 60px rgba(25, 28, 28, 0.08);
-  overflow: hidden;
-}
-
-.court-decor {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 132px;
-  height: 132px;
-  color: rgba(0, 105, 83, 0.12);
-}
-
-.register-copy {
-  position: relative;
-  z-index: 1;
-  margin-bottom: 28px;
-}
-
-.copy-kicker {
-  margin-bottom: 10px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #6e7a74;
-}
-
-.register-copy h1 {
-  margin-bottom: 12px;
-  font-size: 2.5rem;
-  line-height: 1.08;
-  letter-spacing: -0.04em;
-}
-
-.register-copy p {
-  color: #4e6073;
-  line-height: 1.7;
-}
-
-.feedback {
-  margin-bottom: 16px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid transparent;
-  font-size: 0.95rem;
-}
-
-.feedback-error {
-  background: rgba(186, 26, 26, 0.08);
-  border-color: rgba(186, 26, 26, 0.14);
-  color: #93000a;
-}
-
-.feedback-success {
-  background: rgba(19, 132, 106, 0.1);
-  border-color: rgba(19, 132, 106, 0.16);
-  color: #006953;
-}
-
-.register-form {
-  display: grid;
-  gap: 16px;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.custom-select {
-  width: 100%;
-  min-height: 58px;
-  border: none;
-  outline: none;
-  border-radius: 18px;
-  background: #f3f4f4;
-  padding: 0 14px;
-  font: inherit;
-  color: #191c1c;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236e7a74' d='M10.293 3.293 6 7.586 1.707 3.293A1 1 0 0 0 .293 4.707l5 5a1 1 0 0 0 1.414 0l5-5a1 1 0 1 0-1.414-1.414z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 18px center;
-}
-
-.field-group {
-  display: grid;
-  gap: 8px;
-}
-
-.field-group > span {
-  margin-left: 4px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #3e4945;
-}
-
-.field-group input {
-  width: 100%;
-  min-height: 58px;
-  border: none;
-  outline: none;
-  border-radius: 18px;
-  background: #f3f4f4;
-  padding: 0 18px;
-  font: inherit;
-  color: #191c1c;
-}
-
-.field-group input::placeholder {
-  color: #8a9591;
-}
-
-.input-shell {
-  position: relative;
-}
-
-.input-shell input {
-  padding-right: 52px;
-  border: 1px solid transparent;
-  transition: 0.25s ease;
-}
-
-.input-shell input:focus,
-.input-shell.with-action:focus-within input {
-  border-color: rgba(0, 105, 83, 0.24);
-  box-shadow: 0 0 0 4px rgba(0, 105, 83, 0.08);
-}
-
-.input-shell-error input {
-  border-color: rgba(186, 26, 26, 0.24);
-}
-
-.input-status {
-  position: absolute;
-  top: 50%;
-  right: 18px;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: rgba(186, 26, 26, 0.12);
-  color: #ba1a1a;
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.with-action input {
-  padding-right: 78px;
-}
-
-.toggle-password-btn {
-  position: absolute;
-  top: 50%;
-  right: 14px;
-  transform: translateY(-50%);
-  border: none;
-  background: transparent;
-  color: #6e7a74;
-  font: inherit;
-  font-size: 0.86rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.password-strength {
-  display: flex;
-  gap: 6px;
-  padding: 0 4px;
-}
-
-.password-strength span {
-  height: 4px;
-  flex: 1;
-  border-radius: 999px;
-  background: rgba(110, 122, 116, 0.18);
-  transition: 0.25s ease;
-}
-
-.password-strength span.active {
-  background: #13846a;
-}
-
-.password-note {
-  padding: 0 4px;
-  font-size: 0.78rem;
-  color: #4e6073;
-}
-
-.submit-button {
-  min-height: 62px;
-  margin-top: 6px;
-  border: none;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #006953 0%, #13846a 100%);
-  color: #ffffff;
-  font: inherit;
-  font-weight: 800;
-  font-size: 1rem;
-  cursor: pointer;
-  box-shadow: 0 18px 32px rgba(0, 105, 83, 0.18);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
-}
-
-.submit-button:hover:not(:disabled) {
-  transform: translateY(-1px) scale(1.01);
-  box-shadow: 0 22px 38px rgba(0, 105, 83, 0.24);
-}
-
-.submit-button:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
-.register-footer {
-  padding-top: 6px;
-  text-align: center;
-  color: #4e6073;
-}
-
-.register-footer a {
-  margin-left: 6px;
-  color: #006953;
-  font-weight: 800;
-}
-
-.floating-image {
-  position: fixed;
-  z-index: 1;
-  overflow: hidden;
-  pointer-events: none;
-  box-shadow: 0 28px 60px rgba(25, 28, 28, 0.08);
-}
-
-.floating-image::before {
+.visual-panel::before {
   content: '';
   position: absolute;
   inset: 0;
+  background: 
+    linear-gradient(90deg, transparent 49%, rgba(0,0,0,0.02) 50%, transparent 51%),
+    linear-gradient(90deg, transparent 24%, rgba(0,0,0,0.02) 25%, transparent 26%);
+  background-size: 200px 100%;
 }
 
-.floating-image-left {
-  left: 80px;
-  bottom: 100px;
-  width: 280px;
-  height: 380px;
-  border-radius: 26px;
-  transform: rotate(-3deg);
+.brand-content {
+  position: relative;
+  z-index: 10;
+  width: 70%;
 }
 
-.floating-image-left::before {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0)),
-    linear-gradient(135deg, rgba(0, 105, 83, 0.28), rgba(19, 132, 106, 0.06)),
-    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.22), transparent 20%),
-    linear-gradient(180deg, #5e706c 0%, #2d403b 100%);
-  opacity: 0.34;
-  filter: grayscale(1);
+.hero-text h2 {
+  font-size: clamp(4rem, 7vw, 7.5rem);
+  font-weight: 900;
+  line-height: 0.85;
+  font-style: italic;
+  margin: 0;
+  letter-spacing: -0.04em;
 }
 
-.floating-image-right {
-  top: 168px;
-  right: 48px;
-  width: 220px;
-  height: 220px;
-  border-radius: 999px;
-  border: 10px solid rgba(255, 255, 255, 0.8);
-}
+.text-top { color: #fff; }
+.text-bottom { color: rgba(255,255,255,0.4); }
 
-.floating-image-right::before {
-  background:
-    radial-gradient(circle at 36% 34%, rgba(255, 255, 255, 0.34), transparent 14%),
-    radial-gradient(circle at center, #dff77b 0%, #abd64f 58%, #7ea220 100%);
-}
-
-.register-footer-bar {
+.kicker-line {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 0 32px 24px;
-  color: rgba(110, 122, 116, 0.9);
-  font-size: 0.68rem;
+  gap: 15px;
+  margin-top: 2rem;
+}
+
+.lime-bar {
+  width: 50px;
+  height: 3px;
+  background: #c1ff72;
+}
+
+.kicker-line p {
+  font-size: 0.8rem;
   font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #fff;
 }
 
-.register-footer-bar div {
+.status-box {
+  position: absolute;
+  bottom: 60px;
+  left: 60px;
+  background: #fff;
+  padding: 16px 24px;
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.status-inner {
   display: flex;
-  gap: 24px;
+  align-items: center;
+  gap: 30px;
 }
 
-@media (max-width: 1200px) {
-  .floating-image {
-    display: none;
-  }
+.status-label-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.status-title {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #888;
+}
+
+.status-desc {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.status-badge {
+  background: #4a6300;
+  color: #c1ff72;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+/* --- Form Side (Right) --- */
+.form-panel {
+  flex: 1;
+  background: #f7fbff; /* Very subtle blue tint */
+  display: flex;
+}
+
+.scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+}
+
+.onboarding-box {
+  width: 100%;
+  max-width: 480px;
+}
+
+.veridian-header {
+  margin-bottom: 2.5rem;
+}
+
+.pre-title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #839100;
+  margin-bottom: 1rem;
+}
+
+.veridian-header h1 {
+  font-size: 2.8rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+
+.intro-p {
+  color: #6c7278;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.field label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #90a4ae;
+  margin-bottom: 0.6rem;
+  letter-spacing: 0.05em;
+}
+
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrap .icon {
+  position: absolute;
+  left: 14px;
+  color: #b0bec5;
+  font-size: 1.1rem;
+}
+
+.input-wrap input,
+.custom-native-select {
+  width: 100%;
+  padding: 1.1rem 1rem 1.1rem 3.5rem;
+  background: #e9eff2;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  color: #263238;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input-wrap input:focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px #c1ff72;
+}
+
+.gender-radio-group {
+  display: flex;
+  gap: 10px;
+}
+
+.radio-item {
+  flex: 1;
+  background: #e9eff2;
+  padding: 1.1rem;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #90a4ae;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.radio-item input { display: none; }
+
+.radio-item.active {
+  background: #fff;
+  color: #839100;
+  box-shadow: inset 0 0 0 2px #c1ff72;
+}
+
+.form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.remember-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #90a4ae;
+}
+
+.login-redirect {
+  color: #839100;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.btn-initialize-session {
+  margin-top: 1rem;
+  padding: 1.2rem;
+  border: none;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #4a6300 0%, #a4d100 100%);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all 0.3s;
+}
+
+.btn-initialize-session:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(74, 99, 0, 0.2);
+}
+
+.veridian-footer {
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e0e6ed;
+  text-align: center;
+}
+
+.system-version {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #cfd8dc;
+  letter-spacing: 0.1em;
+  margin-bottom: 2rem;
+}
+
+.footer-nav {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+}
+
+.footer-nav a {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #90a4ae;
+  text-decoration: none;
+  letter-spacing: 0.05em;
+}
+
+.alert-box {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.alert-box.error { background: #ffebee; color: #c62828; }
+.alert-box.success { background: #e8f5e9; color: #2e7d32; }
+
+@media (max-width: 1024px) {
+  .visual-panel { display: none; }
 }
 
 @media (max-width: 640px) {
-  .register-header {
-    padding: 24px 20px 0;
-  }
-
-  .register-main {
-    min-height: auto;
-    padding: 20px;
-  }
-
-  .register-card {
-    padding: 28px 20px;
-    border-radius: 24px;
-  }
-
-  .register-copy h1 {
-    font-size: 2rem;
-  }
-
-  .register-footer-bar {
-    flex-direction: column;
-    padding: 0 20px 20px;
-    letter-spacing: 0.12em;
-  }
-
-  .register-footer-bar div {
-    gap: 14px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
+  .form-row { grid-template-columns: 1fr; }
 }
 </style>

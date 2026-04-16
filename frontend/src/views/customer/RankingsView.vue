@@ -177,7 +177,7 @@ onMounted(fetchRankings)
 .ranking-page { background: #f4f7f6; min-height: 100vh; padding-bottom: 50px; }
 
 .hero-banner { 
-  background: linear-gradient(135deg, #006953 0%, #123f34 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-dark) 100%);
   color: white; padding: 60px 20px 80px; text-align: center;
   position: relative; overflow: hidden;
 }
@@ -196,12 +196,12 @@ onMounted(fetchRankings)
 .filter-item { flex: 1; }
 
 /* Leaderboard Styles */
-.leaderboard { background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); overflow: hidden; }
+.leaderboard { background: white; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); overflow: hidden; }
 .lb-header, .lb-row { 
   display: grid; grid-template-columns: 80px 3fr 1fr 1fr 1.5fr 120px;
   align-items: center; padding: 16px 20px;
 }
-.lb-header { background: #f8fafc; font-weight: 800; color: #64748b; font-size: 0.85rem; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; }
+.lb-header { background: #f8fafc; font-weight: 500; color: #64748b; font-size: 0.85rem; text-transform: uppercase; border-bottom: 2px solid #e2e8f0; }
 .lb-row { border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
 .lb-row:hover { background: #f8fafc; }
 
@@ -210,7 +210,7 @@ onMounted(fetchRankings)
 
 .rank-badge { 
   width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center;
-  margin: 0 auto; font-weight: 800; color: #94a3b8; background: #f1f5f9;
+  margin: 0 auto; font-weight: 500; color: #94a3b8; background: #f1f5f9;
 }
 .rank-gold .rank-badge { background: #fef08a; color: #ca8a04; box-shadow: 0 4px 10px rgba(202,138,4,0.2); }
 .rank-silver .rank-badge { background: #e2e8f0; color: #475569; }
@@ -223,16 +223,16 @@ onMounted(fetchRankings)
 .name-details strong { font-size: 1.05rem; color: #1e293b; }
 .location-tag { font-size: 0.75rem; color: #64748b; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
 
-.wins { color: #16a34a; font-weight: 800; }
-.losses { color: #dc2626; font-weight: 800; }
+.wins { color: #16a34a; font-weight: 500; }
+.losses { color: #dc2626; font-weight: 500; }
 .matches-total { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
 
 .win-rate { display: flex; align-items: center; gap: 10px; }
 .rate-bar-bg { flex-grow: 1; height: 6px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
 .rate-bar-fill { height: 100%; background: linear-gradient(90deg, #10b981, #3b82f6); border-radius: 4px; }
-.rate-text { font-size: 0.85rem; font-weight: 700; color: #475569; width: 40px; text-align: right; }
+.rate-text { font-size: 0.85rem; font-weight: 500; color: #475569; width: 40px; text-align: right; }
 
-.elo-score { font-size: 1.4rem; font-weight: 900; color: #006953; }
+.elo-score { font-size: 1.4rem; font-weight: 600; color: var(--primary); }
 .rank-gold .elo-score { color: #ca8a04; }
 
 @media (max-width: 768px) {

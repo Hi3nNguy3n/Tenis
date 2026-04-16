@@ -105,7 +105,7 @@ const handleCheckIn = async () => {
 .checkin-module { display: grid; gap: 24px; }
 
 .hero-card {
-  border-radius: 28px;
+  border-radius: 8px;
   background: white;
   padding: 28px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.03);
@@ -115,16 +115,16 @@ const handleCheckIn = async () => {
   display: inline-flex;
   margin-bottom: 12px;
   padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(0, 105, 83, 0.08);
-  color: #006953;
+  border-radius: 8px;
+  background: rgba(21, 128, 61, 0.08);
+  color: var(--primary);
   font-size: 0.74rem;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
-.hero-card h2 { font-size: 2.2rem; margin-bottom: 10px; color: #123f34; }
+.hero-card h2 { font-size: 2.2rem; margin-bottom: 10px; color: var(--text-dark); }
 .hero-card p { color: #6e7a74; }
 
 .scanner-container {
@@ -136,7 +136,7 @@ const handleCheckIn = async () => {
 .scanner-mock {
   background: white;
   padding: 2rem;
-  border-radius: 28px;
+  border-radius: 8px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.03);
   display: flex;
   flex-direction: column;
@@ -146,8 +146,8 @@ const handleCheckIn = async () => {
 .scanner-frame {
   width: 300px;
   height: 300px;
-  border: 4px solid #006953;
-  border-radius: 24px;
+  border: 4px solid var(--primary);
+  border-radius: 8px;
   position: relative;
   overflow: hidden;
   background: #000;
@@ -185,7 +185,7 @@ const handleCheckIn = async () => {
 
 .result-panel {
   background: #f8f9f9;
-  border-radius: 28px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -197,7 +197,7 @@ const handleCheckIn = async () => {
   text-align: center;
   background: white;
   padding: 3rem;
-  border-radius: 24px;
+  border-radius: 8px;
   box-shadow: 0 20px 50px rgba(19, 132, 106, 0.1);
   width: 100%;
 }

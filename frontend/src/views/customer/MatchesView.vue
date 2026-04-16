@@ -1,252 +1,384 @@
 <script setup>
 import { ref } from 'vue'
+import { Search, Calendar as CalendarIcon, ArrowLeft, ArrowRight, VideoPlay, PieChart } from '@element-plus/icons-vue'
 
-const matches = ref([])
+// Mock Data for Matches
+const mockTournamentMatches = [
+  {
+    id: 't1',
+    name: 'Barcelona Open Banc Sabadell',
+    location: 'Barcelona, Spain',
+    matches: [
+      {
+        id: 1,
+        round: 'Round of 16',
+        players: [
+          { name: 'C. Alcaraz', seed: '1', flag: '🇪🇸', sets: [6, 7, 2], winner: true },
+          { name: 'S. Tsitsipas', seed: '5', flag: '🇬🇷', sets: [4, 6, 1], winner: false }
+        ],
+        status: 'Finished',
+        time: 'Final'
+      },
+      {
+        id: 2,
+        round: 'Round of 16',
+        players: [
+          { name: 'A. De Minaur', seed: '11', flag: '🇦🇺', sets: [3, 4], winner: false },
+          { name: 'R. Nadal', flag: '🇪🇸', sets: [6, 6], winner: true }
+        ],
+        status: 'Finished',
+        time: 'Final'
+      }
+    ]
+  },
+  {
+    id: 't2',
+    name: 'BMW Open by Ibipanda',
+    location: 'Munich, Germany',
+    matches: [
+      {
+        id: 3,
+        round: 'Quarter-Finals',
+        players: [
+          { name: 'A. Zverev', seed: '1', flag: '🇩🇪', sets: [4, 1], winner: false, serve: true },
+          { name: 'H. Rune', seed: '2', flag: '🇩🇰', sets: [6, 2], winner: false }
+        ],
+        status: 'Live',
+        time: 'Set 2 - Game 4'
+      }
+    ]
+  }
+]
+
+const matches = ref(mockTournamentMatches)
+const dates = ['14 APR', '15 APR', '16 APR', 'TODAY', '18 APR', '19 APR']
+const activeDate = ref('TODAY')
 
 </script>
 
 <template>
   <div class="matches-page">
-    <section class="matches-hero container">
-      <div>
-        <span class="section-kicker">Live score center</span>
-        <h1>Match Intelligence</h1>
-        <p>
-          Theo dõi diễn biến trận đấu theo phong cách trình bày hiện đại, rõ nhịp độ thi đấu và đồng
-          bộ hoàn toàn với hệ thiết kế premium của site.
-        </p>
+    
+    <!-- SUBNAV: DATE SELECTION -->
+    <div class="matches-subnav">
+      <div class="container nav-inner">
+        <button class="nav-arrow"><el-icon><ArrowLeft /></el-icon></button>
+        <div class="date-strip">
+          <button 
+            v-for="date in dates" 
+            :key="date" 
+            :class="{ active: activeDate === date }"
+            @click="activeDate = date"
+          >
+            {{ date }}
+          </button>
+        </div>
+        <button class="nav-arrow"><el-icon><ArrowRight /></el-icon></button>
+        <div class="calendar-btn">
+          <el-icon><CalendarIcon /></el-icon>
+        </div>
       </div>
+    </div>
 
-      <div class="live-indicator">
-        <span class="pulse-dot"></span>
-        <strong>{{ matches.length }} trận hiển thị</strong>
-      </div>
-    </section>
-
-    <section class="matches-section container">
-      <div class="matches-grid">
-        <article v-for="match in matches" :key="match.id" class="match-card">
-          <header class="match-header">
-            <span>{{ match.tournament }}</span>
-            <span>{{ match.court }}</span>
-          </header>
-
-          <div class="match-body">
-            <div
-              class="player-row"
-              :class="{ winner: match.player1.sets > match.player2.sets && match.status === 'Finished' }"
-            >
-              <span class="player-name">{{ match.player1.name }}</span>
-              <div class="score-list">
-                <span v-for="(score, index) in match.player1.score" :key="`a-${index}`">{{ score }}</span>
+    <div class="container main-layout">
+      
+      <!-- MAIN SCORES AREA -->
+      <main class="scores-col">
+          <div v-for="tournament in matches" :key="tournament.id" class="tournament-group">
+            <header class="tournament-header">
+              <div class="t-title">
+                <span class="location">{{ tournament.location }}</span>
+                <h2>{{ tournament.name }}</h2>
               </div>
-            </div>
-
-            <div
-              class="player-row"
-              :class="{ winner: match.player2.sets > match.player1.sets && match.status === 'Finished' }"
-            >
-              <span class="player-name">{{ match.player2.name }}</span>
-              <div class="score-list">
-                <span v-for="(score, index) in match.player2.score" :key="`b-${index}`">{{ score }}</span>
+              <div class="t-actions">
+                <el-button link>Order of Play</el-button>
+                <el-button link>Draws</el-button>
               </div>
+            </header>
+
+            <div class="match-list">
+              <article v-for="match in tournament.matches" :key="match.id" class="atp-match-card">
+                <div class="match-info-strip">
+                  <span class="round">{{ match.round }}</span>
+                  <span :class="['match-status', match.status.toLowerCase()]">
+                    <span v-if="match.status === 'Live'" class="pulse"></span>
+                    {{ match.time }}
+                  </span>
+                </div>
+
+                <div class="match-players">
+                  <div v-for="player in match.players" :key="player.name" class="player-row" :class="{ winner: player.winner }">
+                    <div class="player-identity">
+                      <span class="player-flag">{{ player.flag }}</span>
+                      <span v-if="player.seed" class="player-seed">({{ player.seed }})</span>
+                      <span class="player-name">{{ player.name }}</span>
+                      <span v-if="player.serve" class="serve-dots">🎾</span>
+                    </div>
+                    <div class="player-scores">
+                      <span v-for="(set, idx) in player.sets" :key="idx" class="set-score" :class="{ active: idx === player.sets.length - 1 && match.status === 'Live' }">
+                        {{ set }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="match-actions">
+                  <button class="m-btn highlight"><el-icon><VideoPlay /></el-icon> Highlights</button>
+                  <button class="m-btn"><el-icon><PieChart /></el-icon> Stats</button>
+                </div>
+              </article>
             </div>
           </div>
+      </main>
 
-          <footer class="match-footer">
-            <span class="status-pill" :class="match.status.toLowerCase().replace(' ', '-')">
-              {{ match.status }}
-            </span>
-          </footer>
-        </article>
-      </div>
-    </section>
+      <!-- SIDEBAR WIDGETS (Consistent with other pages) -->
+      <aside class="sidebar-col">
+        <div class="widget">
+          <div class="widget-header">
+            <h4>Tournament News</h4>
+          </div>
+          <div class="widget-body news-mini-list">
+             <div class="news-item-mini">
+                <img src="https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150" />
+                <p>Nadal wins thriller in Barcelona comeback</p>
+              </div>
+              <div class="news-item-mini">
+                <img src="https://images.unsplash.com/photo-1510832198440-a52376950479?auto=format&fit=crop&q=80&w=150" />
+                <p>Alcaraz sets up Sinner semi-final in Madrid</p>
+              </div>
+          </div>
+        </div>
+
+        <div class="widget">
+           <div class="widget-header">
+            <h4>Live Standings</h4>
+          </div>
+          <div class="widget-body">
+             <div class="mini-table">
+                <div class="tr"><span>1. J. Sinner</span> <strong>11,200</strong></div>
+                <div class="tr"><span>2. N. Djokovic</span> <strong>9,800</strong></div>
+                <div class="tr"><span>3. C. Alcaraz</span> <strong>8,950</strong></div>
+             </div>
+          </div>
+        </div>
+      </aside>
+
+    </div>
   </div>
 </template>
 
 <style scoped>
 .matches-page {
-  background: linear-gradient(180deg, #f8f9f9 0%, #eef1f1 100%);
-  color: #191c1c;
+  background: #fff;
+  min-height: 100vh;
 }
 
-.matches-hero {
-  padding-top: 4.5rem;
-  padding-bottom: 2.5rem;
+/* SUBNAV DATE STRIP */
+.matches-subnav {
+  background: #0f172a;
+  color: #fff;
+  padding: 1.5rem 0;
+  margin-top: 80px;
+  border-bottom: 2px solid #c1ff72;
+}
+
+.nav-inner {
   display: flex;
-  align-items: end;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: center;
   gap: 2rem;
 }
 
-.section-kicker {
-  display: inline-flex;
-  margin-bottom: 1rem;
-  padding: 0.55rem 0.9rem;
-  border-radius: 999px;
-  background: #d1e4fb;
-  color: #091d2e;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.matches-hero h1 {
-  margin-bottom: 1rem;
-  font-size: clamp(2.8rem, 6vw, 4.6rem);
-  line-height: 1;
-  letter-spacing: -0.05em;
-}
-
-.matches-hero p {
-  max-width: 700px;
-  color: #4e6073;
-  line-height: 1.8;
-}
-
-.live-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 1rem 1.25rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 18px 32px rgba(25, 28, 28, 0.06);
-}
-
-.pulse-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #006953;
-  box-shadow: 0 0 0 0 rgba(0, 105, 83, 0.45);
-  animation: pulse 1.8s infinite;
-}
-
-@keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(0, 105, 83, 0.45);
-  }
-  70% {
-    box-shadow: 0 0 0 12px rgba(0, 105, 83, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(0, 105, 83, 0);
-  }
-}
-
-.matches-section {
-  padding-top: 1rem;
-  padding-bottom: 6rem;
-}
-
-.matches-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+.date-strip {
+  display: flex;
   gap: 1.5rem;
 }
 
-.match-card {
-  border-radius: 28px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 24px 44px rgba(25, 28, 28, 0.06);
+.date-strip button {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  transition: all 0.2s;
+  border-radius: 4px;
 }
 
-.match-header,
-.match-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.2rem 1.5rem;
-  color: #6e7a74;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
+.date-strip button.active {
+  background: #c1ff72;
+  color: #064e3b;
 }
 
-.match-header {
-  background: rgba(243, 244, 244, 0.9);
+.nav-arrow {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
 }
 
-.match-footer {
-  border-top: 1px solid rgba(189, 201, 195, 0.36);
+.calendar-btn {
+  margin-left: 2rem;
+  font-size: 1.4rem;
+  color: #c1ff72;
+  cursor: pointer;
 }
 
-.match-body {
-  padding: 1.8rem 1.5rem;
+/* MAIN LAYOUT */
+.main-layout {
   display: grid;
-  gap: 1rem;
+  grid-template-columns: 1fr 320px;
+  gap: 3rem;
+  padding-top: 3rem;
+  padding-bottom: 6rem;
 }
 
-.player-row {
+/* TOURNAMENT GROUPS */
+.tournament-group { margin-bottom: 4rem; }
+
+.tournament-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  align-items: flex-end;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #002855;
+  margin-bottom: 1.5rem;
 }
 
-.player-name {
-  font-size: 1.2rem;
-  font-weight: 700;
+.t-title .location {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: block;
 }
 
-.score-list {
+.t-title h2 {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #002855;
+  text-transform: uppercase;
+}
+
+.t-actions :deep(.el-button) {
+  font-weight: 500;
+  text-transform: uppercase;
+  color: #002855;
+}
+
+/* MATCH CARDS */
+.match-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 1.5rem;
+}
+
+.atp-match-card {
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
   display: flex;
-  gap: 0.65rem;
+  flex-direction: column;
+  transition: all 0.2s ease;
 }
 
-.score-list span {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  display: inline-flex;
+.atp-match-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+}
+
+.match-info-strip {
+  background: #f8fafc;
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  background: #f3f4f4;
-  font-weight: 800;
-  color: #123f34;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-light);
 }
 
-.player-row.winner .player-name {
-  color: #006953;
+.match-status.live { color: #ba1a1a; display: flex; align-items: center; gap: 0.5rem; }
+.pulse { width: 8px; height: 8px; background: #ba1a1a; border-radius: 50%; animation: pulse-live 1.5s infinite; }
+
+@keyframes pulse-live {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(2.5); opacity: 0; }
 }
 
-.status-pill {
-  display: inline-flex;
-  padding: 0.5rem 0.9rem;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
+.match-players { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; flex: 1; }
+
+.player-row { display: flex; justify-content: space-between; align-items: center; }
+
+.player-identity { display: flex; align-items: center; gap: 0.6rem; }
+.player-name { font-size: 1.1rem; font-weight: 500; color: #0f172a; }
+.player-seed { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+.player-row.winner .player-name { color: var(--primary); font-weight: 600; }
+
+.player-scores { display: flex; gap: 0.5rem; }
+.set-score {
+  width: 32px; height: 32px;
+  background: #f1f5f9;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 500; font-size: 0.9rem;
+  color: #334155; border-radius: 4px;
+}
+.set-score.active { background: #002855; color: #c1ff72; }
+.player-row.winner .set-score { background: #dcfce7; color: #166534; }
+
+.match-actions {
+  display: flex;
+  border-top: 1px solid var(--border-light);
 }
 
-.status-pill.in-progress {
-  background: rgba(186, 26, 26, 0.12);
-  color: #ba1a1a;
+.m-btn {
+  flex: 1;
+  padding: 1rem;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border-light);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: #002855;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+  transition: background 0.2s;
 }
 
-.status-pill.finished {
-  background: rgba(0, 105, 83, 0.1);
-  color: #006953;
-}
+.m-btn:last-child { border-right: none; }
+.m-btn:hover { background: #f8fafc; }
+.m-btn.highlight { color: #ba1a1a; }
 
-@media (max-width: 900px) {
-  .matches-hero {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+/* SIDEBAR WIDGETS */
+.widget { border: 1px solid var(--border-light); border-radius: 4px; margin-bottom: 2rem; overflow: hidden; }
+.widget-header { padding: 1.25rem; background: #f8fafc; border-bottom: 1px solid var(--border-light); }
+.widget-header h4 { font-size: 0.9rem; font-weight: 500; text-transform: uppercase; color: #002855; }
+
+.news-item-mini { display: flex; gap: 1rem; padding: 1rem; border-bottom: 1px solid #f1f5f9; }
+.news-item-mini img { width: 60px; height: 60px; border-radius: 4px; object-fit: cover; }
+.news-item-mini p { font-size: 0.85rem; font-weight: 500; color: #0f172a; line-height: 1.3; }
+
+.mini-table { padding: 0.5rem 1.25rem; }
+.tr { display: flex; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+.tr span { font-weight: 600; color: #475569; }
+.tr strong { color: #0f172a; }
+
+@media (max-width: 1080px) {
+  .main-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
-  .matches-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .player-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+  .nav-inner { gap: 1rem; }
+  .date-strip button { font-size: 0.7rem; padding: 0.4rem 0.6rem; }
+  .match-list { grid-template-columns: 1fr; }
+  .atp-match-card { width: 100%; }
 }
 </style>

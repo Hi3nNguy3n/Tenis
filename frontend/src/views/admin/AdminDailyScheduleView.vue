@@ -251,22 +251,22 @@ onMounted(fetchData)
 
 /* HERO CARD */
 .hero-card {
-  padding: 24px 30px; border-radius: 20px; background: white;
+  padding: 24px 30px; border-radius: 8px; background: white;
   display: flex; justify-content: space-between; align-items: center;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); flex-shrink: 0;
 }
-.section-kicker { display: inline-flex; margin-bottom: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+.section-kicker { display: inline-flex; margin-bottom: 8px; padding: 6px 12px; border-radius: 8px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
 .hero-content h2 { margin: 0; font-size: 1.8rem; color: #132722; }
 .hero-content p { margin: 5px 0 0 0; color: #64748b; font-size: 0.9rem; }
 
 .header-actions { display: flex; align-items: center; gap: 15px; }
 .action-btn { font-weight: bold; border-radius: 12px; }
-.date-controls { display: flex; align-items: center; gap: 15px; background: #f1f5f9; padding: 6px 12px; border-radius: 999px; }
+.date-controls { display: flex; align-items: center; gap: 15px; background: #f1f5f9; padding: 6px 12px; border-radius: 8px; }
 .current-date-display { display: flex; align-items: center; gap: 8px; font-weight: 800; color: #0f172a; min-width: 130px; justify-content: center; font-size: 1.05rem; }
 
 /* BẢNG GRID MỚI */
 .schedule-wrapper { 
-  flex: 1; border: 1px solid #e2e8f0; border-radius: 20px; 
+  flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; 
   background: white; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.02);
 }
 .schedule-scroll-container { 

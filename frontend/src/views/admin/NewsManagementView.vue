@@ -249,16 +249,16 @@ onMounted(fetchPosts)
 .news-container { display: flex; flex-direction: column; gap: 20px; }
 
 .hero-card {
-  padding: 24px 30px; border-radius: 20px; background: white;
+  padding: 24px 30px; border-radius: 8px; background: white;
   display: flex; justify-content: space-between; align-items: center;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
 }
-.section-kicker { display: inline-flex; margin-bottom: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+.section-kicker { display: inline-flex; margin-bottom: 8px; padding: 6px 12px; border-radius: 8px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
 .hero-content h2 { margin: 0; font-size: 1.8rem; color: #132722; }
 .hero-content p { margin: 5px 0 0 0; color: #64748b; font-size: 0.9rem; }
 
 .filter-card { display: flex; gap: 15px; padding: 15px 20px; background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
-.table-card { border-radius: 20px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.02); }
+.table-card { border-radius: 8px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.02); }
 
 .post-title-cell { display: flex; flex-direction: column; gap: 4px; }
 .post-title-cell strong { font-size: 1rem; color: #1e293b; display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
@@ -269,7 +269,7 @@ onMounted(fetchPosts)
   width: 100%; height: 160px; border: 2px dashed #cbd5e1; border-radius: 12px;
   position: relative; overflow: hidden; cursor: pointer; background: #f8fafc; transition: 0.2s;
 }
-.thumbnail-uploader:hover { border-color: #006953; background: #f0fdf4; }
+.thumbnail-uploader:hover { border-color: var(--primary); background: #f0fdf4; }
 .upload-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; gap: 10px; }
 .upload-placeholder .el-icon { font-size: 2rem; }
 .thumbnail-preview { width: 100%; height: 100%; object-fit: cover; }

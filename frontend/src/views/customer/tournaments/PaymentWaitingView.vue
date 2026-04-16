@@ -150,7 +150,7 @@ const simulatePaymentSuccess = async () => {
   position: absolute;
   width: 100%;
   height: 100%;
-  border: 4px solid #006953;
+  border: 4px solid var(--primary);
   border-radius: 50%;
   animation: pulse 2s infinite;
 }
@@ -160,34 +160,34 @@ const simulatePaymentSuccess = async () => {
   100% { transform: scale(1.5); opacity: 0; }
 }
 
-h1 { color: #123f34; font-size: 2.2rem; margin-bottom: 1.5rem; }
+h1 { color: var(--text-dark); font-size: 2.2rem; margin-bottom: 1.5rem; }
 .description { color: #6e7a74; font-size: 1.1rem; line-height: 1.6; margin-bottom: 3rem; }
 
 .countdown-timer {
   background: #f0f7f4;
   padding: 2rem;
-  border-radius: 24px;
+  border-radius: 8px;
   margin-bottom: 3rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.countdown-timer .label { color: #006953; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; }
-.countdown-timer .time { color: #006953; font-size: 3.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.countdown-timer .label { color: var(--primary); font-weight: 700; font-size: 0.9rem; text-transform: uppercase; }
+.countdown-timer .time { color: var(--primary); font-size: 3.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 
 .action-section { display: flex; flex-direction: column; gap: 1rem; }
 
 .btn-check {
-  padding: 1.2rem; border: none; border-radius: 18px;
-  background: #006953; color: white; font-weight: 800; font-size: 1.1rem;
+  padding: 1.2rem; border: none; border-radius: 8px;
+  background: var(--primary); color: white; font-weight: 800; font-size: 1.1rem;
   cursor: pointer; box-shadow: 0 15px 30px rgba(0,105,83,0.2); transition: 0.2s;
 }
 .btn-check:hover { transform: translateY(-3px); box-shadow: 0 20px 40px rgba(0,105,83,0.3); }
 
 .btn-secondary {
   padding: 1.2rem; background: transparent; border: 2px solid #eef1f1;
-  border-radius: 18px; color: #4e6073; font-weight: 700; cursor: pointer; transition: 0.2s;
+  border-radius: 8px; color: #4e6073; font-weight: 700; cursor: pointer; transition: 0.2s;
 }
 .btn-secondary:hover { background: #f8f9f9; }
 

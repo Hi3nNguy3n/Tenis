@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import {
   Calendar,
@@ -15,6 +15,10 @@ import {
   User,
   UserFilled,
   UserFilled as UsersIcon,
+  ArrowRight,
+  Monitor,
+  Setting,
+  Files
 } from '@element-plus/icons-vue'
 import { adminModules } from '../constants/adminNavigation'
 import { useAuthStore } from '../stores/auth'
@@ -23,20 +27,39 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
+// Icon mapping cho các item con
 const iconMap = {
-  Dashboard: DataBoard,
-  Profile: User,
-  Users: UsersIcon,
-  Players: UserFilled,
-  Teams: Connection,
-  Tournaments: Trophy,
-  Registrations: Tickets,
-  Draws: Compass,
-  Courts: Location,
-  Matches: Histogram,
-  Schedule: Calendar,
-  Rankings: DataAnalysis,
+  'Bảng điều khiển': DataBoard,
+  'Hồ sơ Admin': User,
+  'Vận động viên': UsersIcon,
+  'Giải đấu': Trophy,
+  'Danh sách Đăng ký': Tickets,
+  'Bốc thăm & Nhánh': Compass,
+  'Quản lý Sân': Location,
+  'Trận đấu': Histogram,
+  'Lịch trình': Calendar,
+  'BXH & Điểm số': DataAnalysis,
+  'Điểm danh QR': Monitor,
+  'Thanh toán': Tickets,
+  'Nhật ký hệ thống': Setting,
+  'Lịch thi đấu ngày': Memo,
+  'Lịch tổng quan': Calendar,
+  'Tin tức': Files
 }
+
+// Logic quản lý các nhóm đang mở (Mặc định mở nhóm đầu tiên)
+const activeGroups = ref(['Tổng quan', 'Giải đấu'])
+
+const toggleGroup = (label) => {
+  const index = activeGroups.value.indexOf(label)
+  if (index > -1) {
+    activeGroups.value.splice(index, 1) // Đóng
+  } else {
+    activeGroups.value.push(label) // Mở
+  }
+}
+
+const isGroupActive = (label) => activeGroups.value.includes(label)
 
 const groupedNavigation = computed(() => {
   const groups = new Map()
@@ -59,13 +82,13 @@ const groupedNavigation = computed(() => {
   }))
 })
 
-const pageTitle = computed(() => route.meta.adminTitle || 'Admin Overview')
+const pageTitle = computed(() => route.meta.adminTitle || 'Tổng quan Quản trị')
 const pageDescription = computed(
   () =>
     route.meta.adminDescription ||
-    'Lớp nền tảng cho Admin dashboard: layout, guard, API client và bộ component chuẩn.',
+    'Hệ thống quản lý giải đấu Saigon Tennis - Admin Dashboard.',
 )
-const currentUserName = computed(() => authStore.user?.full_name || authStore.user?.email || 'Admin')
+const currentUserName = computed(() => authStore.user?.full_name || authStore.user?.email || 'Quản trị viên')
 
 const handleLogout = () => {
   authStore.logout()
@@ -78,33 +101,45 @@ const handleLogout = () => {
     <aside class="admin-sidebar">
       <div class="brand-block">
         <RouterLink to="/admin" class="brand-link">Saigon Tennis</RouterLink>
-        <p>Admin Control Center</p>
+        <p>Trung tâm Điều hành</p>
       </div>
 
       <div class="nav-groups">
         <section v-for="group in groupedNavigation" :key="group.label" class="nav-group">
-          <p class="group-label">{{ group.label }}</p>
-          <nav class="admin-nav">
-            <RouterLink
-              v-for="item in group.items"
-              :key="item.to"
-              :to="item.to"
-              class="nav-item"
-              active-class="nav-item-active"
-            >
-              <div class="nav-leading">
-                <el-icon><component :is="item.icon" /></el-icon>
-                <span>{{ item.label }}</span>
-              </div>
-              <span class="nav-badge">{{ item.badge }}</span>
-            </RouterLink>
-          </nav>
+          <div 
+            class="group-header" 
+            :class="{ 'is-expanded': isGroupActive(group.label) }"
+            @click="toggleGroup(group.label)"
+          >
+            <p class="group-label">{{ group.label }}</p>
+            <el-icon class="arrow-icon"><ArrowRight /></el-icon>
+          </div>
+
+          <transition name="collapse">
+            <div v-show="isGroupActive(group.label)">
+              <nav class="admin-nav">
+                <RouterLink
+                  v-for="item in group.items"
+                  :key="item.to"
+                  :to="item.to"
+                  class="nav-item"
+                  active-class="nav-item-active"
+                >
+                  <div class="nav-leading">
+                    <el-icon><component :is="item.icon" /></el-icon>
+                    <span>{{ item.label }}</span>
+                  </div>
+                  <span class="nav-badge" v-if="item.badge">{{ item.badge }}</span>
+                </RouterLink>
+              </nav>
+            </div>
+          </transition>
         </section>
       </div>
 
       <div class="sidebar-footer">
         <div class="admin-user-chip">
-          <span class="user-label">Signed in</span>
+          <span class="user-label">Đang đăng nhập</span>
           <strong>{{ currentUserName }}</strong>
         </div>
         <el-button class="logout-button" text @click="handleLogout">Đăng xuất</el-button>
@@ -114,7 +149,7 @@ const handleLogout = () => {
     <section class="admin-shell">
       <header class="admin-topbar">
         <div>
-          <p class="page-kicker">Admin Workspace</p>
+          <p class="page-kicker">Không gian Quản trị</p>
           <h1>{{ pageTitle }}</h1>
           <p>{{ pageDescription }}</p>
         </div>
@@ -128,6 +163,7 @@ const handleLogout = () => {
 </template>
 
 <style scoped>
+/* GIỮ NGUYÊN LAYOUT CHUNG */
 .admin-layout {
   min-height: 100vh;
   display: grid;
@@ -141,8 +177,8 @@ const handleLogout = () => {
 .admin-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 26px;
-  padding: 28px 20px;
+  gap: 20px;
+  padding: 28px 16px;
   background: linear-gradient(180deg, #14332e 0%, #0f2622 100%);
   color: #f7fbf9;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
@@ -152,44 +188,61 @@ const handleLogout = () => {
   display: grid;
   gap: 8px;
   padding: 8px 10px;
+  margin-bottom: 10px;
 }
 
 .brand-link {
   font-size: 1.5rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: -0.04em;
+  text-decoration: none;
+  color: white;
 }
 
-.brand-block p {
-  color: rgba(247, 251, 249, 0.68);
-  font-size: 0.92rem;
+/* CUSTOM MENU XỔ XUỐNG */
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: all 0.2s ease;
 }
 
-.nav-groups {
-  display: grid;
-  gap: 18px;
-  min-height: 0;
-  padding-right: 4px;
-  overflow-y: auto;
-}
-
-.nav-group {
-  display: grid;
-  gap: 8px;
+.group-header:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .group-label {
-  padding: 0 12px;
   font-size: 0.7rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(247, 251, 249, 0.46);
+  margin: 0;
+}
+
+.arrow-icon {
+  font-size: 12px;
+  color: rgba(247, 251, 249, 0.3);
+  transition: transform 0.3s ease;
+}
+
+.is-expanded .arrow-icon {
+  transform: rotate(90deg);
+  color: #d7f171;
+}
+
+.is-expanded .group-label {
+  color: rgba(247, 251, 249, 0.8);
 }
 
 .admin-nav {
   display: grid;
-  gap: 6px;
+  gap: 4px;
+  padding-left: 10px; /* Thụt lề menu con */
+  margin-top: 4px;
 }
 
 .nav-item {
@@ -197,17 +250,13 @@ const handleLogout = () => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 48px;
+  min-height: 44px;
   padding: 0 14px;
-  border-radius: 16px;
-  color: rgba(247, 251, 249, 0.78);
-  transition: 0.25s ease;
-}
-
-.nav-leading {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
+  border-radius: 14px;
+  color: rgba(247, 251, 249, 0.6);
+  transition: 0.2s ease;
+  text-decoration: none;
+  font-size: 0.95rem;
 }
 
 .nav-item:hover {
@@ -217,24 +266,44 @@ const handleLogout = () => {
 
 .nav-item-active {
   background: linear-gradient(135deg, #d7f171 0%, #b9d84d 100%);
-  color: #13211d;
+  color: #13211d !important;
   font-weight: 700;
 }
 
+/* Badge style */
 .nav-badge {
-  min-width: 50px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  text-align: center;
+  padding: 2px 8px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.08);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
 .nav-item-active .nav-badge {
-  background: rgba(19, 33, 29, 0.12);
+  background: rgba(19, 33, 29, 0.15);
+}
+
+/* Animation collapse */
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: all 0.3s ease-in-out;
+  max-height: 800px;
+  overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* CÁC PHẦN CÒN LẠI GIỮ NGUYÊN */
+.nav-groups {
+  display: grid;
+  gap: 10px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .sidebar-footer {
@@ -242,7 +311,7 @@ const handleLogout = () => {
   display: grid;
   gap: 14px;
   padding: 18px 14px;
-  border-radius: 20px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -261,6 +330,7 @@ const handleLogout = () => {
 .logout-button {
   justify-self: start;
   color: #d7f171;
+  padding: 0;
 }
 
 .admin-shell {
@@ -276,7 +346,7 @@ const handleLogout = () => {
 .page-kicker {
   margin-bottom: 8px;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #3f7f74;
@@ -298,32 +368,12 @@ const handleLogout = () => {
   padding: 20px 32px 32px;
 }
 
-@media (max-width: 1180px) {
-  .admin-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    gap: 18px;
-  }
-
-  .nav-groups {
-    max-height: none;
-  }
-
-  .admin-nav {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
+/* Scrollbar cho Sidebar */
+.nav-groups::-webkit-scrollbar {
+  width: 4px;
 }
-
-@media (max-width: 640px) {
-  .admin-topbar,
-  .admin-main {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
+.nav-groups::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 10px;
 }
 </style>

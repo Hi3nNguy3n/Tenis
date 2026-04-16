@@ -146,7 +146,7 @@ const getActionTagType = (action) => {
 <style scoped>
 .logs-page { padding: 10px; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 25px; }
-.page-header h1 { font-size: 1.8rem; color: #123f34; margin: 0 0 5px 0; }
+.page-header h1 { font-size: 1.8rem; color: var(--text-dark); margin: 0 0 5px 0; }
 .page-header p { color: #6e7a74; margin: 0; }
 .filter-actions { display: flex; gap: 15px; }
 
@@ -157,7 +157,7 @@ const getActionTagType = (action) => {
 /* Khu vực Expand chi tiết JSON */
 .expand-detail { padding: 20px 40px; background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
-.data-block h4 { margin: 0 0 10px 0; color: #123f34; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.data-block h4 { margin: 0 0 10px 0; color: var(--text-dark); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; }
 .data-block pre { 
   background: #1e293b; color: #a5b4fc; padding: 15px; border-radius: 8px; 
   font-family: 'Consolas', monospace; font-size: 0.85rem; 

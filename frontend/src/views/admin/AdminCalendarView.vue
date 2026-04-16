@@ -144,11 +144,11 @@ onMounted(fetchMatches)
 
 <style scoped>
 .calendar-module { display: flex; flex-direction: column; gap: 20px; }
-.hero-card { border-radius: 28px; background: white; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-.section-kicker { display: inline-flex; margin-bottom: 12px; padding: 8px 12px; border-radius: 999px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.74rem; font-weight: 800; text-transform: uppercase; }
+.hero-card { border-radius: 8px; background: white; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+.section-kicker { display: inline-flex; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.74rem; font-weight: 800; text-transform: uppercase; }
 h2 { margin: 0 0 5px 0; font-size: 2.2rem; color: #132722; }
 
-.calendar-wrapper { border-radius: 28px; border: none; padding: 10px; }
+.calendar-wrapper { border-radius: 8px; border: none; padding: 10px; }
 
 /* Tùy chỉnh ô lịch */
 .calendar-cell { height: 100%; display: flex; flex-direction: column; cursor: pointer; }

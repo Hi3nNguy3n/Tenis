@@ -238,7 +238,7 @@ const finish = () => {
             </div>
 
             <div v-for="(partner, index) in partners" :key="index" class="partner-form-block" style="border-top: 1px dashed #eee; padding-top: 1.5rem; margin-top: 1rem;">
-              <h4 style="font-size: 0.9rem; color: #006953; margin-bottom: 1rem;">Thành viên #{{ index + 2 }}</h4>
+              <h4 style="font-size: 0.9rem; color: var(--primary); margin-bottom: 1rem;">Thành viên #{{ index + 2 }}</h4>
               <div class="form-grid two-columns">
                 <div class="form-group">
                   <label>Họ và tên</label>
@@ -384,7 +384,7 @@ const finish = () => {
   position: relative;
 }
 
-.step.active { color: #006953; }
+.step.active { color: var(--primary); }
 .step.completed { color: #4caf50; }
 
 .step-line {
@@ -397,7 +397,7 @@ const finish = () => {
 .step-content h2 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
-  color: #123f34;
+  color: var(--text-dark);
 }
 
 .subtitle {
@@ -411,7 +411,7 @@ const finish = () => {
 
 .section-title {
   font-size: 1.2rem;
-  color: #123f34;
+  color: var(--text-dark);
   margin: 2rem 0 1.5rem;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid #f0f4f2;
@@ -420,7 +420,7 @@ const finish = () => {
 .team-partner-info {
   background: #f8fbfa;
   padding: 2rem;
-  border-radius: 20px;
+  border-radius: 8px;
   margin-bottom: 2rem;
   border: 1px solid #eef2f1;
 }
@@ -445,7 +445,7 @@ const finish = () => {
   display: block;
   font-weight: 700;
   margin-bottom: 1rem;
-  color: #123f34;
+  color: var(--text-dark);
 }
 
 .radio-cards {
@@ -456,7 +456,7 @@ const finish = () => {
 
 .radio-card {
   border: 2px solid #f3f4f4;
-  border-radius: 20px;
+  border-radius: 8px;
   padding: 1.5rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -469,8 +469,8 @@ const finish = () => {
 }
 
 .radio-card.selected {
-  border-color: #006953;
-  background: rgba(0, 105, 83, 0.02);
+  border-color: var(--primary);
+  background: rgba(21, 128, 61, 0.02);
 }
 
 .card-body {
@@ -501,8 +501,8 @@ textarea {
 input:focus,
 textarea:focus {
   outline: none;
-  border-color: #006953;
-  box-shadow: 0 0 0 4px rgba(0, 105, 83, 0.05);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.05);
 }
 
 textarea {
@@ -520,7 +520,7 @@ textarea {
   padding: 1rem 2rem;
   border-radius: 12px;
   border: none;
-  background: #006953;
+  background: var(--primary);
   color: white;
   font-weight: 700;
   cursor: pointer;
@@ -539,7 +539,7 @@ textarea {
   gap: 2rem;
   background: #f8f9f9;
   padding: 2rem;
-  border-radius: 20px;
+  border-radius: 8px;
   margin-bottom: 2rem;
 }
 
@@ -589,7 +589,7 @@ textarea {
   padding: 1.5rem;
   background: #f0f7f4;
   border-radius: 12px;
-  color: #123f34;
+  color: var(--text-dark);
 }
 
 .header-with-timer {
@@ -622,8 +622,8 @@ textarea {
 }
 
 .method-btn.active {
-  border-color: #006953;
-  color: #006953;
+  border-color: var(--primary);
+  color: var(--primary);
   background: #f0f7f4;
 }
 
@@ -675,7 +675,7 @@ textarea {
 }
 
 .btn-primary-payment {
-  background: #006953;
+  background: var(--primary);
   color: white;
   border: none;
   padding: 1.2rem 1.5rem;

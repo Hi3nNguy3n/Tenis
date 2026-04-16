@@ -388,14 +388,14 @@ onBeforeUnmount(() => {
   font-size: 1.9rem;
   font-weight: 800;
   letter-spacing: -0.05em;
-  color: #123f34;
+  color: var(--text-dark);
 }
 
 .header-action {
   border: none;
-  border-radius: 999px;
-  background: rgba(0, 105, 83, 0.08);
-  color: #006953;
+  border-radius: 8px;
+  background: rgba(21, 128, 61, 0.08);
+  color: var(--primary);
   min-height: 42px;
   padding: 0 18px;
   font: inherit;
@@ -418,7 +418,7 @@ onBeforeUnmount(() => {
   left: -20%;
   width: 140%;
   height: 1px;
-  background: rgba(0, 105, 83, 0.06);
+  background: rgba(21, 128, 61, 0.06);
   transform: rotate(-45deg);
 }
 
@@ -445,7 +445,7 @@ onBeforeUnmount(() => {
   left: -36px;
   width: 160px;
   height: 160px;
-  border-radius: 999px;
+  border-radius: 8px;
   background: rgba(148, 245, 214, 0.34);
   filter: blur(48px);
 }
@@ -454,7 +454,7 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 2;
   padding: 40px;
-  border-radius: 28px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 24px 60px rgba(25, 28, 28, 0.06);
 }
@@ -501,7 +501,7 @@ onBeforeUnmount(() => {
 .feedback-success {
   background: rgba(19, 132, 106, 0.1);
   border-color: rgba(19, 132, 106, 0.16);
-  color: #006953;
+  color: var(--primary);
 }
 
 .otp-form {
@@ -527,7 +527,7 @@ onBeforeUnmount(() => {
   min-height: 60px;
   border: 1px solid transparent;
   outline: none;
-  border-radius: 18px;
+  border-radius: 8px;
   background: #f3f4f4;
   padding: 0 18px;
   font: inherit;
@@ -537,8 +537,8 @@ onBeforeUnmount(() => {
 }
 
 .otp-field input:focus {
-  border-color: rgba(0, 105, 83, 0.24);
-  box-shadow: 0 0 0 4px rgba(0, 105, 83, 0.08);
+  border-color: rgba(21, 128, 61, 0.24);
+  box-shadow: 0 0 0 4px rgba(21, 128, 61, 0.08);
 }
 
 .otp-preview {
@@ -552,11 +552,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   aspect-ratio: 1;
-  border-radius: 18px;
+  border-radius: 8px;
   background: #f3f4f4;
   font-size: 1.7rem;
   font-weight: 800;
-  color: #123f34;
+  color: var(--text-dark);
 }
 
 .resend-block {
@@ -576,7 +576,7 @@ onBeforeUnmount(() => {
 .resend-link {
   border: none;
   background: transparent;
-  color: #006953;
+  color: var(--primary);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -591,14 +591,14 @@ onBeforeUnmount(() => {
   height: 6px;
   width: 100%;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #e7e8e8;
 }
 
 .progress-bar-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(135deg, #006953 0%, #13846a 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   transition: width 1s linear;
 }
 
@@ -611,7 +611,7 @@ onBeforeUnmount(() => {
 .primary-button,
 .secondary-button {
   min-height: 58px;
-  border-radius: 18px;
+  border-radius: 8px;
   font: inherit;
   font-weight: 800;
   cursor: pointer;
@@ -620,15 +620,15 @@ onBeforeUnmount(() => {
 
 .primary-button {
   border: none;
-  background: linear-gradient(135deg, #006953 0%, #13846a 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
   color: #ffffff;
-  box-shadow: 0 18px 32px rgba(0, 105, 83, 0.18);
+  box-shadow: 0 18px 32px rgba(21, 128, 61, 0.18);
 }
 
 .secondary-button {
-  border: 1px solid rgba(0, 105, 83, 0.14);
-  background: rgba(0, 105, 83, 0.04);
-  color: #006953;
+  border: 1px solid rgba(21, 128, 61, 0.14);
+  background: rgba(21, 128, 61, 0.04);
+  color: var(--primary);
 }
 
 .primary-button:hover:not(:disabled),
@@ -660,9 +660,9 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 999px;
-  background: rgba(0, 105, 83, 0.12);
-  color: #006953;
+  border-radius: 8px;
+  background: rgba(21, 128, 61, 0.12);
+  color: var(--primary);
   font-weight: 800;
 }
 
@@ -696,7 +696,7 @@ onBeforeUnmount(() => {
 .support-ball {
   width: 72px;
   height: 72px;
-  border-radius: 20px;
+  border-radius: 8px;
   flex-shrink: 0;
   background:
     radial-gradient(circle at 36% 34%, rgba(255, 255, 255, 0.34), transparent 14%),
@@ -725,7 +725,7 @@ onBeforeUnmount(() => {
 
   .otp-card {
     padding: 28px 20px;
-    border-radius: 24px;
+    border-radius: 8px;
   }
 
   .otp-preview {

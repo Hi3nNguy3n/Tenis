@@ -91,7 +91,7 @@ const formatVND = (value) => {
           <div class="progress-body">
             
             <div class="chart-container">
-              <el-progress type="dashboard" :percentage="stats.completion_rate" :color="'#006953'" :stroke-width="15" :width="200">
+              <el-progress type="dashboard" :percentage="stats.completion_rate" :color="'var(--primary)'" :stroke-width="15" :width="200">
                 <template #default="{ percentage }">
                   <div class="percentage-wrap">
                     <span class="percentage-value">{{ percentage }}%</span>
@@ -128,14 +128,14 @@ const formatVND = (value) => {
 <style scoped>
 .dashboard-page { padding: 10px; }
 .dashboard-header { margin-bottom: 30px; }
-.dashboard-header h1 { font-size: 2rem; color: #123f34; margin-bottom: 5px; }
+.dashboard-header h1 { font-size: 2rem; color: var(--text-dark); margin-bottom: 5px; }
 .dashboard-header p { color: #6e7a74; }
 
 /* Grid Thẻ Thống kê */
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 30px; }
-.stat-card { background: white; border-radius: 20px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); transition: transform 0.2s; border: 1px solid #f0f2f2; }
+.stat-card { background: white; border-radius: 8px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); transition: transform 0.2s; border: 1px solid #f0f2f2; }
 .stat-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.06); }
-.premium-card { background: linear-gradient(135deg, #123f34 0%, #006953 100%); border: none; }
+.premium-card { background: linear-gradient(135deg, var(--text-dark) 0%, var(--primary) 100%); border: none; }
 .premium-card .stat-label, .premium-card .stat-value small { color: rgba(255,255,255,0.8); }
 
 .stat-content { display: flex; justify-content: space-between; align-items: center; }
@@ -145,24 +145,24 @@ const formatVND = (value) => {
 .stat-value small { font-size: 1rem; color: #94a3b8; }
 
 .text-gold { color: #fef08a; }
-.text-green { color: #006953; }
+.text-green { color: var(--primary); }
 .text-orange { color: #ea580c; }
 .text-blue { color: #2563eb; }
 
 /* Icons */
 .stat-icon-wrap { width: 56px; height: 56px; border-radius: 16px; display: flex; justify-content: center; align-items: center; font-size: 24px; }
 .bg-gold { background: rgba(254, 240, 138, 0.2); color: #fef08a; }
-.bg-green { background: #e6f0ee; color: #006953; }
+.bg-green { background: #e6f0ee; color: var(--primary); }
 .bg-orange { background: #ffedd5; color: #ea580c; }
 .bg-blue { background: #dbeafe; color: #2563eb; }
 
 /* Progress Section */
-.progress-card { background: white; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); border: 1px solid #f0f2f2; }
-.card-header h3 { display: flex; align-items: center; gap: 10px; color: #123f34; margin-bottom: 30px; font-size: 1.3rem; }
+.progress-card { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); border: 1px solid #f0f2f2; }
+.card-header h3 { display: flex; align-items: center; gap: 10px; color: var(--text-dark); margin-bottom: 30px; font-size: 1.3rem; }
 .progress-body { display: flex; align-items: center; gap: 60px; }
 
 .percentage-wrap { display: flex; flex-direction: column; align-items: center; }
-.percentage-value { font-size: 2.5rem; font-weight: 900; color: #123f34; }
+.percentage-value { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
 .percentage-label { font-size: 0.9rem; color: #6e7a74; font-weight: 600; text-transform: uppercase; }
 
 .progress-details { display: flex; flex-direction: column; gap: 20px; }
@@ -171,7 +171,7 @@ const formatVND = (value) => {
 .dot.bg-gray { background: #cbd5e1; }
 .d-text { display: flex; flex-direction: column; gap: 5px; }
 .d-text span { font-size: 0.85rem; color: #6e7a74; font-weight: 600; }
-.d-text strong { font-size: 1.2rem; color: #123f34; font-weight: 800; }
+.d-text strong { font-size: 1.2rem; color: var(--text-dark); font-weight: 800; }
 
 @media (max-width: 768px) {
   .progress-body { flex-direction: column; gap: 30px; text-align: center; }

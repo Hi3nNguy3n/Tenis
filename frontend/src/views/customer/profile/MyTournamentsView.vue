@@ -1,456 +1,339 @@
 <script setup>
 import { onMounted } from 'vue'
-import { useTournamentStore } from '../../../stores/tournament'
 import { useAuthStore } from '../../../stores/auth'
+import { useTournamentStore } from '../../../stores/tournament'
+import { RouterLink } from 'vue-router'
 
-const tournamentStore = useTournamentStore()
 const authStore = useAuthStore()
+const tournamentStore = useTournamentStore()
 
-
-onMounted(() => {
-  tournamentStore.fetchMyRegistrations()
+onMounted(async () => {
+  // Logic preserved: load player tournaments if authenticated
+  if (authStore.user?.id) {
+    await tournamentStore.fetchPlayerTournaments(authStore.user.id)
+  }
 })
-
-// Trigger HMR for cancellation feature
-
-const getStatusClass = (status) => {
-  const classes = {
-    pending: 'status-holding',
-    confirmed: 'status-approved',
-    rejected: 'status-rejected',
-    cancelled: 'status-expired'
-  }
-  return classes[status] || ''
-}
-
-const getStatusText = (status) => {
-  const texts = {
-    pending: 'Đang giữ chỗ (Chờ thanh toán)',
-    confirmed: 'Đã xác nhận',
-    rejected: 'Bị từ chối',
-    cancelled: 'Đã hết hạn/Hủy'
-  }
-  return texts[status] || status
-}
-
-
-const handleCancel = async (regId) => {
-  if (confirm('Bạn có chắc chắn muốn hủy đăng ký này không?')) {
-    try {
-      await tournamentStore.cancelRegistration(regId)
-      alert('Hủy đăng ký thành công.')
-    } catch (err) {
-      alert('Không thể hủy: ' + (err.message || 'Lỗi hệ thống'))
-    }
-  }
-}
-
-
 </script>
 
 <template>
-  <div class="my-tournaments container">
-    <!-- Header Section (Same as Profile) -->
-    <section v-if="authStore.user" class="profile-header">
-      <div class="avatar-section">
-        <div class="avatar-box">
-          <img v-if="authStore.user.avatar_url" :src="authStore.user.avatar_url" alt="Avatar" />
-          <div v-else class="avatar-placeholder">👤</div>
-        </div>
-      </div>
-
-      <div class="header-info">
-        <div class="name-row">
-          <h1>{{ authStore.user.full_name }}</h1>
-        </div>
-        <p class="role-badge">Hạng thành viên: Pro Player</p>
-      </div>
-    </section>
-
-    <div class="profile-grid">
-      <aside class="profile-sidebar">
-        <nav class="side-nav">
-          <RouterLink to="/profile" class="nav-item">
-            <span class="icon">👤</span>
-            Thông tin cá nhân
-          </RouterLink>
-          <RouterLink to="/profile/my-tournaments" class="nav-item">
-            <span class="icon">🏆</span>
-            Giải đấu & Trận đấu
-          </RouterLink>
-          <button class="nav-item logout" @click="authStore.logout()">
-            <span class="icon">🚪</span>
-            Đăng xuất
-          </button>
-        </nav>
-      </aside>
-
-      <main class="profile-main">
-        <div class="header-section">
-          <h1>Giải đấu của tôi</h1>
-          <p>Danh sách các giải đấu bạn đã đăng ký tham gia.</p>
-        </div>
-
-        <div v-if="tournamentStore.loading" class="loading-state">
-          <div class="spinner"></div>
-          <p>Đang tải danh sách đăng ký...</p>
-        </div>
-
-        <div v-else-if="tournamentStore.myRegistrations.length > 0" class="registrations-grid">
-          <div v-for="reg in tournamentStore.myRegistrations" :key="reg.id" class="reg-card">
-            <div class="reg-header">
-              <span class="status-badge" :class="getStatusClass(reg.status)">
-                {{ getStatusText(reg.status) }}
-              </span>
-              <span class="reg-date">{{ new Date(reg.registered_at).toLocaleDateString('vi-VN') }}</span>
+  <div class="profile-page-wrapper">
+    <!-- Hero Header (Synced with Profile) -->
+    <section class="profile-hero-banner">
+      <div class="banner-bg"></div>
+      <div class="container hero-content-shell">
+        <div class="hero-flex">
+          <div class="avatar-container">
+            <div class="avatar-frame">
+              <img v-if="authStore.user?.avatar_url" :src="authStore.user.avatar_url" alt="Avatar" />
+              <div v-else class="avatar-placeholder">👤</div>
             </div>
-
-            <div class="reg-body">
-              <div class="tournament-info">
-                <h3>{{ reg.tournament_name || 'Giải đấu #' + reg.tournament_id }}</h3>
-                <p>Hạng mục: {{ reg.registrant_type === 'single' ? 'Đơn' : 'Đôi/Đồng đội' }}</p>
+          </div>
+          
+          <div class="hero-text-block">
+            <span class="user-role-badge">giải đấu của tôi</span>
+            <h1>{{ authStore.user?.full_name }}</h1>
+            
+            <div class="hero-quick-stats">
+              <div class="stat-item">
+                <span class="stat-val">{{ tournamentStore.playerTournaments?.length || 0 }}</span>
+                <span class="stat-lbl">Tham gia</span>
               </div>
-
-              <!-- QR Section only if confirmed -->
-              <div v-if="reg.status === 'confirmed'" class="qr-section">
-                <div class="qr-box">
-                  <img v-if="reg.qr_code_url" :src="reg.qr_code_url" alt="QR Check-in" />
-                  <div v-else class="qr-placeholder">QR CODE</div>
-                </div>
-                <!-- Hiển thị mã ID thủ công để dễ test trên máy tính -->
-                <div style="margin-bottom: 5px;">
-                  <code style="background: #f0f3f2; padding: 2px 6px; border-radius: 4px; font-weight: 800; color: #006953; font-size: 0.8rem;">
-                    STT_REG_{{ reg.id }}
-                  </code>
-                </div>
-                <p class="qr-tip">Mã check-in tại sân</p>
+              <div class="stat-sep"></div>
+              <div class="stat-item">
+                <span class="stat-val">{{ authStore.user?.wins || 0 }}</span>
+                <span class="stat-lbl">Thắng</span>
               </div>
-            </div>
-
-            <div class="reg-footer">
-              <button class="btn-detail" @click="$router.push({ name: 'tournament-detail', params: { id: reg.tournament_id } })">
-                Xem thông tin giải
-              </button>
-              <button v-if="reg.status === 'pending'" 
-                      class="btn-cancel" 
-                      @click="handleCancel(reg.id)">
-                Hủy đăng ký
-              </button>
-              <p v-else-if="reg.status === 'confirmed'" class="cancellation-note">
-                Vui lòng liên hệ CLB/Sân để hỗ trợ hủy & hoàn phí.
-              </p>
             </div>
           </div>
         </div>
+      </div>
+    </section>
 
-        <div v-else class="empty-state">
-          <div class="empty-icon">🎾</div>
-          <h3>Bạn chưa đăng ký giải đấu nào</h3>
-          <p>Hãy tham gia ngay các giải đấu hấp dẫn đang mở đăng ký.</p>
-          <button class="btn-primary" @click="$router.push({ name: 'tournaments' })">Khám phá giải đấu</button>
-        </div>
-      </main>
+    <!-- Main Navigation & Content -->
+    <div class="container main-layout-container">
+      <div class="layout-grid">
+        <!-- Sticky Sidebar -->
+        <aside class="compact-sidebar">
+          <nav class="sidebar-nav">
+            <RouterLink to="/profile" class="nav-btn">
+              <span class="icon">👤</span> hồ sơ
+            </RouterLink>
+            <RouterLink to="/profile/my-tournaments" class="nav-btn active">
+              <span class="icon">🎾</span> giải đấu
+            </RouterLink>
+            <RouterLink to="/profile/change-password" class="nav-btn">
+              <span class="icon">🔒</span> bảo mật
+            </RouterLink>
+          </nav>
+        </aside>
+
+        <!-- Dynamic Content Area -->
+        <main class="content-primary">
+          <div v-if="tournamentStore.playerTournaments?.length" class="tournaments-stack">
+            <article 
+              v-for="reg in tournamentStore.playerTournaments" 
+              :key="reg.id" 
+              class="atp-tour-card"
+            >
+              <div class="tour-main-info">
+                <div class="tour-header-row">
+                  <span class="tour-category">saigon tennis tour</span>
+                  <span :class="['atp-status-pill', reg.payment_status]">
+                    {{ reg.payment_status === 'confirmed' ? 'Đã xác nhận' : 'Đang xử lý' }}
+                  </span>
+                </div>
+                
+                <h2 class="atp-tour-name">{{ reg.Tournament?.name }}</h2>
+                
+                <div class="tour-meta-grid">
+                  <div class="m-item">
+                    <span class="m-label">Hạng đấu</span>
+                    <span class="m-val">{{ reg.Tournament?.category || 'Chuyên nghiệp' }}</span>
+                  </div>
+                  <div class="m-item">
+                    <span class="m-label">Ngày thi đấu</span>
+                    <span class="m-val">{{ new Date(reg.Tournament?.start_date).toLocaleDateString() }}</span>
+                  </div>
+                  <div class="m-item">
+                    <span class="m-label">Địa điểm</span>
+                    <span class="m-val">{{ reg.Tournament?.location || 'Saigon Tennis Center' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Ticket Stub Section -->
+              <div class="atp-ticket-stub">
+                <div class="stub-qr-box">
+                  <!-- Simplified QR placeholder for UI design -->
+                   <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=SAIGONTENNIS" alt="QR" />
+                </div>
+                <span class="stub-label">Mã đăng ký</span>
+                <code>#{{ reg.id.toString().slice(-8).toUpperCase() }}</code>
+                <p class="stub-hint">Trình mã này khi check-in tại sân</p>
+              </div>
+            </article>
+          </div>
+
+          <!-- Empty State -->
+          <div v-else class="atp-empty-state-card">
+            <div class="empty-visual">🎾</div>
+            <h3>Bạn chưa tham gia giải nào</h3>
+            <p>Khám phá các giải đấu mới nhất và đăng ký ngay hôm nay để nhận thứ hạng!</p>
+            <RouterLink to="/tournaments" class="btn-atp-solid">Tìm giải đấu ngay</RouterLink>
+          </div>
+        </main>
+      </div>
     </div>
-
   </div>
 </template>
 
 <style scoped>
-.my-tournaments {
-  padding-top: 8rem;
-  padding-bottom: 6rem;
+.profile-page-wrapper {
+  background: var(--bg-soft);
+  min-height: 100vh;
+  padding-bottom: 5rem;
 }
 
-.profile-header {
+/* Hero Section (Reused from Profile) */
+.profile-hero-banner {
+  position: relative;
+  height: 280px;
+  background: #064e3b;
+  margin-bottom: 4rem;
+}
+
+.banner-bg {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1595435063098-95843b0d2358?q=80&w=2070&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+}
+
+.hero-content-shell {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 2rem;
+}
+
+.hero-flex {
   display: flex;
   align-items: center;
   gap: 3rem;
-  margin-bottom: 2rem;
-  background: white;
-  padding: 2.5rem;
-  border-radius: 32px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.03);
+  width: 100%;
 }
 
-.avatar-section { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-.avatar-box {
-  width: 100px; height: 100px;
-  border-radius: 30px; overflow: hidden;
-  background: #f0f7f4; border: 3px solid white;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+.avatar-frame {
+  width: 180px;
+  height: 180px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: var(--shadow-lg);
+  margin-bottom: -60px;
+  overflow: hidden;
 }
-.avatar-box img { width: 100%; height: 100%; object-fit: cover; }
-.avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
 
-.header-info { flex: 1; }
-.header-info h1 { font-size: 2.22rem; color: #123f34; margin: 0; }
-.role-badge { color: #6e7a74; margin-top: 0.5rem; font-weight: 600; font-size: 1rem; }
+.avatar-frame img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+.avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3rem; background: #f1f5f9; }
 
-.profile-grid {
+.hero-text-block { color: #fff; flex: 1; }
+.user-role-badge { background: var(--secondary); color: #064e3b; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; padding: 4px 12px; border-radius: 4px; margin-bottom: 0.5rem; display: inline-block; }
+.hero-text-block h1 { font-size: 3rem; font-weight: 600; margin: 0 0 1rem; text-transform: uppercase; letter-spacing: -0.02em; }
+
+.hero-quick-stats {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.stat-item { text-align: center; }
+.stat-val { display: block; font-size: 1.5rem; font-weight: 600; color: var(--secondary); }
+.stat-lbl { font-size: 0.7rem; font-weight: 500; text-transform: uppercase; opacity: 0.7; }
+.stat-sep { width: 1px; height: 30px; background: rgba(255, 255, 255, 0.2); }
+
+/* Layout Grid */
+.layout-grid {
   display: grid;
   grid-template-columns: 280px 1fr;
-  gap: 3rem;
-  align-items: start;
+  gap: 2.5rem;
 }
 
-.profile-sidebar {
+.sidebar-nav {
   position: sticky;
   top: 100px;
-}
-
-.side-nav {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  background: white;
-  padding: 1.5rem;
-  border-radius: 28px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.03);
 }
 
-.nav-item {
+.nav-btn {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1rem 1.5rem;
-  border-radius: 16px;
-  text-decoration: none;
-  color: #4e6073;
-  font-weight: 700;
-  transition: all 0.2s;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.95rem;
-  text-align: left;
+  background: #fff;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  transition: var(--transition);
+  border: 1px solid transparent;
 }
 
-.nav-item .icon { font-size: 1.2rem; }
+.nav-btn.active { background: var(--primary); color: #fff; box-shadow: var(--shadow-md); }
 
-.nav-item:hover {
-  background: rgba(0, 105, 83, 0.05);
-  color: #006953;
-}
+/* Tournament Cards */
+.tournaments-stack { display: flex; flex-direction: column; gap: 1.5rem; }
 
-.nav-item.router-link-active {
-  background: #006953;
-  color: white;
-  box-shadow: 0 10px 20px rgba(0, 105, 83, 0.15);
-}
-
-.nav-item.logout {
-  margin-top: 1rem;
-  color: #ba1a1a;
-  border-top: 1px solid #f0f0f0;
-  border-radius: 0;
-  padding-top: 1.5rem;
-}
-.nav-item.logout:hover {
-  background: rgba(186, 26, 26, 0.05);
-}
-
-.profile-main {
-  flex: 1;
-}
-
-.header-section {
-  margin-bottom: 2.5rem;
-}
-.header-section h1 { font-size: 2rem; color: #123f34; margin-bottom: 0.5rem; }
-.header-section p { color: #6e7a74; }
-
-
-
-.registrations-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 2rem;
-}
-
-.reg-card {
-  background: white;
-  border-radius: 24px;
+.atp-tour-card {
+  display: flex;
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.04);
-  border: 1px solid rgba(0,0,0,0.05);
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.atp-tour-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+
+.tour-main-info {
+  flex: 1;
+  padding: 2.5rem;
+}
+
+.tour-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.tour-category { font-size: 0.7rem; font-weight: 600; color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; }
+
+.atp-status-pill { padding: 4px 12px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; }
+.confirmed { background: #dcfce7; color: #166534; }
+.pending { background: #fef9c3; color: #854d0e; }
+
+.atp-tour-name { font-size: 1.8rem; font-weight: 600; color: var(--text-dark); margin: 0 0 2rem; text-transform: uppercase; line-height: 1.1; }
+
+.tour-meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+.m-label { display: block; font-size: 0.65rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+.m-val { font-size: 1rem; font-weight: 500; color: var(--text-dark); text-transform: uppercase; }
+
+/* Ticket Stub */
+.atp-ticket-stub {
+  width: 200px;
+  background: #f8fafc;
+  border-left: 2px dashed var(--border-light);
   display: flex;
   flex-direction: column;
-}
-
-.reg-header {
-  padding: 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fbfcfb;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.status-badge {
-  padding: 0.4rem 0.8rem;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.status-holding { background: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
-.status-approved { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
-.status-rejected { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
-.status-expired { background: #f5f5f5; color: #757575; border: 1px solid #e0e0e0; }
-
-.reg-date {
-  font-size: 0.85rem;
-  color: #9e9e9e;
-}
-
-.reg-body {
-  padding: 2rem;
-  flex: 1;
-  display: flex;
-  justify-content: space-between;
-  gap: 1.5rem;
-}
-
-.tournament-info h3 {
-  font-size: 1.4rem;
-  color: #123f34;
-  margin-bottom: 0.5rem;
-}
-
-.tournament-info p {
-  color: #6e7a74;
-}
-
-.qr-section {
-  text-align: center;
-  width: 120px;
-}
-
-.qr-box {
-  width: 100px;
-  height: 100px;
-  background: white;
-  border: 1px solid #eee;
-  padding: 5px;
-  margin: 0 auto 0.5rem;
-}
-
-.qr-box img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.qr-placeholder {
-  width: 100%;
-  height: 100%;
-  background: #f5f5f5;
-  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.6rem;
-  font-weight: 800;
-}
-
-.qr-tip {
-  font-size: 0.7rem;
-  color: #6e7a74;
-  font-weight: 600;
-}
-
-.status-placeholder {
-  width: 150px;
-  font-size: 0.8rem;
-  color: #9e9e9e;
-  text-align: right;
-  font-style: italic;
-}
-
-.reg-footer {
-  padding: 1rem 2rem;
-  background: #fbfcfb;
-  border-top: 1px solid #f0f0f0;
-}
-
-.btn-detail {
-  width: 100%;
-  padding: 0.75rem;
-  background: none;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 600;
-  color: #4e6073;
-  margin-bottom: 0.5rem;
-}
-
-
-.btn-cancel {
-  width: 100%;
-  padding: 0.75rem;
-  background: #fff;
-  border: 1px solid #ff5252;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 600;
-  color: #ff5252;
-  transition: all 0.2s;
-}
-
-.btn-cancel:hover {
-  background: #ff5252;
-  color: white;
-}
-
-
-.btn-detail:hover {
-  border-color: #006953;
-  color: #006953;
-}
-
-.cancellation-note {
-  font-size: 0.75rem;
-  color: #6e7a74;
+  padding: 2rem;
   text-align: center;
-  margin-top: 0.5rem;
-  font-style: italic;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 5rem 0;
-  background: white;
-  border-radius: 32px;
-}
+.stub-qr-box { width: 100px; height: 100px; background: #fff; padding: 6px; border-radius: 4px; margin-bottom: 1rem; border: 1px solid var(--border-light); }
+.stub-qr-box img { width: 100%; height: 100%; }
+.stub-label { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+.atp-ticket-stub code { background: #0f172a; color: #fff; padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 0.85rem; margin-bottom: 0.5rem; }
+.stub-hint { font-size: 0.6rem; font-weight: 700; color: var(--text-muted); margin: 0; }
 
-.empty-icon { font-size: 4rem; margin-bottom: 1.5rem; }
-.empty-state h3 { font-size: 1.8rem; margin-bottom: 1rem; color: #123f34; }
-.empty-state p { margin-bottom: 2rem; color: #6e7a74; }
+/* Empty State */
+.atp-empty-state-card { background: #fff; border-radius: 12px; padding: 5rem 2rem; text-align: center; border: 1px solid var(--border-light); }
+.empty-visual { font-size: 4rem; margin-bottom: 1.5rem; opacity: 0.15; }
+.atp-empty-state-card h3 { font-size: 1.8rem; font-weight: 600; text-transform: uppercase; margin-bottom: 1rem; }
+.atp-empty-state-card p { color: var(--text-muted); font-weight: 700; margin-bottom: 2rem; }
 
-.btn-primary {
-  padding: 1rem 2.5rem;
-  background: #006953;
-  color: white;
+.btn-atp-solid {
+  background: var(--primary);
+  color: #fff;
   border: none;
-  border-radius: 12px;
-  font-weight: 700;
-  cursor: pointer;
+  padding: 14px 30px;
+  border-radius: 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+  text-decoration: none;
+  display: inline-block;
+  transition: var(--transition);
+}
+.btn-atp-solid:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+  .layout-grid { grid-template-columns: 1fr; }
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    position: sticky;
+    top: 80px;
+    z-index: 100;
+    background: var(--bg-soft);
+  }
+  .nav-btn { min-width: max-content; }
+  .hero-flex { flex-direction: column; text-align: center; gap: 2rem; }
+  .avatar-frame { margin-bottom: 0; }
+  .atp-tour-card { flex-direction: column; }
+  .atp-ticket-stub { width: 100%; border-left: none; border-top: 2px dashed var(--border-light); padding: 2.5rem; }
 }
 
-.loading-state { text-align: center; padding: 4rem; }
-.spinner {
-  width: 40px; height: 40px; border: 4px solid rgba(0,105,83,0.1);
-  border-top-color: #006953; border-radius: 50%; animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
+@media (max-width: 768px) {
+  .profile-hero-banner { height: 220px; }
+  .avatar-frame { width: 150px; height: 150px; }
+  .hero-text-block h1 { font-size: 2.2rem; }
+  .tour-main-info { padding: 1.5rem; }
+  .atp-tour-name { font-size: 1.4rem; }
+  .tour-meta-grid { grid-template-columns: 1fr; gap: 1.5rem; }
 }
-@keyframes spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 500px) {
-  .registrations-grid { grid-template-columns: 1fr; }
-  .reg-body { flex-direction: column; align-items: center; text-align: center; }
-  .status-placeholder { text-align: center; width: 100%; }
+@media (max-width: 480px) {
+  .hero-quick-stats { flex-direction: column; width: 100%; gap: 1rem; }
+  .stat-sep { display: none; }
 }
 </style>

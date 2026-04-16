@@ -141,18 +141,18 @@ onMounted(fetchTournaments)
 <style scoped>
 .module-shell { display: grid; gap: 24px; }
 .hero-card {
-  background: white; padding: 24px; border-radius: 20px;
+  background: white; padding: 24px; border-radius: 8px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.04);
   display: flex; justify-content: space-between; align-items: flex-end;
 }
-.section-kicker { font-size: 0.75rem; font-weight: 800; color: #006953; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px; }
-.hero-card h2 { font-size: 2.22rem; color: #123f34; margin: 0; }
+.section-kicker { font-size: 0.75rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px; }
+.hero-card h2 { font-size: 2.22rem; color: var(--text-dark); margin: 0; }
 .hero-card p { color: #6e7a74; margin-top: 8px; }
 .hero-actions { display: flex; gap: 12px; }
 
 /* BẢNG CHỨA SƠ ĐỒ */
 .draw-container {
-  background: #fdfdfd; padding: 32px; border-radius: 20px; min-height: 500px;
+  background: #fdfdfd; padding: 32px; border-radius: 8px; min-height: 500px;
   overflow-x: auto; /* Cho phép cuộn ngang nếu nhánh đấu quá to */
   box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
 }
@@ -174,7 +174,7 @@ onMounted(fetchTournaments)
 .round-title {
   text-align: center;
   font-weight: 800;
-  color: #006953;
+  color: var(--primary);
   margin-bottom: 24px;
   padding-bottom: 12px;
   border-bottom: 2px solid #e0e6e4;

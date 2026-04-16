@@ -265,10 +265,10 @@ onMounted(() => {
 .operation-shell { padding: 20px; background: #f9fbfd; min-height: 100vh; }
 .ops-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 .title-area h1 { font-size: 2rem; color: #1a3353; margin: 8px 0; }
-.badge-live { background: #fee2e2; color: #dc2626; padding: 4px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+.badge-live { background: #fee2e2; color: #dc2626; padding: 4px 12px; border-radius: 8px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
 
 .round-section { margin-bottom: 40px; }
-.round-name { font-size: 1.2rem; color: #006953; border-left: 5px solid #006953; padding-left: 15px; margin-bottom: 20px; font-weight: 800; }
+.round-name { font-size: 1.2rem; color: var(--primary); border-left: 5px solid var(--primary); padding-left: 15px; margin-bottom: 20px; font-weight: 800; }
 
 .match-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
 .match-card-v2 { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #edf2f7; transition: all 0.3s; }
