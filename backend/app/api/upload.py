@@ -7,7 +7,7 @@ from app.api.deps import get_current_admin # Chỉ admin mới được dùng c�
 router = APIRouter()
 
 @router.post("/image")
-async def upload_image(
+def upload_image(
     file: UploadFile = File(...),
     current_user = Depends(get_current_admin)
 ):

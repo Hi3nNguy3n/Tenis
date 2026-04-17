@@ -47,7 +47,7 @@ def process_qr_background(r_id: int, t_name: str):
 
 @router.get("/vnpay-callback")
 @audit_log(module="PAYMENT", action="UPDATE", event_name="Xác nhận thanh toán từ VNPay")
-async def vnpay_callback(
+def vnpay_callback(
     regId: int, 
     status: str, 
     background_tasks: BackgroundTasks,

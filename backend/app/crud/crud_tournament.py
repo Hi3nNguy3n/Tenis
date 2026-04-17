@@ -10,6 +10,10 @@ from app.models.models import Tournament, Match, Registration, Player, User, Pay
 from app.schemas.tournament_schemas import TournamentCreate, TournamentUpdate
 from app.core.audit import log_action
 
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
+
 def create_tournament(db: Session, tournament: TournamentCreate):
     db_tournament = Tournament(**tournament.model_dump())
     db.add(db_tournament)
@@ -321,3 +325,136 @@ def get_public_bracket_detail(db: Session, tournament_id: int):
             "start_time": m.start_time, "score": m.result_note
         })
     return results
+
+def export_tournament_data_to_excel(db: Session, tournament_id: int):
+    # 1. Lấy thông tin giải đấu
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu")
+
+    # Tạo Workbook Excel mới
+    wb = Workbook()
+    
+    # SHEET 1: DANH SÁCH VẬN ĐỘNG VIÊN ĐĂNG KÝ
+    ws_players = wb.active
+    ws_players.title = "Danh sách VĐV"
+    
+    # Style cho tiêu đề
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+    center_align = Alignment(horizontal="center", vertical="center")
+
+    headers = ["STT", "Họ Tên", "Số điện thoại", "Email", "Trình độ", "Trạng thái", "Thanh toán"]
+    ws_players.append(headers)
+    
+    for col in range(1, len(headers) + 1):
+        cell = ws_players.cell(row=1, column=col)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+
+    # Set độ rộng cột
+    ws_players.column_dimensions['B'].width = 25
+    ws_players.column_dimensions['C'].width = 15
+    ws_players.column_dimensions['D'].width = 25
+    ws_players.column_dimensions['E'].width = 15
+    ws_players.column_dimensions['F'].width = 15
+    ws_players.column_dimensions['G'].width = 15
+
+    # Lấy dữ liệu VĐV
+    regs = db.query(Registration, Player, User).join(
+        Player, Registration.player_id == Player.id
+    ).join(
+        User, Player.user_id == User.id
+    ).filter(
+        Registration.tournament_id == tournament_id,
+        Registration.deleted_at.is_(None)
+    ).all()
+
+    for idx, (reg, player, user) in enumerate(regs, start=1):
+        ws_players.append([
+            idx,
+            user.full_name,
+            user.phone,
+            user.email,
+            player.skill_level or "N/A",
+            "Đã Check-in" if reg.status == "checked_in" else "Đã duyệt" if reg.status == "confirmed" else "Chờ duyệt",
+            "Đã thanh toán" if reg.payment_status == "paid" else "Chưa thanh toán"
+        ])
+
+    # SHEET 2: KẾT QUẢ TRẬN ĐẤU (BRACKET)
+
+    ws_matches = wb.create_sheet(title="Kết quả Thi đấu")
+    matches_headers = ["Trận số", "Vòng đấu", "VĐV A", "VĐV B", "Tỷ số", "Người thắng", "Trạng thái"]
+    ws_matches.append(matches_headers)
+
+    for col in range(1, len(matches_headers) + 1):
+        cell = ws_matches.cell(row=1, column=col)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+
+    ws_matches.column_dimensions['C'].width = 25
+    ws_matches.column_dimensions['D'].width = 25
+    ws_matches.column_dimensions['E'].width = 20
+    ws_matches.column_dimensions['F'].width = 25
+
+    # Lấy dữ liệu Match
+    matches = db.query(Match).filter(Match.tournament_id == tournament_id).order_by(Match.match_no).all()
+    
+    def get_player_name(reg_id):
+        if not reg_id: return "Chờ xếp nhánh"
+        r = db.query(Registration).filter(Registration.id == reg_id).first()
+        if not r: return "N/A"
+        u = db.query(User).join(Player).filter(Player.id == r.player_id).first()
+        return u.full_name if u else "VĐV"
+
+    for m in matches:
+        p1_name = get_player_name(m.side_a_registration_id)
+        p2_name = get_player_name(m.side_b_registration_id)
+        
+        winner_name = ""
+        if m.status == "completed":
+            winner_name = p1_name if m.winner_side == "side_a" else p2_name
+
+        ws_matches.append([
+            m.match_no,
+            m.round_code,
+            p1_name,
+            p2_name,
+            m.result_note or "-",
+            winner_name,
+            "Đã xong" if m.status == "completed" else "Chưa đấu"
+        ])
+
+    # Lưu vào bộ nhớ tạm (BytesIO) để gửi thẳng về Frontend mà không cần lưu rác trong ổ cứng máy chủ
+    stream = io.BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    
+    # Trả về file stream và tên file an toàn
+    safe_name = "".join([c if c.isalnum() else "_" for c in tournament.name])
+    file_name = f"BaoCao_{safe_name}.xlsx"
+    
+    return stream, file_name
+
+def get_tournament_and_valid_emails(db: Session, tournament_id: int):
+    # Lấy thông tin giải đấu
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        return None, []
+
+    # Lấy danh sách email hợp lệ
+    valid_regs = db.query(User.email).join(
+        Player, User.id == Player.user_id
+    ).join(
+        Registration, Player.id == Registration.player_id
+    ).filter(
+        Registration.tournament_id == tournament_id, 
+        Registration.deleted_at.is_(None)
+    ).all()
+    
+    # Lọc bỏ các phần tử rỗng
+    bcc_emails = [reg[0] for reg in valid_regs if reg[0]]
+    
+    return tournament, bcc_emails

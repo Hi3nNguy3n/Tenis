@@ -2,6 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { tournamentService } from '../../services/tournamentService'
+import apiClient from '../../services/apiClient'
+import { saveAs } from 'file-saver';
+import { getStoredAccessToken } from '../../utils/authStorage';
+import { Message } from '@element-plus/icons-vue'
 
 const categoryOptions = ['Open', 'Intermediate', 'Advanced', 'Elite']
 const formatOptions = ['Singles', 'Doubles']
@@ -25,6 +29,155 @@ const isDialogOpen = ref(false)
 const isEditMode = ref(false)
 const selectedTournament = ref(null)
 const errorMessage = ref('')
+
+const isExporting = ref(false)
+
+const downloadExcelReport = async (tournament) => {
+  if (!tournament || !tournament.id) return;
+  isExporting.value = true;
+
+  try {
+    // 1. Lấy token chuẩn từ tiện ích của dự án
+    const token = getStoredAccessToken() || localStorage.getItem('access_token');
+    
+    // 2. Sử dụng đúng tên biến môi trường (Có fallback về localhost y hệt apiClient.js)
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+    // 3. Dùng fetch thuần để giữ nguyên vẹn dữ liệu nhị phân (Blob)
+    const response = await fetch(`${baseUrl}/api/tournaments/${tournament.id}/export-excel`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Lỗi server: ${errorText}`);
+    }
+
+    // 4. Lấy dữ liệu dưới dạng Blob và lưu
+    const blob = await response.blob();
+    const safeName = tournament.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]/g, '_');
+
+    saveAs(blob, `BaoCao_${safeName}.xlsx`);
+
+    ElMessage.success('Tải báo cáo thành công!');
+  } catch (error) {
+    console.error("Lỗi xuất Excel:", error);
+    ElMessage.error('Không thể xuất báo cáo. Vui lòng kiểm tra lại quyền truy cập.');
+  } finally {
+    isExporting.value = false;
+  }
+};
+
+// --- THÊM BIẾN VÀ HÀM GỬI EMAIL ---
+const isSendingMail = ref(false)
+
+const sendMassEmail = async (tournament) => {
+  if (!tournament || !tournament.id) return;
+
+  try {
+    // 1. Xác nhận trước khi gửi để tránh bấm nhầm
+    await ElMessageBox.confirm(
+      `Hệ thống sẽ gửi email thông báo đến toàn bộ VĐV của giải "${tournament.name}". Bạn có chắc chắn muốn thực hiện?`,
+      'Xác nhận gửi thông báo hàng loạt',
+      {
+        confirmButtonText: 'Xác nhận gửi',
+        cancelButtonText: 'Hủy',
+        type: 'warning',
+      }
+    )
+
+    isSendingMail.value = true
+    const token = getStoredAccessToken() || localStorage.getItem('access_token')
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+
+    // 2. Gọi API POST để kích hoạt gửi mail hàng loạt
+    const response = await fetch(`${baseUrl}/api/tournaments/${tournament.id}/send-notifications`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.detail || 'Lỗi khi gửi thông báo')
+    }
+
+    // 3. Thông báo cho Admin biết hệ thống đang xử lý ngầm
+    ElMessage({
+      message: data.message,
+      type: 'success',
+      duration: 5000,
+      showClose: true
+    })
+
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error("Lỗi gửi mail:", error)
+      ElMessage.error(error.message || 'Không thể gửi thông báo lúc này.')
+    }
+  } finally {
+    isSendingMail.value = false
+  }
+}
+
+const isEmailDialogOpen = ref(false)
+const emailForm = ref({
+  subject: '',
+  message: ''
+})
+
+// Hàm để mở Dialog soạn thảo
+const openEmailDialog = () => {
+  emailForm.value = {
+    subject: `Thông báo quan trọng`, // Tiêu đề mặc định
+    message: ''
+  }
+  isEmailDialogOpen.value = true
+}
+
+const handleConfirmSendEmail = async () => {
+  // Validate cơ bản
+  if (!emailForm.value.subject || !emailForm.value.message) {
+    ElMessage.warning('Vui lòng nhập đầy đủ tiêu đề và nội dung thông báo')
+    return
+  }
+
+  try {
+    isSendingMail.value = true
+    const token = getStoredAccessToken() || localStorage.getItem('access_token')
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+
+    const response = await fetch(`${baseUrl}/api/tournaments/${selectedTournament.value.id}/send-notifications`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(emailForm.value) // Gửi object {subject, message}
+    })
+
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.detail || 'Lỗi gửi mail')
+
+    ElMessage.success(data.message)
+    isEmailDialogOpen.value = false // Đóng dialog sau khi thành công
+  } catch (error) {
+    console.error("Lỗi gửi mail:", error)
+    ElMessage.error(error.message || 'Không thể kết nối đến server')
+  } finally {
+    isSendingMail.value = false
+  }
+}
 
 // Pagination
 const currentPage = ref(1)
@@ -332,12 +485,31 @@ onMounted(() => {
 
         <div v-if="selectedTournament" class="detail-stack">
           <div class="detail-hero">
-            <div>
-              <span class="detail-eyebrow">{{ selectedTournament.status }}</span>
-              <h4>{{ selectedTournament.name }}</h4>
-            </div>
+          <div>
+            <span class="detail-eyebrow">{{ selectedTournament.status }}</span>
+            <h4>{{ selectedTournament.name }}</h4>
+          </div>
+          
+          <div style="display: flex; gap: 8px;">
+            <el-button 
+              type="warning" 
+              plain
+              @click="openEmailDialog" 
+            >
+              <el-icon><Message /></el-icon>&nbsp;Gửi thông báo
+            </el-button>
+
+            <el-button 
+              type="success" 
+              :loading="isExporting" 
+              @click="downloadExcelReport(selectedTournament)"
+            >
+              Xuất Excel
+            </el-button>
+            
             <el-button type="primary" plain @click="openEditDialog(selectedTournament)">Chỉnh sửa</el-button>
           </div>
+        </div>
 
           <div class="detail-grid">
             <div>
@@ -496,6 +668,33 @@ onMounted(() => {
       <el-button @click="closeDialog">Hủy</el-button>
       <el-button type="primary" :loading="isSaving" @click="saveTournament">
         {{ isEditMode ? 'Lưu cập nhật' : 'Tạo giải đấu' }}
+      </el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog
+    v-model="isEmailDialogOpen"
+    title="Soạn thông báo gửi VĐV"
+    width="550px"
+    append-to-body
+  >
+    <el-form :model="emailForm" label-position="top">
+      <el-form-item label="Tiêu đề thông báo">
+        <el-input v-model="emailForm.subject" placeholder="VD: Thay đổi lịch thi đấu sân số 2" />
+      </el-form-item>
+      <el-form-item label="Nội dung chi tiết">
+        <el-input
+          v-model="emailForm.message"
+          type="textarea"
+          :rows="8"
+          placeholder="Nhập nội dung bạn muốn gửi đến các vận động viên..."
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="isEmailDialogOpen = false">Hủy</el-button>
+      <el-button type="primary" :loading="isSendingMail" @click="handleConfirmSendEmail">
+        Xác nhận gửi ngay
       </el-button>
     </template>
   </el-dialog>

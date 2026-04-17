@@ -66,7 +66,7 @@ async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = D
     return {"message": "Mã OTP đã được gửi thành công!"}
 
 @router.post("/register")
-async def register(
+def register(
     request: RegisterRequest, 
     db: Session = Depends(get_db), 
     r = Depends(get_redis)
@@ -131,7 +131,7 @@ async def forgot_password(request: SendOTPRequest, db: Session = Depends(get_db)
     return {"message": "Mã khôi phục đã được gửi tới email của bạn."}
 
 @router.post("/reset-password")
-async def reset_password(email: str, otp: str, new_password: str, db: Session = Depends(get_db), r = Depends(get_redis)):
+def reset_password(email: str, otp: str, new_password: str, db: Session = Depends(get_db), r = Depends(get_redis)):
     cached_otp = r.get(f"reset_otp:{email}")
     if not cached_otp or cached_otp != otp:
         raise HTTPException(status_code=400, detail="Mã xác thực không đúng hoặc đã hết hạn.")

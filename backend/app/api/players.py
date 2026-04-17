@@ -33,7 +33,7 @@ def update_profile(
 
 @router.post("/me/avatar")
 @audit_log(module="PLAYER", action="UPDATE", event_name="Cá nhân cập nhật ảnh đại diện")
-async def upload_avatar(
+def upload_avatar(
     file: UploadFile = File(...), 
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
