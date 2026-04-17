@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql://admin:secret@localhost:5432/saigon_tennis_db"
+    DATABASE_URL: str = "postgresql://admin:secret@127.0.0.1:5433/saigon_tennis_db"
     FRONTEND_ORIGINS: str = (
         "http://localhost:5173,"
         "http://127.0.0.1:5173,"
