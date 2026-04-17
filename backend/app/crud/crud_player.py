@@ -98,3 +98,38 @@ def get_matches_by_registrations(db: Session, reg_ids: list):
 def get_opponent_user_by_reg_id(db: Session, reg_id: int):
     if not reg_id: return None
     return db.query(User).join(Player).join(Registration).filter(Registration.id == reg_id).first()
+
+def search_players(db: Session, keyword: str, limit: int = 10):
+    # Join Player với User để lấy cả 2 thông tin
+    query = db.query(Player, User).join(User, Player.user_id == User.id)
+
+    if keyword.isdigit():
+        # Nếu nhập số, tìm theo User ID (để đồng bộ với Chat)
+        results = query.filter(User.id == int(keyword)).all()
+    else:
+        # Tìm theo tên trong bảng User
+        results = query.filter(User.full_name.ilike(f"%{keyword}%")).limit(limit).all()
+
+    # QUAN TRỌNG: Trả về một danh sách các Dictionary
+    # Trong đó "id" PHẢI LÀ u.id (User ID) để Chat gửi đúng người
+    return [
+        {
+            "id": u.id, 
+            "full_name": u.full_name,
+            "avatar_url": u.avatar_url,
+            "level": p.skill_level
+        } for p, u in results
+    ]
+
+def get_player_by_id(db: Session, player_id: int):
+    # player_id ở đây bây giờ được hiểu là User ID
+    result = db.query(Player, User).join(User, Player.user_id == User.id).filter(User.id == player_id).first()
+    if not result:
+        return None
+    p, u = result
+    return {
+        "id": u.id,
+        "full_name": u.full_name,
+        "avatar_url": u.avatar_url,
+        "level": p.skill_level
+    }

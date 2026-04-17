@@ -11,3 +11,12 @@ class PlayerUpdate(BaseModel):
     play_hand: Optional[str] = Field(None, description="right, left, both")
     skill_level: Optional[str] = None
     preferred_category: Optional[str] = None
+
+class PlayerPublicResponse(BaseModel):
+    id: int
+    full_name: str
+    avatar_url: Optional[str] = None
+    level: Optional[str] = None # Logic CRUD trên đã đổ skill_level vào đây
+
+    class Config:
+        from_attributes = True

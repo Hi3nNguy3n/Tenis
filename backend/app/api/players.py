@@ -11,6 +11,12 @@ from app.schemas.player_schemas import PlayerUpdate
 from app.core.audit import audit_log
 from app.crud import crud_player # Import tầng CRUD mới cấu trúc
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from typing import List
+
+from app.schemas.player_schemas import PlayerPublicResponse
+
 router = APIRouter()
 
 @router.get("/me")
@@ -145,3 +151,20 @@ def get_my_match_history(
             "time": m.start_time.strftime("%d/%m/%Y %H:%M") if m.start_time else "TBD"
         })
     return results
+
+# 1. API Tìm kiếm người chơi
+@router.get("/search", response_model=List[PlayerPublicResponse])
+def search_players(
+    keyword: str = Query(..., min_length=1, description="Tên người cần tìm"),
+    db: Session = Depends(get_db)
+):
+    # CRUD giờ đã trả về dữ liệu chuẩn Dictionary khớp với Schema
+    return crud_player.search_players(db, keyword=keyword)
+
+# 2. API Lấy hồ sơ công khai của 1 người
+@router.get("/{player_id}", response_model=PlayerPublicResponse)
+def get_public_profile(player_id: int, db: Session = Depends(get_db)):
+    player_data = crud_player.get_player_by_id(db, player_id=player_id)
+    if not player_data:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người chơi này")
+    return player_data
