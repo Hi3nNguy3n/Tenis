@@ -1,168 +1,275 @@
 <script setup>
-import { ref } from 'vue'
-import { Search, Calendar as CalendarIcon, ArrowLeft, ArrowRight, VideoPlay, PieChart } from '@element-plus/icons-vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { Calendar as CalendarIcon, ArrowLeft, ArrowRight, VideoPlay, PieChart } from '@element-plus/icons-vue'
+import { tournamentService } from '../../services/tournamentService'
+import { newsService } from '../../services/newsService'
+import { playerService } from '../../services/playerService'
 
-// Mock Data for Matches
-const mockTournamentMatches = [
-  {
-    id: 't1',
-    name: 'Barcelona Open Banc Sabadell',
-    location: 'Barcelona, Spain',
-    matches: [
-      {
-        id: 1,
-        round: 'Round of 16',
-        players: [
-          { name: 'C. Alcaraz', seed: '1', flag: '🇪🇸', sets: [6, 7, 2], winner: true },
-          { name: 'S. Tsitsipas', seed: '5', flag: '🇬🇷', sets: [4, 6, 1], winner: false }
-        ],
-        status: 'Finished',
-        time: 'Final'
-      },
-      {
-        id: 2,
-        round: 'Round of 16',
-        players: [
-          { name: 'A. De Minaur', seed: '11', flag: '🇦🇺', sets: [3, 4], winner: false },
-          { name: 'R. Nadal', flag: '🇪🇸', sets: [6, 6], winner: true }
-        ],
-        status: 'Finished',
-        time: 'Final'
-      }
-    ]
-  },
-  {
-    id: 't2',
-    name: 'BMW Open by Ibipanda',
-    location: 'Munich, Germany',
-    matches: [
-      {
-        id: 3,
-        round: 'Quarter-Finals',
-        players: [
-          { name: 'A. Zverev', seed: '1', flag: '🇩🇪', sets: [4, 1], winner: false, serve: true },
-          { name: 'H. Rune', seed: '2', flag: '🇩🇰', sets: [6, 2], winner: false }
-        ],
-        status: 'Live',
-        time: 'Set 2 - Game 4'
-      }
-    ]
+const router = useRouter()
+
+const loading = ref(false)
+const tournamentsWithMatches = ref([])
+const latestNews = ref([])
+const topPlayers = ref([])
+
+const formatDateKey = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const addDays = (date, days) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+const today = new Date()
+const todayKey = formatDateKey(today)
+const activeDate = ref(todayKey)
+const visibleStartDate = ref(addDays(today, -3))
+
+const dateOptions = computed(() => {
+  const options = []
+  for (let i = 0; i < 6; i += 1) {
+    const current = addDays(visibleStartDate.value, i)
+    const key = formatDateKey(current)
+    options.push({
+      value: key,
+      label: key === todayKey
+        ? 'TODAY'
+        : current.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }).toUpperCase(),
+    })
   }
-]
+  return options
+})
 
-const matches = ref(mockTournamentMatches)
-const dates = ['14 APR', '15 APR', '16 APR', 'TODAY', '18 APR', '19 APR']
-const activeDate = ref('TODAY')
+const shiftDateRange = (days) => {
+  visibleStartDate.value = addDays(visibleStartDate.value, days)
+}
 
+const resetToToday = () => {
+  activeDate.value = todayKey
+  visibleStartDate.value = addDays(today, -3)
+}
+
+const openTournamentDetail = (tournamentId) => {
+  router.push(`/tournaments/${tournamentId}`)
+}
+
+const openReplay = (tournamentId, match) => {
+  if (match.status === 'Scheduled') {
+    ElMessage.info('Tran nay chua co ket qua de xem lai.')
+    return
+  }
+  router.push(`/tournaments/${tournamentId}`)
+}
+
+const openStats = () => {
+  router.push('/rankings')
+}
+
+const openNewsDetail = (slug) => {
+  if (!slug) return
+  router.push(`/news/${slug}`)
+}
+
+const fetchAllMatchesData = async () => {
+  loading.value = true
+  try {
+    const tours = await tournamentService.getAll({ limit: 20 })
+
+    const brackets = await Promise.all(
+      (tours || []).map(async (tournament) => {
+        try {
+          const matchesData = await tournamentService.getPublicBracket(tournament.id)
+          return { tournament, matchesData: matchesData || [] }
+        } catch {
+          return { tournament, matchesData: [] }
+        }
+      })
+    )
+
+    tournamentsWithMatches.value = brackets
+      .filter(({ matchesData }) => matchesData.length > 0)
+      .map(({ tournament, matchesData }) => ({
+        id: tournament.id,
+        name: tournament.name,
+        location: tournament.location || 'Vietnam',
+        matches: matchesData.map((matchItem) => ({
+          id: matchItem.id,
+          matchDate: matchItem.start_time ? matchItem.start_time.split('T')[0] : null,
+          round: matchItem.round_code,
+          time: matchItem.start_time
+            ? new Date(matchItem.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+            : 'TBA',
+          status: matchItem.status === 'completed'
+            ? 'Finished'
+            : (matchItem.status === 'ongoing' ? 'Live' : 'Scheduled'),
+          players: [
+            {
+              name: matchItem.p1_name,
+              winner: matchItem.winner_side === 'side_a',
+              sets: matchItem.score
+                ? matchItem.score.split(',').map((setScore) => setScore.trim().split('-')[0])
+                : []
+            },
+            {
+              name: matchItem.p2_name,
+              winner: matchItem.winner_side === 'side_b',
+              sets: matchItem.score
+                ? matchItem.score.split(',').map((setScore) => setScore.trim().split('-')[1])
+                : []
+            }
+          ]
+        }))
+      }))
+
+    const [news, rankings] = await Promise.all([
+      newsService.getAllPosts({ limit: 2 }),
+      playerService.getRankings()
+    ])
+
+    latestNews.value = news || []
+    topPlayers.value = (rankings || []).slice(0, 3)
+  } catch (err) {
+    console.error('Loi khi tai du lieu tran dau:', err)
+    ElMessage.error('Khong the tai du lieu tran dau.')
+  } finally {
+    loading.value = false
+  }
+}
+
+const filteredTournaments = computed(() => {
+  return tournamentsWithMatches.value
+    .map((tournament) => ({
+      ...tournament,
+      matches: tournament.matches.filter((match) => {
+        if (match.matchDate) {
+          return match.matchDate === activeDate.value
+        }
+        return activeDate.value === todayKey
+      })
+    }))
+    .filter((tournament) => tournament.matches.length > 0)
+})
+
+onMounted(() => {
+  fetchAllMatchesData()
+})
 </script>
 
 <template>
   <div class="matches-page">
-    
-    <!-- SUBNAV: DATE SELECTION -->
     <div class="matches-subnav">
       <div class="container nav-inner">
-        <button class="nav-arrow"><el-icon><ArrowLeft /></el-icon></button>
+        <button class="nav-arrow" @click="shiftDateRange(-1)"><el-icon><ArrowLeft /></el-icon></button>
         <div class="date-strip">
-          <button 
-            v-for="date in dates" 
-            :key="date" 
-            :class="{ active: activeDate === date }"
-            @click="activeDate = date"
+          <button
+            v-for="date in dateOptions"
+            :key="date.value"
+            :class="{ active: activeDate === date.value }"
+            @click="activeDate = date.value"
           >
-            {{ date }}
+            {{ date.label }}
           </button>
         </div>
-        <button class="nav-arrow"><el-icon><ArrowRight /></el-icon></button>
-        <div class="calendar-btn">
+        <button class="nav-arrow" @click="shiftDateRange(1)"><el-icon><ArrowRight /></el-icon></button>
+        <button class="calendar-btn" @click="resetToToday" title="Back to today">
           <el-icon><CalendarIcon /></el-icon>
-        </div>
+        </button>
       </div>
     </div>
 
     <div class="container main-layout">
-      
-      <!-- MAIN SCORES AREA -->
-      <main class="scores-col">
-          <div v-for="tournament in matches" :key="tournament.id" class="tournament-group">
-            <header class="tournament-header">
-              <div class="t-title">
-                <span class="location">{{ tournament.location }}</span>
-                <h2>{{ tournament.name }}</h2>
-              </div>
-              <div class="t-actions">
-                <el-button link>Order of Play</el-button>
-                <el-button link>Draws</el-button>
-              </div>
-            </header>
+      <main class="scores-col" v-loading="loading">
+        <div v-for="tournament in filteredTournaments" :key="tournament.id" class="tournament-group">
+          <header class="tournament-header">
+            <div class="t-title">
+              <span class="location">{{ tournament.location }}</span>
+              <h2>{{ tournament.name }}</h2>
+            </div>
+            <div class="t-actions">
+              <el-button link @click="openTournamentDetail(tournament.id)">Chi tiet giai</el-button>
+            </div>
+          </header>
 
-            <div class="match-list">
-              <article v-for="match in tournament.matches" :key="match.id" class="atp-match-card">
-                <div class="match-info-strip">
-                  <span class="round">{{ match.round }}</span>
-                  <span :class="['match-status', match.status.toLowerCase()]">
-                    <span v-if="match.status === 'Live'" class="pulse"></span>
-                    {{ match.time }}
-                  </span>
-                </div>
+          <div class="match-list">
+            <article v-for="match in tournament.matches" :key="match.id" class="atp-match-card">
+              <div class="match-info-strip">
+                <span class="round">{{ match.round }}</span>
+                <span :class="['match-status', match.status.toLowerCase()]">
+                  <span v-if="match.status === 'Live'" class="pulse"></span>
+                  {{ match.time === 'TBA' && match.status === 'Finished' ? 'Ket thuc' : match.time }}
+                </span>
+              </div>
 
-                <div class="match-players">
-                  <div v-for="player in match.players" :key="player.name" class="player-row" :class="{ winner: player.winner }">
-                    <div class="player-identity">
-                      <span class="player-flag">{{ player.flag }}</span>
-                      <span v-if="player.seed" class="player-seed">({{ player.seed }})</span>
-                      <span class="player-name">{{ player.name }}</span>
-                      <span v-if="player.serve" class="serve-dots">🎾</span>
-                    </div>
-                    <div class="player-scores">
-                      <span v-for="(set, idx) in player.sets" :key="idx" class="set-score" :class="{ active: idx === player.sets.length - 1 && match.status === 'Live' }">
-                        {{ set }}
-                      </span>
-                    </div>
+              <div class="match-players">
+                <div v-for="player in match.players" :key="player.name" class="player-row" :class="{ winner: player.winner }">
+                  <div class="player-identity">
+                    <span class="player-name">{{ player.name }}</span>
+                  </div>
+                  <div class="player-scores">
+                    <span
+                      v-for="(set, idx) in player.sets"
+                      :key="idx"
+                      class="set-score"
+                      :class="{ active: idx === player.sets.length - 1 && match.status === 'Live' }"
+                    >
+                      {{ set }}
+                    </span>
                   </div>
                 </div>
+              </div>
 
-                <div class="match-actions">
-                  <button class="m-btn highlight"><el-icon><VideoPlay /></el-icon> Highlights</button>
-                  <button class="m-btn"><el-icon><PieChart /></el-icon> Stats</button>
-                </div>
-              </article>
-            </div>
+              <div class="match-actions">
+                <button class="m-btn highlight" @click="openReplay(tournament.id, match)"><el-icon><VideoPlay /></el-icon> Xem lai</button>
+                <button class="m-btn" @click="openStats"><el-icon><PieChart /></el-icon> Thong ke</button>
+              </div>
+            </article>
           </div>
+        </div>
+
+        <div v-if="!loading && filteredTournaments.length === 0" class="empty-matches">
+          <el-empty description="Khong co tran dau cho ngay da chon" />
+        </div>
       </main>
 
-      <!-- SIDEBAR WIDGETS (Consistent with other pages) -->
       <aside class="sidebar-col">
         <div class="widget">
           <div class="widget-header">
-            <h4>Tournament News</h4>
+            <h4>Tin Tuc Giai Dau</h4>
           </div>
           <div class="widget-body news-mini-list">
-             <div class="news-item-mini">
-                <img src="https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150" />
-                <p>Nadal wins thriller in Barcelona comeback</p>
-              </div>
-              <div class="news-item-mini">
-                <img src="https://images.unsplash.com/photo-1510832198440-a52376950479?auto=format&fit=crop&q=80&w=150" />
-                <p>Alcaraz sets up Sinner semi-final in Madrid</p>
-              </div>
+            <div
+              v-for="post in latestNews"
+              :key="post.id"
+              class="news-item-mini"
+              @click="openNewsDetail(post.slug)"
+            >
+              <img :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150'" />
+              <p>{{ post.title }}</p>
+            </div>
           </div>
         </div>
 
         <div class="widget">
-           <div class="widget-header">
-            <h4>Live Standings</h4>
+          <div class="widget-header">
+            <h4>Xep Hang Elo</h4>
           </div>
           <div class="widget-body">
-             <div class="mini-table">
-                <div class="tr"><span>1. J. Sinner</span> <strong>11,200</strong></div>
-                <div class="tr"><span>2. N. Djokovic</span> <strong>9,800</strong></div>
-                <div class="tr"><span>3. C. Alcaraz</span> <strong>8,950</strong></div>
-             </div>
+            <div class="mini-table">
+              <div v-for="player in topPlayers" :key="player.player_id" class="tr">
+                <span>{{ player.rank }}. {{ player.full_name }}</span>
+                <strong>{{ player.elo_points }}</strong>
+              </div>
+            </div>
           </div>
         </div>
       </aside>
-
     </div>
   </div>
 </template>
@@ -173,7 +280,6 @@ const activeDate = ref('TODAY')
   min-height: 100vh;
 }
 
-/* SUBNAV DATE STRIP */
 .matches-subnav {
   background: #0f172a;
   color: #fff;
@@ -197,7 +303,7 @@ const activeDate = ref('TODAY')
 .date-strip button {
   background: none;
   border: none;
-  color: rgba(255,255,255,0.6);
+  color: rgba(255, 255, 255, 0.6);
   font-weight: 500;
   font-size: 0.85rem;
   letter-spacing: 1px;
@@ -213,7 +319,7 @@ const activeDate = ref('TODAY')
 }
 
 .nav-arrow {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   border: none;
   color: #fff;
   width: 36px;
@@ -227,9 +333,10 @@ const activeDate = ref('TODAY')
   font-size: 1.4rem;
   color: #c1ff72;
   cursor: pointer;
+  background: transparent;
+  border: none;
 }
 
-/* MAIN LAYOUT */
 .main-layout {
   display: grid;
   grid-template-columns: 1fr 320px;
@@ -238,7 +345,6 @@ const activeDate = ref('TODAY')
   padding-bottom: 6rem;
 }
 
-/* TOURNAMENT GROUPS */
 .tournament-group { margin-bottom: 4rem; }
 
 .tournament-header {
@@ -271,7 +377,6 @@ const activeDate = ref('TODAY')
   color: #002855;
 }
 
-/* MATCH CARDS */
 .match-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
@@ -289,7 +394,7 @@ const activeDate = ref('TODAY')
 
 .atp-match-card:hover {
   border-color: var(--primary);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
 }
 
 .match-info-strip {
@@ -319,8 +424,7 @@ const activeDate = ref('TODAY')
 
 .player-identity { display: flex; align-items: center; gap: 0.6rem; }
 .player-name { font-size: 1.1rem; font-weight: 500; color: #0f172a; }
-.player-seed { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
-.player-row.winner .player-name { color: var(--primary); font-weight: 600; }
+.player-row.winner .player-name { color: var(--primary); font-weight: 500; }
 
 .player-scores { display: flex; gap: 0.5rem; }
 .set-score {
@@ -357,12 +461,17 @@ const activeDate = ref('TODAY')
 .m-btn:hover { background: #f8fafc; }
 .m-btn.highlight { color: #ba1a1a; }
 
-/* SIDEBAR WIDGETS */
 .widget { border: 1px solid var(--border-light); border-radius: 4px; margin-bottom: 2rem; overflow: hidden; }
 .widget-header { padding: 1.25rem; background: #f8fafc; border-bottom: 1px solid var(--border-light); }
 .widget-header h4 { font-size: 0.9rem; font-weight: 500; text-transform: uppercase; color: #002855; }
 
-.news-item-mini { display: flex; gap: 1rem; padding: 1rem; border-bottom: 1px solid #f1f5f9; }
+.news-item-mini {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+}
 .news-item-mini img { width: 60px; height: 60px; border-radius: 4px; object-fit: cover; }
 .news-item-mini p { font-size: 0.85rem; font-weight: 500; color: #0f172a; line-height: 1.3; }
 

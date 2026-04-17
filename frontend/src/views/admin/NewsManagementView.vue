@@ -129,15 +129,24 @@ onMounted(fetchPosts)
 
 <template>
   <div class="news-container">
-    <section class="hero-card">
-      <div class="hero-content">
-        <span class="section-kicker">Content Management</span>
+    <!-- HEADER PREMIUM -->
+    <section class="action-bar-glass shadow-sm">
+      <div class="action-info">
+        <div class="kicker-wrap">
+          <span class="section-kicker">Content Management</span>
+          <div class="live-indicator">
+            <span class="dot"></span>
+            LIVE
+          </div>
+        </div>
         <h2>Quản lý Tin tức & Blog</h2>
-        <p>Cập nhật thông báo, hình ảnh và diễn biến giải đấu đến các vận động viên.</p>
+        <p>Viết bài, tải ảnh và điều phối luồng thông tin giải đấu đến vận động viên.</p>
       </div>
-      <el-button type="primary" size="large" :icon="DocumentAdd" @click="openCreateDialog">
-        Viết bài mới
-      </el-button>
+      <div class="hero-actions-v2">
+        <el-button :icon="DocumentAdd" type="primary" round @click="openCreateDialog">
+          Viết bài mới
+        </el-button>
+      </div>
     </section>
 
     <section class="filter-card">
@@ -147,47 +156,47 @@ onMounted(fetchPosts)
       </el-select>
     </section>
 
-    <el-card shadow="never" class="table-card" v-loading="isLoading">
-      <el-table :data="posts" stripe style="width: 100%">
-        <el-table-column label="Tiêu đề" min-width="300">
+    <section class="table-card-premium shadow-sm" v-loading="isLoading">
+      <el-table :data="posts" stripe style="width: 100%" class="modern-news-table">
+        <el-table-column label="Bài viết" min-width="350">
           <template #default="{ row }">
-            <div class="post-title-cell">
-              <strong>{{ row.title }}</strong>
-              <span class="post-date">{{ row.created_at || 'Hôm nay' }}</span>
+            <div class="post-info-cell">
+              <span class="post-title">{{ row.title }}</span>
+              <span class="post-meta">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('vi-VN') : 'Hôm nay' }}</span>
             </div>
           </template>
         </el-table-column>
         
-        <el-table-column prop="category" label="Danh mục" width="150">
+        <el-table-column label="Danh mục" width="180">
           <template #default="{ row }">
-            <el-tag effect="plain" type="info">{{ row.category }}</el-tag>
+            <el-tag effect="light" type="info" class="category-pill">
+              {{ row.category || 'Chung' }}
+            </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column label="Trạng thái" width="150">
+        <el-table-column label="Trạng thái" width="160" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'published' ? 'success' : 'warning'">
+            <el-tag :type="row.status === 'published' ? 'success' : 'warning'" class="status-pill">
               {{ row.status === 'published' ? 'Đã xuất bản' : 'Bản nháp' }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column label="Lượt xem" width="120" align="center">
+        <el-table-column label="Điều hành" width="140" align="center" fixed="right">
           <template #default="{ row }">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-              <el-icon><View /></el-icon> {{ row.views || 0 }}
+            <div class="action-buttons">
+              <el-tooltip content="Chỉnh sửa bài viết" placement="top">
+                <el-button type="primary" plain circle :icon="Edit" @click="openEditDialog(row)" />
+              </el-tooltip>
+              <el-tooltip content="Xóa bài viết" placement="top">
+                <el-button type="danger" plain circle :icon="Delete" @click="deletePost(row.id)" />
+              </el-tooltip>
             </div>
           </template>
         </el-table-column>
-
-        <el-table-column label="Hành động" width="150" align="center" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" plain size="small" :icon="Edit" circle @click="openEditDialog(row)" />
-            <el-button type="danger" plain size="small" :icon="Delete" circle @click="deletePost(row.id)" />
-          </template>
-        </el-table-column>
       </el-table>
-    </el-card>
+    </section>
 
     <el-dialog v-model="isDialogOpen" :title="isEditMode ? 'Chỉnh sửa bài viết' : 'Soạn bài viết mới'" width="800px" destroy-on-close top="5vh">
       <el-form label-position="top" class="news-form">
@@ -246,32 +255,75 @@ onMounted(fetchPosts)
 </template>
 
 <style scoped>
-.news-container { display: flex; flex-direction: column; gap: 20px; }
+.news-container { display: grid; gap: 16px; padding: 10px; }
 
-.hero-card {
-  padding: 24px 30px; border-radius: 8px; background: white;
-  display: flex; justify-content: space-between; align-items: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+.action-bar-glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  padding: 16px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
 }
-.section-kicker { display: inline-flex; margin-bottom: 8px; padding: 6px 12px; border-radius: 8px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
-.hero-content h2 { margin: 0; font-size: 1.8rem; color: #132722; }
-.hero-content p { margin: 5px 0 0 0; color: #64748b; font-size: 0.9rem; }
 
-.filter-card { display: flex; gap: 15px; padding: 15px 20px; background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
-.table-card { border-radius: 8px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.02); }
+.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
+.section-kicker { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
 
-.post-title-cell { display: flex; flex-direction: column; gap: 4px; }
-.post-title-cell strong { font-size: 1rem; color: #1e293b; display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-.post-date { font-size: 0.75rem; color: #94a3b8; }
+.live-indicator {
+  display: flex; align-items: center; gap: 6px;
+  background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800;
+  padding: 2px 8px; border-radius: 99px;
+}
+.dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
 
-/* Upload Thumbnail UI */
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.action-bar-glass h2 { margin: 0; font-size: 1.25rem; color: #0f172a; font-weight: 700; }
+.action-bar-glass p { margin: 2px 0 0 0; color: #64748b; font-size: 0.85rem; }
+
+.hero-actions-v2 { display: flex; align-items: center; gap: 12px; }
+
+.filter-card {
+  display: flex; gap: 15px; padding: 16px 24px; background: white;
+  border-radius: 20px; border: 1px solid #f1f5f9;
+}
+
+.table-card-premium {
+  background: white; padding: 8px; border-radius: 20px;
+  border: 1px solid #f1f5f9; box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+  overflow: hidden;
+}
+
+.post-info-cell { display: flex; flex-direction: column; gap: 2px; }
+.post-title { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+.post-meta { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
+
+.category-pill { font-weight: 700; border-radius: 6px; padding: 0 10px; height: 24px; border: none; }
+
+.status-pill { font-weight: 800; border-radius: 99px; padding: 0 16px; font-size: 0.65rem; border: none !important; }
+
+.action-buttons { display: flex; gap: 10px; justify-content: center; }
+
+:deep(.el-table) { border-radius: 12px; }
+:deep(.el-table .cell) { padding: 12px 16px; }
+
+.shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+
+/* Dialog Form */
+.news-form { padding-top: 10px; }
 .thumbnail-uploader {
-  width: 100%; height: 160px; border: 2px dashed #cbd5e1; border-radius: 12px;
-  position: relative; overflow: hidden; cursor: pointer; background: #f8fafc; transition: 0.2s;
+  width: 100%; height: 160px; border: 2px dashed #cbd5e1; border-radius: 20px;
+  position: relative; overflow: hidden; cursor: pointer; background: #f8fafc; transition: 0.3s;
 }
-.thumbnail-uploader:hover { border-color: var(--primary); background: #f0fdf4; }
-.upload-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; gap: 10px; }
-.upload-placeholder .el-icon { font-size: 2rem; }
+.thumbnail-uploader:hover { border-color: #3b82f6; background: #eff6ff; }
+.upload-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; gap: 8px; }
 .thumbnail-preview { width: 100%; height: 100%; object-fit: cover; }
 .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 </style>

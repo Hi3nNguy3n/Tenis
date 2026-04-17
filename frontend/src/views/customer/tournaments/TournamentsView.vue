@@ -3,14 +3,40 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTournamentStore } from '../../../stores/tournament'
-import { Ticket, Search, Filter, Calendar as CalendarIcon, Location, Trophy } from '@element-plus/icons-vue'
+import { newsService } from '../../../services/newsService'
+import { playerService } from '../../../services/playerService'
+import { Ticket, Search, Filter, Calendar as CalendarIcon, Location, Trophy, ArrowRight } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const tournamentStore = useTournamentStore()
 const activeTab = ref('Tournaments')
+const searchQuery = ref('')
 
-onMounted(() => {
-  tournamentStore.fetchTournaments()
+const latestNews = ref([])
+const topPlayers = ref([])
+
+const fetchTournaments = () => {
+  tournamentStore.fetchTournaments({ search: searchQuery.value })
+}
+
+onMounted(async () => {
+  fetchTournaments()
+  
+  // Fetch real news
+  try {
+    const news = await newsService.getAllPosts({ limit: 4 })
+    latestNews.value = (news || []).filter(n => n.status === 'published')
+  } catch (err) {
+    console.error('Lỗi tải tin tức:', err)
+  }
+
+  // Fetch real players (Stats)
+  try {
+    const rankings = await playerService.getRankings()
+    topPlayers.value = (rankings || []).slice(0, 5)
+  } catch (err) {
+    console.error('Lỗi tải xếp hạng:', err)
+  }
 })
 
 // Group tournaments by month for the layout
@@ -28,22 +54,16 @@ const groupedTournaments = computed(() => {
 const viewDetail = (id) => {
   router.push({ name: 'tournament-detail', params: { id } })
 }
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+}
 </script>
 
 <template>
   <div class="tournaments-page">
     
-    <!-- SUB-NAV / CATEGORIES -->
-    <div class="tour-subnav">
-      <div class="container shell">
-        <div class="category-tabs">
-          <button class="active">ATP Tour</button>
-          <button>Challenger</button>
-          <button>ITF</button>
-        </div>
-      </div>
-    </div>
-
     <div class="container main-layout">
       
       <!-- MAIN CALENDAR AREA -->
@@ -52,21 +72,20 @@ const viewDetail = (id) => {
         <!-- HEADER & SEARCH -->
         <header class="calendar-header">
           <div class="title-row">
-            <h1>TOURNAMENTS | <span>Calendar</span></h1>
+            <h1>Lịch Thi Đấu</h1>
           </div>
           
           <div class="calendar-controls">
             <div class="search-wrap">
               <el-input 
-                placeholder="Search tournaments..." 
+                v-model="searchQuery" 
+                placeholder="Tìm giải đấu..." 
                 class="atp-search-input"
+                clearable
+                @input="fetchTournaments"
               >
                 <template #prefix><el-icon><Search /></el-icon></template>
               </el-input>
-            </div>
-            <div class="btn-group">
-              <el-button type="primary" class="atp-btn-solid">Open All</el-button>
-              <el-button plain class="atp-btn-outline">2026 Calendar PDF</el-button>
             </div>
           </div>
         </header>
@@ -141,45 +160,40 @@ const viewDetail = (id) => {
       <!-- SIDEBAR WIDGETS -->
       <aside class="sidebar-col">
         
-        <!-- WIDGET: TOP NEWS (Mockup similar to screenshot) -->
+        <!-- WIDGET: TOP NEWS (Real) -->
         <div class="widget">
           <div class="widget-header">
             <h4>Latest News</h4>
-            <a href="#" class="view-all">View All</a>
+            <RouterLink to="/news" class="view-all">View All</RouterLink>
           </div>
           <div class="widget-body news-mini">
-            <div class="news-main-feature">
-              <img src="https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=300" />
-              <p>Mutua Madrid Open 2026: Draws, Dates, History & All You Need To Know</p>
+            <div v-if="latestNews[0]" class="news-main-feature" @click="$router.push('/news/' + latestNews[0].slug)">
+              <img :src="latestNews[0].thumbnail_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=300'" />
+              <p>{{ latestNews[0].title }}</p>
             </div>
             <div class="news-sub-list">
-              <div class="news-item">
-                <img src="https://images.unsplash.com/photo-1622279457486-62dcc4a4bd13?auto=format&fit=crop&q=80&w=100" />
-                <p>Nadal: 'I hope you'll see me back on court very soon'</p>
-              </div>
-              <div class="news-item">
-                <img src="https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=100" />
-                <p>Sinner guaranteed to remain World No.1 next week</p>
+              <div v-for="post in latestNews.slice(1)" :key="post.id" class="news-item" @click="$router.push('/news/' + post.slug)">
+                <img :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1622279457486-62dcc4a4bd13?auto=format&fit=crop&q=80&w=100'" />
+                <p>{{ post.title }}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- WIDGET: ATP STATS -->
+        <!-- WIDGET: ATP STATS (Real Rankings) -->
         <div class="widget stats-widget">
           <div class="widget-header">
-            <h4>Player Stats</h4>
+            <h4>Player Rankings</h4>
           </div>
           <div class="widget-body">
             <div class="stats-tabs">
-              <span class="active">Serve</span>
-              <span>Return</span>
-              <span>Pressure</span>
+              <span class="active">ELO Points</span>
             </div>
             <ul class="stats-list">
-              <li><span>1. Jannik Sinner</span> <strong>299.4</strong></li>
-              <li><span>2. Reilly Opelka</span> <strong>298.0</strong></li>
-              <li><span>3. Taylor Fritz</span> <strong>297.6</strong></li>
+              <li v-for="player in topPlayers" :key="player.player_id">
+                <span>{{ player.rank }}. {{ player.full_name }}</span> 
+                <span>{{ player.elo_points }}</span>
+              </li>
             </ul>
           </div>
         </div>
@@ -194,6 +208,7 @@ const viewDetail = (id) => {
 .tournaments-page {
   background: #fff;
   min-height: 100vh;
+  margin-top: 80px;
 }
 
 /* SUB NAVIGATION */
@@ -402,7 +417,7 @@ const viewDetail = (id) => {
 .stats-list { list-style: none; padding: 1rem; margin: 0; }
 .stats-list li { display: flex; justify-content: space-between; padding: 0.8rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
 .stats-list li span { font-weight: 500; color: #334155; }
-.stats-list li strong { color: #0f172a; font-weight: 500; }
+.stats-list li span:last-child { color: #0f172a; font-weight: 500; }
 
 @media (max-width: 1080px) {
   .main-layout { grid-template-columns: 1fr; }

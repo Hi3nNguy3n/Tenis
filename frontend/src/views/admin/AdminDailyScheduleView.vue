@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
-import { Calendar, Location, Timer, ArrowLeft, ArrowRight, Plus } from '@element-plus/icons-vue'
+import { Calendar, Location, Timer, ArrowLeft, ArrowRight, Plus, Refresh } from '@element-plus/icons-vue'
 
 const courts = ref([])
 const matches = ref([])
@@ -115,26 +115,27 @@ onMounted(fetchData)
 
 <template>
   <div class="schedule-container">
-    <section class="hero-card">
-      <div class="hero-content">
+    <!-- ACTION BAR - Đã loại bỏ tiêu đề lặp -->
+    <section class="action-bar shadow-sm">
+      <div class="action-info">
         <span class="section-kicker">Order of Play</span>
-        <h2>Điều phối Sân & Giờ</h2>
-        <p>Lịch trình theo cụm sân. Click vào trận để đổi giờ, hoặc bấm xếp lịch trận mới.</p>
+        <p>Điều phối Sân & Giờ thi đấu (Data Live từ hệ thống).</p>
       </div>
 
       <div class="header-actions">
-        <el-button type="primary" size="large" :icon="Plus" @click="openCreateSchedule" class="action-btn">
-          Xếp lịch trận đấu
-        </el-button>
-
         <div class="date-controls">
-          <el-button :icon="ArrowLeft" circle @click="changeDate(-1)" />
+          <el-button :icon="ArrowLeft" plain circle @click="changeDate(-1)" />
           <div class="current-date-display">
             <el-icon><Calendar /></el-icon>
             <span>{{ selectedDate }}</span>
           </div>
-          <el-button :icon="ArrowRight" circle @click="changeDate(1)" />
+          <el-button :icon="ArrowRight" plain circle @click="changeDate(1)" />
         </div>
+        
+        <el-button type="primary" :icon="Plus" @click="openCreateSchedule" class="action-btn">
+          Xếp lịch trận đấu
+        </el-button>
+        <el-button plain :icon="Refresh" @click="fetchData">Tải lại</el-button>
       </div>
     </section>
 
@@ -247,22 +248,22 @@ onMounted(fetchData)
 </template>
 
 <style scoped>
-.schedule-container { display: flex; flex-direction: column; gap: 20px; height: calc(100vh - 100px); }
+.schedule-container { display: flex; flex-direction: column; gap: 20px; height: calc(100vh - 100px); padding: 20px; background: #f8fafc; }
 
-/* HERO CARD */
-.hero-card {
-  padding: 24px 30px; border-radius: 8px; background: white;
+/* ACTION BAR */
+.action-bar {
+  background: white; padding: 16px 24px; border-radius: 12px;
   display: flex; justify-content: space-between; align-items: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); flex-shrink: 0;
+  border-left: 5px solid var(--primary); border: 1px solid #eef2f6;
+  flex-shrink: 0;
 }
-.section-kicker { display: inline-flex; margin-bottom: 8px; padding: 6px 12px; border-radius: 8px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
-.hero-content h2 { margin: 0; font-size: 1.8rem; color: #132722; }
-.hero-content p { margin: 5px 0 0 0; color: #64748b; font-size: 0.9rem; }
+.action-info p { color: #888; font-size: 0.9rem; margin: 2px 0 0 0; }
+.section-kicker { font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 2px; }
 
 .header-actions { display: flex; align-items: center; gap: 15px; }
-.action-btn { font-weight: bold; border-radius: 12px; }
-.date-controls { display: flex; align-items: center; gap: 15px; background: #f1f5f9; padding: 6px 12px; border-radius: 8px; }
-.current-date-display { display: flex; align-items: center; gap: 8px; font-weight: 800; color: #0f172a; min-width: 130px; justify-content: center; font-size: 1.05rem; }
+.action-btn { font-weight: bold; }
+.date-controls { display: flex; align-items: center; gap: 12px; background: #f1f5f9; padding: 6px 16px; border-radius: 10px; border: 1px solid #e2e8f0; }
+.current-date-display { display: flex; align-items: center; gap: 8px; font-weight: 800; color: #1e293b; min-width: 140px; justify-content: center; font-size: 1rem; }
 
 /* BẢNG GRID MỚI */
 .schedule-wrapper { 

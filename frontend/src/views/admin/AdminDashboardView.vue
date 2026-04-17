@@ -27,71 +27,79 @@ const formatVND = (value) => {
 
 <template>
   <div class="dashboard-page" v-loading="isLoading">
-    <header class="dashboard-header">
-      <h1>Tổng quan Hệ thống</h1>
-      <p>Trung tâm kiểm soát Saigon Tennis. Cập nhật dữ liệu thời gian thực.</p>
-    </header>
-
+    <!-- Headers are centrally managed in AdminLayout to prevent duplication -->
+    
     <template v-if="stats">
       <div class="stats-grid">
-        <div class="stat-card premium-card">
+        <!-- Revenue Card with Special Decoration -->
+        <div class="stat-card premium-finance-card">
+          <div class="card-bg-decoration"></div>
           <div class="stat-content">
             <div class="stat-text">
               <span class="stat-label">Tổng Doanh Thu</span>
-              <strong class="stat-value text-gold">{{ formatVND(stats.revenue) }}</strong>
+              <strong class="stat-value">{{ formatVND(stats.revenue) }}</strong>
             </div>
-            <div class="stat-icon-wrap bg-gold">
+            <div class="stat-icon-wrap finance-icon">
               <el-icon><Money /></el-icon>
             </div>
           </div>
         </div>
 
-        <div class="stat-card">
+        <!-- Glass Style Cards -->
+        <div class="stat-card glass-stat-card">
           <div class="stat-content">
             <div class="stat-text">
               <span class="stat-label">Giải Đang Diễn Ra</span>
-              <strong class="stat-value text-green">{{ stats.active_tournaments }} <small>/ {{ stats.total_tournaments }}</small></strong>
+              <strong class="stat-value">{{ stats.active_tournaments }} <span class="val-sep">/</span> <small>{{ stats.total_tournaments }}</small></strong>
             </div>
-            <div class="stat-icon-wrap bg-green">
+            <div class="stat-icon-wrap tournament-icon">
               <el-icon><Trophy /></el-icon>
             </div>
           </div>
         </div>
 
-        <div class="stat-card">
+        <div class="stat-card glass-stat-card">
           <div class="stat-content">
             <div class="stat-text">
               <span class="stat-label">Đơn Chờ Phê Duyệt</span>
-              <strong class="stat-value text-orange">{{ stats.pending_approvals }}</strong>
+              <strong class="stat-value warning-text">{{ stats.pending_approvals }}</strong>
             </div>
-            <div class="stat-icon-wrap bg-orange">
+            <div class="stat-icon-wrap pending-icon">
               <el-icon><Loading /></el-icon>
             </div>
           </div>
         </div>
 
-        <div class="stat-card">
+        <div class="stat-card glass-stat-card">
           <div class="stat-content">
             <div class="stat-text">
               <span class="stat-label">Lượt Đăng Ký Tham Gia</span>
-              <strong class="stat-value text-blue">{{ stats.total_registrations }}</strong>
+              <strong class="stat-value">{{ stats.total_registrations }}</strong>
             </div>
-            <div class="stat-icon-wrap bg-blue">
+            <div class="stat-icon-wrap user-icon">
               <el-icon><UserFilled /></el-icon>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="progress-section">
-        <div class="progress-card">
-          <div class="card-header">
-            <h3><el-icon><DataLine /></el-icon> Tiến độ Giải đấu (Toàn hệ thống)</h3>
+      <div class="overview-details-grid">
+        <!-- Performance / Progress Card -->
+        <div class="premium-glass-card performance-section">
+          <div class="card-header-row">
+            <h3><el-icon><DataLine /></el-icon> Hiệu suất Hệ thống</h3>
+            <span class="live-tag">● Cập nhật thời gian thực</span>
           </div>
-          <div class="progress-body">
-            
+          
+          <div class="performance-body">
             <div class="chart-container">
-              <el-progress type="dashboard" :percentage="stats.completion_rate" :color="'var(--primary)'" :stroke-width="15" :width="200">
+              <el-progress 
+                type="dashboard" 
+                :percentage="stats.completion_rate" 
+                :color="'#b9d84d'" 
+                :stroke-width="12" 
+                :width="180"
+              >
                 <template #default="{ percentage }">
                   <div class="percentage-wrap">
                     <span class="percentage-value">{{ percentage }}%</span>
@@ -101,24 +109,42 @@ const formatVND = (value) => {
               </el-progress>
             </div>
 
-            <div class="progress-details">
-              <div class="detail-item">
-                <div class="dot bg-green"></div>
-                <div class="d-text">
-                  <span>Trận đã đánh xong</span>
-                  <strong>{{ stats.completed_matches }} trận</strong>
+            <div class="performance-stats">
+              <div class="p-stat-item">
+                <span class="p-dot bg-primary"></span>
+                <div class="p-info">
+                  <span class="p-label">Trận đấu đã xong</span>
+                  <strong class="p-val">{{ stats.completed_matches }} trận</strong>
                 </div>
               </div>
-              <div class="detail-item">
-                <div class="dot bg-gray"></div>
-                <div class="d-text">
-                  <span>Tổng số trận hệ thống</span>
-                  <strong>{{ stats.total_matches }} trận</strong>
+              <div class="p-stat-item">
+                <span class="p-dot bg-neutral"></span>
+                <div class="p-info">
+                  <span class="p-label">Tổng số trận dự kiến</span>
+                  <strong class="p-val">{{ stats.total_matches }} trận</strong>
                 </div>
               </div>
             </div>
-
           </div>
+        </div>
+
+        <!-- Quick Summary Actions -->
+        <div class="quick-summary-card">
+           <h4>Thông báo nhanh</h4>
+           <div class="summary-list">
+             <div class="summary-item">
+               <el-icon class="icon-success"><Trophy /></el-icon>
+               <p>Hiện có <strong>{{ stats.active_tournaments }}</strong> giải đấu đang mở.</p>
+             </div>
+             <div class="summary-item">
+               <el-icon class="icon-warning"><Loading /></el-icon>
+               <p>Cần xử lý <strong>{{ stats.pending_approvals }}</strong> đơn đăng ký mới.</p>
+             </div>
+             <div class="summary-item">
+               <el-icon class="icon-info"><UserFilled /></el-icon>
+               <p>Tổng cộng <strong>{{ stats.total_registrations }}</strong> người chơi tham gia.</p>
+             </div>
+           </div>
         </div>
       </div>
     </template>
@@ -126,55 +152,143 @@ const formatVND = (value) => {
 </template>
 
 <style scoped>
-.dashboard-page { padding: 10px; }
-.dashboard-header { margin-bottom: 30px; }
-.dashboard-header h1 { font-size: 2rem; color: var(--text-dark); margin-bottom: 5px; }
-.dashboard-header p { color: #6e7a74; }
+.dashboard-page { padding: 0; }
 
 /* Grid Thẻ Thống kê */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 30px; }
-.stat-card { background: white; border-radius: 8px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); transition: transform 0.2s; border: 1px solid #f0f2f2; }
-.stat-card:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.06); }
-.premium-card { background: linear-gradient(135deg, var(--text-dark) 0%, var(--primary) 100%); border: none; }
-.premium-card .stat-label, .premium-card .stat-value small { color: rgba(255,255,255,0.8); }
+.stats-grid { 
+  display: grid; 
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); 
+  gap: 20px; 
+  margin-bottom: 32px; 
+}
 
-.stat-content { display: flex; justify-content: space-between; align-items: center; }
-.stat-text { display: flex; flex-direction: column; gap: 8px; }
-.stat-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: #6e7a74; font-weight: 700; }
-.stat-value { font-size: 1.8rem; font-weight: 900; }
-.stat-value small { font-size: 1rem; color: #94a3b8; }
+.stat-card { 
+  background: white; 
+  border-radius: 20px; 
+  padding: 24px; 
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  position: relative;
+  overflow: hidden;
+}
 
-.text-gold { color: #fef08a; }
-.text-green { color: var(--primary); }
-.text-orange { color: #ea580c; }
-.text-blue { color: #2563eb; }
+.stat-card:hover { 
+  transform: translateY(-4px); 
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+}
 
-/* Icons */
-.stat-icon-wrap { width: 56px; height: 56px; border-radius: 16px; display: flex; justify-content: center; align-items: center; font-size: 24px; }
-.bg-gold { background: rgba(254, 240, 138, 0.2); color: #fef08a; }
-.bg-green { background: #e6f0ee; color: var(--primary); }
-.bg-orange { background: #ffedd5; color: #ea580c; }
-.bg-blue { background: #dbeafe; color: #2563eb; }
+/* Premium Card (Revenue) */
+.premium-finance-card {
+  background: linear-gradient(135deg, #13211d 0%, #1e3a34 100%);
+  border: none;
+}
+.premium-finance-card .stat-label { color: rgba(255,255,255,0.6); }
+.premium-finance-card .stat-value { color: #d7f171; }
+.card-bg-decoration {
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, rgba(215, 241, 113, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+}
 
-/* Progress Section */
-.progress-card { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); border: 1px solid #f0f2f2; }
-.card-header h3 { display: flex; align-items: center; gap: 10px; color: var(--text-dark); margin-bottom: 30px; font-size: 1.3rem; }
-.progress-body { display: flex; align-items: center; gap: 60px; }
+.stat-content { display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1; }
+.stat-text { display: flex; flex-direction: column; gap: 6px; }
+.stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; font-weight: 700; }
+.stat-value { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; }
+.stat-value small { font-size: 1rem; color: #94a3b8; font-weight: 500; }
+.val-sep { margin: 0 4px; color: #cbd5e1; }
+.warning-text { color: #f59e0b; }
+
+.stat-icon-wrap { 
+  width: 52px; 
+  height: 52px; 
+  border-radius: 14px; 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  font-size: 24px; 
+}
+
+.finance-icon { background: rgba(215, 241, 113, 0.15); color: #d7f171; }
+.tournament-icon { background: #f0fdf4; color: #166534; }
+.pending-icon { background: #fffbeb; color: #b45309; }
+.user-icon { background: #eff6ff; color: #1d4ed8; }
+
+/* Dashboard Detail Sections */
+.overview-details-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+.premium-glass-card {
+  background: white;
+  border-radius: 24px;
+  padding: 32px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+.card-header-row h3 { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 10px; }
+.live-tag { font-size: 0.7rem; color: #10b981; font-weight: 700; background: #ecfdf5; padding: 4px 12px; border-radius: 99px; text-transform: uppercase; }
+
+.performance-body { display: flex; align-items: center; gap: 48px; }
 
 .percentage-wrap { display: flex; flex-direction: column; align-items: center; }
-.percentage-value { font-size: 2.5rem; font-weight: 900; color: var(--text-dark); }
-.percentage-label { font-size: 0.9rem; color: #6e7a74; font-weight: 600; text-transform: uppercase; }
+.percentage-value { font-size: 2rem; font-weight: 800; color: #1e293b; }
+.percentage-label { font-size: 0.8rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
 
-.progress-details { display: flex; flex-direction: column; gap: 20px; }
-.detail-item { display: flex; align-items: center; gap: 15px; background: #f8f9f9; padding: 15px 25px; border-radius: 16px; min-width: 250px;}
-.dot { width: 12px; height: 12px; border-radius: 50%; }
-.dot.bg-gray { background: #cbd5e1; }
-.d-text { display: flex; flex-direction: column; gap: 5px; }
-.d-text span { font-size: 0.85rem; color: #6e7a74; font-weight: 600; }
-.d-text strong { font-size: 1.2rem; color: var(--text-dark); font-weight: 800; }
+.performance-stats { display: flex; flex-direction: column; gap: 16px; flex: 1; }
+.p-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #f8fafc;
+  border-radius: 16px;
+  transition: background 0.2s;
+}
+.p-dot { width: 10px; height: 10px; border-radius: 50%; }
+.bg-primary { background: #b9d84d; }
+.bg-neutral { background: #cbd5e1; }
+.p-info { display: flex; flex-direction: column; }
+.p-label { font-size: 0.75rem; color: #64748b; font-weight: 600; }
+.p-val { font-size: 1.1rem; color: #1e293b; font-weight: 700; }
+
+/* Quick Summary Card */
+.quick-summary-card {
+  background: #f8fafc;
+  border-radius: 24px;
+  padding: 32px;
+  border: 1px solid #e2e8f0;
+}
+.quick-summary-card h4 { font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-top: 0; margin-bottom: 24px; }
+
+.summary-list { display: flex; flex-direction: column; gap: 20px; }
+.summary-item { display: flex; align-items: flex-start; gap: 12px; }
+.summary-item p { margin: 0; font-size: 0.9rem; color: #475569; line-height: 1.5; }
+.summary-item strong { color: #1e293b; }
+
+/* Icons in summary */
+.icon-success { color: #10b981; }
+.icon-warning { color: #f59e0b; }
+.icon-info { color: #3b82f6; }
+
+@media (max-width: 1200px) {
+  .overview-details-grid { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 768px) {
-  .progress-body { flex-direction: column; gap: 30px; text-align: center; }
-  .detail-item { justify-content: center; }
+  .performance-body { flex-direction: column; gap: 32px; text-align: center; }
 }
 </style>

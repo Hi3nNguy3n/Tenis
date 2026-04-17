@@ -167,7 +167,7 @@ const handleLogout = () => {
 .admin-layout {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   background:
     radial-gradient(circle at top left, rgba(27, 153, 139, 0.12), transparent 24%),
     linear-gradient(180deg, #f5f7f7 0%, #eef2f1 100%);
@@ -177,8 +177,8 @@ const handleLogout = () => {
 .admin-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 28px 16px;
+  gap: 12px;
+  padding: 24px 12px;
   background: linear-gradient(180deg, #14332e 0%, #0f2622 100%);
   color: #f7fbf9;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
@@ -192,7 +192,7 @@ const handleLogout = () => {
 }
 
 .brand-link {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: 600;
   letter-spacing: -0.04em;
   text-decoration: none;
@@ -217,7 +217,7 @@ const handleLogout = () => {
 .group-label {
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: rgba(247, 251, 249, 0.46);
   margin: 0;
@@ -249,14 +249,14 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
-  padding: 0 14px;
-  border-radius: 14px;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
   color: rgba(247, 251, 249, 0.6);
   transition: 0.2s ease;
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
 }
 
 .nav-item:hover {
@@ -309,9 +309,9 @@ const handleLogout = () => {
 .sidebar-footer {
   margin-top: auto;
   display: grid;
-  gap: 14px;
-  padding: 18px 14px;
-  border-radius: 16px;
+  gap: 8px;
+  padding: 14px 12px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
 }
 
@@ -323,7 +323,7 @@ const handleLogout = () => {
 .user-label {
   font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.05em;
   color: rgba(247, 251, 249, 0.62);
 }
 
@@ -347,14 +347,14 @@ const handleLogout = () => {
   margin-bottom: 8px;
   font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: #3f7f74;
 }
 
 .admin-topbar h1 {
-  margin-bottom: 10px;
-  font-size: clamp(2rem, 4vw, 2.8rem);
+  margin-bottom: 8px;
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
   line-height: 1.05;
   letter-spacing: -0.04em;
 }

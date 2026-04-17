@@ -38,14 +38,6 @@ const handleCheckIn = async () => {
 
 <template>
   <div class="checkin-module">
-    <section class="hero-card">
-      <div>
-        <span class="section-kicker">Attendance Control</span>
-        <h2>Quét mã Check-in</h2>
-        <p>Sử dụng để quét mã QR của vận động viên khi họ đến sân thi đấu.</p>
-      </div>
-    </section>
-
     <section class="scanner-container">
       <div class="scanner-mock">
         <div class="scanner-frame">

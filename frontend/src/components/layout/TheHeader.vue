@@ -39,14 +39,12 @@ const closeMenus = () => {
 
       <nav :class="['desktop-nav', { 'mobile-open': isMobileMenuOpen }]" aria-label="Main navigation">
         <RouterLink to="/" active-class="active" @click="closeMenus">Home</RouterLink>
+        <RouterLink to="/news" active-class="active" @click="closeMenus">News</RouterLink>
         <RouterLink to="/players" active-class="active" @click="closeMenus">Players</RouterLink>
         <RouterLink to="/tournaments" active-class="active" @click="closeMenus">Tournaments</RouterLink>
         <RouterLink to="/matches" active-class="active" @click="closeMenus">Matches</RouterLink>
         <RouterLink to="/rankings" active-class="active" @click="closeMenus">Ranking</RouterLink>
-        <RouterLink v-if="!authStore.isAuthenticated" to="/register-otp" active-class="active" @click="closeMenus">Register OTP</RouterLink>
-        <RouterLink v-if="!authStore.isAuthenticated" to="/login" active-class="active" @click="closeMenus">Login</RouterLink>
       </nav>
-
       <div class="nav-actions">
         <!-- Hamburger Menu Button (Mobile Only) -->
         <button :class="['mobile-toggle', { 'is-active': isMobileMenuOpen }]" @click="toggleMobileMenu" aria-label="Toggle menu">
@@ -70,11 +68,11 @@ const closeMenus = () => {
               <p class="user-email">{{ authStore.user?.email }}</p>
             </div>
             <hr />
-            <RouterLink v-if="authStore.isAdmin" to="/admin" class="dropdown-item" @click="closeMenus">🛠 Admin Console</RouterLink>
-            <RouterLink to="/profile" class="dropdown-item" @click="closeMenus">👤 Trang cá nhân</RouterLink>
-            <RouterLink to="/profile/my-tournaments" class="dropdown-item" @click="closeMenus">🎾 Giải đấu của mình</RouterLink>
+            <RouterLink v-if="authStore.isAdmin" to="/admin" class="dropdown-item" @click="closeMenus">Admin Console</RouterLink>
+            <RouterLink to="/profile" class="dropdown-item" @click="closeMenus">Trang cá nhân</RouterLink>
+            <RouterLink to="/profile/my-tournaments" class="dropdown-item" @click="closeMenus">Giải đấu của mình</RouterLink>
             <hr />
-            <button class="dropdown-item logout-action" @click="handleLogout">🚪 Đăng xuất</button>
+            <button class="dropdown-item logout-action" @click="handleLogout">Đăng xuất</button>
           </div>
         </div>
 

@@ -46,6 +46,7 @@ const adminViewFactories = {
   dailySchedule: () => import('../views/admin/AdminDailyScheduleView.vue'),
   calendar: () => import('../views/admin/AdminCalendarView.vue'),
   news: () => import('../views/admin/NewsManagementView.vue'),
+  rankings: () => import('../views/admin/AdminRankingsView.vue'),
 }
 
 

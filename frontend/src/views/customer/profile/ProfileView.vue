@@ -2,10 +2,15 @@
 import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../../../stores/auth'
 import { ElMessage } from 'element-plus'
+import { CameraFilled } from '@element-plus/icons-vue'
+
+import { playerService } from '../../../services/playerService'
 
 const authStore = useAuthStore()
 const isEditing = ref(false)
 const isLoading = ref(false)
+const matchHistory = ref([])
+const avatarFile = ref(null)
 
 const editForm = ref({
   full_name: '',
@@ -15,9 +20,25 @@ const editForm = ref({
   birth_date: ''
 })
 
-onMounted(() => {
-  if (authStore.user) {
-    editForm.value = { ...authStore.user }
+
+onMounted(async () => {
+  try {
+    // Luôn fetch profile mới nhất để có đủ thông tin (wins, losses, etc.)
+    const profileData = await authStore.fetchCurrentProfile()
+    
+    if (authStore.user) {
+      editForm.value = { 
+        full_name: authStore.user.full_name,
+        phone: authStore.user.phone,
+        gender: profileData?.player_profile?.gender || authStore.user.gender,
+        birth_date: profileData?.player_profile?.date_of_birth || authStore.user.date_of_birth
+      }
+    }
+
+    const history = await playerService.getMatchHistory()
+    matchHistory.value = history || []
+  } catch (error) {
+    console.error('Lỗi khi tải dữ liệu hồ sơ:', error)
   }
 })
 
@@ -26,20 +47,37 @@ const startEdit = () => {
   isEditing.value = true
 }
 
-const handleUpdate = async () => {
+const handleAvatarUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  
   isLoading.value = true
   try {
-    setTimeout(() => {
-      authStore.user = { ...authStore.user, ...editForm.value }
-      isEditing.value = false
-      isLoading.value = false
-      ElMessage.success('Cập nhật hồ sơ thành công!')
-    }, 800)
-  } catch (error) {
-    ElMessage.error('Có lỗi xảy ra khi cập nhật.')
+    const data = await playerService.uploadAvatar(file)
+    authStore.user.avatar_url = data.avatar_url
+    ElMessage.success('Cập nhật ảnh đại diện thành công!')
+  } catch (err) {
+    ElMessage.error(err.message || 'Lỗi khi upload ảnh.')
+  } finally {
     isLoading.value = false
   }
 }
+
+const handleUpdate = async () => {
+  isLoading.value = true
+  try {
+    const data = await playerService.updateMe(editForm.value)
+    authStore.user = { ...authStore.user, ...editForm.value }
+    isEditing.value = false
+    ElMessage.success('Cập nhật hồ sơ thành công!')
+  } catch (error) {
+    ElMessage.error(error.message || 'Có lỗi xảy ra khi cập nhật.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+
 </script>
 
 <template>
@@ -54,6 +92,17 @@ const handleUpdate = async () => {
             <div class="avatar-frame">
               <img v-if="authStore.user?.avatar_url" :src="authStore.user.avatar_url" alt="Avatar" />
               <div v-else class="avatar-placeholder">👤</div>
+              
+              <label class="avatar-upload-overlay" for="avatar-input">
+                <el-icon><CameraFilled /></el-icon>
+              </label>
+              <input 
+                id="avatar-input" 
+                type="file" 
+                accept="image/*" 
+                style="display: none;" 
+                @change="handleAvatarUpload" 
+              />
             </div>
           </div>
 
@@ -66,21 +115,21 @@ const handleUpdate = async () => {
 
             <div class="hero-quick-stats">
               <div class="stat-item">
-                <span class="stat-val">#{{ authStore.user?.rank || '---' }}</span>
+                <span class="stat-val">#{{ authStore.profile?.player_profile?.rank || '---' }}</span>
                 <span class="stat-lbl">Hạng</span>
               </div>
 
               <div class="stat-sep"></div>
 
               <div class="stat-item">
-                <span class="stat-val">{{ authStore.user?.wins || 0 }}</span>
+                <span class="stat-val">{{ authStore.profile?.player_profile?.wins || 0 }}</span>
                 <span class="stat-lbl">Thắng</span>
               </div>
 
               <div class="stat-sep"></div>
 
               <div class="stat-item">
-                <span class="stat-val">{{ authStore.user?.losses || 0 }}</span>
+                <span class="stat-val">{{ authStore.profile?.player_profile?.losses || 0 }}</span>
                 <span class="stat-lbl">Bại</span>
               </div>
             </div>
@@ -94,17 +143,14 @@ const handleUpdate = async () => {
         <aside class="compact-sidebar">
           <nav class="sidebar-nav">
             <RouterLink to="/profile" class="nav-btn" active-class="active" exact-active-class="active">
-              <span class="icon">👤</span>
               <span>Hồ sơ</span>
             </RouterLink>
 
             <RouterLink to="/profile/my-tournaments" class="nav-btn" active-class="active" exact-active-class="active">
-              <span class="icon">🎾</span>
               <span>Giải đấu</span>
             </RouterLink>
 
             <RouterLink to="/profile/change-password" class="nav-btn" active-class="active" exact-active-class="active">
-              <span class="icon">🔒</span>
               <span>Bảo mật</span>
             </RouterLink>
           </nav>
@@ -205,11 +251,18 @@ const handleUpdate = async () => {
             </div>
 
             <div class="atp-table-wrapper">
-              <el-table :data="[]" empty-text="Chưa có dữ liệu thi đấu" style="width: 100%">
-                <el-table-column prop="date" label="Ngày" width="120" />
-                <el-table-column prop="tournament" label="Giải đấu" />
+              <el-table :data="matchHistory" empty-text="Chưa có dữ liệu thi đấu" style="width: 100%">
+                <el-table-column prop="time" label="Thời gian" width="160" />
+                <el-table-column prop="tournament_name" label="Giải đấu" />
                 <el-table-column prop="opponent" label="Đối thủ" />
-                <el-table-column prop="result" label="Kết quả" width="100" />
+                <el-table-column prop="round" label="Vòng" width="100" />
+                <el-table-column prop="status" label="Kết quả" width="100">
+                   <template #default="scope">
+                      <span :class="['result-tag', scope.row.status === 'THẮNG' ? 'win' : 'lose']">
+                        {{ scope.row.status }}
+                      </span>
+                   </template>
+                </el-table-column>
               </el-table>
             </div>
           </article>
@@ -312,33 +365,67 @@ const handleUpdate = async () => {
 }
 
 .avatar-frame {
+  position: relative;
   width: 138px;
   height: 138px;
-  background: rgba(255, 255, 255, 0.98);
-  border-radius: 18px;
-  padding: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
-  overflow: hidden;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .avatar-frame img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
 .avatar-placeholder {
   width: 100%;
   height: 100%;
-  border-radius: 12px;
-  background: #e2e8f0;
+  border-radius: 14px;
+  background: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.75rem;
+  font-size: 2.8rem;
+  color: #94a3b8;
 }
+
+.avatar-upload-overlay {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 32px;
+  height: 32px;
+  background: var(--profile-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  border-radius: 10px; /* Bo góc nhẹ cho hợp với khung avatar */
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 5;
+}
+
+.avatar-upload-overlay:hover {
+  background: var(--profile-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+
+
+
 
 .hero-text-block {
   color: #fff;
@@ -597,6 +684,16 @@ const handleUpdate = async () => {
   font-family: Arial, sans-serif !important;
   transition: all 0.2s ease;
 }
+
+.result-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.result-tag.win { background: #dcfce7; color: #166534; }
+.result-tag.lose { background: #fef2f2; color: #991b1b; }
+
 
 .btn-atp-outline {
   display: inline-flex;

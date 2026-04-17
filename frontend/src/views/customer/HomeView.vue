@@ -1,5 +1,7 @@
 <script setup>
+import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import { newsService } from '../../services/newsService'
 
 const featureCards = [
   {
@@ -28,32 +30,25 @@ const featureCards = [
   },
 ]
 
-const newsItems = [
-  {
-    id: 1,
-    title: 'Giải quần vợt Saigontennistours Center Mở Rộng 2026',
-    date: '15/04/2026',
-    category: 'Giải đấu',
-    excerpt: 'Giải đấu quy tụ hơn 100 vận động viên chuyên nghiệp và bán chuyên trên toàn quốc.',
-    image: 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 2,
-    title: 'Khai trương cụm sân mới tại Cao Thắng',
-    date: '10/04/2026',
-    category: 'Sân bãi',
-    excerpt: 'Cụm sân tennis tiêu chuẩn quốc tế với hệ thống đèn LED hiện đại và mặt sân cao cấp.',
-    image: 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=800'
-  },
-  {
-    id: 3,
-    title: 'Lớp học Tennis buổi sáng cho người mới bắt đầu',
-    date: '05/04/2026',
-    category: 'Huấn luyện',
-    excerpt: 'Chương trình ưu đãi giảm 20% học phí cho học viên đăng ký trong tháng 4.',
-    image: 'https://images.unsplash.com/photo-1510832198440-a52376950479?auto=format&fit=crop&q=80&w=800'
+const newsItems = ref([])
+
+onMounted(async () => {
+  try {
+    const data = await newsService.getAllPosts({ limit: 3 })
+    newsItems.value = data.map(post => ({
+      id: post.id,
+      slug: post.slug,
+      title: post.title,
+      date: new Date(post.publish_at || post.created_at).toLocaleDateString('vi-VN'),
+      category: 'Tin tức', // Default label
+      excerpt: post.summary,
+      image: post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
+    }))
+  } catch (error) {
+    console.error('Failed to fetch news:', error)
   }
-]
+})
+
 </script>
 
 <template>
@@ -166,7 +161,7 @@ const newsItems = [
             <span class="news-date">{{ news.date }}</span>
             <h3>{{ news.title }}</h3>
             <p>{{ news.excerpt }}</p>
-            <RouterLink :to="'/news/' + news.id" class="news-link">Xem chi tiết <span>→</span></RouterLink>
+            <RouterLink :to="'/news/' + news.slug" class="news-link">Xem chi tiết <span>→</span></RouterLink>
           </div>
         </article>
       </div>
@@ -705,7 +700,7 @@ const newsItems = [
 
 .news-body h3 {
   font-size: 1.25rem;
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 0.8rem;
   line-height: 1.3;
   color: var(--text-dark);
@@ -720,7 +715,7 @@ const newsItems = [
 
 .news-link {
   color: var(--primary);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.85rem;
   text-transform: uppercase;
   display: inline-flex;

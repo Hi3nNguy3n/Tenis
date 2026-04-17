@@ -204,7 +204,9 @@ def get_tournament_matches_detail(db: Session, tournament_id: int):
         results.append({
             "id": m.id, "round_code": m.round_code, "match_no": m.match_no,
             "p1_name": p1_name, "p2_name": p2_name, "status": m.status,
-            "court_id": m.court_id, "start_time": m.start_time, "winner_side": m.winner_side
+            "court_id": m.court_id, 
+            "start_time": m.start_time.isoformat() if m.start_time else None, 
+            "winner_side": m.winner_side
         })
     return results
 
@@ -235,11 +237,16 @@ def get_all_matches_detail(db: Session):
     
     results = []
     for m, t, c in matches:
+        # Chuyển đổi date thành string ISO để tránh lỗi 500 khi JSON serialize
+        match_date = m.match_date or t.start_date
         results.append({
-            "id": m.id, "tournament": t.name, "court": c.court_name if c else "Chưa gán sân",
-            "date": m.match_date or t.start_date,
+            "id": m.id, 
+            "tournament": t.name, 
+            "court": c.court_name if c else "Chưa gán sân",
+            "date": match_date.isoformat() if match_date else None,
             "start": m.start_time.strftime("%H:%M") if m.start_time else "--:--",
-            "end": "--:--", "status": m.status
+            "end": "--:--", 
+            "status": m.status
         })
     return results
 

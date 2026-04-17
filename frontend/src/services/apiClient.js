@@ -2,7 +2,7 @@ import { getActivePinia } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import { getStoredAccessToken, getStoredTokenType } from '../utils/authStorage'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 const resolveAuthHeader = () => {
   let accessToken = ''
@@ -55,10 +55,33 @@ const parseResponse = async (response) => {
 
 export const apiClient = {
   async request(endpoint, options = {}) {
-    const { headers, body, method = 'GET', includeJson = true, ...rest } = options
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const { headers, body, params, method = 'GET', includeJson = true, ...rest } = options
+
+    let url = `${API_BASE_URL}${endpoint}`
+    if (params && Object.keys(params).length > 0) {
+      // Clean params: remove null, undefined, or empty strings
+      const cleanParams = Object.keys(params).reduce((acc, key) => {
+        const value = params[key]
+        if (value !== null && value !== undefined && value !== '') {
+          acc[key] = value
+        }
+        return acc
+      }, {})
+
+      if (Object.keys(cleanParams).length > 0) {
+        const queryString = new URLSearchParams(cleanParams).toString()
+        url += `?${queryString}`
+      }
+    }
+
+    // Nếu body là FormData, trình duyệt sẽ tự đặt Content-Type (multipart/form-data) kèm boundary
+    // nên ta cần tránh ép kiểu JSON.
+    const isFormData = body instanceof FormData
+    const finalIncludeJson = isFormData ? false : includeJson
+
+    const response = await fetch(url, {
       method,
-      headers: normalizeHeaders(headers, includeJson),
+      headers: normalizeHeaders(headers, finalIncludeJson),
       body,
       ...rest,
     })
@@ -83,24 +106,28 @@ export const apiClient = {
     return this.request(endpoint, { ...options, method: 'GET' })
   },
   post(endpoint, payload, options = {}) {
+    const isFormData = payload instanceof FormData
     return this.request(endpoint, {
       ...options,
       method: 'POST',
-      body: typeof payload === 'string' ? payload : JSON.stringify(payload),
+      body: isFormData ? payload : (typeof payload === 'string' ? payload : JSON.stringify(payload)),
     })
   },
+
   patch(endpoint, payload, options = {}) {
+    const isFormData = payload instanceof FormData
     return this.request(endpoint, {
       ...options,
       method: 'PATCH',
-      body: typeof payload === 'string' ? payload : JSON.stringify(payload),
+      body: isFormData ? payload : (typeof payload === 'string' ? payload : JSON.stringify(payload)),
     })
   },
   put(endpoint, payload, options = {}) {
+    const isFormData = payload instanceof FormData
     return this.request(endpoint, {
       ...options,
       method: 'PUT',
-      body: typeof payload === 'string' ? payload : JSON.stringify(payload),
+      body: isFormData ? payload : (typeof payload === 'string' ? payload : JSON.stringify(payload)),
     })
   },
   delete(endpoint, options = {}) {

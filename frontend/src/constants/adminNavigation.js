@@ -10,6 +10,7 @@ export const adminModules = [
     description: 'Bảng điều khiển tổng quan cho toàn bộ hệ thống quản trị.',
     highlights: ['Quick links', 'Tiến độ phase', 'Trạng thái auth'],
   },
+/*
   {
     path: 'profile',
     name: 'admin-profile',
@@ -21,6 +22,7 @@ export const adminModules = [
     description: 'Thông tin tài khoản hiện tại lấy từ API /api/players/me.',
     highlights: ['Thông tin user', 'Thông tin player', 'Session hiện tại'],
   },
+*/
   {
     path: 'players',
     name: 'admin-players',
@@ -76,6 +78,7 @@ export const adminModules = [
     description: 'Quản lý danh sách sân, mặt sân, địa điểm và tình trạng khả dụng.',
     highlights: ['Court list', 'Surface type', 'Availability'],
   },
+/*
   {
     path: 'matches',
     name: 'admin-matches',
@@ -87,6 +90,7 @@ export const adminModules = [
     description: 'Điều hành trận đấu, cập nhật tỷ số, người thắng và referee assignment.',
     highlights: ['Live score', 'Match status', 'Winner selection'],
   },
+*/
   {
     path: 'schedule',
     name: 'admin-schedule',
@@ -103,8 +107,8 @@ export const adminModules = [
     name: 'admin-rankings',
     label: 'BXH & Điểm số',
     section: 'Điều phối',
-    view: 'placeholder',
-    badge: 'Mock UI',
+    view: 'rankings',
+    badge: 'LIVE',
     title: 'Bảng xếp hạng',
     description: 'Bảng xếp hạng và lịch sử biến động ELO theo nhiều bộ lọc.',
     highlights: ['Ranking table', 'ELO history', 'Category filters'],

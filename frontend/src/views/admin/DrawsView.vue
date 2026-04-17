@@ -18,7 +18,8 @@ const currentUserName = computed(() => {
 
 const fetchTournaments = async () => {
   try {
-    const data = await tournamentService.getAll()
+    // Lấy toàn bộ danh sách giải đấu để admin chọn (Limit lớn)
+    const data = await tournamentService.getAll({ limit: 100 })
     tournaments.value = data
   } catch (err) {
     ElMessage.error('Lỗi tải danh sách giải: ' + err.message)
@@ -76,17 +77,27 @@ onMounted(fetchTournaments)
 
 <template>
   <div class="module-shell">
-    <section class="hero-card">
-      <div>
-        <span class="section-kicker">Drawing Matrix</span>
-        <h2>Quản lý Nhánh đấu</h2>
-        <p>Sơ đồ thi đấu tự động cập nhật kết quả và đẩy người thắng vào vòng trong.</p>
+    <!-- HEADER PREMIUM -->
+    <section class="action-bar-glass shadow-sm">
+      <div class="action-info">
+        <div class="kicker-wrap">
+          <span class="section-kicker">Drawing Matrix</span>
+          <div class="live-indicator">
+            <span class="dot"></span>
+            ACTIVE
+          </div>
+        </div>
+        <p>Phân bổ hạt giống (Seeding) và bốc thăm tự động cho giải đấu.</p>
       </div>
       <div class="hero-actions">
-        <el-select v-model="selectedTournamentId" placeholder="Chọn giải đấu" style="width: 250px" @change="fetchMatches">
-          <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
-        </el-select>
-        <el-button type="primary" :disabled="!selectedTournamentId" :loading="generating" @click="generateDraw">Tạo nhánh đấu mới</el-button>
+        <div class="control-group-v2">
+          <el-select v-model="selectedTournamentId" placeholder="-- Lấy giải đấu --" style="width: 240px" @change="fetchMatches" filterable round>
+            <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+          <el-button type="primary" :disabled="!selectedTournamentId" :loading="generating" @click="generateDraw" class="btn-generate-premium" round>
+            Bắt đầu Bốc thăm & Tạo Nhánh
+          </el-button>
+        </div>
       </div>
     </section>
 
@@ -100,36 +111,31 @@ onMounted(fetchTournaments)
       
       <div v-else class="bracket-board">
          <div v-for="(round, index) in bracketRounds" :key="index" class="bracket-round">
-            <div class="round-title">{{ round[0].round_code }}</div>
+            <div class="round-header">
+               <span class="round-tag">{{ round[0].round_code }}</span>
+            </div>
             
             <div class="matches-column">
                <div v-for="m in round" :key="m.id" class="match-wrapper">
-                  <div class="match-card">
-                     <div class="match-header">Trận #{{ m.match_no }} <span>• {{ m.status }}</span></div>
+                  <div class="match-card-premium">
+                     <div class="match-top">
+                        <span class="m-no">#{{ m.match_no }}</span>
+                        <span class="m-status" :class="m.status">{{ m.status?.toUpperCase() }}</span>
+                     </div>
                      
-                     <div class="match-body">
-                        <div class="player-slot" 
-                             :class="{ 
-                               'winner': m.winner_side === 'side_a',
-                               'highlight-me': m.p1_name === currentUserName 
-                             }">
-                           <span class="player-name">{{ m.p1_name }}</span>
-                           <span v-if="m.result_note === 'BYE' && m.winner_side === 'side_a'" class="bye-badge">BYE</span>
+                     <div class="match-players">
+                        <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a', 'is-me': m.p1_name === currentUserName }">
+                           <span class="p-name">{{ m.p1_name || 'Đang cập nhật...' }}</span>
+                           <el-tag v-if="m.result_note === 'BYE' && m.winner_side === 'side_a'" size="small" effect="dark" type="info" class="bye-tag">BYE</el-tag>
                         </div>
                         
-                        <div class="divider"></div>
-                        
-                        <div class="player-slot" 
-                             :class="{ 
-                               'winner': m.winner_side === 'side_b',
-                               'highlight-me': m.p2_name === currentUserName 
-                             }">
-                           <span class="player-name">{{ m.p2_name }}</span>
-                           <span v-if="m.result_note === 'BYE' && m.winner_side === 'side_b'" class="bye-badge">BYE</span>
+                        <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b', 'is-me': m.p2_name === currentUserName }">
+                           <span class="p-name">{{ m.p2_name || 'Đang chờ đối thủ...' }}</span>
+                           <el-tag v-if="m.result_note === 'BYE' && m.winner_side === 'side_b'" size="small" effect="dark" type="info" class="bye-tag">BYE</el-tag>
                         </div>
                      </div>
                   </div>
-                  <div class="connector" v-if="index < bracketRounds.length - 1"></div>
+                  <div class="connector-line" v-if="index < bracketRounds.length - 1"></div>
                </div>
             </div>
          </div>
@@ -139,146 +145,105 @@ onMounted(fetchTournaments)
 </template>
 
 <style scoped>
-.module-shell { display: grid; gap: 24px; }
-.hero-card {
-  background: white; padding: 24px; border-radius: 8px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.04);
-  display: flex; justify-content: space-between; align-items: flex-end;
-}
-.section-kicker { font-size: 0.75rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px; }
-.hero-card h2 { font-size: 2.22rem; color: var(--text-dark); margin: 0; }
-.hero-card p { color: #6e7a74; margin-top: 8px; }
-.hero-actions { display: flex; gap: 12px; }
+.module-shell { display: grid; gap: 20px; padding: 10px; }
 
-/* BẢNG CHỨA SƠ ĐỒ */
-.draw-container {
-  background: #fdfdfd; padding: 32px; border-radius: 8px; min-height: 500px;
-  overflow-x: auto; /* Cho phép cuộn ngang nếu nhánh đấu quá to */
-  box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
-}
-.empty-state { text-align: center; color: #9e9e9e; padding-top: 100px; font-size: 1.1rem; }
-
-/* KIẾN TRÚC BRACKET TREE */
-.bracket-board {
+.action-bar-glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  padding: 20px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
   display: flex;
-  gap: 60px; /* Khoảng cách giữa các Vòng */
-  padding: 20px 0;
-}
-
-.bracket-round {
-  display: flex;
-  flex-direction: column;
-  min-width: 240px;
-}
-
-.round-title {
-  text-align: center;
-  font-weight: 800;
-  color: var(--primary);
-  margin-bottom: 24px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #e0e6e4;
-  letter-spacing: 1px;
-}
-
-.matches-column {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around; /* Phép màu nằm ở đây: Tự động dãn cách hội tụ */
-  flex-grow: 1;
-  gap: 20px;
-}
-
-/* THẺ TRẬN ĐẤU */
-.match-wrapper {
-  position: relative;
-  display: flex;
+  justify-content: space-between;
   align-items: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
 }
 
-.match-card {
-  width: 100%;
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-  overflow: hidden;
-  position: relative;
-  z-index: 2;
-  transition: transform 0.2s;
+.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
+.section-kicker { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.live-indicator {
+  display: flex; align-items: center; gap: 6px;
+  background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800;
+  padding: 2px 8px; border-radius: 99px;
 }
-.match-card:hover {
+.dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
+
+.control-group-v2 { display: flex; gap: 12px; align-items: center; }
+.btn-generate-premium {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  border: none;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+  transition: all 0.3s ease;
+}
+.btn-generate-premium:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
 }
 
-.match-header {
-  background: #f4f6f5;
-  color: #6e7a74;
-  padding: 6px 12px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid #e0e0e0;
+.draw-container {
+  background: white; padding: 40px; border-radius: 24px; min-height: 600px;
+  border: 1px solid #f1f5f9; box-shadow: 0 10px 40px rgba(0,0,0,0.02);
+  overflow-x: auto;
 }
 
-.match-body {
-  display: flex;
-  flex-direction: column;
+.bracket-board { display: flex; gap: 80px; padding: 20px 0; }
+.bracket-round { display: flex; flex-direction: column; min-width: 260px; }
+
+.round-header { text-align: center; margin-bottom: 30px; position: relative; }
+.round-tag {
+  background: #f8fafc; color: #1e293b; padding: 6px 20px; border-radius: 99px;
+  font-weight: 800; font-size: 0.75rem; text-transform: uppercase;
+  border: 1px solid #e2e8f0;
 }
 
-.divider {
-  height: 1px;
-  background: #f0f0f0;
+.matches-column { display: flex; flex-direction: column; justify-content: space-around; flex-grow: 1; gap: 40px; }
+
+.match-wrapper { position: relative; display: flex; align-items: center; width: 100%; }
+
+.match-card-premium {
+  width: 100%; background: white; border-radius: 16px; border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01);
+  overflow: hidden; z-index: 2; transition: all 0.3s ease;
+}
+.match-card-premium:hover {
+  transform: scale(1.02); border-color: #3b82f6;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05);
 }
 
-/* THÔNG TIN VẬN ĐỘNG VIÊN */
-.player-slot {
-  padding: 10px 12px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #333;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-left: 4px solid transparent;
+.match-top {
+  background: #f8fafc; padding: 8px 12px; display: flex; justify-content: space-between;
+  align-items: center; border-bottom: 1px solid #f1f5f9;
 }
+.m-no { font-size: 0.65rem; font-weight: 800; color: #94a3b8; }
+.m-status { font-size: 0.6rem; font-weight: 800; padding: 2px 8px; border-radius: 4px; }
+.m-status.pending { background: #fff7ed; color: #c2410c; }
+.m-status.completed { background: #f0fdf4; color: #15803d; }
 
-/* TRẠNG THÁI HIGHLIGHT */
-.winner {
-  background-color: #f0fdf4;
-  color: #166534;
-  font-weight: 700;
+.match-players { padding: 4px; display: grid; gap: 2px; }
+.p-row {
+  padding: 10px 12px; border-radius: 10px; display: flex; justify-content: space-between;
+  align-items: center; transition: all 0.2s ease;
 }
+.p-name { font-size: 0.9rem; font-weight: 600; color: #334155; }
 
-.highlight-me {
-  border-left: 4px solid #f97316 !important; /* Màu cam nổi bật cho VĐV hiện tại */
-  background-color: #fff7ed;
-  font-weight: 700;
-}
-.highlight-me.winner {
-  background-color: #dcfce7; /* Xanh nhẹ nếu vừa là người dùng vừa chiến thắng */
-}
+.is-winner { background: #f0fdf4; }
+.is-winner .p-name { color: #15803d; font-weight: 700; }
+.is-me { border: 1px solid #fb923c; background: #fff7ed; }
 
-/* NHÃN VÉ ĐẶC CÁCH */
-.bye-badge {
-  background: #e2e8f0;
-  color: #64748b;
-  font-size: 0.65rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 800;
-}
+.bye-tag { font-size: 0.6rem; font-weight: 900; }
 
-/* ĐƯỜNG LINE NỐI (CONNECTOR) */
-.connector {
-  position: absolute;
-  right: -30px;
-  top: 50%;
-  width: 30px;
-  height: 2px;
-  background-color: #cbd5e1;
-  z-index: 1;
+.connector-line {
+  position: absolute; right: -40px; top: 50%; width: 40px; height: 1.5px;
+  background: #e2e8f0; z-index: 1;
 }
 </style>

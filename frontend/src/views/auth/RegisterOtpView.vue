@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { User, Lock, Phone, Location, Calendar, Warning, Check, Female, Male, Loading } from '@element-plus/icons-vue'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const SEND_OTP_ENDPOINT = `${API_BASE_URL}/api/auth/send-otp`
 const PENDING_REGISTER_STORAGE_KEY = 'saigon_tennis_pending_register'
 

@@ -1,162 +1,178 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { Search, Trophy, ChatDotRound, Microphone, Promotion, CircleCheck } from '@element-plus/icons-vue'
+import { playerService } from '../../services/playerService'
 
-// Mock Data for Top Winners
-const recentWinners = [
-  { id: 1, name: 'Jannik Sinner', tournament: 'ATP Masters 1000 Miami', image: 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=200' },
-  { id: 2, name: 'Rafael Nadal', tournament: 'ATP 500 Barcelona', image: 'https://images.unsplash.com/photo-1510832198440-a52376950479?auto=format&fit=crop&q=80&w=200' },
-  { id: 3, name: 'Carlos Alcaraz', tournament: 'ATP Masters 1000 Madrid', image: 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=200' },
-  { id: 4, name: 'Novak Djokovic', tournament: 'Australian Open', image: 'https://images.unsplash.com/photo-1622279457486-62dcc4a4bd13?auto=format&fit=crop&q=80&w=200' }
-]
+// Mock Data for Community Visualization
+const onlinePlayers = ref([
+  { id: 1, name: 'Lê Văn Tú', elo: 1250, avatar: 'https://i.pravatar.cc/150?u=1', status: 'online' },
+  { id: 2, name: 'Nguyễn Minh Anh', elo: 1180, avatar: 'https://i.pravatar.cc/150?u=2', status: 'online' },
+  { id: 3, name: 'Trần Hoàng Nam', elo: 1320, avatar: 'https://i.pravatar.cc/150?u=3', status: 'online' },
+  { id: 4, name: 'Phạm Bảo Khang', elo: 1100, avatar: 'https://i.pravatar.cc/150?u=4', status: 'away' },
+  { id: 5, name: 'Đặng Quốc Huy', elo: 1210, avatar: 'https://i.pravatar.cc/150?u=5', status: 'online' },
+])
 
-// Mock Data for Main Player Grid
-const mockupPlayers = [
-  { id: 1, rank: 1, name: 'Jannik Sinner', country: 'Italy', points: 11200, avatar: '' },
-  { id: 2, rank: 2, name: 'Carlos Alcaraz', country: 'Spain', points: 8900, avatar: '' },
-  { id: 3, rank: 3, name: 'Alexander Zverev', country: 'Germany', points: 7500, avatar: '' },
-  { id: 4, rank: 4, name: 'Novak Djokovic', country: 'Serbia', points: 7200, avatar: '' },
-  { id: 5, rank: 5, name: 'Daniil Medvedev', country: 'Neutral', points: 6800, avatar: '' },
-  { id: 6, rank: 6, name: 'Andrey Rublev', country: 'Neutral', points: 5400, avatar: '' },
-  { id: 7, rank: 7, name: 'Casper Ruud', country: 'Norway', points: 4100, avatar: '' },
-  { id: 8, rank: 8, name: 'Hubert Hurkacz', country: 'Poland', points: 3950, avatar: '' },
-]
+const chatMessages = ref([
+  { id: 1, user: 'Admin', text: 'Chào mừng các VĐV đã quay trở lại với Saigon Tennis Tour 2026!', time: '09:00', isAdmin: true },
+  { id: 2, user: 'Lê Văn Tú', text: 'Có ai rảnh sân Celadon tối nay không? Kèo 1200 - 1300 giao lưu nhẹ nhàng.', time: '10:05' },
+  { id: 3, user: 'Trần Hoàng Nam', text: 'Tối nay mấy giờ vậy Tú? @Lê Văn Tú', time: '10:12' },
+  { id: 4, user: 'Nguyễn Minh Anh', text: 'Sáng mai có giải mini ở Bình Tân, mọi người nhớ đăng ký nhé!', time: '10:15' },
+])
 
-const players = ref(mockupPlayers)
-const totalPoints = computed(() => players.value.reduce((sum, player) => sum + player.points, 0))
+const newMessage = ref('')
+const searchQuery = ref('')
+const players = ref([])
+const recentWinners = ref([])
+const loading = ref(true)
 
-onMounted(() => {
-  // Logic to fetch real players would go here
-})
+const sendMessage = () => {
+  if (!newMessage.value.trim()) return
+  chatMessages.value.push({
+    id: Date.now(),
+    user: 'Bạn',
+    text: newMessage.value,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  })
+  newMessage.value = ''
+}
+
+const fetchPlayers = async () => {
+  loading.value = true
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/players/rankings`)
+    const rankings = await response.json()
+    players.value = rankings
+    recentWinners.value = rankings.slice(0, 4)
+  } catch (err) {
+    console.error('Lỗi tải dữ liệu:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchPlayers)
 </script>
 
 <template>
-  <div class="players-page">
+  <div class="community-page">
     
-    <!-- RECENT WINNERS SECTION -->
-    <section class="winners-hero">
-      <div class="container">
-        <div class="winners-header">
-          <span class="section-kicker">Champions</span>
-          <h2>Recent ATP Tour Winners</h2>
+    <!-- TẦNG 1: VINH DANH & TÌM KIẾM -->
+    <section class="champions-hero">
+      <div class="container hero-inner">
+        <div class="hero-header">
+          <span class="kicker"><el-icon><Trophy /></el-icon> HALL OF FAME</span>
+          <h2>Vinh Danh Nhà Vô Địch</h2>
         </div>
-        <div class="winners-grid">
-          <div v-for="winner in recentWinners" :key="winner.id" class="winner-card">
-            <div class="winner-avatar">
-              <img :src="winner.image" alt="Winner" />
+        
+        <div class="champions-slider">
+          <div v-for="winner in recentWinners" :key="winner.player_id" class="champion-mini-card">
+            <div class="champ-avatar">
+              <img :src="winner.avatar_url || 'https://res.cloudinary.com/dfs9o3bny/image/upload/v1776311634/default_avatar.png'" alt="Winner" />
+              <div class="rank-badge">#{{ winner.rank }}</div>
             </div>
-            <div class="winner-info">
-              <span class="tour-name">{{ winner.tournament }}</span>
-              <h3>{{ winner.name }}</h3>
-              <div class="winner-visual-strip"></div>
+            <div class="champ-info">
+              <h3>{{ winner.full_name }}</h3>
+              <span class="champ-elo">{{ winner.elo_points }} ELO</span>
             </div>
           </div>
+        </div>
+
+        <div class="search-bar-container">
+          <el-input
+            v-model="searchQuery"
+            placeholder="Tìm kiếm bạn chơi hoặc đối thủ..."
+            class="global-search"
+            size="large"
+            :prefix-icon="Search"
+            clearable
+          />
         </div>
       </div>
     </section>
 
-    <!-- MAIN INTERFACE -->
-    <section class="players-main-section">
-      <div class="container main-layout">
+    <!-- TẦNG 2 & 3: KHÔNG GIAN TƯƠNG TÁC -->
+    <section class="interaction-zone">
+      <div class="container social-grid">
         
-        <!-- LEFT: Player Listing -->
-        <div class="content-col">
-          <div class="listing-filters">
-            <div class="search-wrap">
-              <input type="text" placeholder="Search for players..." class="player-search" />
-              <button class="search-btn">🔍</button>
-            </div>
-            <div class="filter-group">
-              <select><option>Singles</option></select>
-              <select><option>Top 100</option></select>
-              <select><option>All Regions</option></select>
+        <!-- SIDEBAR: ONLINE PLAYERS -->
+        <aside class="online-sidebar">
+          <div class="sidebar-header">
+            <h4>ĐANG TRỰC TUYẾN ({{ onlinePlayers.filter(p => p.status === 'online').length }})</h4>
+          </div>
+          <div class="online-list">
+            <div v-for="player in onlinePlayers" :key="player.id" class="online-user">
+              <div class="user-avatar-wrap">
+                <img :src="player.avatar" />
+                <span :class="['status-dot', player.status]"></span>
+              </div>
+              <div class="user-detail">
+                <span class="u-name">{{ player.name }}</span>
+                <span class="u-elo">{{ player.elo }} Elo</span>
+              </div>
+              <button class="chat-trigger" title="Nhắn tin riêng">
+                <el-icon><ChatDotRound /></el-icon>
+              </button>
             </div>
           </div>
-
-          <div class="players-grid">
-            <article v-for="player in players" :key="player.id" class="atp-player-card">
-              <div class="player-visual">
-                <div class="rank-badge">{{ player.rank }}</div>
-                <div class="profile-circle">
-                  <span v-if="!player.avatar">🎾</span>
-                  <img v-else :src="player.avatar" />
-                </div>
-              </div>
-              <div class="player-meta">
-                <h3>{{ player.name }}</h3>
-                <div class="meta-bottom">
-                  <span class="country-tag">{{ player.country }}</span>
-                  <span class="points-tag">{{ player.points.toLocaleString() }} PTS</span>
-                </div>
-              </div>
-            </article>
+          <div class="sidebar-footer">
+            <button class="btn-all-players">Tất cả vận động viên</button>
           </div>
-        </div>
-
-        <!-- RIGHT: Sidebar Widgets -->
-        <aside class="sidebar-col">
-          
-          <!-- SCORES WIDGET -->
-          <div class="widget">
-            <div class="widget-header">
-              <h4>Live Scores</h4>
-              <button class="view-all">View All</button>
-            </div>
-            <div class="widget-body scoreslist">
-              <div class="score-item">
-                <div class="tour-loc">Barcelona Open</div>
-                <div class="match-mini">
-                  <div class="player-row"><span>🇪🇸 C. Alcaraz</span> <strong>2</strong></div>
-                  <div class="player-row"><span>🇬🇷 S. Tsitsipas</span> <strong>1</strong></div>
-                </div>
-              </div>
-              <div class="score-item">
-                <div class="tour-loc">BMW Open Munich</div>
-                <div class="match-mini">
-                  <div class="player-row"><span>🇩🇪 A. Zverev</span> <strong>2</strong></div>
-                  <div class="player-row"><span>🇳🇴 C. Ruud</span> <strong>0</strong></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- PROFILE HIGHLIGHT WIDGET -->
-          <div class="widget profile-feature">
-            <div class="feature-bg"></div>
-            <div class="feature-inner">
-              <span class="kicker">Player Profile</span>
-              <h4>CARLOS ALCARAZ</h4>
-              <div class="feature-stats">
-                <div class="fs-row"><span>Rank</span> <span>3</span></div>
-                <div class="fs-row"><span>Age</span> <span>21</span></div>
-                <div class="fs-row"><span>Win/Loss</span> <span>18 - 4</span></div>
-              </div>
-              <button class="full-bio">See Full Bio</button>
-            </div>
-          </div>
-
-          <!-- TRENDING NEWS WIDGET -->
-          <div class="widget">
-            <div class="widget-header">
-              <h4>Latest News</h4>
-            </div>
-            <div class="widget-body news-mini-list">
-              <div class="news-item-mini">
-                <img src="https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150" />
-                <p>Nadal advances to semi-finals in Barcelona Open</p>
-              </div>
-              <div class="news-item-mini">
-                <img src="https://images.unsplash.com/photo-1510832198440-a52376950479?auto=format&fit=crop&q=80&w=150" />
-                <p>Djokovic confirms participation in French Open</p>
-              </div>
-              <div class="news-item-mini">
-                <img src="https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=150" />
-                <p>Alcaraz's recovery looks promising for Madrid</p>
-              </div>
-            </div>
-          </div>
-
         </aside>
+
+        <!-- MAIN: GLOBAL COMMUNITY CHAT -->
+        <main class="community-chat">
+          <div class="chat-header">
+            <div class="chat-info">
+              <div class="chat-avatar-group">
+                <img v-for="i in 3" :key="i" :src="`https://i.pravatar.cc/150?u=${i}`" />
+                <span class="plus-count">+{{ players.length }}</span>
+              </div>
+              <div class="chat-title">
+                <h4>Phòng Chat Cộng Đồng</h4>
+                <p>Nơi kết nối và giao lưu kèo đấu tự do</p>
+              </div>
+            </div>
+            <div class="chat-actions">
+              <el-button type="success" plain size="small" :icon="CircleCheck">Hoạt động</el-button>
+            </div>
+          </div>
+
+          <div class="chat-messages-area">
+            <div 
+              v-for="msg in chatMessages" 
+              :key="msg.id" 
+              :class="['message-row', { 'is-admin': msg.isAdmin, 'is-me': msg.user === 'Bạn' }]"
+            >
+              <div v-if="msg.user !== 'Bạn'" class="msg-avatar">
+                <img :src="`https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.user}`" />
+              </div>
+              <div class="msg-content">
+                <div class="msg-meta">
+                  <span class="msg-user">{{ msg.user }}</span>
+                  <span class="msg-time">{{ msg.time }}</span>
+                </div>
+                <div class="msg-bubble">
+                  {{ msg.text }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-area">
+            <div class="input-actions">
+              <el-icon class="icon-btn"><Microphone /></el-icon>
+            </div>
+            <input 
+              v-model="newMessage" 
+              type="text" 
+              placeholder="Nhập tin nhắn để rủ kèo..." 
+              @keyup.enter="sendMessage"
+            />
+            <button class="send-btn" @click="sendMessage">
+              <el-icon><Promotion /></el-icon>
+            </button>
+          </div>
+        </main>
 
       </div>
     </section>
@@ -165,417 +181,345 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.players-page {
-  background: var(--bg-main);
+.community-page {
+  background: #f8fafc;
   min-height: 100vh;
+  font-family: Arial, sans-serif !important;
 }
 
-/* WINNERS HERO SECTION */
-.winners-hero {
+/* TẦNG 1: CHAMPIONS HERO */
+.champions-hero {
   background: #0f172a;
-  padding: 4rem 0;
+  padding: 4rem 0 6rem;
   color: #fff;
-  border-bottom: 4px solid var(--primary);
+  position: relative;
+  overflow: hidden;
 }
 
-.winners-header {
-  margin-bottom: 3rem;
+.champions-hero::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, #c1ff72 -100%, transparent 70%);
+  opacity: 0.15;
+}
+
+.hero-header {
   text-align: center;
+  margin-bottom: 3rem;
 }
 
-.section-kicker {
-  display: block;
-  color: var(--primary);
+.kicker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #c1ff72;
   font-weight: 500;
-  text-transform: uppercase;
-  font-size: 0.85rem;
   letter-spacing: 0.2rem;
+  font-size: 0.8rem;
   margin-bottom: 0.5rem;
 }
 
-.winners-header h2 {
-  font-size: 2.5rem;
+.hero-header h2 {
+  font-size: 2.2rem;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
-.winners-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+.champions-slider {
+  display: flex;
+  justify-content: center;
   gap: 2rem;
+  margin-bottom: 4rem;
+  flex-wrap: wrap;
 }
 
-.winner-card {
-  background: rgba(255, 255, 255, 0.03);
+.champion-mini-card {
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 1.5rem;
+  border-radius: 12px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  text-align: center;
-  transition: transform 0.3s;
-  border-radius: 4px;
+  gap: 1.5rem;
+  min-width: 260px;
+  transition: all 0.3s;
 }
 
-.winner-card:hover {
-  transform: translateY(-10px);
-  background: rgba(255, 255, 255, 0.06);
+.champion-mini-card:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-5px);
+  border-color: #c1ff72;
 }
 
-.winner-avatar {
-  width: 100px;
-  height: 100px;
+.champ-avatar {
+  position: relative;
+  width: 60px; height: 60px;
+}
+
+.champ-avatar img {
+  width: 100%; height: 100%;
   border-radius: 50%;
-  overflow: hidden;
-  margin-bottom: 1.2rem;
-  border: 4px solid var(--primary);
-}
-
-.winner-avatar img {
-  width: 100%;
-  height: 100%;
   object-fit: cover;
-}
-
-.tour-name {
-  display: block;
-  font-size: 0.7rem;
-  color: #94a3b8;
-  text-transform: uppercase;
-  font-weight: 500;
-  margin-bottom: 0.4rem;
-}
-
-.winner-info h3 {
-  font-size: 1.2rem;
-  font-weight: 500;
-  margin-bottom: 1rem;
-}
-
-.winner-visual-strip {
-  width: 40px;
-  height: 4px;
-  background: var(--primary);
-  margin-top: auto;
-}
-
-/* MAIN LAYOUT */
-.players-main-section {
-  padding: 3rem 0 6rem;
-}
-
-.main-layout {
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 3rem;
-}
-
-/* LISTING CONTROLS */
-.listing-filters {
-  background: #fff;
-  padding: 1.5rem;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  gap: 1.5rem;
-}
-
-.search-wrap {
-  flex: 1;
-  position: relative;
-}
-
-.player-search {
-  width: 100%;
-  padding: 0.8rem 1rem;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  font-size: 0.95rem;
-  outline: none;
-}
-
-.player-search:focus { border-color: var(--primary); }
-
-.search-btn {
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.filter-group {
-  display: flex;
-  gap: 1rem;
-}
-
-.filter-group select {
-  padding: 0.8rem 1.2rem;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  font-weight: 500;
-  font-size: 0.85rem;
-  background: #fff;
-  cursor: pointer;
-}
-
-/* PLAYER GRID */
-.players-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.5rem;
-}
-
-.atp-player-card {
-  background: #fff;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-
-.atp-player-card:hover {
-  border-color: var(--primary);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-}
-
-.player-visual {
-  position: relative;
-  margin-bottom: 2rem;
+  border: 2px solid #c1ff72;
 }
 
 .rank-badge {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 40px;
-  height: 40px;
-  background: var(--primary);
+  bottom: -5px; right: -5px;
+  background: #c1ff72;
+  color: #000;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.champ-info h3 { font-size: 1.1rem; font-weight: 500; margin-bottom: 0.2rem; color: #fff; }
+.champ-elo { font-size: 0.85rem; color: #c1ff72; font-weight: 500; }
+
+.search-bar-container {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+:deep(.global-search .el-input__wrapper) {
+  background: rgba(255,255,255,0.1);
+  box-shadow: none !important;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+}
+
+:deep(.global-search input) {
   color: #fff;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-  border: 3px solid #fff;
-  z-index: 2;
+  height: 54px;
 }
 
-.profile-circle {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: var(--bg-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 4rem;
-  border: 1px solid var(--border-light);
-  overflow: hidden;
+/* SOCIAL GRID */
+.interaction-zone {
+  margin-top: -3rem;
+  padding-bottom: 4rem;
 }
 
-.profile-circle img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.atp-player-card h3 {
-  font-size: 1.3rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  margin-bottom: 0.8rem;
-  color: var(--text-dark);
-}
-
-.meta-bottom {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.country-tag {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 500;
-  text-transform: uppercase;
-}
-
-.points-tag {
-  color: var(--primary);
-  font-size: 1.1rem;
-  font-weight: 500;
-}
-
-/* SIDEBAR WIDGETS */
-.sidebar-col {
-  display: flex;
-  flex-direction: column;
+.social-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
   gap: 2rem;
+  align-items: start;
 }
 
-.widget {
+/* ONLINE SIDEBAR */
+.online-sidebar {
   background: #fff;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
   overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.02);
 }
 
-.widget-header {
-  padding: 1.2rem;
-  border-bottom: 1px solid var(--border-light);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.widget-header h4 {
-  font-size: 0.9rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dark);
-}
-
-.view-all {
-  background: none;
-  border: none;
-  color: var(--primary);
-  font-weight: 500;
+.sidebar-header h4 {
   font-size: 0.75rem;
-  text-transform: uppercase;
-  cursor: pointer;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.05em;
 }
 
-.widget-body { padding: 0; }
-
-.score-item {
-  padding: 1.25rem;
-  border-bottom: 1px solid var(--bg-soft);
-}
-
-.tour-loc {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  font-weight: 500;
-  text-transform: uppercase;
-  margin-bottom: 0.8rem;
-}
-
-.player-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.3rem;
-  font-size: 0.95rem;
-}
-
-.player-row strong { color: var(--text-dark); }
-
-/* FEATURE WIDGET */
-.profile-feature {
-  position: relative;
-  background: #0f172a;
-  color: #fff;
-  padding: 2rem;
-  border: none;
-}
-
-.feature-bg {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 70% 30%, var(--primary) -50%, transparent 60%);
-  opacity: 0.4;
-}
-
-.feature-inner { position: relative; z-index: 2; }
-
-.feature-inner .kicker {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--primary);
-  text-transform: uppercase;
-  margin-bottom: 0.5rem;
-  display: block;
-}
-
-.feature-inner h4 {
-  font-size: 1.5rem;
-  font-weight: 500;
-  margin-bottom: 1.5rem;
-}
-
-.feature-stats {
-  margin-bottom: 2rem;
-}
-
-.fs-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  font-size: 0.9rem;
-}
-
-.fs-row span:first-child { color: rgba(255,255,255,0.6); font-weight: 600; }
-.fs-row span:last-child { font-weight: 500; }
-
-.full-bio {
-  width: 100%;
+.online-list {
   padding: 1rem;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-weight: 500;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background 0.2s;
+  max-height: 500px;
+  overflow-y: auto;
 }
 
-/* NEWS MINI LIST */
-.news-item-mini {
+.online-user {
   display: flex;
+  align-items: center;
   gap: 1rem;
-  padding: 1rem;
-  border-bottom: 1px solid var(--bg-soft);
+  padding: 0.75rem;
+  border-radius: 8px;
+  transition: background 0.2s;
+  cursor: pointer;
 }
 
-.news-item-mini img {
-  width: 60px;
-  height: 60px;
-  border-radius: 4px;
-  object-fit: cover;
-}
+.online-user:hover { background: #f1f5f9; }
 
-.news-item-mini p {
+.user-avatar-wrap { position: relative; width: 42px; height: 42px; }
+.user-avatar-wrap img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+
+.status-dot {
+  position: absolute;
+  bottom: 0; right: 0;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+.status-dot.online { background: #10b981; }
+.status-dot.away { background: #f59e0b; }
+
+.user-detail { flex: 1; display: flex; flex-direction: column; }
+.u-name { font-size: 0.9rem; font-weight: 500; color: #1e293b; }
+.u-elo { font-size: 0.75rem; color: #64748b; }
+
+.chat-trigger {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.chat-trigger:hover { background: #c1ff72; color: #000; }
+
+.sidebar-footer { padding: 1rem; }
+.btn-all-players {
+  width: 100%;
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px dashed #e2e8f0;
+  border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 500;
-  line-height: 1.3;
-  color: var(--text-dark);
+  color: #146250;
+  cursor: pointer;
 }
 
-@media (max-width: 1080px) {
-  .main-layout { grid-template-columns: 1fr; }
-  .sidebar-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+/* COMMUNITY CHAT */
+.community-chat {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  height: 650px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.02);
+}
+
+.chat-header {
+  padding: 1.25rem 2rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chat-info { display: flex; align-items: center; gap: 1.5rem; }
+
+.chat-avatar-group { display: flex; align-items: center; }
+.chat-avatar-group img {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  margin-left: -10px;
+}
+.chat-avatar-group img:first-child { margin-left: 0; }
+.chat-avatar-group .plus-count {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  border: 2px solid #fff;
+  margin-left: -10px;
+  font-size: 0.7rem;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; color: #64748b;
+}
+
+.chat-title h4 { font-size: 1rem; font-weight: 500; color: #1e293b; margin-bottom: 0.1rem; }
+.chat-title p { font-size: 0.75rem; color: #64748b; }
+
+.chat-messages-area {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background: #fafbfc;
+}
+
+.message-row { display: flex; gap: 1rem; max-width: 80%; }
+.message-row.is-me { align-self: flex-end; flex-direction: row-reverse; }
+
+.msg-avatar img { width: 36px; height: 36px; border-radius: 50%; background: #e2e8f0; }
+
+.msg-content { display: flex; flex-direction: column; gap: 0.3rem; }
+.msg-meta { display: flex; gap: 0.5rem; align-items: baseline; }
+.msg-user { font-size: 0.75rem; font-weight: 600; color: #475569; }
+.msg-time { font-size: 0.65rem; color: #94a3b8; }
+
+.msg-bubble {
+  background: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 0 12px 12px 12px;
+  font-size: 0.95rem;
+  color: #334155;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  line-height: 1.5;
+}
+
+.is-me .msg-bubble {
+  background: #c1ff72;
+  color: #000;
+  border-radius: 12px 12px 0 12px;
+}
+.is-me .msg-meta { flex-direction: row-reverse; }
+
+.is-admin .msg-bubble {
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  color: #991b1b;
+}
+
+.chat-input-area {
+  padding: 1.5rem 2rem;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.input-actions { color: #94a3b8; cursor: pointer; font-size: 1.2rem; }
+.input-actions:hover { color: #c1ff72; }
+
+.chat-input-area input {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 0.8rem 1.2rem;
+  border-radius: 25px;
+  outline: none;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+.chat-input-area input:focus { border-color: #c1ff72; background: #fff; }
+
+.send-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #c1ff72;
+  color: #000;
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  transition: transform 0.2s;
+}
+.send-btn:hover { transform: scale(1.05); }
+
+@media (max-width: 1024px) {
+  .social-grid { grid-template-columns: 1fr; }
+  .online-sidebar { order: 1; }
 }
 
 @media (max-width: 768px) {
-  .listing-filters { flex-direction: column; align-items: stretch; }
-  .winners-grid { grid-template-columns: 1fr 1fr; }
-}
-
-@media (max-width: 480px) {
-  .winners-grid { grid-template-columns: 1fr; }
-  .atp-player-card { padding: 1.5rem; }
+  .hero-header h2 { font-size: 1.6rem; }
+  .champions-slider { gap: 1rem; }
+  .community-chat { height: 500px; }
 }
 </style>

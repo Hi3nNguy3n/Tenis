@@ -3,45 +3,67 @@ import { onMounted } from 'vue'
 import { useAuthStore } from '../../../stores/auth'
 import { useTournamentStore } from '../../../stores/tournament'
 import { RouterLink } from 'vue-router'
+import { CameraFilled } from '@element-plus/icons-vue'
 
 const authStore = useAuthStore()
 const tournamentStore = useTournamentStore()
 
 onMounted(async () => {
-  // Logic preserved: load player tournaments if authenticated
-  if (authStore.user?.id) {
-    await tournamentStore.fetchPlayerTournaments(authStore.user.id)
+  try {
+    // Luôn fetch profile mới nhất để có đủ thông tin
+    await authStore.fetchCurrentProfile()
+    
+    // Gọi đúng action từ tournamentStore để lấy các giải đã tham gia
+    await tournamentStore.fetchMyRegistrations()
+  } catch (error) {
+    console.error('Lỗi tải dữ liệu giải đấu:', error)
   }
 })
 </script>
 
 <template>
   <div class="profile-page-wrapper">
-    <!-- Hero Header (Synced with Profile) -->
+    <!-- Optimized Hero Header (Synced with Profile) -->
     <section class="profile-hero-banner">
       <div class="banner-bg"></div>
+      <div class="banner-overlay"></div>
+      
       <div class="container hero-content-shell">
         <div class="hero-flex">
           <div class="avatar-container">
             <div class="avatar-frame">
               <img v-if="authStore.user?.avatar_url" :src="authStore.user.avatar_url" alt="Avatar" />
               <div v-else class="avatar-placeholder">👤</div>
+              
+              <!-- Consistency: Camera icon placeholder/trigger -->
+              <RouterLink to="/profile" class="avatar-upload-overlay">
+                <el-icon><CameraFilled /></el-icon>
+              </RouterLink>
             </div>
           </div>
           
           <div class="hero-text-block">
             <span class="user-role-badge">giải đấu của tôi</span>
-            <h1>{{ authStore.user?.full_name }}</h1>
+            <h1>{{ authStore.user?.full_name || 'Người dùng' }}</h1>
             
             <div class="hero-quick-stats">
               <div class="stat-item">
-                <span class="stat-val">{{ tournamentStore.playerTournaments?.length || 0 }}</span>
-                <span class="stat-lbl">Tham gia</span>
+                <span class="stat-val">#{{ authStore.profile?.player_profile?.rank || '---' }}</span>
+                <span class="stat-lbl">Hạng</span>
               </div>
+
               <div class="stat-sep"></div>
+
               <div class="stat-item">
-                <span class="stat-val">{{ authStore.user?.wins || 0 }}</span>
+                <span class="stat-val">{{ authStore.profile?.player_profile?.wins || 0 }}</span>
                 <span class="stat-lbl">Thắng</span>
+              </div>
+
+              <div class="stat-sep"></div>
+
+              <div class="stat-item">
+                <span class="stat-val">{{ authStore.profile?.player_profile?.losses || 0 }}</span>
+                <span class="stat-lbl">Bại</span>
               </div>
             </div>
           </div>
@@ -56,22 +78,22 @@ onMounted(async () => {
         <aside class="compact-sidebar">
           <nav class="sidebar-nav">
             <RouterLink to="/profile" class="nav-btn">
-              <span class="icon">👤</span> hồ sơ
+              hồ sơ
             </RouterLink>
             <RouterLink to="/profile/my-tournaments" class="nav-btn active">
-              <span class="icon">🎾</span> giải đấu
+              giải đấu
             </RouterLink>
             <RouterLink to="/profile/change-password" class="nav-btn">
-              <span class="icon">🔒</span> bảo mật
+              bảo mật
             </RouterLink>
           </nav>
         </aside>
 
         <!-- Dynamic Content Area -->
         <main class="content-primary">
-          <div v-if="tournamentStore.playerTournaments?.length" class="tournaments-stack">
+          <div v-if="tournamentStore.myRegistrations?.length" class="tournaments-stack">
             <article 
-              v-for="reg in tournamentStore.playerTournaments" 
+              v-for="reg in tournamentStore.myRegistrations" 
               :key="reg.id" 
               class="atp-tour-card"
             >
@@ -83,20 +105,20 @@ onMounted(async () => {
                   </span>
                 </div>
                 
-                <h2 class="atp-tour-name">{{ reg.Tournament?.name }}</h2>
+                <h2 class="atp-tour-name">{{ reg.tournament_name }}</h2>
                 
                 <div class="tour-meta-grid">
                   <div class="m-item">
                     <span class="m-label">Hạng đấu</span>
-                    <span class="m-val">{{ reg.Tournament?.category || 'Chuyên nghiệp' }}</span>
+                    <span class="m-val">{{ reg.category_type || 'Chuyên nghiệp' }}</span>
                   </div>
                   <div class="m-item">
                     <span class="m-label">Ngày thi đấu</span>
-                    <span class="m-val">{{ new Date(reg.Tournament?.start_date).toLocaleDateString() }}</span>
+                    <span class="m-val">{{ reg.tournament_date ? new Date(reg.tournament_date).toLocaleDateString() : 'TBD' }}</span>
                   </div>
                   <div class="m-item">
                     <span class="m-label">Địa điểm</span>
-                    <span class="m-val">{{ reg.Tournament?.location || 'Saigon Tennis Center' }}</span>
+                    <span class="m-val">{{ reg.location || 'Saigon Tennis Center' }}</span>
                   </div>
                 </div>
               </div>
@@ -129,75 +151,132 @@ onMounted(async () => {
 
 <style scoped>
 .profile-page-wrapper {
-  background: var(--bg-soft);
+  --profile-primary: #15803d;
+  --profile-primary-dark: #166534;
+  --profile-secondary: #bef264;
+  --profile-soft-bg: #f1f5f9;
+  --profile-card-bg: #ffffff;
+  --profile-border: #dbe4ee;
+  background: var(--bg-soft, var(--profile-soft-bg));
   min-height: 100vh;
   padding-bottom: 5rem;
+  font-family: Arial, sans-serif !important;
 }
 
-/* Hero Section (Reused from Profile) */
+/* Hero Section (Synced from Profile) */
 .profile-hero-banner {
   position: relative;
-  height: 280px;
-  background: #064e3b;
-  margin-bottom: 4rem;
+  min-height: 310px;
+  background: linear-gradient(135deg, #064e3b 0%, #065f46 48%, #047857 100%);
+  margin-bottom: 2.25rem;
+  overflow: hidden;
 }
 
 .banner-bg {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1595435063098-95843b0d2358?q=80&w=2070&auto=format&fit=crop');
+  background-image: url('https://images.unsplash.com/photo-1595435063098-95843b0d2358?q=80&w=2070&auto=format&fit=crop');
   background-size: cover;
   background-position: center;
+  opacity: 0.2;
+}
+
+.banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(2, 44, 34, 0.9) 0%, rgba(4, 78, 59, 0.78) 50%, rgba(6, 95, 70, 0.7) 100%);
 }
 
 .hero-content-shell {
+  position: relative;
+  z-index: 2;
   height: 100%;
+  padding-top: 1.5rem;
+  padding-bottom: 2.5rem;
   display: flex;
-  align-items: flex-end;
-  padding-bottom: 2rem;
+  align-items: center;
 }
 
 .hero-flex {
   display: flex;
   align-items: center;
-  gap: 3rem;
+  gap: 1.75rem;
   width: 100%;
 }
 
 .avatar-frame {
-  width: 180px;
-  height: 180px;
-  background: #fff;
-  border-radius: 12px;
-  padding: 8px;
-  box-shadow: var(--shadow-lg);
-  margin-bottom: -60px;
-  overflow: hidden;
-}
-
-.avatar-frame img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
-.avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 3rem; background: #f1f5f9; }
-
-.hero-text-block { color: #fff; flex: 1; }
-.user-role-badge { background: var(--secondary); color: #064e3b; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; padding: 4px 12px; border-radius: 4px; margin-bottom: 0.5rem; display: inline-block; }
-.hero-text-block h1 { font-size: 3rem; font-weight: 600; margin: 0 0 1rem; text-transform: uppercase; letter-spacing: -0.02em; }
-
-.hero-quick-stats {
+  position: relative;
+  width: 138px;
+  height: 138px;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
   display: flex;
   align-items: center;
-  gap: 2rem;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  padding: 1rem 2rem;
-  border-radius: 8px;
-  width: fit-content;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  justify-content: center;
 }
 
-.stat-item { text-align: center; }
-.stat-val { display: block; font-size: 1.5rem; font-weight: 600; color: var(--secondary); }
-.stat-lbl { font-size: 0.7rem; font-weight: 500; text-transform: uppercase; opacity: 0.7; }
-.stat-sep { width: 1px; height: 30px; background: rgba(255, 255, 255, 0.2); }
+.avatar-frame img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+.avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 2.75rem; background: #f1f5f9; border-radius: 14px; }
+
+.avatar-upload-overlay {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 32px;
+  height: 32px;
+  background: var(--profile-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: 2px solid #ffffff;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.hero-text-block { color: #fff; flex: 1; min-width: 0; }
+.user-role-badge { 
+  display: inline-flex;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: var(--profile-secondary);
+  color: #14532d;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 0.8rem;
+}
+.hero-text-block h1 { 
+  font-size: clamp(2.1rem, 3vw, 3rem);
+  font-weight: 600;
+  margin: 0 0 1rem;
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+  text-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+.hero-quick-stats {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.stat-item { text-align: center; min-width: 72px; }
+.stat-val { display: block; font-size: 1.6rem; font-weight: 600; color: var(--profile-secondary); }
+.stat-lbl { font-size: 0.72rem; font-weight: 500; text-transform: uppercase; color: rgba(255,255,255,0.86); }
+.stat-sep { width: 1px; background: rgba(255, 255, 255, 0.18); }
 
 /* Layout Grid */
 .layout-grid {

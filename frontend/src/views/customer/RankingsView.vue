@@ -7,53 +7,60 @@ import { Trophy, Medal, Location, Connection } from '@element-plus/icons-vue'
 const rankings = ref([])
 const isLoading = ref(true)
 
-// Khai báo state cho bộ lọc
 const filters = ref({
   category: '',
   province: ''
 })
 
-// Danh sách 34 Tỉnh/Thành phố Việt Nam (Đồng bộ với form Đăng ký)
-const provinces = [
-  "An Giang", "Bắc Ninh", "Cà Mau", "Cao Bằng", "Đắk Lắk", 
-  "Điện Biên", "Đồng Nai", "Đồng Tháp", "Gia Lai", "Hà Tĩnh", 
-  "Hưng Yên", "Khánh Hòa", "Lai Châu", "Lâm Đồng", "Lạng Sơn", 
-  "Lào Cai", "Nghệ An", "Ninh Bình", "Phú Thọ", "Quảng Ngãi", 
-  "Quảng Ninh", "Quảng Trị", "Sơn La", "Tây Ninh", "Thái Nguyên", 
-  "Thanh Hóa", "TP Cần Thơ", "TP Đà Nẵng", "TP Hà Nội", "TP Hải Phòng", 
-  "TP Hồ Chí Minh", "TP Huế", "Tuyên Quang", "Vĩnh Long"
-]
+// Options are built from real backend data, no hardcoded mock/static list.
+const provinceOptions = ref([])
+const categoryOptions = ref([])
 
-const categories = [
-  { label: 'Đơn (Singles)', value: 'Singles' },
-  { label: 'Đôi (Doubles)', value: 'Doubles' }
-]
+const formatCategoryLabel = (value) => {
+  if (!value) return ''
+  if (value === 'Singles') return 'Đơn (Singles)'
+  if (value === 'Doubles') return 'Đôi (Doubles)'
+  return value
+}
+
+const buildFilterOptions = (items = []) => {
+  const provinceSet = new Set()
+  const categorySet = new Set()
+
+  items.forEach((item) => {
+    if (item?.province) provinceSet.add(item.province)
+    if (item?.category) categorySet.add(item.category)
+  })
+
+  provinceOptions.value = [...provinceSet].sort((a, b) => a.localeCompare(b, 'vi'))
+  categoryOptions.value = [...categorySet].sort((a, b) => a.localeCompare(b))
+}
 
 const fetchRankings = async () => {
   isLoading.value = true
   try {
-    // 1. Bắt đầu với URL gốc
     let url = '/api/players/rankings'
-    
-    // 2. Tạo mảng chứa các điều kiện lọc
     const queryParts = []
-    
+
     if (filters.value.category) {
       queryParts.push(`category=${encodeURIComponent(filters.value.category)}`)
     }
-    
+
     if (filters.value.province) {
       queryParts.push(`province=${encodeURIComponent(filters.value.province)}`)
     }
-    
-    // 3. Nếu có điều kiện lọc, nối vào URL với dấu '?'
+
     if (queryParts.length > 0) {
-      url += '?' + queryParts.join('&')
+      url += `?${queryParts.join('&')}`
     }
 
-    // 4. Gọi API với URL đã được nối hoàn chỉnh (VD: /api/players/rankings?province=An%20Giang)
     const data = await apiClient.get(url)
-    rankings.value = data
+    rankings.value = data || []
+
+    // Build options only from unfiltered payload to keep full list consistent.
+    if (!filters.value.category && !filters.value.province) {
+      buildFilterOptions(rankings.value)
+    }
   } catch (error) {
     ElMessage.error('Không thể tải Bảng xếp hạng')
   } finally {
@@ -81,27 +88,39 @@ onMounted(fetchRankings)
 
     <div class="ranking-container">
       <div class="filter-bar">
-        <el-select 
-          v-model="filters.category" 
-          placeholder="Tất cả nội dung" 
-          clearable 
+        <el-select
+          v-model="filters.category"
+          placeholder="Tất cả nội dung"
+          clearable
           size="large"
           class="filter-item"
-          @change="fetchRankings">
+          @change="fetchRankings"
+        >
           <template #prefix><el-icon><Connection /></el-icon></template>
-          <el-option v-for="c in categories" :key="c.value" :label="c.label" :value="c.value" />
+          <el-option
+            v-for="category in categoryOptions"
+            :key="category"
+            :label="formatCategoryLabel(category)"
+            :value="category"
+          />
         </el-select>
 
-        <el-select 
-          v-model="filters.province" 
-          placeholder="Tất cả khu vực" 
-          clearable 
+        <el-select
+          v-model="filters.province"
+          placeholder="Tất cả khu vực"
+          clearable
           filterable
           size="large"
           class="filter-item"
-          @change="fetchRankings">
+          @change="fetchRankings"
+        >
           <template #prefix><el-icon><Location /></el-icon></template>
-          <el-option v-for="p in provinces" :key="p" :label="p" :value="p" />
+          <el-option
+            v-for="province in provinceOptions"
+            :key="province"
+            :label="province"
+            :value="province"
+          />
         </el-select>
       </div>
 
@@ -109,7 +128,7 @@ onMounted(fetchRankings)
         <div v-if="rankings.length === 0" class="empty-state">
           <el-empty description="Chưa có vận động viên nào phù hợp với bộ lọc." />
         </div>
-        
+
         <div v-else>
           <div class="lb-header">
             <div class="col-rank">Hạng</div>
@@ -127,7 +146,7 @@ onMounted(fetchRankings)
                 <el-icon v-else size="24"><Medal /></el-icon>
               </div>
             </div>
-            
+
             <div class="col-player">
               <div class="player-info">
                 <div class="avatar">
@@ -176,7 +195,7 @@ onMounted(fetchRankings)
 <style scoped>
 .ranking-page { background: #f4f7f6; min-height: 100vh; padding-bottom: 50px; }
 
-.hero-banner { 
+.hero-banner {
   background: linear-gradient(135deg, var(--primary) 0%, var(--text-dark) 100%);
   color: white; padding: 60px 20px 80px; text-align: center;
   position: relative; overflow: hidden;
@@ -187,7 +206,6 @@ onMounted(fetchRankings)
 
 .ranking-container { max-width: 1000px; margin: -50px auto 0; padding: 0 20px; position: relative; z-index: 10; }
 
-/* Filter Bar Styles */
 .filter-bar {
   display: flex; gap: 15px; margin-bottom: 20px;
   background: white; padding: 15px; border-radius: 16px;
@@ -195,9 +213,8 @@ onMounted(fetchRankings)
 }
 .filter-item { flex: 1; }
 
-/* Leaderboard Styles */
 .leaderboard { background: white; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); overflow: hidden; }
-.lb-header, .lb-row { 
+.lb-header, .lb-row {
   display: grid; grid-template-columns: 80px 3fr 1fr 1fr 1.5fr 120px;
   align-items: center; padding: 16px 20px;
 }
@@ -208,7 +225,7 @@ onMounted(fetchRankings)
 .col-rank { text-align: center; }
 .col-points { text-align: right; }
 
-.rank-badge { 
+.rank-badge {
   width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center;
   margin: 0 auto; font-weight: 500; color: #94a3b8; background: #f1f5f9;
 }

@@ -1,20 +1,47 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { apiClient } from '../../../services/apiClient'
-import { Calendar, Timer, ArrowRight, Search, Collection } from '@element-plus/icons-vue'
+import { ref, onMounted, computed, watch } from 'vue'
+import { newsService } from '../../../services/newsService'
+import { Calendar, Timer, ArrowRight, Search, Collection, ArrowDown } from '@element-plus/icons-vue'
 
 const newsList = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
 const selectedCategory = ref('Tất cả')
+const activeTab = ref('related')
 
 const categories = ['Tất cả', 'Thông báo', 'Highlight', 'Phân tích', 'Phỏng vấn']
 
 const fetchNews = async () => {
   loading.value = true
   try {
-    const data = await apiClient.get('/api/news/')
-    newsList.value = data.filter(item => item.status === 'published')
+    const params = {
+      limit: 100
+    }
+    
+    // Chỉ truyền category nếu khác 'Tất cả'
+    if (selectedCategory.value !== 'Tất cả') {
+      params.category = selectedCategory.value
+    }
+    
+    // Chỉ truyền search nếu có nội dung
+    if (searchQuery.value) {
+      params.search = searchQuery.value
+    }
+
+    const data = await newsService.getAllPosts(params)
+    let results = (data || []).filter(item => item.status === 'published')
+    
+    // FE Fallback Filter: Đảm bảo lọc đúng category ở FE nếu BE trả về dư thừa
+    if (selectedCategory.value !== 'Tất cả') {
+      results = results.filter(post => {
+        // Kiểm tra field category (nếu có) hoặc post_type hoặc nội dung tiêu đề để "đoán"
+        const catValue = (post.category || '').toLowerCase()
+        const selectedValue = selectedCategory.value.toLowerCase()
+        return catValue === selectedValue || post.post_type === selectedValue
+      })
+    }
+
+    newsList.value = results
   } catch (err) {
     console.error('Lỗi tải tin tức:', err)
   } finally {
@@ -22,17 +49,21 @@ const fetchNews = async () => {
   }
 }
 
-// Lọc tin tức theo search và category
-const filteredNews = computed(() => {
-  return newsList.value.filter(post => {
-    const titleMatch = post.title.toLowerCase().includes(searchQuery.value.toLowerCase())
-    const catMatch = selectedCategory.value === 'Tất cả' || post.category === selectedCategory.value
-    return titleMatch && catMatch
-  })
+// Watchers để tự động gọi API khi người dùng thay đổi bộ lọc
+watch(selectedCategory, () => {
+  fetchNews()
 })
 
-const featuredPost = computed(() => filteredNews.value[0])
-const remainingNews = computed(() => filteredNews.value.slice(1))
+// Sử dụng debounce cho ô tìm kiếm
+let searchTimeout = null
+watch(searchQuery, () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    fetchNews()
+  }, 500)
+})
+
+const featuredPost = computed(() => newsList.value[0])
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
@@ -43,128 +74,305 @@ onMounted(fetchNews)
 </script>
 
 <template>
-  <div class="news-portal" v-loading="loading">
-    <header class="magazine-header">
-      <div class="container">
-        <div class="header-content">
-          <div>
-            <span class="kicker">Saigon Tennis Tours</span>
-            <h1>Tạp chí Tennis</h1>
-            <p>Cập nhật nhịp đập, highlight và phân tích chuyên sâu</p>
-          </div>
-          <div class="search-wrapper">
-            <el-input v-model="searchQuery" placeholder="Tìm bài viết..." :prefix-icon="Search" class="search-input" />
-          </div>
+  <div class="atp-news-portal" v-loading="loading">
+    <div class="container">
+      
+      <!-- TOP NAVIGATION BAR (LATEST | NEWS) -->
+      <nav class="news-inner-nav">
+        <div class="nav-brand">
+          <span class="l-label">LATEST</span>
+          <span class="separator">|</span>
+          <el-dropdown trigger="click">
+            <span class="el-dropdown-link">
+              {{ selectedCategory === 'Tất cả' ? 'News' : selectedCategory }} <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item v-for="cat in categories" :key="cat" @click="selectedCategory = cat">{{ cat }}</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
+        <div class="nav-search">
+           <el-input v-model="searchQuery" placeholder="Search news..." :prefix-icon="Search" clearable class="minimal-search" />
+        </div>
+      </nav>
+
+      <div class="magazine-layout">
+        <!-- MAIN COLUMN: FEATURED CONTENT -->
+        <main class="main-content-area">
+          <div v-if="featuredPost" class="featured-grand-entry" @click="$router.push('/news/' + featuredPost.slug)">
+            <div class="entry-meta">
+              <el-tag size="small" effect="plain" class="cat-tag">{{ featuredPost.post_type === 'news' ? 'SGTN NEWS' : 'OFFICIAL' }}</el-tag>
+            </div>
+            <h1 class="entry-title">{{ featuredPost.title }}</h1>
+            <p class="entry-excerpt">{{ featuredPost.summary }}</p>
+            <div class="entry-author-date">
+              <span class="date">{{ formatDate(featuredPost.publish_at || featuredPost.created_at) }}</span>
+            </div>
+            <figure class="entry-visual">
+              <img :src="featuredPost.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=1200'" alt="hero" />
+            </figure>
+          </div>
+          
+          <div v-else class="empty-placeholder">
+            <el-empty description="Không có tin tức nào được tìm thấy" />
+          </div>
+
+          <!-- Bottom Grid for remaining news on mobile/tablet -->
+          <div class="mobile-news-list">
+             <div v-for="post in newsList.slice(1, 5)" :key="post.id" class="mobile-item" @click="$router.push('/news/' + post.slug)">
+                <img :src="post.thumbnail_url" alt="thumb" />
+                <div class="mi-text">
+                  <h3>{{ post.title }}</h3>
+                  <span>{{ formatDate(post.publish_at) }}</span>
+                </div>
+             </div>
+          </div>
+        </main>
+
+        <!-- SIDEBAR: NEWS LIST -->
+        <aside class="news-sidebar-modern">
+          <div class="sidebar-box">
+            <div class="sb-header">
+              <h2>NEWS</h2>
+            </div>
+            
+            <el-tabs v-model="activeTab" class="sidebar-tabs">
+              <el-tab-pane label="Related" name="related">
+                <div class="sidebar-news-list">
+                  <div v-for="post in newsList.slice(1, 6)" :key="post.id" class="sb-news-item" @click="$router.push('/news/' + post.slug)">
+                    <div class="sb-item-thumb">
+                      <img :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=200'" />
+                    </div>
+                    <div class="sb-item-info">
+                      <h3>{{ post.title }}</h3>
+                    </div>
+                  </div>
+                </div>
+              </el-tab-pane>
+              <el-tab-pane label="Most Recent" name="recent">
+                <div class="sidebar-news-list">
+                   <div v-for="post in newsList.slice(0, 5)" :key="post.id" class="sb-news-item" @click="$router.push('/news/' + post.slug)">
+                    <div class="sb-item-thumb">
+                      <img :src="post.thumbnail_url" />
+                    </div>
+                    <div class="sb-item-info">
+                      <h3>{{ post.title }}</h3>
+                    </div>
+                  </div>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
+        </aside>
       </div>
-    </header>
-
-    <div class="container main-layout">
-      <div class="main-column">
-        <div v-if="featuredPost" class="featured-box" @click="$router.push('/news/' + featuredPost.slug)">
-          <div class="featured-img-container">
-            <img :src="featuredPost.thumbnail_url" alt="featured" />
-            <div class="featured-info">
-              <el-tag effect="dark" type="danger">MỚI NHẤT</el-tag>
-              <h2>{{ featuredPost.title }}</h2>
-              <p>{{ featuredPost.summary }}</p>
-              <div class="meta-info">
-                <el-icon><Calendar /></el-icon> {{ formatDate(featuredPost.created_at) }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="news-grid">
-          <div v-for="post in remainingNews" :key="post.id" class="post-card" @click="$router.push('/news/' + post.slug)">
-            <div class="post-thumb">
-              <img :src="post.thumbnail_url" />
-              <span class="cat-pill">{{ post.category }}</span>
-            </div>
-            <div class="post-content">
-              <div class="post-date"><el-icon><Timer /></el-icon> {{ formatDate(post.created_at) }}</div>
-              <h3>{{ post.title }}</h3>
-              <p>{{ post.summary }}</p>
-              <div class="read-more">Xem chi tiết <el-icon><ArrowRight /></el-icon></div>
-            </div>
-          </div>
-        </div>
-        
-        <el-empty v-if="filteredNews.length === 0 && !loading" description="Không tìm thấy bài viết nào" />
-      </div>
-
-      <aside class="magazine-sidebar">
-        <div class="widget">
-          <h3 class="widget-title"><el-icon><Collection /></el-icon> Chuyên mục</h3>
-          <div class="cat-menu">
-            <div 
-              v-for="cat in categories" :key="cat" 
-              class="cat-link" 
-              :class="{ active: selectedCategory === cat }"
-              @click="selectedCategory = cat"
-            >
-              {{ cat }}
-            </div>
-          </div>
-        </div>
-
-        <div class="widget promo-widget">
-          <div class="promo-card">
-            <h4>Gia nhập Cộng đồng</h4>
-            <p>Đăng ký thi đấu ngay hôm nay để tích điểm ELO!</p>
-            <el-button type="warning" round block @click="$router.push('/tournaments')">Xem giải đấu</el-button>
-          </div>
-        </div>
-      </aside>
     </div>
   </div>
 </template>
 
 <style scoped>
-.news-portal { background: #f4f7f6; min-height: 100vh; padding-bottom: 60px; }
-.container { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+.atp-news-portal {
+  background: #ffffff;
+  min-height: 100vh;
+  padding-bottom: 100px;
+  font-family: Arial, sans-serif !important;
+  color: #001242;
+}
 
-/* Header */
-.magazine-header { background: white; padding: 50px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 40px; }
-.header-content { display: flex; justify-content: space-between; align-items: center; }
-.kicker { color: var(--primary); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; }
-.magazine-header h1 { font-size: 2.8rem; font-weight: 900; color: #1e293b; margin: 10px 0; }
-.search-wrapper { width: 320px; }
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
 
-/* Layout */
-.main-layout { display: grid; grid-template-columns: 1fr 340px; gap: 40px; }
+/* INNER NAV */
+.news-inner-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2rem 0;
+  border-bottom: 2px solid #eee;
+  margin-bottom: 2.5rem;
+}
 
-/* Featured */
-.featured-box { border-radius: 8px; overflow: hidden; height: 480px; cursor: pointer; margin-bottom: 40px; box-shadow: 0 20px 40px rgba(0,0,0,0.08); position: relative; }
-.featured-img-container { width: 100%; height: 100%; }
-.featured-img-container img { width: 100%; height: 100%; object-fit: cover; transition: 0.6s; }
-.featured-box:hover img { transform: scale(1.05); }
-.featured-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 60px 40px; background: linear-gradient(to top, rgba(0,0,0,0.9), transparent); color: white; }
-.featured-info h2 { font-size: 2.2rem; margin: 15px 0; line-height: 1.2; }
-.featured-info p { opacity: 0.85; font-size: 1.1rem; margin-bottom: 20px; }
+.nav-brand {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  font-size: 1.4rem;
+  letter-spacing: -0.02em;
+}
 
-/* Grid */
-.news-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
-.post-card { background: white; border-radius: 8px; overflow: hidden; cursor: pointer; transition: 0.3s; border: 1px solid #edf2f7; }
-.post-card:hover { transform: translateY(-10px); box-shadow: 0 15px 30px rgba(0,0,0,0.05); }
-.post-thumb { height: 220px; position: relative; }
-.post-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.cat-pill { position: absolute; top: 15px; left: 15px; background: rgba(21, 128, 61, 0.9); color: white; padding: 5px 14px; border-radius: 10px; font-size: 0.75rem; font-weight: bold; }
-.post-content { padding: 25px; }
-.post-content h3 { font-size: 1.3rem; margin: 0 0 12px 0; color: #1e293b; line-height: 1.4; font-weight: 800; }
-.post-content p { font-size: 0.95rem; color: #64748b; line-height: 1.6; margin-bottom: 20px; }
-.read-more { color: var(--primary); font-weight: 800; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; }
+.l-label { color: #001242; }
+.separator { margin: 0 10px; color: #ccc; }
+.el-dropdown-link {
+  cursor: pointer;
+  color: #001242;
+  display: flex;
+  align-items: center;
+  font-size: 1.4rem;
+  font-weight: 500;
+}
 
-/* Sidebar */
-.widget { background: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #edf2f7; }
-.widget-title { margin: 0 0 20px 0; font-size: 1.2rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 10px; }
-.cat-link { padding: 12px 18px; border-radius: 12px; cursor: pointer; transition: 0.2s; margin-bottom: 8px; color: #475569; font-weight: 600; }
-.cat-link:hover, .cat-link.active { background: #f0fdf4; color: var(--primary); padding-left: 25px; }
-.promo-card { background: #1e293b; color: white; padding: 30px; border-radius: 8px; text-align: center; }
-.promo-card h4 { font-size: 1.4rem; margin-bottom: 10px; color: #fbbf24; }
+.minimal-search { width: 300px; }
+:deep(.minimal-search .el-input__wrapper) {
+  box-shadow: none;
+  border-bottom: 2px solid #eee;
+  border-radius: 0;
+  padding: 0;
+}
+:deep(.minimal-search .el-input__wrapper.is-focus) {
+  border-bottom-color: #001242;
+}
+
+/* MAGAZINE LAYOUT */
+.magazine-layout {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 4rem;
+}
+
+/* MAIN CONTENT */
+.featured-grand-entry {
+  cursor: pointer;
+  margin-bottom: 4rem;
+}
+
+.cat-tag {
+  border-radius: 0;
+  border: 1px solid #eee;
+  color: #666;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  margin-bottom: 1.5rem;
+}
+
+.entry-title {
+  font-size: 3.2rem;
+  line-height: 1.1;
+  font-weight: 500;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.04em;
+  color: #001242;
+}
+
+.entry-excerpt {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: #444;
+  margin-bottom: 1.5rem;
+  max-width: 90%;
+}
+
+.entry-author-date {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #888;
+  margin-bottom: 2rem;
+  text-transform: uppercase;
+}
+
+.entry-visual {
+  margin: 0;
+  width: 100%;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.entry-visual img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* SIDEBAR */
+.sidebar-box {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.sb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.sb-header h2 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #001242;
+}
+
+.view-all-link {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #001242;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* TABS */
+:deep(.el-tabs__header) { margin-bottom: 2rem; }
+:deep(.el-tabs__nav-wrap::after) { height: 1px; background-color: #eee; }
+:deep(.el-tabs__item) {
+  font-weight: 500;
+  color: #888;
+  font-size: 0.95rem;
+}
+:deep(.el-tabs__item.is-active) { color: #001242; }
+:deep(.el-tabs__active-bar) { background-color: #001242; height: 3px; }
+
+.sb-news-item {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.sb-news-item:hover { opacity: 0.7; }
+
+.sb-item-thumb {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sb-item-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.sb-item-info h3 {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #001242;
+  margin: 0;
+}
+
+.mobile-news-list { display: none; }
 
 @media (max-width: 1024px) {
-  .main-layout { grid-template-columns: 1fr; }
-  .news-grid { grid-template-columns: 1fr; }
+  .magazine-layout { grid-template-columns: 1fr; }
+  .entry-title { font-size: 2.2rem; }
+  .mobile-news-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-top: 3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .news-inner-nav { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .minimal-search { width: 100%; }
 }
 </style>
+
+

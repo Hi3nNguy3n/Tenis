@@ -58,35 +58,42 @@ onMounted(fetchMatches)
 
 <template>
   <div class="calendar-module">
-    <section class="hero-card">
-      <div>
-        <span class="section-kicker">Operational Planning</span>
-        <h2>Lịch thi đấu (Calendar View)</h2>
-        <p>Theo dõi mật độ trận đấu trên toàn hệ thống. Click vào bất kỳ ngày nào để xem danh sách trận.</p>
+    <!-- HEADER PREMIUM - MERGED TITLES -->
+    <section class="action-bar-glass shadow-sm">
+      <div class="action-info">
+        <div class="kicker-wrap">
+          <span class="section-kicker">Operational Planning</span>
+          <div class="live-indicator">
+            <span class="dot"></span>
+            LIVE
+          </div>
+        </div>
       </div>
-      <el-button type="primary" plain :icon="Timer" @click="fetchMatches">Làm mới dữ liệu</el-button>
     </section>
 
-    <el-card shadow="never" class="calendar-wrapper" v-loading="isLoading">
-      <el-calendar v-model="currentDate">
+    <main class="calendar-card-premium shadow-sm" v-loading="isLoading">
+      <el-calendar v-model="currentDate" class="modern-admin-calendar">
         <template #date-cell="{ data }">
           <div class="calendar-cell" @click="openDayDetail(data.day, getMatchesByDate(data.day))">
-            <span class="day-label">{{ data.day.split('-').slice(2).join('') }}</span>
-            <div class="match-list">
+            <div class="day-header">
+              <span class="day-num">{{ data.day.split('-').slice(2).join('') }}</span>
+              <span v-if="getMatchesByDate(data.day).length > 0" class="m-count">{{ getMatchesByDate(data.day).length }}</span>
+            </div>
+            <div class="match-mini-chips">
               <div 
-                v-for="m in getMatchesByDate(data.day)" 
+                v-for="m in getMatchesByDate(data.day).slice(0, 3)" 
                 :key="m.id" 
-                class="match-item"
+                class="chip-item"
                 :class="m.status"
               >
-                <span class="match-time">{{ m.start !== '--:--' ? m.start : 'N/A' }}</span>
-                <span class="match-name">{{ m.tournament }}</span>
+                {{ m.tournament }}
               </div>
+              <div v-if="getMatchesByDate(data.day).length > 3" class="more-indicator">+ {{ getMatchesByDate(data.day).length - 3 }} trận nữa</div>
             </div>
           </div>
         </template>
       </el-calendar>
-    </el-card>
+    </main>
 
     <el-dialog 
       v-model="dialogVisible" 
@@ -143,46 +150,86 @@ onMounted(fetchMatches)
 </template>
 
 <style scoped>
-.calendar-module { display: flex; flex-direction: column; gap: 20px; }
-.hero-card { border-radius: 8px; background: white; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-.section-kicker { display: inline-flex; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.74rem; font-weight: 800; text-transform: uppercase; }
-h2 { margin: 0 0 5px 0; font-size: 2.2rem; color: #132722; }
+.calendar-module { display: grid; gap: 16px; padding: 10px; }
 
-.calendar-wrapper { border-radius: 8px; border: none; padding: 10px; }
-
-/* Tùy chỉnh ô lịch */
-.calendar-cell { height: 100%; display: flex; flex-direction: column; cursor: pointer; }
-.day-label { font-weight: 900; font-size: 1.2rem; color: #1e293b; margin-bottom: 5px; }
-
-.match-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 80px; }
-.match-item { 
-  font-size: 0.65rem; padding: 4px 6px; border-radius: 6px; display: flex; gap: 5px; 
-  background: #f1f5f9; border-left: 3px solid #94a3b8;
+.action-bar-glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  padding: 16px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
 }
-.match-item.completed { background: #dcfce7; color: #166534; border-left-color: #166534; }
-.match-item.ongoing { background: #dbeafe; color: #1e40af; border-left-color: #1e40af; }
-.match-item.scheduled { background: #fef9c3; color: #854d0e; border-left-color: #eab308; }
 
-.match-time { font-weight: bold; min-width: 35px; }
-.match-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
+.section-kicker { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
 
-:deep(.el-calendar-table .el-calendar-day) { height: 120px; padding: 10px; transition: 0.2s; }
-:deep(.el-calendar-table .el-calendar-day:hover) { background-color: #f0f7f5; }
+.live-indicator {
+  display: flex; align-items: center; gap: 6px;
+  background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800;
+  padding: 2px 8px; border-radius: 99px;
+}
+.dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
 
-/* CSS CHO DIALOG DANH SÁCH NGÀY */
-.day-matches-list { display: flex; flex-direction: column; gap: 15px; max-height: 60vh; overflow-y: auto; padding-right: 5px; }
-.day-match-card { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 5px solid #94a3b8; border-radius: 12px; padding: 16px; }
-.day-match-card.completed { border-left-color: #166534; }
-.day-match-card.ongoing { border-left-color: #1e40af; }
-.day-match-card.scheduled { border-left-color: #eab308; }
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
 
-.match-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed #cbd5e1; }
-.match-header h3 { margin: 0; font-size: 1.2rem; color: #0f172a; }
+.action-bar-glass h2 { margin: 0; font-size: 1.25rem; color: #0f172a; font-weight: 700; }
+.action-bar-glass p { margin: 2px 0 0 0; color: #64748b; font-size: 0.85rem; }
 
-.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-.info-item { display: flex; gap: 10px; align-items: flex-start; }
-.info-item .el-icon { font-size: 1.3rem; color: #0f5c4d; margin-top: 2px; }
-.info-text { display: flex; flex-direction: column; gap: 2px; }
-.info-text span { font-size: 0.7rem; color: #64748b; text-transform: uppercase; font-weight: 800; }
-.info-text strong { font-size: 0.95rem; color: #1e293b; }
-</style>
+.hero-actions-v2 { display: flex; align-items: center; gap: 12px; }
+
+.calendar-card-premium {
+  background: white; border-radius: 20px; border: 1px solid #f1f5f9;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.03); overflow: hidden;
+}
+
+.calendar-cell { height: 100%; display: flex; flex-direction: column; gap: 4px; }
+.day-header { display: flex; justify-content: space-between; align-items: center; }
+.day-num { font-weight: 900; font-size: 1.1rem; color: #1e293b; }
+.m-count { font-size: 0.65rem; background: #eff6ff; color: #3b82f6; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+
+.match-mini-chips { display: flex; flex-direction: column; gap: 3px; }
+.chip-item { 
+  font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: #f1f5f9; border-left: 2px solid #94a3b8; color: #475569;
+}
+.chip-item.completed { background: #f0fdf4; border-left-color: #10b981; color: #166534; }
+.chip-item.ongoing { background: #eff6ff; border-left-color: #3b82f6; color: #1e40af; }
+.chip-item.scheduled { background: #fffbeb; border-left-color: #f59e0b; color: #854d0e; }
+.more-indicator { font-size: 0.55rem; color: #94a3b8; font-weight: 700; margin-top: 2px; }
+
+:deep(.modern-admin-calendar) { border: none !important; }
+:deep(.modern-admin-calendar .el-calendar-day) { height: 110px !important; padding: 12px !important; transition: all 0.2s ease; }
+:deep(.modern-admin-calendar .el-calendar-day:hover) { background: #f8fafc; }
+:deep(.modern-admin-calendar .is-today .day-num) { color: #3b82f6; text-decoration: underline; }
+
+/* Dialog detail */
+.day-matches-list { display: grid; gap: 12px; padding: 4px; }
+.day-match-card {
+  background: white; border: 1px solid #f1f5f9; border-left: 4px solid #94a3b8;
+  border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+.day-match-card.completed { border-left-color: #10b981; }
+.day-match-card.ongoing { border-left-color: #3b82f6; }
+.day-match-card.scheduled { border-left-color: #f59e0b; }
+
+.match-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.match-header h3 { margin: 0; font-size: 1rem; color: #0f172a; font-weight: 800; }
+.status-tag { font-weight: 800; border-radius: 99px; padding: 0 12px; font-size: 0.6rem; border: none !important; }
+
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.info-item { display: flex; gap: 12px; align-items: flex-start; }
+.info-item .el-icon { color: #3b82f6; font-size: 1.1rem; }
+.info-text { display: flex; flex-direction: column; }
+.info-text span { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: 800; margin-bottom: 2px; }
+.info-text strong { font-size: 0.85rem; color: #1e293b; font-weight: 700; }
+
+.shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }</style>

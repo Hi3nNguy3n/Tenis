@@ -74,17 +74,6 @@ const getSkillType = (skill) => {
 
 <template>
   <div class="module-shell">
-    <section class="hero-card">
-      <div>
-        <span class="section-kicker">Member Directory</span>
-        <h2>Quản lý Vận động viên</h2>
-        <p>Xem danh sách người chơi, điều chỉnh trình độ Elo và quản lý trạng thái hoạt động của thành viên.</p>
-      </div>
-      <div class="hero-actions">
-        <el-button plain size="large" @click="fetchPlayers">Làm mới</el-button>
-      </div>
-    </section>
-
     <section class="filter-card">
       <el-input v-model="search" placeholder="Tìm tên, email..." clearable @change="fetchPlayers" style="width: 300px" />
       <el-select v-model="skillFilter" placeholder="Trình độ" clearable @change="fetchPlayers" style="width: 150px">
@@ -98,6 +87,7 @@ const getSkillType = (skill) => {
         <el-option label="Bị khóa" value="inactive" />
       </el-select>
       <el-button @click="() => { search=''; skillFilter=''; statusFilter=''; fetchPlayers(); }">Reset</el-button>
+      <el-button plain @click="fetchPlayers">Làm mới</el-button>
     </section>
 
     <section class="table-card">
@@ -107,7 +97,7 @@ const getSkillType = (skill) => {
             <div class="player-info">
               <el-avatar :src="row.user.avatar_url" shape="square">{{ row.user.full_name.charAt(0) }}</el-avatar>
               <div class="details">
-                <strong>{{ row.user.full_name }}</strong>
+                <span>{{ row.user.full_name }}</span>
                 <span>{{ row.user.email }}</span>
               </div>
             </div>
@@ -123,7 +113,7 @@ const getSkillType = (skill) => {
         </el-table-column>
         <el-table-column label="Elo" width="80" align="center">
            <template #default="{ row }">
-             <strong>{{ row.player_profile?.elo_points || 0 }}</strong>
+             <span>{{ row.player_profile?.elo_points || 0 }}</span>
            </template>
         </el-table-column>
         <el-table-column label="Trạng thái" width="120">
@@ -176,7 +166,7 @@ const getSkillType = (skill) => {
   box-shadow: 0 10px 40px rgba(0,0,0,0.03);
 }
 .hero-card { display: flex; justify-content: space-between; align-items: flex-end; }
-.section-kicker { font-size: 0.75rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px; }
+.section-kicker { font-size: 0.75rem; font-weight: 500; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px; }
 .hero-card h2 { font-size: 2.22rem; color: var(--text-dark); margin: 0; }
 .hero-card p { color: #6e7a74; margin-top: 8px; }
 .filter-card { display: flex; gap: 15px; }

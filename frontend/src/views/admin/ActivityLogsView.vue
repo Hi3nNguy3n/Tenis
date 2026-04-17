@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { Document, Search, Timer } from '@element-plus/icons-vue'
 
@@ -13,8 +13,13 @@ const modules = [
   { label: 'Giải đấu (Tournament)', value: 'TOURNAMENT' },
   { label: 'Vận động viên (Player)', value: 'PLAYER' },
   { label: 'Trận đấu (Match)', value: 'MATCH' },
+  { label: 'Sân đấu (Court)', value: 'COURT' },
+  { label: 'Tin tức (News)', value: 'NEWS' },
   { label: 'Hệ thống (System)', value: 'SYSTEM' }
 ]
+
+const currentPage = ref(1)
+const pageSize = ref(15)
 
 const fetchLogs = async () => {
   isLoading.value = true
@@ -22,12 +27,19 @@ const fetchLogs = async () => {
     const params = filterModule.value ? { module: filterModule.value } : {}
     const data = await apiClient.get('/api/logs/activity', { params })
     logs.value = data
+    currentPage.value = 1 // Reset về trang 1 khi lọc
   } catch (error) {
     console.error('Lỗi khi tải lịch sử:', error)
   } finally {
     isLoading.value = false
   }
 }
+
+const displayLogs = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return logs.value.slice(start, end)
+})
 
 onMounted(fetchLogs)
 
@@ -65,17 +77,17 @@ const getActionTagType = (action) => {
 
 <template>
   <div class="logs-page">
-    <div class="page-header">
-      <div>
-        <h1>Lịch sử hoạt động (Audit Logs)</h1>
-        <p>Theo dõi mọi thao tác thay đổi dữ liệu trên hệ thống Saigon Tennis.</p>
+    <section class="action-bar shadow-sm">
+      <div class="action-info">
+        <span class="section-kicker">Audit Trails</span>
+        <p>Truy vết các thay đổi dữ liệu và thao tác của quản trị viên (Live data từ hệ thống).</p>
       </div>
       
-      <div class="filter-actions">
+      <div class="hero-actions">
         <el-select 
           v-model="filterModule" 
           placeholder="Lọc theo Module" 
-          style="width: 250px"
+          style="width: 220px"
           @change="fetchLogs"
         >
           <template #prefix><el-icon><Search /></el-icon></template>
@@ -88,11 +100,11 @@ const getActionTagType = (action) => {
         </el-select>
         <el-button type="primary" @click="fetchLogs" :icon="Timer">Làm mới</el-button>
       </div>
-    </div>
+    </section>
 
     <el-card shadow="never" class="table-card">
-      <el-table :data="logs" v-loading="isLoading" style="width: 100%" row-key="id">
-        
+      <el-table :data="displayLogs" v-loading="isLoading" style="width: 100%" row-key="id">
+        <!-- ... (columns remain same) ... -->
         <el-table-column type="expand">
           <template #default="props">
             <div class="expand-detail">
@@ -139,18 +151,35 @@ const getActionTagType = (action) => {
         <el-table-column label="Mô tả chi tiết (Event)" prop="event_name" />
 
       </el-table>
+
+      <div class="pagination-footer">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[15, 30, 50]"
+          layout="total, sizes, prev, pager, next"
+          :total="logs.length"
+          background
+        />
+      </div>
     </el-card>
   </div>
 </template>
 
 <style scoped>
-.logs-page { padding: 10px; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 25px; }
-.page-header h1 { font-size: 1.8rem; color: var(--text-dark); margin: 0 0 5px 0; }
-.page-header p { color: #6e7a74; margin: 0; }
-.filter-actions { display: flex; gap: 15px; }
+.logs-page { display: grid; gap: 24px; padding: 10px; }
+.action-bar {
+  background: white; padding: 16px 24px; border-radius: 12px;
+  display: flex; justify-content: space-between; align-items: center;
+  border-left: 5px solid #6366f1; border: 1px solid #eef2f6;
+}
+.action-info p { color: #64748b; font-size: 0.9rem; margin: 4px 0 0 0; }
+.hero-actions { display: flex; gap: 12px; }
+.section-kicker { font-size: 0.72rem; font-weight: 800; color: #6366f1; text-transform: uppercase; letter-spacing: 0.05em; }
+.shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
 
 .table-card { border-radius: 16px; border: 1px solid #f0f2f2; }
+.pagination-footer { margin-top: 25px; display: flex; justify-content: center; }
 .time-text { color: #4e6073; font-size: 0.9rem; }
 .ip-text { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
 

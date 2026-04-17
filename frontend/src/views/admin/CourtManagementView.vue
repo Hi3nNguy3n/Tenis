@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, Refresh, Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { courtService } from '../../services/courtService'
 
 const search = ref('')
@@ -30,10 +31,7 @@ const form = ref(createDefaultForm())
 const loadCourts = async () => {
   isLoading.value = true
   try {
-    const data = await courtService.getAll({ 
-      search: search.value, 
-      status: statusFilter.value 
-    })
+    const data = await courtService.getAll()
     courts.value = Array.isArray(data) ? data : (data.items || [])
   } catch (err) {
     ElMessage.error('Lỗi tải danh sách sân: ' + err.message)
@@ -41,6 +39,26 @@ const loadCourts = async () => {
     isLoading.value = false
   }
 }
+
+// BỘ LỌC PHẢN HỒI TỨC THÌ (REACTIVE)
+const filteredCourts = computed(() => {
+  let result = [...courts.value]
+  
+  if (search.value) {
+    const s = search.value.toLowerCase().trim()
+    result = result.filter(c => 
+      (c.court_name || '').toLowerCase().includes(s) || 
+      (c.location_name || '').toLowerCase().includes(s)
+    )
+  }
+  
+  if (statusFilter.value) {
+    const isActive = statusFilter.value === 'AVAILABLE'
+    result = result.filter(c => c.is_active === isActive)
+  }
+  
+  return result
+})
 
 const openCreateDialog = () => {
   isEditMode.value = false
@@ -89,53 +107,107 @@ const deleteCourt = (id) => {
   })
 }
 
+const resetFilters = () => {
+  search.value = ''
+  statusFilter.value = ''
+}
+
 onMounted(loadCourts)
 </script>
 
 <template>
   <div class="module-shell">
-    <section class="hero-card">
-      <div>
-        <span class="section-kicker">Facilities management</span>
-        <h2>Quản lý sân đấu</h2>
-        <p>Cấu hình danh sách sân tại các cụm sân, theo dõi trạng thái bảo trì và loại mặt sân. Dữ liệu thực tế từ hệ thống.</p>
+    <!-- HEADER PREMIUM -->
+    <section class="action-bar-glass shadow-sm">
+      <div class="action-info">
+        <div class="kicker-wrap">
+          <span class="section-kicker">Facilities management</span>
+          <div class="live-indicator">
+            <span class="dot"></span>
+            LIVE
+          </div>
+        </div>
+        <p>Quản lý danh sách sân, mặt sân và địa điểm thi đấu trực tiếp từ hệ thống.</p>
       </div>
       <div class="hero-actions">
-        <el-button type="primary" size="large" @click="openCreateDialog">Thêm sân mới</el-button>
-        <el-button plain size="large" @click="loadCourts">Tải lại</el-button>
+        <el-button type="primary" round :icon="Plus" @click="openCreateDialog">Thêm sân mới</el-button>
+        <el-button plain round :icon="Refresh" @click="loadCourts">Tải lại</el-button>
       </div>
     </section>
 
     <section class="filter-card">
-      <el-input v-model="search" placeholder="Tìm theo tên sân, địa điểm..." clearable @change="loadCourts" style="width: 300px" />
-      <el-select v-model="statusFilter" placeholder="Trạng thái" clearable @change="loadCourts" style="width: 180px">
-        <el-option v-for="st in statusOptions" :key="st.value" :label="st.label" :value="st.value" />
-      </el-select>
+      <div class="filter-row">
+        <el-input 
+          v-model="search" 
+          placeholder="Tìm theo tên sân, địa điểm..." 
+          clearable 
+          style="width: 350px"
+          :prefix-icon="Search"
+        />
+        <el-select 
+          v-model="statusFilter" 
+          placeholder="Lọc theo Trạng thái" 
+          clearable 
+          style="width: 200px"
+        >
+          <el-option v-for="st in statusOptions" :key="st.value" :label="st.label" :value="st.value" />
+        </el-select>
+        <el-button @click="resetFilters" plain>Làm mới</el-button>
+      </div>
     </section>
 
-    <section class="table-card">
-      <el-table :data="courts" stripe v-loading="isLoading">
-        <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="court_name" label="Tên sân" min-width="200" />
-        <el-table-column prop="location_name" label="Địa điểm" min-width="220" />
-        <el-table-column prop="surface_type" label="Mặt sân" width="120" />
-        <el-table-column label="Trạng thái" width="140">
+    <section class="table-card shadow-sm">
+      <el-table :data="filteredCourts" stripe v-loading="isLoading" table-layout="fixed">
+        <el-table-column prop="id" label="ID" min-width="60" align="center" />
+        <el-table-column label="Thông tin sân" min-width="250">
            <template #default="{ row }">
-             <el-tag :type="row.is_active ? 'success' : 'danger'">
+             <div class="court-info">
+               <span class="court-name">{{ row.court_name }}</span>
+               <span class="location-name">{{ row.location_name }}</span>
+             </div>
+           </template>
+        </el-table-column>
+        <el-table-column prop="surface_type" label="Mặt sân" min-width="100" align="center">
+           <template #default="{ row }">
+             <el-tag effect="plain" type="info">{{ row.surface_type }}</el-tag>
+           </template>
+        </el-table-column>
+        <el-table-column label="Trạng thái" min-width="200" align="center">
+           <template #default="{ row }">
+             <el-tag :type="row.is_active ? 'success' : 'danger'" effect="light" class="status-tag">
                {{ row.is_active ? 'ĐANG HOẠT ĐỘNG' : 'NGƯNG HOẠT ĐỘNG' }}
              </el-tag>
            </template>
         </el-table-column>
-        <el-table-column label="Actions" width="150" fixed="right">
+        <el-table-column label="Điều hành" min-width="120" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button-group>
-              <el-button size="small" type="primary" plain @click="openEditDialog(row)">Sửa</el-button>
-              <el-button size="small" type="danger" plain @click="deleteCourt(row.id)">Xóa</el-button>
-            </el-button-group>
+            <div class="table-actions">
+              <el-tooltip content="Chỉnh sửa sân" placement="top">
+                <el-button 
+                  circle 
+                  size="small" 
+                  type="primary" 
+                  plain 
+                  :icon="Edit" 
+                  @click="openEditDialog(row)"
+                />
+              </el-tooltip>
+
+              <el-tooltip content="Xóa sân đấu" placement="top">
+                <el-button 
+                  circle 
+                  size="small" 
+                  type="danger" 
+                  plain 
+                  :icon="Delete" 
+                  @click="deleteCourt(row.id)"
+                />
+              </el-tooltip>
+            </div>
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="courts.length === 0" description="Chưa có dữ liệu sân đấu" />
+      <el-empty v-if="filteredCourts.length === 0" description="Không tìm thấy sân đấu nào khớp với bộ lọc" />
     </section>
 
     <el-dialog v-model="isDialogOpen" :title="isEditMode ? 'Sửa sân đấu' : 'Thêm sân mới'" width="500px">
@@ -159,21 +231,70 @@ onMounted(loadCourts)
       </el-form>
       <template #footer>
         <el-button @click="isDialogOpen = false">Hủy</el-button>
-        <el-button type="primary" :loading="isSaving" @click="saveCourt">Lưu</el-button>
+        <el-button type="primary" :loading="isSaving" @click="saveCourt" round>Lưu thông tin</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.module-shell { display: grid; gap: 24px; }
-.hero-card, .filter-card, .table-card {
-  background: white; padding: 24px; border-radius: 8px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.03);
+.module-shell { display: grid; gap: 16px; padding: 10px; }
+
+.action-bar-glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  padding: 16px 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
 }
-.hero-card { display: flex; justify-content: space-between; align-items: flex-end; }
-.section-kicker { font-size: 0.75rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 8px; }
-.hero-card h2 { font-size: 2.22rem; color: var(--text-dark); margin: 0; }
-.hero-card p { color: #6e7a74; margin-top: 8px; }
-.filter-card { display: flex; gap: 15px; }
+
+.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
+.section-kicker { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.live-indicator {
+  display: flex; align-items: center; gap: 6px;
+  background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800;
+  padding: 2px 8px; border-radius: 99px;
+}
+.dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
+
+.filter-card {
+  background: white; padding: 16px 24px; border-radius: 20px;
+  border: 1px solid #f1f5f9; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+}
+
+.filter-row { display: flex; gap: 16px; }
+
+.table-card {
+  background: white; padding: 8px; border-radius: 20px;
+  border: 1px solid #f1f5f9; box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+  overflow: hidden;
+}
+
+:deep(.el-table) { border-radius: 12px; }
+
+.court-info { display: flex; flex-direction: column; gap: 2px; }
+.court-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+.location-name { font-size: 0.8rem; color: #94a3b8; font-family: 'Arial', sans-serif; }
+
+.status-tag { 
+  font-weight: 600; border-radius: 99px; padding: 0 16px; font-size: 0.65rem; 
+  border: none !important;
+}
+
+.table-actions { display: flex; gap: 12px; justify-content: center; }
+
+.shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
 </style>

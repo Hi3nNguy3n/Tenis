@@ -5,7 +5,7 @@ import { tournamentService } from '../../services/tournamentService'
 import apiClient from '../../services/apiClient'
 import { saveAs } from 'file-saver';
 import { getStoredAccessToken } from '../../utils/authStorage';
-import { Message } from '@element-plus/icons-vue'
+import { Message, Plus, Search, Refresh, Delete, Edit } from '@element-plus/icons-vue'
 
 const categoryOptions = ['Open', 'Intermediate', 'Advanced', 'Elite']
 const formatOptions = ['Singles', 'Doubles']
@@ -29,6 +29,7 @@ const isDialogOpen = ref(false)
 const isEditMode = ref(false)
 const selectedTournament = ref(null)
 const errorMessage = ref('')
+const isDetailDrawerOpen = ref(false)
 
 const isExporting = ref(false)
 
@@ -41,7 +42,7 @@ const downloadExcelReport = async (tournament) => {
     const token = getStoredAccessToken() || localStorage.getItem('access_token');
     
     // 2. Sử dụng đúng tên biến môi trường (Có fallback về localhost y hệt apiClient.js)
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
 
     // 3. Dùng fetch thuần để giữ nguyên vẹn dữ liệu nhị phân (Blob)
     const response = await fetch(`${baseUrl}/api/tournaments/${tournament.id}/export-excel`, {
@@ -95,7 +96,7 @@ const sendMassEmail = async (tournament) => {
 
     isSendingMail.value = true
     const token = getStoredAccessToken() || localStorage.getItem('access_token')
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
     // 2. Gọi API POST để kích hoạt gửi mail hàng loạt
     const response = await fetch(`${baseUrl}/api/tournaments/${tournament.id}/send-notifications`, {
@@ -155,7 +156,7 @@ const handleConfirmSendEmail = async () => {
   try {
     isSendingMail.value = true
     const token = getStoredAccessToken() || localStorage.getItem('access_token')
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
     const response = await fetch(`${baseUrl}/api/tournaments/${selectedTournament.value.id}/send-notifications`, {
       method: 'POST',
@@ -181,7 +182,7 @@ const handleConfirmSendEmail = async () => {
 
 // Pagination
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(100)
 const total = ref(0)
 
 const stats = ref({
@@ -306,6 +307,7 @@ const closeDialog = () => {
 
 const selectTournament = (row) => {
   selectedTournament.value = row
+  isDetailDrawerOpen.value = true
 }
 
 const generateSlug = (name) => {
@@ -380,7 +382,27 @@ const deleteTournament = (id) => {
   })
 }
 
-const filteredRows = computed(() => tournaments.value)
+const filteredRows = computed(() => {
+  let result = [...tournaments.value]
+
+  // 1. Lọc theo tên (Search) - Client-side
+  if (search.value) {
+    const s = search.value.toLowerCase().trim()
+    result = result.filter(t => t.name.toLowerCase().includes(s))
+  }
+
+  // 2. Lọc theo Loại hình (Format) - Client-side
+  if (formatFilter.value) {
+    result = result.filter(t => t.format_type === formatFilter.value)
+  }
+
+  // 3. Lọc theo Draw size - Client-side
+  if (drawSizeFilter.value) {
+    result = result.filter(t => t.draw_size === drawSizeFilter.value)
+  }
+
+  return result
+})
 
 onMounted(() => {
   loadTournaments()
@@ -390,48 +412,107 @@ onMounted(() => {
 
 <template>
   <div class="module-shell">
-    <el-alert
-      v-if="errorMessage"
-      :title="errorMessage"
-      type="error"
-      show-icon
-      @close="errorMessage = ''"
-    />
+    <!-- Redundant header removed - handled by AdminLayout -->
 
-    <section class="hero-card">
-      <div>
-        <span class="section-kicker">Tournament operations</span>
-        <h2>Quản lý giải đấu</h2>
-        <p>
-          Danh sách giải đấu, bộ lọc, tạo mới và chỉnh sửa thông tin giải. Dữ liệu được đồng bộ trực tiếp từ hệ thống.
-        </p>
-      </div>
-
-      <div class="hero-actions">
-        <el-button type="primary" size="large" @click="openCreateDialog">Tạo giải mới</el-button>
+    <section class="admin-action-bar">
+      <div class="action-left">
+        <el-button type="primary" size="large" @click="openCreateDialog">
+          <el-icon><Plus /></el-icon>&nbsp;Tạo giải mới
+        </el-button>
         <el-button plain size="large" @click="loadTournaments">Tải lại</el-button>
       </div>
     </section>
 
+
     <section class="summary-grid">
-      <article v-for="card in summaryCards" :key="card.label" class="summary-card" :data-tone="card.tone">
-        <span>{{ card.label }}</span>
-        <strong>{{ card.value }}</strong>
+      <article class="stat-card-glass p-blue-glass">
+        <div class="stat-icon-container">
+          <el-icon><Trophy /></el-icon>
+        </div>
+        <div class="stat-info-v2">
+          <span class="stat-kicker">Tổng giải đấu</span>
+          <strong class="stat-number">{{ stats.total_tournaments }}</strong>
+        </div>
+      </article>
+
+      <article class="stat-card-glass p-green-glass">
+        <div class="stat-icon-container">
+          <el-icon><DataAnalysis /></el-icon>
+        </div>
+        <div class="stat-info-v2">
+          <span class="stat-kicker">Đang diễn ra</span>
+          <strong class="stat-number">{{ stats.active_tournaments }}</strong>
+        </div>
+      </article>
+
+      <article class="stat-card-glass p-orange-glass">
+        <div class="stat-icon-container">
+          <el-icon><Calendar /></el-icon>
+        </div>
+        <div class="stat-info-v2">
+          <span class="stat-kicker">Đăng ký mới</span>
+          <strong class="stat-number">{{ stats.pending_approvals }}</strong>
+        </div>
+      </article>
+
+      <article class="stat-card-glass p-purple-glass">
+        <div class="stat-icon-container">
+          <el-icon><User /></el-icon>
+        </div>
+        <div class="stat-info-v2">
+          <span class="stat-kicker">VĐV đăng ký</span>
+          <strong class="stat-number">{{ stats.total_registrations }}</strong>
+        </div>
       </article>
     </section>
 
+    <!-- Dynamic Filter Options from Data -->
     <section class="filter-card">
-      <el-input v-model="search" placeholder="Tìm theo tên giải..." clearable @change="loadTournaments" />
-      <el-select v-model="statusFilter" placeholder="Trạng thái" clearable @change="loadTournaments">
-        <el-option v-for="option in statusOptions" :key="option.value" :label="option.label" :value="option.value" />
-      </el-select>
-      <el-select v-model="formatFilter" placeholder="Loại hình" clearable>
-        <el-option v-for="option in formatOptions" :key="option" :label="option" :value="option" />
-      </el-select>
-      <el-select v-model="drawSizeFilter" placeholder="Draw size" clearable>
-        <el-option v-for="size in drawSizeOptions" :key="size" :label="`${size}`" :value="size" />
-      </el-select>
-      <el-button plain @click="resetFilters">Reset filter</el-button>
+      <div class="search-box">
+        <el-input 
+          v-model="search" 
+          placeholder="Tìm theo tên giải..." 
+          clearable 
+          style="width: 320px"
+          :prefix-icon="Search"
+        />
+      </div>
+
+      <div class="filter-group">
+        <!-- Lọc trạng thái (Server-side trigger) -->
+        <el-select v-model="statusFilter" placeholder="Trạng thái" clearable @change="loadTournaments" style="width: 140px">
+          <el-option 
+            v-for="opt in statusOptions" 
+            :key="opt.value" 
+            :label="opt.label" 
+            :value="opt.value" 
+          />
+        </el-select>
+
+        <!-- Lọc Loại hình (Client-side reactive) -->
+        <el-select v-model="formatFilter" placeholder="Loại hình" clearable style="width: 140px">
+          <el-option 
+            v-for="format in Array.from(new Set(tournaments.map(t => t.format_type)))" 
+            :key="format" 
+            :label="format" 
+            :value="format" 
+          />
+        </el-select>
+
+        <!-- Lọc Draw size (Client-side reactive) -->
+        <el-select v-model="drawSizeFilter" placeholder="Draw size" clearable style="width: 110px">
+          <el-option 
+            v-for="size in Array.from(new Set(tournaments.map(t => t.draw_size))).sort((a,b) => a-b)" 
+            :key="size" 
+            :label="`${size}`" 
+            :value="size" 
+          />
+        </el-select>
+
+        <el-button plain @click="resetFilters">
+          <el-icon><Refresh /></el-icon>&nbsp;Làm mới bộ lọc
+        </el-button>
+      </div>
     </section>
 
     <section class="content-grid">
@@ -450,16 +531,32 @@ onMounted(() => {
               <el-tag :type="row.status === 'open' ? 'success' : 'info'">{{ row.status.toUpperCase() }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="category_type" label="Hạng" width="100" />
+          <el-table-column prop="category_type" label="Hạng" width="140" />
           <el-table-column prop="draw_size" label="Draw" width="80" />
-          <el-table-column label="Actions" width="150" fixed="right">
+          <el-table-column label="Điều khiển" width="120" fixed="right" align="center">
             <template #default="{ row }">
-              <el-button size="small" type="primary" plain @click.stop="openEditDialog(row)">
-                Sửa
-              </el-button>
-              <el-button size="small" type="danger" plain @click.stop="deleteTournament(row.id)">
-                Xóa
-              </el-button>
+              <div class="table-actions">
+                <el-tooltip content="Chỉnh sửa" placement="top">
+                  <el-button 
+                    circle 
+                    size="small" 
+                    type="primary" 
+                    plain 
+                    :icon="Edit" 
+                    @click.stop="openEditDialog(row)"
+                  />
+                </el-tooltip>
+                <el-tooltip content="Xóa" placement="top">
+                  <el-button 
+                    circle 
+                    size="small" 
+                    type="danger" 
+                    plain 
+                    :icon="Delete" 
+                    @click.stop="deleteTournament(row.id)"
+                  />
+                </el-tooltip>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -474,78 +571,97 @@ onMounted(() => {
           />
         </div>
       </article>
+    </section>
 
-      <aside class="detail-card">
-        <div class="card-heading">
-          <div>
-            <h3>Chi tiết giải đấu</h3>
-            <p>Chọn một giải đấu trong bảng để xem nhanh cấu hình.</p>
-          </div>
-        </div>
-
-        <div v-if="selectedTournament" class="detail-stack">
-          <div class="detail-hero">
-          <div>
-            <span class="detail-eyebrow">{{ selectedTournament.status }}</span>
-            <h4>{{ selectedTournament.name }}</h4>
+    <!-- Drawer cho chi tiết giải đấu -->
+    <el-drawer
+      v-model="isDetailDrawerOpen"
+      title="Hồ sơ Giải đấu"
+      size="480px"
+      destroy-on-close
+    >
+      <div v-if="selectedTournament" class="detail-stack">
+        <div class="detail-hero">
+          <div class="hero-top">
+            <div>
+              <el-tag :type="selectedTournament.status === 'open' ? 'success' : 'info'" size="small" effect="dark" style="margin-bottom: 8px">
+                {{ selectedTournament.status.toUpperCase() }}
+              </el-tag>
+              <h4 style="margin: 0; font-size: 1.4rem">{{ selectedTournament.name }}</h4>
+            </div>
+            <el-button type="primary" plain circle :icon="Edit" @click="openEditDialog(selectedTournament)" />
           </div>
           
-          <div style="display: flex; gap: 8px;">
+          <div class="action-buttons-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
             <el-button 
-              type="warning" 
-              plain
+              type="primary" 
               @click="openEmailDialog" 
+              :icon="Message"
+              style="width: 100%"
             >
-              <el-icon><Message /></el-icon>&nbsp;Gửi thông báo
+              Gửi thông báo
             </el-button>
 
             <el-button 
               type="success" 
               :loading="isExporting" 
               @click="downloadExcelReport(selectedTournament)"
+              style="width: 100%"
             >
               Xuất Excel
             </el-button>
-            
-            <el-button type="primary" plain @click="openEditDialog(selectedTournament)">Chỉnh sửa</el-button>
           </div>
         </div>
 
-          <div class="detail-grid">
-            <div>
-              <span>Loại hình</span>
-              <strong>{{ selectedTournament.format_type }}</strong>
+        <div class="detail-sections" style="display: grid; gap: 20px; margin-top: 30px;">
+          <div class="info-group">
+            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">Thông tin thi đấu</h5>
+            <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px;">
+              <div class="detail-item">
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Loại hình</span>
+                <strong style="font-size: 0.95rem">{{ selectedTournament.format_type }}</strong>
+              </div>
+              <div class="detail-item">
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Hạng đấu</span>
+                <strong style="font-size: 0.95rem">{{ selectedTournament.category_type }}</strong>
+              </div>
+              <div class="detail-item">
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Draw size</span>
+                <strong style="font-size: 0.95rem">{{ selectedTournament.draw_size }}</strong>
+              </div>
+              <div class="detail-item">
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Mặt sân</span>
+                <strong style="font-size: 0.95rem">{{ selectedTournament.surface_type }}</strong>
+              </div>
             </div>
-            <div>
-              <span>Hạng đấu</span>
-              <strong>{{ selectedTournament.category_type }}</strong>
+          </div>
+
+          <div class="info-group">
+            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">Chi phí & Địa điểm</h5>
+            <div class="detail-grid" style="display: grid; gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px;">
+              <div class="detail-item">
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Lệ phí cá nhân</span>
+                <strong style="font-size: 1.1rem; color: #15803d">{{ new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selectedTournament.entry_fee || 0) }}</strong>
+              </div>
+              <div class="detail-item">
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Địa điểm</span>
+                <strong style="font-size: 0.95rem">{{ selectedTournament.location || 'Chưa cập nhật' }}</strong>
+              </div>
             </div>
-            <div>
-              <span>Draw size</span>
-              <strong>{{ selectedTournament.draw_size }}</strong>
-            </div>
-            <div>
-              <span>Mặt sân</span>
-              <strong>{{ selectedTournament.surface_type }}</strong>
-            </div>
-            <div>
-              <span>Lệ phí cá nhân</span>
-              <strong>{{ new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selectedTournament.entry_fee || 0) }}</strong>
-            </div>
-            <div>
-              <span>Ngày thi đấu</span>
-              <strong>{{ selectedTournament.start_date }}</strong>
-            </div>
-            <div style="grid-column: span 2">
-              <span>Địa điểm</span>
-              <strong>{{ selectedTournament.location || 'Chưa cập nhật' }}</strong>
+          </div>
+
+          <div class="info-group">
+            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">Thời gian giải đấu</h5>
+            <div class="detail-grid" style="display: grid; gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px;">
+              <div class="detail-item">
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Ngày thi đấu</span>
+                <strong style="font-size: 0.95rem">{{ selectedTournament.start_date }}</strong>
+              </div>
             </div>
           </div>
         </div>
-
-        <el-empty v-else description="Chưa chọn giải" />
-      </aside>
-    </section>
+      </div>
+    </el-drawer>
   </div>
 
   <el-dialog
@@ -701,28 +817,100 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.module-shell { display: grid; gap: 18px; }
-.hero-card, .summary-card, .filter-card, .table-card, .detail-card {
-  border-radius: 8px; background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 40px rgba(18, 30, 27, 0.07);
+.module-shell { display: grid; gap: 24px; }
+
+.admin-action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: -8px; }
+
+/* Thẻ thống kê Glassmorphism */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+
+.stat-card-glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  position: relative;
+  overflow: hidden;
 }
-.hero-card { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 28px; }
-.section-kicker { display: inline-flex; margin-bottom: 12px; padding: 8px 12px; border-radius: 8px; background: rgba(20, 98, 80, 0.08); color: #0f5c4d; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; }
-.hero-card h2 { margin-bottom: 10px; font-size: 2.5rem; color: #132722; }
-.hero-card p { max-width: 760px; color: #59706a; }
-.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.summary-card { padding: 20px; display: grid; gap: 8px; }
-.summary-card span { color: #647873; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; }
-.summary-card strong { font-size: 1.8rem; color: #152a24; }
-.filter-card { display: flex; gap: 12px; padding: 18px; align-items: center; }
-.content-grid { display: grid; grid-template-columns: 1.6fr 0.9fr; gap: 18px; }
-.table-card, .detail-card { padding: 20px; }
-.detail-stack { display: grid; gap: 18px; }
-.detail-hero { display: flex; align-items: center; justify-content: space-between; padding: 18px; border-radius: 8px; background: #f0f7f5; }
+
+.stat-card-glass:hover {
+  transform: translateY(-8px) scale(1.02);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 15px 45px rgba(0,0,0,0.1);
+}
+
+.stat-icon-container {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  transition: all 0.4s ease;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.4);
+}
+
+.stat-card-glass:hover .stat-icon-container {
+  transform: rotate(10deg);
+}
+
+/* Colors with Gradients */
+.p-blue-glass .stat-icon-container { background: linear-gradient(135deg, #60a5fa, #3b82f6); color: white; }
+.p-green-glass .stat-icon-container { background: linear-gradient(135deg, #34d399, #10b981); color: white; }
+.p-orange-glass .stat-icon-container { background: linear-gradient(135deg, #fb923c, #f59e0b); color: white; }
+.p-purple-glass .stat-icon-container { background: linear-gradient(135deg, #a78bfa, #8b5cf6); color: white; }
+
+.stat-info-v2 { display: flex; flex-direction: column; gap: 2px; }
+.stat-kicker { font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; }
+.stat-number { font-size: 2.2rem; font-weight: 900; color: #0f172a; line-height: 1; letter-spacing: -0.02em; }
+
+/* Filters */
+.filter-card { 
+  display: flex; justify-content: space-between; gap: 12px; padding: 16px 24px; 
+  background: white; border-radius: 20px; border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+}
+.filter-group { display: flex; gap: 12px; }
+
+.content-grid { display: grid; grid-template-columns: 1fr; gap: 24px; margin-top: 8px; }
+
+.table-card { 
+  background: white; padding: 24px; border-radius: 16px; border: 1px solid #f0f2f2;
+}
+
+.card-heading { margin-bottom: 20px; }
+.card-heading h3 { font-size: 1.1rem; font-weight: 700; color: #1e293b; margin: 0 0 4px; }
+.card-heading p { font-size: 0.85rem; color: #64748b; margin: 0; }
+
+.detail-stack { display: grid; gap: 20px; }
+.detail-hero { 
+  padding: 20px; border-radius: 16px; background: #f8fafc; 
+  border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 16px; 
+}
+.hero-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.detail-eyebrow { font-size: 0.65rem; font-weight: 800; color: #10b981; text-transform: uppercase; background: #ecfdf5; padding: 4px 10px; border-radius: 99px; }
+.detail-hero h4 { margin: 8px 0 0; font-size: 1.3rem; color: #1e293b; }
+
+.table-actions { display: flex; gap: 10px; justify-content: center; }
+
+.action-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.detail-grid span { font-size: 0.7rem; font-weight: 800; color: #71837d; text-transform: uppercase; }
-.detail-grid strong { display: block; color: #152a24; }
-.form-grid { display: grid; gap: 15px; }
+.detail-item { display: flex; flex-direction: column; gap: 4px; }
+.detail-item span { font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
+.detail-item strong { color: #1e293b; font-size: 0.95rem; }
+
+.form-grid { display: grid; gap: 16px; }
 .two-columns { grid-template-columns: 1fr 1fr; }
 .three-columns { grid-template-columns: 1fr 1fr 1fr; }
+
+:deep(.el-table) { border-radius: 12px; overflow: hidden; }
 </style>

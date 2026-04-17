@@ -25,5 +25,8 @@ export const tournamentService = {
   },
   async generateDraw(tournamentId) {
     return apiClient.post(`/api/tournaments/${tournamentId}/generate-draw`)
+  },
+  async getPublicBracket(tournamentId) {
+    return apiClient.get(`/api/tournaments/${tournamentId}/public-bracket`)
   }
 }
