@@ -253,12 +253,22 @@ onMounted(fetchRankings)
 .rank-gold .elo-score { color: #ca8a04; }
 
 @media (max-width: 768px) {
+  .hero-banner { padding: 40px 15px 60px; }
+  .hero-banner h1 { font-size: 1.8rem; }
+  .hero-banner p { font-size: 0.9rem; }
   .hidden-mobile { display: none; }
-  .filter-bar { flex-direction: column; }
-  .lb-header, .lb-row { grid-template-columns: 60px 2fr 1fr 80px; padding: 12px 10px; }
+  .filter-bar { flex-direction: column; border-radius: 12px; padding: 10px; }
+  .lb-header, .lb-row { grid-template-columns: 50px 1.5fr 1fr 70px; padding: 12px 8px; }
   .rate-bar-bg { display: none; }
   .win-rate { justify-content: flex-end; }
-  .avatar { width: 35px; height: 35px; }
-  .name-details strong { font-size: 0.95rem; }
+  .avatar { width: 32px; height: 32px; font-size: 1rem; }
+  .name-details strong { font-size: 0.85rem; }
+  .elo-score { font-size: 1.1rem; }
+}
+
+@media (max-width: 480px) {
+  .lb-header { font-size: 0.7rem; }
+  .lb-row { font-size: 0.8rem; }
+  .location-tag { display: none; }
 }
 </style>

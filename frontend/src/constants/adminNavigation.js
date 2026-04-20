@@ -178,6 +178,17 @@ export const adminModules = [
     title: 'Quản lý Tin tức',
     description: 'Viết bài, tải ảnh và đăng thông báo giải đấu.',
     highlights: ['Trình soạn thảo', 'Thumbnail', 'Danh mục'],
+  },
+  {
+    path: 'mail-campaign',
+    name: 'admin-mail-campaign',
+    label: 'Gửi mail hàng loạt',
+    section: 'Hệ thống',
+    view: 'mailCampaign',
+    badge: 'New',
+    title: 'Mail Campaign',
+    description: 'Soạn template, chọn lịch gửi, ghi log và gửi thông báo hàng loạt đến VĐV.',
+    highlights: ['Template presets', 'Schedule send', 'Send logs'],
   }
 ]
 

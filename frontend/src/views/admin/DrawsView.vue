@@ -10,6 +10,7 @@ const selectedTournamentId = ref(null)
 const matches = ref([])
 const isLoading = ref(false)
 const generating = ref(false)
+const lastDrawSummary = ref(null)
 
 // Tự động nhận diện Tên người dùng đang đăng nhập (hoặc fallback mặc định)
 const currentUserName = computed(() => {
@@ -45,6 +46,7 @@ const generateDraw = async () => {
   generating.value = true
   try {
     const response = await tournamentService.generateDraw(selectedTournamentId.value)
+    lastDrawSummary.value = response
     ElMessage.success(`${response.message} (Tổng số VĐV: ${response.total_players}, Số vòng đấu: ${response.rounds})`)
     await fetchMatches()
   } catch (err) {
@@ -53,6 +55,23 @@ const generateDraw = async () => {
   } finally {
     generating.value = false
   }
+}
+
+const roundOrder = (roundCode) => {
+  const normalized = String(roundCode || '').toUpperCase()
+  const orderMap = {
+    R128: 1,
+    R64: 2,
+    R32: 3,
+    R16: 4,
+    R8: 5,
+    QF: 6,
+    SF: 7,
+    F: 8,
+    FINAL: 8,
+  }
+
+  return orderMap[normalized] ?? 99
 }
 
 // XỬ LÝ DỮ LIỆU SƠ ĐỒ (BRACKET LOGIC)
@@ -68,8 +87,12 @@ const bracketRounds = computed(() => {
     roundsMap[m.round_code].push(m)
   })
 
-  // Sắp xếp các vòng theo số lượng trận đấu giảm dần (VD: 4 trận Tứ kết -> 2 trận Bán kết -> 1 trận Chung kết)
-  return Object.values(roundsMap).sort((a, b) => b.length - a.length)
+  return Object.entries(roundsMap)
+    .map(([roundCode, items]) => ({
+      roundCode,
+      items: items.slice().sort((a, b) => (a.match_no || 0) - (b.match_no || 0)),
+    }))
+    .sort((a, b) => roundOrder(a.roundCode) - roundOrder(b.roundCode))
 })
 
 onMounted(fetchTournaments)
@@ -88,6 +111,9 @@ onMounted(fetchTournaments)
           </div>
         </div>
         <p>Phân bổ hạt giống (Seeding) và bốc thăm tự động cho giải đấu.</p>
+        <p v-if="lastDrawSummary" class="draw-summary">
+          Đã tạo: {{ lastDrawSummary.total_players }} VĐV | {{ lastDrawSummary.seeded }} seed | {{ lastDrawSummary.byes }} bye
+        </p>
       </div>
       <div class="hero-actions">
         <div class="control-group-v2">
@@ -110,13 +136,13 @@ onMounted(fetchTournaments)
       </div>
       
       <div v-else class="bracket-board">
-         <div v-for="(round, index) in bracketRounds" :key="index" class="bracket-round">
+         <div v-for="(round, index) in bracketRounds" :key="round.roundCode" class="bracket-round">
             <div class="round-header">
-               <span class="round-tag">{{ round[0].round_code }}</span>
+               <span class="round-tag">{{ round.roundCode }}</span>
             </div>
             
             <div class="matches-column">
-               <div v-for="m in round" :key="m.id" class="match-wrapper">
+               <div v-for="m in round.items" :key="m.id" class="match-wrapper">
                   <div class="match-card-premium">
                      <div class="match-top">
                         <span class="m-no">#{{ m.match_no }}</span>
@@ -125,12 +151,20 @@ onMounted(fetchTournaments)
                      
                      <div class="match-players">
                         <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a', 'is-me': m.p1_name === currentUserName }">
-                           <span class="p-name">{{ m.p1_name || 'Đang cập nhật...' }}</span>
+                           <div class="p-name-wrap">
+                             <span class="side-chip">{{ m.p1_label || 'VĐV' }}</span>
+                             <span class="p-name">{{ m.p1_name || 'Đang cập nhật...' }}</span>
+                             <el-tag v-if="m.seed_a" size="small" effect="plain" class="seed-tag">#{{ m.seed_a }}</el-tag>
+                           </div>
                            <el-tag v-if="m.result_note === 'BYE' && m.winner_side === 'side_a'" size="small" effect="dark" type="info" class="bye-tag">BYE</el-tag>
                         </div>
                         
                         <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b', 'is-me': m.p2_name === currentUserName }">
-                           <span class="p-name">{{ m.p2_name || 'Đang chờ đối thủ...' }}</span>
+                           <div class="p-name-wrap">
+                             <span class="side-chip">{{ m.p2_label || 'VĐV' }}</span>
+                             <span class="p-name">{{ m.p2_name || 'Đang chờ đối thủ...' }}</span>
+                             <el-tag v-if="m.seed_b" size="small" effect="plain" class="seed-tag">#{{ m.seed_b }}</el-tag>
+                           </div>
                            <el-tag v-if="m.result_note === 'BYE' && m.winner_side === 'side_b'" size="small" effect="dark" type="info" class="bye-tag">BYE</el-tag>
                         </div>
                      </div>
@@ -176,6 +210,7 @@ onMounted(fetchTournaments)
 }
 
 .action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
+.draw-summary { margin-top: 6px; font-size: 0.82rem !important; color: #0f172a !important; }
 
 .control-group-v2 { display: flex; gap: 12px; align-items: center; }
 .btn-generate-premium {
@@ -234,7 +269,14 @@ onMounted(fetchTournaments)
   padding: 10px 12px; border-radius: 10px; display: flex; justify-content: space-between;
   align-items: center; transition: all 0.2s ease;
 }
+.p-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .p-name { font-size: 0.9rem; font-weight: 600; color: #334155; }
+.seed-tag { font-size: 0.65rem; font-weight: 700; }
 
 .is-winner { background: #f0fdf4; }
 .is-winner .p-name { color: #15803d; font-weight: 700; }

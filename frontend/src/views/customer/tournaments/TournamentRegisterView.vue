@@ -379,7 +379,7 @@ const finish = () => {
 
 .step {
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 500;
   color: #bdc9c3;
   position: relative;
 }
@@ -443,7 +443,7 @@ const finish = () => {
 
 .form-group label {
   display: block;
-  font-weight: 700;
+  font-weight: 500;
   margin-bottom: 1rem;
   color: var(--text-dark);
 }
@@ -481,7 +481,7 @@ const finish = () => {
 }
 
 .card-body .icon { font-size: 2rem; margin-bottom: 1rem; }
-.card-body .title { font-weight: 800; font-size: 1.1rem; margin-bottom: 0.5rem; }
+.card-body .title { font-weight: 500; font-size: 1.1rem; margin-bottom: 0.5rem; }
 .card-body .desc { font-size: 0.85rem; color: #6e7a74; }
 
 input[type="text"],
@@ -522,7 +522,7 @@ textarea {
   border: none;
   background: var(--primary);
   color: white;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -545,7 +545,7 @@ textarea {
 
 .payment-info { flex: 1; display: grid; gap: 1rem; }
 .info-row { display: flex; justify-content: space-between; border-bottom: 1px dashed #ddd; padding-bottom: 0.5rem; }
-.valueHighlight { color: #ba1a1a; font-weight: 800; font-size: 1.2rem; }
+.valueHighlight { color: #ba1a1a; font-weight: 500; font-size: 1.2rem; }
 
 .qr-mockup {
   width: 200px;
@@ -570,7 +570,7 @@ textarea {
   background: #fff8e1;
   border-radius: 12px;
   color: #f57f17;
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 2rem;
 }
 
@@ -616,7 +616,7 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-weight: 700;
+  font-weight: 500;
   color: #6e7a74;
   transition: all 0.2s;
 }
@@ -652,12 +652,12 @@ textarea {
   font-size: 0.75rem;
   color: #ba1a1a;
   text-transform: uppercase;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .timer-value {
   font-size: 1.5rem;
-  font-weight: 900;
+  font-weight: 500;
   color: #ba1a1a;
   font-family: monospace;
 }
@@ -681,7 +681,7 @@ textarea {
   padding: 1.2rem 1.5rem;
   border-radius: 14px;
   font-size: 1.1rem;
-  font-weight: 800;
+  font-weight: 500;
   cursor: pointer;
   transition: transform 0.2s;
   width: 100%;

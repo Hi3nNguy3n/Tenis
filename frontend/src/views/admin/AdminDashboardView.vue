@@ -27,11 +27,32 @@ const formatVND = (value) => {
 
 <template>
   <div class="dashboard-page" v-loading="isLoading">
-    <!-- Headers are centrally managed in AdminLayout to prevent duplication -->
-    
     <template v-if="stats">
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <span class="eyebrow">Admin control center</span>
+          <h2>Dashboard điều hành Saigon Tennis</h2>
+          <p>
+            Theo dõi doanh thu, giải đấu, đăng ký và tiến độ vận hành trong một màn hình, theo phong cách gọn, sáng và hiện đại.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <div class="hero-metric">
+            <span>Hoàn thành</span>
+            <strong>{{ stats.completion_rate }}%</strong>
+          </div>
+          <div class="hero-metric">
+            <span>Trận đã xong</span>
+            <strong>{{ stats.completed_matches }}</strong>
+          </div>
+          <div class="hero-metric accent">
+            <span>Tổng trận</span>
+            <strong>{{ stats.total_matches }}</strong>
+          </div>
+        </div>
+      </section>
+
       <div class="stats-grid">
-        <!-- Revenue Card with Special Decoration -->
         <div class="stat-card premium-finance-card">
           <div class="card-bg-decoration"></div>
           <div class="stat-content">
@@ -45,12 +66,15 @@ const formatVND = (value) => {
           </div>
         </div>
 
-        <!-- Glass Style Cards -->
         <div class="stat-card glass-stat-card">
           <div class="stat-content">
             <div class="stat-text">
               <span class="stat-label">Giải Đang Diễn Ra</span>
-              <strong class="stat-value">{{ stats.active_tournaments }} <span class="val-sep">/</span> <small>{{ stats.total_tournaments }}</small></strong>
+              <strong class="stat-value">
+                {{ stats.active_tournaments }}
+                <span class="val-sep">/</span>
+                <small>{{ stats.total_tournaments }}</small>
+              </strong>
             </div>
             <div class="stat-icon-wrap tournament-icon">
               <el-icon><Trophy /></el-icon>
@@ -84,20 +108,19 @@ const formatVND = (value) => {
       </div>
 
       <div class="overview-details-grid">
-        <!-- Performance / Progress Card -->
         <div class="premium-glass-card performance-section">
           <div class="card-header-row">
             <h3><el-icon><DataLine /></el-icon> Hiệu suất Hệ thống</h3>
             <span class="live-tag">● Cập nhật thời gian thực</span>
           </div>
-          
+
           <div class="performance-body">
             <div class="chart-container">
-              <el-progress 
-                type="dashboard" 
-                :percentage="stats.completion_rate" 
-                :color="'#b9d84d'" 
-                :stroke-width="12" 
+              <el-progress
+                type="dashboard"
+                :percentage="stats.completion_rate"
+                :color="'#146250'"
+                :stroke-width="12"
                 :width="180"
               >
                 <template #default="{ percentage }">
@@ -117,6 +140,7 @@ const formatVND = (value) => {
                   <strong class="p-val">{{ stats.completed_matches }} trận</strong>
                 </div>
               </div>
+
               <div class="p-stat-item">
                 <span class="p-dot bg-neutral"></span>
                 <div class="p-info">
@@ -128,95 +152,298 @@ const formatVND = (value) => {
           </div>
         </div>
 
-        <!-- Quick Summary Actions -->
         <div class="quick-summary-card">
-           <h4>Thông báo nhanh</h4>
-           <div class="summary-list">
-             <div class="summary-item">
-               <el-icon class="icon-success"><Trophy /></el-icon>
-               <p>Hiện có <strong>{{ stats.active_tournaments }}</strong> giải đấu đang mở.</p>
-             </div>
-             <div class="summary-item">
-               <el-icon class="icon-warning"><Loading /></el-icon>
-               <p>Cần xử lý <strong>{{ stats.pending_approvals }}</strong> đơn đăng ký mới.</p>
-             </div>
-             <div class="summary-item">
-               <el-icon class="icon-info"><UserFilled /></el-icon>
-               <p>Tổng cộng <strong>{{ stats.total_registrations }}</strong> người chơi tham gia.</p>
-             </div>
-           </div>
+          <h4>Báo cáo nhanh</h4>
+          <div class="summary-list">
+            <div class="summary-item">
+              <el-icon class="icon-success"><Trophy /></el-icon>
+              <p>Hiện có <span class="summary-val">{{ stats.active_tournaments }}</span> giải đấu đang mở.</p>
+            </div>
+            <div class="summary-item">
+              <el-icon class="icon-warning"><Loading /></el-icon>
+              <p>Cần xử lý <span class="summary-val">{{ stats.pending_approvals }}</span> đơn đăng ký mới.</p>
+            </div>
+            <div class="summary-item">
+              <el-icon class="icon-info"><UserFilled /></el-icon>
+              <p>Tổng cộng <span class="summary-val">{{ stats.total_registrations }}</span> người chơi tham gia.</p>
+            </div>
+            <div class="summary-item">
+              <el-icon class="icon-success"><DataLine /></el-icon>
+              <p>Tỷ lệ hoàn tất trận đấu đang ở mức <span class="summary-val">{{ stats.completion_rate }}%</span>.</p>
+            </div>
+          </div>
         </div>
       </div>
+
+      <section class="ops-report-grid">
+        <article class="ops-report-card">
+          <span class="ops-label">Doanh thu</span>
+          <strong>{{ formatVND(stats.revenue) }}</strong>
+          <p>Ghi nhận từ các khoản thanh toán đã hoàn tất.</p>
+        </article>
+        <article class="ops-report-card">
+          <span class="ops-label">Tỷ lệ hoàn tất</span>
+          <strong>{{ stats.completion_rate }}%</strong>
+          <p>Phản ánh tiến độ xử lý các trận đấu.</p>
+        </article>
+        <article class="ops-report-card">
+          <span class="ops-label">Giải đang mở</span>
+          <strong>{{ stats.active_tournaments }}</strong>
+          <p>Số giải đang mở đăng ký hoặc đang diễn ra.</p>
+        </article>
+        <article class="ops-report-card">
+          <span class="ops-label">Đơn chờ duyệt</span>
+          <strong>{{ stats.pending_approvals }}</strong>
+          <p>Các đăng ký mới cần admin xử lý.</p>
+        </article>
+      </section>
     </template>
   </div>
 </template>
 
 <style scoped>
-.dashboard-page { padding: 0; }
+.dashboard-page {
+  padding: 0;
+  color: #0f172a;
+  background:
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.08), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.hero-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: stretch;
+  padding: 26px 28px;
+  margin-bottom: 22px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
+}
+
+.hero-copy {
+  max-width: 760px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(20, 98, 80, 0.08);
+  color: #146250;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hero-copy h2 {
+  margin: 0 0 10px;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  color: #0f172a;
+}
+
+.hero-copy p {
+  margin: 0;
+  max-width: 680px;
+  color: #475569;
+  line-height: 1.7;
+  font-size: 0.96rem;
+}
+
+.hero-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 360px;
+}
+
+.hero-metric {
+  min-width: 0;
+  border-radius: 20px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.hero-metric span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.hero-metric strong {
+  font-size: 1.8rem;
+  line-height: 1;
+  color: #146250;
+  font-weight: 700;
+}
+
+.hero-metric.accent {
+  background: linear-gradient(135deg, #146250 0%, #1f7a61 100%);
+  border-color: transparent;
+}
+
+.hero-metric.accent span,
+.hero-metric.accent strong {
+  color: #ffffff;
+}
 
 /* Grid Thẻ Thống kê */
-.stats-grid { 
-  display: grid; 
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); 
-  gap: 20px; 
-  margin-bottom: 32px; 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
 }
 
-.stat-card { 
-  background: white; 
-  border-radius: 20px; 
-  padding: 24px; 
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+.stat-card {
+  border-radius: 24px;
+  padding: 24px;
   position: relative;
   overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.stat-card:hover { 
-  transform: translateY(-4px); 
-  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+.stat-card:hover {
+  transform: translateY(-4px);
 }
 
-/* Premium Card (Revenue) */
+/* Card doanh thu */
 .premium-finance-card {
-  background: linear-gradient(135deg, #13211d 0%, #1e3a34 100%);
-  border: none;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.98) 0%, rgba(20, 98, 80, 0.95) 48%, rgba(34, 197, 94, 0.88) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  box-shadow:
+    0 18px 40px rgba(20, 98, 80, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
 }
-.premium-finance-card .stat-label { color: rgba(255,255,255,0.6); }
-.premium-finance-card .stat-value { color: #d7f171; }
+
+.premium-finance-card .stat-label {
+  color: rgba(191, 219, 254, 0.74);
+}
+
+.premium-finance-card .stat-value {
+  color: #f8fafc;
+}
+
 .card-bg-decoration {
   position: absolute;
-  top: -20px;
-  right: -20px;
-  width: 100px;
-  height: 100px;
-  background: radial-gradient(circle, rgba(215, 241, 113, 0.1) 0%, transparent 70%);
+  top: -32px;
+  right: -28px;
+  width: 140px;
+  height: 140px;
+  background:
+    radial-gradient(circle, rgba(34, 197, 94, 0.24) 0%, rgba(20, 98, 80, 0.18) 42%, transparent 72%);
   border-radius: 50%;
 }
 
-.stat-content { display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1; }
-.stat-text { display: flex; flex-direction: column; gap: 6px; }
-.stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; font-weight: 700; }
-.stat-value { font-size: 1.8rem; font-weight: 800; letter-spacing: -0.02em; }
-.stat-value small { font-size: 1rem; color: #94a3b8; font-weight: 500; }
-.val-sep { margin: 0 4px; color: #cbd5e1; }
-.warning-text { color: #f59e0b; }
-
-.stat-icon-wrap { 
-  width: 52px; 
-  height: 52px; 
-  border-radius: 14px; 
-  display: flex; 
-  justify-content: center; 
-  align-items: center; 
-  font-size: 24px; 
+/* Card sáng mềm - Phong cách Modern Tech Slate */
+.glass-stat-card {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  box-shadow:
+    0 16px 36px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
 }
 
-.finance-icon { background: rgba(215, 241, 113, 0.15); color: #d7f171; }
-.tournament-icon { background: #f0fdf4; color: #166534; }
-.pending-icon { background: #fffbeb; color: #b45309; }
-.user-icon { background: #eff6ff; color: #1d4ed8; }
+.glass-stat-card:hover {
+  box-shadow:
+    0 22px 44px rgba(15, 23, 42, 0.1),
+    0 4px 12px rgba(20, 98, 80, 0.08);
+}
+
+.stat-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+  gap: 16px;
+}
+
+.stat-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.stat-value small {
+  font-size: 1rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.val-sep {
+  margin: 0 4px;
+  color: #94a3b8;
+}
+
+.warning-text {
+  color: #d97706;
+}
+
+.stat-icon-wrap {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.finance-icon {
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+}
+
+.tournament-icon {
+  background: #ecfdf5;
+  color: #146250;
+}
+
+.pending-icon {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.user-icon {
+  background: #ecfdf5;
+  color: #0f766e;
+}
 
 /* Dashboard Detail Sections */
 .overview-details-grid {
@@ -226,11 +453,14 @@ const formatVND = (value) => {
 }
 
 .premium-glass-card {
-  background: white;
-  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98); 
+  border-radius: 28px;
   padding: 32px;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  box-shadow:
+    0 20px 40px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
 }
 
 .card-header-row {
@@ -238,57 +468,249 @@ const formatVND = (value) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 32px;
+  gap: 16px;
 }
-.card-header-row h3 { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 10px; }
-.live-tag { font-size: 0.7rem; color: #10b981; font-weight: 700; background: #ecfdf5; padding: 4px 12px; border-radius: 99px; text-transform: uppercase; }
 
-.performance-body { display: flex; align-items: center; gap: 48px; }
+.card-header-row h3 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #0f172a;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
-.percentage-wrap { display: flex; flex-direction: column; align-items: center; }
-.percentage-value { font-size: 2rem; font-weight: 800; color: #1e293b; }
-.percentage-label { font-size: 0.8rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+.live-tag {
+  font-size: 0.72rem;
+  color: #146250;
+  font-weight: 500;
+  background: rgba(220, 252, 231, 0.9);
+  padding: 6px 12px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(34, 197, 94, 0.18);
+}
 
-.performance-stats { display: flex; flex-direction: column; gap: 16px; flex: 1; }
+.performance-body {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+}
+
+.percentage-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.percentage-value {
+  font-size: 2rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.percentage-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.performance-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+
 .p-stat-item {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 20px;
-  background: #f8fafc;
-  border-radius: 16px;
-  transition: background 0.2s;
+  padding: 18px 20px;
+  background: rgba(248, 250, 252, 0.88);
+  border-radius: 18px;
+  border: 1px solid rgba(209, 250, 229, 0.8);
+  transition: background 0.2s, transform 0.2s;
 }
-.p-dot { width: 10px; height: 10px; border-radius: 50%; }
-.bg-primary { background: #b9d84d; }
-.bg-neutral { background: #cbd5e1; }
-.p-info { display: flex; flex-direction: column; }
-.p-label { font-size: 0.75rem; color: #64748b; font-weight: 600; }
-.p-val { font-size: 1.1rem; color: #1e293b; font-weight: 700; }
+
+.p-stat-item:hover {
+  transform: translateY(-1px);
+  background: rgba(241, 245, 249, 0.96);
+}
+
+.p-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.bg-primary {
+  background: #146250;
+}
+
+.bg-neutral {
+  background: #94a3b8;
+}
+
+.p-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.p-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.p-val {
+  font-size: 1.08rem;
+  color: #0f172a;
+  font-weight: 500;
+}
 
 /* Quick Summary Card */
 .quick-summary-card {
-  background: #f8fafc;
-  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 28px;
   padding: 32px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  box-shadow:
+    0 20px 40px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
 }
-.quick-summary-card h4 { font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-top: 0; margin-bottom: 24px; }
 
-.summary-list { display: flex; flex-direction: column; gap: 20px; }
-.summary-item { display: flex; align-items: flex-start; gap: 12px; }
-.summary-item p { margin: 0; font-size: 0.9rem; color: #475569; line-height: 1.5; }
-.summary-item strong { color: #1e293b; }
+.quick-summary-card h4 {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #0f172a;
+  margin-top: 0;
+  margin-bottom: 24px;
+}
 
-/* Icons in summary */
-.icon-success { color: #10b981; }
-.icon-warning { color: #f59e0b; }
-.icon-info { color: #3b82f6; }
+.summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
-@media (max-width: 1200px) {
-  .overview-details-grid { grid-template-columns: 1fr; }
+.summary-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.summary-item p {
+  margin: 0;
+  font-size: 0.94rem;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.summary-item .summary-val {
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.icon-success {
+  color: #146250;
+}
+
+.icon-warning {
+  color: #d97706;
+}
+
+.icon-info {
+  color: #0f766e;
+}
+
+.ops-report-grid {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ops-report-card {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  border-radius: 20px;
+  padding: 18px 20px;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.05);
+}
+
+.ops-label {
+  display: inline-flex;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  margin-bottom: 10px;
+}
+
+.ops-report-card strong {
+  display: block;
+  font-size: 1.35rem;
+  color: #146250;
+  margin-bottom: 8px;
+}
+
+.ops-report-card p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 1100px) {
+  .hero-panel {
+    flex-direction: column;
+  }
+  .hero-actions {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
-  .performance-body { flex-direction: column; gap: 32px; text-align: center; }
+  .hero-actions {
+    grid-template-columns: 1fr;
+  }
+  .hero-metric strong {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 1200px) {
+  .overview-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-report-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .performance-body {
+    flex-direction: column;
+    gap: 32px;
+    text-align: center;
+  }
+
+  .card-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ops-report-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

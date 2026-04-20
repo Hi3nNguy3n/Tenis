@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { User, Lock, View, Hide, Warning } from '@element-plus/icons-vue'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const LOGIN_ENDPOINT = `${API_BASE_URL}/api/auth/login`
@@ -33,6 +34,12 @@ const handleApiError = async (response, fallbackMessage) => {
   }
 }
 
+onMounted(() => {
+  if (authStore.isAuthenticated && authStore.isAdmin) {
+    router.push('/admin')
+  }
+})
+
 const login = async () => {
   clearMessages()
 
@@ -51,9 +58,7 @@ const login = async () => {
   try {
     const response = await fetch(LOGIN_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: form.value.email.trim(),
         password: form.value.password,
@@ -69,8 +74,7 @@ const login = async () => {
     }
 
     const data = await response.json()
-    
-    // Sử dụng authStore để lưu session
+
     authStore.setSession({
       accessToken: data.access_token,
       tokenType: data.token_type,
@@ -79,13 +83,12 @@ const login = async () => {
         full_name: data.full_name || form.value.email.trim().split('@')[0],
         user_id: data.user_id,
         role_id: data.role_id,
-        account_type: data.account_type
-      }
+        account_type: data.account_type,
+      },
     })
 
     successMessage.value = 'Đăng nhập thành công! Chào mừng bạn quay trở lại.'
 
-    // Điều hướng dựa trên vai trò
     if (data.account_type === 'admin') {
       router.push('/admin')
     } else {
@@ -94,7 +97,6 @@ const login = async () => {
       })
     }
   } catch {
-
     errorMessage.value = 'Không thể kết nối tới backend. Hãy kiểm tra API server và thử lại.'
   } finally {
     isLoggingIn.value = false
@@ -172,7 +174,6 @@ const login = async () => {
               <div class="field-label-row">
                 <span>Mật khẩu</span>
                 <RouterLink id="forgot-password-link" to="/forgot-password">Quên mật khẩu?</RouterLink>
-
               </div>
               <div class="field-control with-icon with-action">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -214,7 +215,6 @@ const login = async () => {
               <RouterLink to="/forgot-password" style="font-size: 0.9rem; color: #6e7a74;">Quên mật khẩu?</RouterLink>
             </p>
           </footer>
-
         </div>
       </section>
     </div>
@@ -282,7 +282,7 @@ const login = async () => {
 .brand-kicker {
   margin-bottom: 16px;
   font-size: 0.76rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.26em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.78);
@@ -363,7 +363,7 @@ const login = async () => {
   display: none;
   margin-bottom: 28px;
   font-size: 1.9rem;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: -0.05em;
   color: var(--primary);
 }
@@ -375,7 +375,7 @@ const login = async () => {
 .form-kicker {
   margin-bottom: 10px;
   font-size: 0.74rem;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: #6e7a74;
@@ -426,7 +426,7 @@ const login = async () => {
 .field-group > span,
 .field-label-row span {
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #3e4945;
@@ -503,7 +503,7 @@ const login = async () => {
   color: var(--primary);
   font: inherit;
   font-size: 0.88rem;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -520,7 +520,7 @@ const login = async () => {
   color: #ffffff;
   font: inherit;
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
   box-shadow: 0 18px 30px rgba(21, 128, 61, 0.22);
@@ -554,7 +554,7 @@ const login = async () => {
 
 .form-footer a {
   margin-left: 6px;
-  font-weight: 800;
+  font-weight: 500;
   color: var(--primary);
 }
 

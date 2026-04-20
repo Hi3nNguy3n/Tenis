@@ -1,7 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import apiClient from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
+import { useAuthStore } from '../../stores/auth'
+
+const authStore = useAuthStore()
+let inboxRefreshTimer = null
 
 const featureCards = [
   {
@@ -31,21 +36,131 @@ const featureCards = [
 ]
 
 const newsItems = ref([])
+const inboxThreads = ref([])
+const inboxOpen = ref(false)
+const inboxLoading = ref(false)
+
+const unreadInboxCount = computed(() =>
+  inboxThreads.value.reduce((sum, thread) => sum + Number(thread.unreadCount || 0), 0),
+)
+
+const topInboxThreads = computed(() =>
+  inboxThreads.value
+    .slice()
+    .sort((a, b) => {
+      const unreadDiff = Number(b.unreadCount || 0) - Number(a.unreadCount || 0)
+      if (unreadDiff !== 0) return unreadDiff
+      return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+    })
+    .slice(0, 4),
+)
+
+const loadInboxPreview = async () => {
+  if (!authStore.isAuthenticated) {
+    inboxThreads.value = []
+    return
+  }
+
+  inboxLoading.value = true
+  try {
+    const data = await apiClient.get('/api/chat/threads/private', {
+      useChatApi: true,
+      params: { token: authStore.accessToken },
+    })
+    inboxThreads.value = Array.isArray(data)
+      ? data.map((t) => ({
+          id: Number(t.id),
+          full_name: t.full_name,
+          lastMsg: t.lastMsg,
+          updatedAt: t.updatedAt,
+          unreadCount: Number(t.unreadCount || 0),
+        }))
+      : []
+  } catch (error) {
+    console.warn('Không tải được inbox preview:', error)
+    inboxThreads.value = []
+  } finally {
+    inboxLoading.value = false
+  }
+}
+
+const openInbox = async () => {
+  inboxOpen.value = true
+  if (!inboxThreads.value.length) {
+    await loadInboxPreview()
+  }
+}
+
+const closeInbox = () => {
+  inboxOpen.value = false
+}
 
 onMounted(async () => {
   try {
-    const data = await newsService.getAllPosts({ limit: 3 })
-    newsItems.value = data.map(post => ({
+    const data = await newsService.getAllPosts()
+    
+    // Sort by date descending to ensure latest is first
+    const sorted = data.sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
+    
+    newsItems.value = sorted.map(post => ({
       id: post.id,
       slug: post.slug,
       title: post.title,
       date: new Date(post.publish_at || post.created_at).toLocaleDateString('vi-VN'),
-      category: 'Tin tức', // Default label
+      category: 'Tin tức',
       excerpt: post.summary,
       image: post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
     }))
+
+    // Map the latest news to feature cards if available
+    if (newsItems.value.length > 0) {
+      // Slot 1: Big Feature (Performance Coaching slot)
+      featureCards[0].title = newsItems.value[0].title
+      featureCards[0].description = newsItems.value[0].excerpt
+      featureCards[0].badge = 'Mới nhất'
+      featureCards[0].image = newsItems.value[0].image
+      featureCards[0].slug = newsItems.value[0].slug
+    }
+    
+    if (newsItems.value.length > 1) {
+      // Slot 2: Top Right (Member Lounge slot)
+      featureCards[1].title = newsItems.value[1].title
+      featureCards[1].description = newsItems.value[1].excerpt
+      featureCards[1].slug = newsItems.value[1].slug
+      featureCards[1].isNews = true
+    }
+
+    if (newsItems.value.length > 2) {
+      // Slot 3: Bottom Left (Pro Shop slot)
+      featureCards[3].title = newsItems.value[2].title
+      featureCards[3].description = newsItems.value[2].excerpt
+      featureCards[3].slug = newsItems.value[2].slug
+      featureCards[3].isNews = true
+    }
+
+    if (newsItems.value.length > 3) {
+      // Slot 4: Bottom Right (Weekly Mixers slot)
+      featureCards[2].title = newsItems.value[3].title
+      featureCards[2].description = newsItems.value[3].excerpt
+      featureCards[2].slug = newsItems.value[3].slug
+      featureCards[2].isNews = true
+    }
   } catch (error) {
     console.error('Failed to fetch news:', error)
+  }
+
+  authStore.hydrate()
+  await loadInboxPreview()
+  inboxRefreshTimer = window.setInterval(() => {
+    if (authStore.isAuthenticated) {
+      loadInboxPreview()
+    }
+  }, 45000)
+})
+
+onUnmounted(() => {
+  if (inboxRefreshTimer) {
+    window.clearInterval(inboxRefreshTimer)
   }
 })
 
@@ -53,6 +168,16 @@ onMounted(async () => {
 
 <template>
   <div class="home-page">
+    <button
+      class="floating-inbox-btn"
+      type="button"
+      v-if="authStore.isAuthenticated"
+      :title="unreadInboxCount > 0 ? `Có ${unreadInboxCount} tin nhắn chưa đọc` : 'Không có tin nhắn chưa đọc'"
+      @click="$router.push('/players')"
+    >
+      <span class="floating-inbox-icon">✉</span>
+      <span class="floating-inbox-count" v-if="unreadInboxCount > 0">{{ unreadInboxCount }}</span>
+    </button>
     <section class="hero-section">
       <div class="hero-media" :style="{ backgroundImage: 'url(/src/assets/hero_bg.png)' }"></div>
       <div class="hero-overlay"></div>
@@ -66,8 +191,8 @@ onMounted(async () => {
             <span>Saigon Tennis</span>
           </h1>
           <p>
-            Trải nghiệm nhịp điệu tennis hiện đại, nơi hiệu suất thi đấu, cộng đồng đẳng cấp và hệ
-            thống quản lý chuyên nghiệp hội tụ trong một không gian premium.
+            Trải nghiệm nhịp điệu tennis hiện đại, nơi hiệu suất thi đấu, cộng đồng đẳng cấp và hệ thống quản lý
+            chuyên nghiệp hội tụ trong một không gian premium.
           </p>
 
           <div class="hero-actions">
@@ -93,54 +218,56 @@ onMounted(async () => {
     <section class="featured-section container">
       <div class="bento-grid">
         <div class="grid-left-col">
-          <article class="bento-card bento-feature bento-coaching">
-            <div class="feature-image"></div>
+          <RouterLink :to="featureCards[0].slug ? '/news/' + featureCards[0].slug : '/tournaments'" class="bento-card bento-feature bento-coaching">
+            <div class="feature-image" :style="featureCards[0].image ? { backgroundImage: `url(${featureCards[0].image})` } : {}"></div>
             <div class="feature-overlay"></div>
             <div class="feature-content">
               <span class="feature-badge">{{ featureCards[0].badge }}</span>
               <h2>{{ featureCards[0].title }}</h2>
               <p>{{ featureCards[0].description }}</p>
             </div>
-          </article>
+          </RouterLink>
 
-          <article class="bento-card bento-shop">
+          <RouterLink :to="featureCards[3].isNews ? '/news/' + featureCards[3].slug : '/tournaments'" class="bento-card bento-shop">
             <div class="shop-copy">
               <h3>{{ featureCards[3].title }}</h3>
               <p>{{ featureCards[3].description }}</p>
-              <div class="brand-list">
+              <div v-if="!featureCards[3].isNews" class="brand-list">
                 <span v-for="brand in featureCards[3].brands" :key="brand">{{ brand }}</span>
               </div>
+              <div v-else class="inline-link" style="margin-top: 1rem;">Xem tin tức <span>→</span></div>
             </div>
-            <div class="shop-visual">
+            <div v-if="!featureCards[3].isNews" class="shop-visual">
               <div class="racket-card"></div>
             </div>
-          </article>
+          </RouterLink>
         </div>
 
         <div class="grid-right-col">
-          <article class="bento-card bento-lounge">
+          <RouterLink :to="featureCards[1].isNews ? '/news/' + featureCards[1].slug : '/register-otp'" class="bento-card bento-lounge">
             <div class="icon-wrap">✦</div>
             <div>
               <h3>{{ featureCards[1].title }}</h3>
               <p>{{ featureCards[1].description }}</p>
             </div>
-            <div class="capacity-block">
+            <div v-if="!featureCards[1].isNews" class="capacity-block">
               <div class="capacity-track">
                 <div class="capacity-fill"></div>
               </div>
               <span>Capacity: {{ featureCards[1].stat }}</span>
             </div>
-          </article>
+            <div v-else class="inline-link" style="color: white; border-color: white; margin-top: 1rem;">Xem chi tiết <span>→</span></div>
+          </RouterLink>
 
-          <article class="bento-card bento-mixers">
+          <RouterLink :to="featureCards[2].isNews ? '/news/' + featureCards[2].slug : '/matches'" class="bento-card bento-mixers">
             <div class="icon-wrap calendar">◌</div>
             <h3>{{ featureCards[2].title }}</h3>
             <p>{{ featureCards[2].description }}</p>
-            <RouterLink id="weekly-mixers-link" to="/matches" class="inline-link">
-              {{ featureCards[2].cta }}
+            <div class="inline-link">
+              {{ featureCards[2].isNews ? 'Xem ngay' : featureCards[2].cta }}
               <span>→</span>
-            </RouterLink>
-          </article>
+            </div>
+          </RouterLink>
         </div>
       </div>
     </section>
@@ -174,7 +301,56 @@ onMounted(async () => {
 .home-page {
   background: var(--bg-main);
   color: var(--text-dark);
+  position: relative;
 }
+
+.floating-inbox-btn {
+  position: fixed;
+  left: 22px;
+  bottom: 22px;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  background: linear-gradient(135deg, #146250, #1b7a61);
+  color: #fff;
+  box-shadow: 0 18px 34px rgba(20, 98, 80, 0.25);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floating-inbox-icon {
+  font-size: 1.1rem;
+}
+
+.floating-inbox-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 2px solid #fff;
+}
+
+
+
+@media (max-width: 640px) {
+  .floating-inbox-btn {
+    left: 14px;
+    bottom: 14px;
+  }
+}
+
 
 .hero-section {
   position: relative;
@@ -237,8 +413,8 @@ onMounted(async () => {
 
 .hero-copy h1 {
   margin-bottom: 1.5rem;
-  font-size: clamp(2.4rem, 5vw, 4.2rem);
-  line-height: 1;
+  font-size: clamp(2rem, 6vw, 4.2rem); /* Dynamic fluid scaling */
+  line-height: 1.1;
   letter-spacing: -0.01em;
   font-weight: 500;
   color: #fff;
@@ -273,7 +449,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 500;
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -515,7 +691,7 @@ onMounted(async () => {
 
 .capacity-block span {
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #94a3b8;
@@ -681,7 +857,7 @@ onMounted(async () => {
   color: white;
   padding: 0.25rem 0.75rem;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 500;
   text-transform: uppercase;
   border-radius: 2px;
 }
@@ -693,7 +869,7 @@ onMounted(async () => {
 .news-date {
   color: var(--text-muted);
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 500;
   display: block;
   margin-bottom: 0.5rem;
 }
@@ -732,38 +908,43 @@ onMounted(async () => {
 }
 
 
+@media (max-width: 1200px) {
+  .hero-copy { max-width: 600px; }
+  .bento-grid { gap: 1rem; }
+}
+
+@media (max-width: 1024px) {
+  .hero-section { min-height: 450px; }
+  .bento-grid { flex-direction: column; }
+  .grid-left-col, .grid-right-col { flex: 1 1 100%; }
+  .bento-shop { flex-direction: column; align-items: flex-start; }
+  .shop-visual { width: 100%; justify-content: center; }
+}
+
 @media (max-width: 768px) {
-  .hero-section {
-    min-height: auto;
-  }
+  .hero-section { min-height: auto; padding: 3rem 0; }
+  .hero-copy { padding: 0; text-align: center; }
+  .hero-copy p { margin: 1.5rem auto; }
+  .hero-actions { justify-content: center; }
+  .hero-accent-card { display: none; }
+  .featured-section { padding-top: 2rem; padding-bottom: 2rem; }
+  .feature-image { height: 240px; }
+  .section-header h2 { font-size: 1.8rem; }
+  .news-img-wrap { height: 180px; }
+  .bento-card { border-radius: 12px; }
+  .feature-content h2 { font-size: 1.5rem; }
+  .bento-lounge h3, .bento-mixers h3, .bento-shop h3 { font-size: 1.2rem; }
+}
 
-  .hero-copy {
-    padding: 3rem 0;
-  }
-
-  .hero-copy h1 {
-    font-size: 2.2rem;
-  }
-
-  .hero-accent-card {
-    display: none;
-  }
-
-  .featured-section {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-  }
-
-  .feature-image {
-    height: 240px;
-  }
-
-  .section-header h2 {
-    font-size: 1.8rem;
-  }
-
-  .news-img-wrap {
-    height: 180px;
-  }
+@media (max-width: 480px) {
+  .hero-pill { border-radius: 4px; padding: 0.5rem 0.75rem; font-size: 0.65rem; }
+  .hero-copy h1 { font-size: 1.8rem; }
+  .hero-copy p { font-size: 0.95rem; }
+  .news-grid { grid-template-columns: 1fr; }
+  .container { padding-left: 15px; padding-right: 15px; }
 }
 </style>
+
+
+
+

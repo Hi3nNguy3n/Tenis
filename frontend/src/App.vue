@@ -36,6 +36,7 @@ const shouldShowPublicChrome = computed(() => !isAuthLayout.value && !isAdminLay
 .main-default {
   padding-top: 80px;
   min-height: calc(100vh - 220px);
+  scrollbar-gutter: stable; /* Prevent horizontal shifting */
 }
 
 .main-auth,
@@ -61,13 +62,19 @@ const shouldShowPublicChrome = computed(() => !isAuthLayout.value && !isAdminLay
 
 @media (max-width: 1080px) {
   .main-default {
-    padding-top: 80px;
+    padding-top: 70px;
   }
 }
 
 @media (max-width: 640px) {
   .main-default {
-    padding-top: 64px;
+    padding-top: 56px;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-default {
+    padding-top: 50px;
   }
 }
 </style>

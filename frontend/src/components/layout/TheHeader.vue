@@ -37,14 +37,29 @@ const closeMenus = () => {
         <img src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png" alt="Saigon Tennis" class="site-logo" />
       </RouterLink>
 
-      <nav :class="['desktop-nav', { 'mobile-open': isMobileMenuOpen }]" aria-label="Main navigation">
-        <RouterLink to="/" active-class="active" @click="closeMenus">Home</RouterLink>
-        <RouterLink to="/news" active-class="active" @click="closeMenus">News</RouterLink>
-        <RouterLink to="/players" active-class="active" @click="closeMenus">Players</RouterLink>
-        <RouterLink to="/tournaments" active-class="active" @click="closeMenus">Tournaments</RouterLink>
-        <RouterLink to="/matches" active-class="active" @click="closeMenus">Matches</RouterLink>
-        <RouterLink to="/rankings" active-class="active" @click="closeMenus">Ranking</RouterLink>
+      <nav class="desktop-nav" aria-label="Main navigation">
+        <RouterLink to="/" active-class="active">Trang chủ</RouterLink>
+        <RouterLink to="/news" active-class="active">Tin tức</RouterLink>
+        <RouterLink to="/players" active-class="active">Vận động viên</RouterLink>
+        <RouterLink to="/tournaments" active-class="active">Giải đấu</RouterLink>
+        <RouterLink to="/matches" active-class="active">Lịch thi đấu</RouterLink>
+        <RouterLink to="/rankings" active-class="active">Bảng xếp hạng</RouterLink>
       </nav>
+
+      <!-- Mobile Overlay Menu -->
+      <transition name="mobile-nav">
+        <div v-if="isMobileMenuOpen" class="mobile-menu-overlay">
+          <button class="mobile-close-btn" @click="closeMenus">✕</button>
+          <div class="mobile-links">
+            <RouterLink to="/" active-class="active" @click="closeMenus">Home</RouterLink>
+            <RouterLink to="/news" active-class="active" @click="closeMenus">News</RouterLink>
+            <RouterLink to="/players" active-class="active" @click="closeMenus">Players</RouterLink>
+            <RouterLink to="/tournaments" active-class="active" @click="closeMenus">Tournaments</RouterLink>
+            <RouterLink to="/matches" active-class="active" @click="closeMenus">Matches</RouterLink>
+            <RouterLink to="/rankings" active-class="active" @click="closeMenus">Ranking</RouterLink>
+          </div>
+        </div>
+      </transition>
       <div class="nav-actions">
         <!-- Hamburger Menu Button (Mobile Only) -->
         <button :class="['mobile-toggle', { 'is-active': isMobileMenuOpen }]" @click="toggleMobileMenu" aria-label="Toggle menu">
@@ -89,13 +104,14 @@ const closeMenus = () => {
   left: 0;
   right: 0;
   z-index: 1000;
-  background: linear-gradient(to right, #15803d, #064e3b);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  border-bottom: 2px solid #c1ff72;
+  background: rgba(248, 250, 252, 0.92); /* Modern Tech Slate nhạt */
+  backdrop-filter: blur(15px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 }
 
 .nav-shell {
-  min-height: 80px;
+  min-height: 70px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -103,19 +119,24 @@ const closeMenus = () => {
 }
 
 .brand-mark { display: inline-flex; align-items: center; }
-.site-logo { height: 80px; width: auto; object-fit: contain; transition: transform 0.3s ease; }
+.site-logo { 
+  height: 60px; 
+  width: auto; 
+  filter: brightness(0) saturate(100%) invert(32%) sepia(95%) saturate(415%) hue-rotate(94deg) brightness(92%) contrast(92%); /* Giữ màu xanh cho logo trên nền sáng */
+  object-fit: contain; 
+  transition: transform 0.3s ease; 
+}
 .site-logo:hover { transform: scale(1.05); }
 
 .desktop-nav { display: flex; align-items: center; justify-content: center; gap: 2rem; flex-wrap: wrap; }
 .desktop-nav a {
   position: relative;
-  padding: 1.5rem 0;
-  color: #ffffff;
-  font-size: 0.9rem;
-  font-weight: 700;
+  padding: 1.25rem 0;
+  color: #475569; /* Slate 600 */
+  font-size: 0.85rem;
+  font-weight: 500;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  opacity: 0.85;
   text-decoration: none;
 }
 
@@ -125,36 +146,36 @@ const closeMenus = () => {
   left: 0;
   bottom: 0;
   width: 100%;
-  height: 4px;
+  height: 3px;
   transform: scaleX(0);
   transform-origin: left;
-  background: #c1ff72;
+  background: #15803d;
   transition: transform 0.2s ease-out;
 }
 
-.desktop-nav a:hover, .desktop-nav a.active { color: #c1ff72; opacity: 1; }
+.desktop-nav a:hover, .desktop-nav a.active { color: #15803d; }
 .desktop-nav a:hover::after, .desktop-nav a.active::after { transform: scaleX(1); }
 
 .nav-actions { display: flex; align-items: center; gap: 0.75rem; }
 .mobile-toggle { display: none; }
 
 .nav-cta {
-  min-height: 44px;
-  padding: 0 1.5rem;
-  border-radius: 4px;
+  min-height: 40px;
+  padding: 0 1.25rem;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #c1ff72;
-  color: #064e3b;
-  font-weight: 800;
+  background: #15803d;
+  color: #ffffff;
+  font-weight: 500;
   text-transform: uppercase;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   letter-spacing: 0.05em;
   text-decoration: none;
   transition: all 0.2s ease;
 }
-.nav-cta:hover { background: #ffffff; transform: translateY(-2px); }
+.nav-cta:hover { background: #166534; transform: translateY(-1px); }
 
 /* User Profile & Dropdown */
 .user-profile-wrapper { position: relative; }
@@ -181,8 +202,8 @@ const closeMenus = () => {
   justify-content: center;
 }
 .user-avatar-mini img { width: 100%; height: 100%; object-fit: cover; }
-.user-name-text { font-weight: 700; color: #ffffff; font-size: 0.9rem; }
-.dropdown-arrow { color: #ffffff; font-size: 0.8rem; opacity: 0.8; }
+.user-name-text { font-weight: 500; color: #1e293b; font-size: 0.9rem; } /* Chuyển sang màu tối slate-800 */
+.dropdown-arrow { color: #64748b; font-size: 0.8rem; }
 
 .user-dropdown-menu {
   position: absolute;
@@ -212,7 +233,7 @@ hr { margin: 0.5rem 0; border: none; border-top: 1px solid rgba(0, 0, 0, 0.05); 
   text-decoration: none;
   color: #4e6073;
   font-size: 0.94rem;
-  font-weight: 600;
+  font-weight: 500;
   text-align: left;
   background: transparent;
   border: none;
@@ -222,43 +243,96 @@ hr { margin: 0.5rem 0; border: none; border-top: 1px solid rgba(0, 0, 0, 0.05); 
 .logout-action { color: #dc2626; }
 
 /* Responsive Styles */
+/* Mobile Overlay Styles */
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background: #0d1930;
+  z-index: 5000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.mobile-close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 2rem;
+  cursor: pointer;
+}
+
+.mobile-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+  text-align: center;
+}
+
+.mobile-links a {
+  font-size: 1.8rem;
+  font-weight: 500;
+  color: white;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: color 0.2s;
+}
+
+.mobile-links a.active {
+  color: #c1ff72;
+}
+
+/* Transitions */
+.mobile-nav-enter-active, .mobile-nav-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.mobile-nav-enter-from, .mobile-nav-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+
 @media (max-width: 1080px) {
   .nav-shell { padding: 0.5rem 1.5rem; }
   .desktop-nav { display: none; }
   .mobile-toggle { display: flex; align-items: center; justify-content: center; background: transparent; border: none; width: 44px; height: 44px; cursor: pointer; order: 4; z-index: 3000; }
-  .desktop-nav.mobile-open {
-    display: flex;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.98);
-    backdrop-filter: blur(12px);
-    flex-direction: column;
-    padding: 6rem 2rem;
-    gap: 2rem;
-    z-index: 2000;
-    animation: slideDownNav 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  @keyframes slideDownNav { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
-  .desktop-nav.mobile-open a { font-size: 1.5rem; font-weight: 800; color: #fff; border-left: 4px solid transparent; padding-left: 1rem; text-transform: uppercase; }
-  .desktop-nav.mobile-open a.active { color: #c1ff72; border-left-color: #c1ff72; }
 }
 
 @media (max-width: 768px) {
   .nav-user-button .user-name-text { display: none; }
   .mobile-toggle { display: flex; align-items: center; justify-content: center; background: transparent; border: none; width: 44px; height: 44px; cursor: pointer; order: 4; z-index: 3000; }
   .hamburger-box { width: 28px; height: 18px; position: relative; }
-  .hamburger-inner, .hamburger-inner::before, .hamburger-inner::after { width: 28px; height: 2px; background-color: white; border-radius: 4px; position: absolute; transition: all 0.3s ease; }
+  .hamburger-inner, .hamburger-inner::before, .hamburger-inner::after { width: 28px; height: 2px; background-color: #475569; border-radius: 4px; position: absolute; transition: all 0.3s ease; }
   .hamburger-inner { top: 50%; transform: translateY(-50%); }
   .hamburger-inner::before { content: ''; top: -8px; }
   .hamburger-inner::after { content: ''; bottom: -8px; }
   .mobile-toggle.is-active .hamburger-inner { background-color: transparent; }
   .mobile-toggle.is-active .hamburger-inner::before { top: 0; transform: rotate(45deg); }
   .mobile-toggle.is-active .hamburger-inner::after { top: 0; transform: rotate(-45deg); }
+  .user-avatar-mini { border: 1px solid #e2e8f0; }
+  .dropdown-arrow { color: #475569; }
 }
 
 @media (max-width: 640px) {
-  .site-logo { height: 48px; }
-  .nav-shell { min-height: 64px; padding: 0.5rem 1rem; }
+  .site-logo { height: 42px; }
+  .nav-shell { min-height: 56px; padding: 0.5rem 1rem; }
+  .nav-cta { min-height: 38px; padding: 0 1rem; font-size: 0.75rem; }
+}
+
+@media (max-width: 480px) {
+  .site-logo { height: 36px; }
+  .nav-shell { min-height: 50px; }
 }
 
 

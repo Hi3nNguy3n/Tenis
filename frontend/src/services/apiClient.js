@@ -2,36 +2,42 @@ import { getActivePinia } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import { getStoredAccessToken, getStoredTokenType } from '../utils/authStorage'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+// Lấy các Base URL từ biến môi trường
+const MAIN_API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+const CHAT_API_URL = import.meta.env.VITE_API_CHAT_URL || 'http://127.0.0.1:8001'
 
+/**
+ * Tự động lấy Token để gắn vào Header
+ */
 const resolveAuthHeader = () => {
   let accessToken = ''
-  let tokenType = 'bearer'
+  let tokenType = 'Bearer'
 
   const pinia = getActivePinia()
-
   if (pinia) {
     const authStore = useAuthStore(pinia)
     accessToken = authStore.accessToken || ''
-    tokenType = authStore.tokenType || 'bearer'
+    tokenType = authStore.tokenType || 'Bearer'
   }
 
   if (!accessToken) {
     accessToken = getStoredAccessToken()
-    tokenType = getStoredTokenType()
+    tokenType = getStoredTokenType() || 'Bearer'
   }
 
-  if (!accessToken) {
-    return {}
-  }
+  // Tiêu chuẩn JWT thường yêu cầu 'Bearer ' viết hoa chữ B
+  const normalizedType = tokenType.charAt(0).toUpperCase() + tokenType.slice(1).toLowerCase()
 
-  const normalizedType = tokenType || 'bearer'
+  if (!accessToken) return {}
 
   return {
     Authorization: `${normalizedType} ${accessToken}`,
   }
 }
 
+/**
+ * Chuẩn hóa Header cho mỗi Request
+ */
 const normalizeHeaders = (headers = {}, includeJson = true) => {
   const authHeaders = resolveAuthHeader()
   const defaultHeaders = includeJson ? { 'Content-Type': 'application/json' } : {}
@@ -43,23 +49,38 @@ const normalizeHeaders = (headers = {}, includeJson = true) => {
   }
 }
 
+/**
+ * Xử lý dữ liệu trả về từ Server
+ */
 const parseResponse = async (response) => {
   const contentType = response.headers.get('content-type') || ''
-
   if (contentType.includes('application/json')) {
     return response.json()
   }
-
   return response.text()
 }
 
+/**
+ * API CLIENT - Wrapper cho Fetch API
+ */
 export const apiClient = {
   async request(endpoint, options = {}) {
-    const { headers, body, params, method = 'GET', includeJson = true, ...rest } = options
+    const {
+      headers,
+      body,
+      params,
+      method = 'GET',
+      includeJson = true,
+      useChatApi = false,
+      ...rest
+    } = options
 
-    let url = `${API_BASE_URL}${endpoint}`
+    const baseUrl = useChatApi ? CHAT_API_URL : MAIN_API_URL
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+
+    let url = `${baseUrl}${cleanEndpoint}`
+
     if (params && Object.keys(params).length > 0) {
-      // Clean params: remove null, undefined, or empty strings
       const cleanParams = Object.keys(params).reduce((acc, key) => {
         const value = params[key]
         if (value !== null && value !== undefined && value !== '') {
@@ -74,15 +95,17 @@ export const apiClient = {
       }
     }
 
-    // Nếu body là FormData, trình duyệt sẽ tự đặt Content-Type (multipart/form-data) kèm boundary
-    // nên ta cần tránh ép kiểu JSON.
     const isFormData = body instanceof FormData
     const finalIncludeJson = isFormData ? false : includeJson
 
     const response = await fetch(url, {
       method,
       headers: normalizeHeaders(headers, finalIncludeJson),
-      body,
+      body: isFormData
+        ? body
+        : body && typeof body !== 'string' && finalIncludeJson
+          ? JSON.stringify(body)
+          : body,
       ...rest,
     })
 
@@ -91,8 +114,8 @@ export const apiClient = {
     if (!response.ok) {
       const message =
         typeof data === 'object' && data !== null
-          ? data.detail || data.message || 'API request failed.'
-          : data || 'API request failed.'
+          ? data.detail || data.message || 'Yêu cầu API thất bại.'
+          : data || 'Yêu cầu API thất bại.'
 
       const error = new Error(message)
       error.status = response.status
@@ -102,39 +125,38 @@ export const apiClient = {
 
     return data
   },
+
   get(endpoint, options = {}) {
     return this.request(endpoint, { ...options, method: 'GET' })
   },
+
   post(endpoint, payload, options = {}) {
-    const isFormData = payload instanceof FormData
     return this.request(endpoint, {
       ...options,
       method: 'POST',
-      body: isFormData ? payload : (typeof payload === 'string' ? payload : JSON.stringify(payload)),
+      body: payload,
+    })
+  },
+
+  put(endpoint, payload, options = {}) {
+    return this.request(endpoint, {
+      ...options,
+      method: 'PUT',
+      body: payload,
     })
   },
 
   patch(endpoint, payload, options = {}) {
-    const isFormData = payload instanceof FormData
     return this.request(endpoint, {
       ...options,
       method: 'PATCH',
-      body: isFormData ? payload : (typeof payload === 'string' ? payload : JSON.stringify(payload)),
+      body: payload,
     })
   },
-  put(endpoint, payload, options = {}) {
-    const isFormData = payload instanceof FormData
-    return this.request(endpoint, {
-      ...options,
-      method: 'PUT',
-      body: isFormData ? payload : (typeof payload === 'string' ? payload : JSON.stringify(payload)),
-    })
-  },
+
   delete(endpoint, options = {}) {
     return this.request(endpoint, { ...options, method: 'DELETE' })
   },
 }
 
-
 export default apiClient
-

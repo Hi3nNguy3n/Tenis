@@ -80,8 +80,8 @@ class MatchScheduleUpdate(BaseModel):
 def schedule_match(match_id: int, payload: MatchScheduleUpdate, db: Session = Depends(get_db)):
     return crud_tournament.schedule_match_db(db, match_id, payload)
 
-# 9. LẤY TẤT CẢ TRẬN ĐẤU (ADMIN ONLY)
-@router.get("/matches/all", dependencies=[Depends(get_current_admin)])
+# 9. LẤY TẤT CẢ TRẬN ĐẤU (PUBLIC - hiển thị trên trang Lịch thi đấu)
+@router.get("/matches/all")
 def read_all_matches(db: Session = Depends(get_db)):
     return crud_tournament.get_all_matches_detail(db)
 

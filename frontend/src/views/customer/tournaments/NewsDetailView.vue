@@ -288,7 +288,16 @@ const formatDate = (dateStr) => {
 @media (max-width: 900px) {
   .article-layout { grid-template-columns: 1fr; }
   .article-social { display: none; }
-  .article-header h1 { font-size: 2.2rem; }
+  .article-header h1 { font-size: 2.5rem; }
   .article-meta-modern { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
+  .container { padding: 40px 15px; }
+}
+
+@media (max-width: 600px) {
+  .article-header h1 { font-size: 1.8rem; margin-bottom: 1.5rem; }
+  .article-hero { margin-bottom: 2rem; }
+  .article-hero img { border-radius: 12px; }
+  .article-content-rich { font-size: 1.1rem; }
+  .article-content-rich :deep(blockquote) { padding: 20px; font-size: 1.2rem; }
 }
 </style>

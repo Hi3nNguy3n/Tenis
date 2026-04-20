@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { adminModules } from '../constants/adminNavigation'
 
+import ChatTest from '../views/customer/ChatRoom.vue'
+
 // --- CUSTOMER VIEWS ---
 const HomeView = () => import('../views/customer/HomeView.vue')
 const TournamentsView = () => import('../views/customer/tournaments/TournamentsView.vue')
@@ -47,6 +49,7 @@ const adminViewFactories = {
   calendar: () => import('../views/admin/AdminCalendarView.vue'),
   news: () => import('../views/admin/NewsManagementView.vue'),
   rankings: () => import('../views/admin/AdminRankingsView.vue'),
+  mailCampaign: () => import('../views/admin/MailCampaignView.vue'),
 }
 
 
@@ -188,7 +191,20 @@ const router = createRouter({
       name: 'matches',
       component: MatchesView,
     },
+    {
+      path: '/chat',
+      name: 'ChatRoom',
+      component: ChatTest,
+      meta: { requiresAuth: true } // Nếu hệ thống của bạn có check đăng nhập
+    }
   ],
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    } else {
+      return { top: 0 }
+    }
+  },
 })
 
 router.beforeEach(async (to) => {

@@ -160,17 +160,73 @@ const getSkillType = (skill) => {
 </template>
 
 <style scoped>
-.module-shell { display: grid; gap: 24px; }
-.hero-card, .filter-card, .table-card {
-  background: white; padding: 24px; border-radius: 8px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.03);
+.module-shell { 
+  display: grid; 
+  gap: 24px; 
 }
-.hero-card { display: flex; justify-content: space-between; align-items: flex-end; }
-.section-kicker { font-size: 0.75rem; font-weight: 500; color: var(--primary); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px; }
-.hero-card h2 { font-size: 2.22rem; color: var(--text-dark); margin: 0; }
-.hero-card p { color: #6e7a74; margin-top: 8px; }
-.filter-card { display: flex; gap: 15px; }
-.player-info { display: flex; align-items: center; gap: 12px; }
-.player-info .details { display: flex; flex-direction: column; }
-.player-info .details span { font-size: 0.75rem; color: #9e9e9e; }
+
+.filter-card, .table-card {
+  background: rgba(248, 250, 252, 0.97);
+  padding: 24px; 
+  border-radius: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+}
+
+.filter-card { 
+  display: flex; 
+  align-items: center;
+  gap: 15px; 
+  flex-wrap: wrap;
+}
+
+.player-info { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+}
+
+.player-info .details { 
+  display: flex; 
+  flex-direction: column; 
+}
+
+.player-info .details span:first-child {
+  font-weight: 500;
+  color: #0f172a;
+  font-size: 0.92rem;
+}
+
+.player-info .details span:last-child { 
+  font-size: 0.75rem; 
+  color: #64748b; 
+}
+
+/* Redefining Element Plus table overrides for consistency */
+:deep(.el-table) {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(0, 0, 0, 0.02);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+:deep(.el-table th.el-table__cell) {
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+:deep(.el-table__row) {
+  transition: background 0.2s;
+}
+
+:deep(.el-table__row:hover > td.el-table__cell) {
+  background-color: rgba(255, 255, 255, 0.4) !important;
+}
 </style>

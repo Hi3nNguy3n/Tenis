@@ -19,6 +19,12 @@ const fetchTournaments = () => {
   tournamentStore.fetchTournaments({ search: searchQuery.value })
 }
 
+const normalizeDateKey = (value) => {
+  if (!value || typeof value !== 'string') return ''
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})/)
+  return match ? match[1] : value
+}
+
 onMounted(async () => {
   fetchTournaments()
   
@@ -43,8 +49,8 @@ onMounted(async () => {
 const groupedTournaments = computed(() => {
   const groups = {}
   tournamentStore.tournaments.forEach(t => {
-    const date = new Date(t.start_date)
-    const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+    const dateKey = normalizeDateKey(t.start_date)
+    const monthYear = dateKey ? new Date(`${dateKey}T12:00:00`).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Khác'
     if (!groups[monthYear]) groups[monthYear] = []
     groups[monthYear].push(t)
   })
@@ -57,7 +63,9 @@ const viewDetail = (id) => {
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+  const dateKey = normalizeDateKey(dateStr)
+  if (!dateKey) return ''
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
 }
 </script>
 
@@ -208,7 +216,7 @@ const formatDate = (dateStr) => {
 .tournaments-page {
   background: #fff;
   min-height: 100vh;
-  margin-top: 80px;
+  margin-top: 0;
 }
 
 /* SUB NAVIGATION */
@@ -252,16 +260,24 @@ const formatDate = (dateStr) => {
   display: grid;
   grid-template-columns: 1fr 320px;
   gap: 3rem;
-  padding-top: 2.5rem;
+  padding-top: 1.5rem;
   padding-bottom: 6rem;
 }
 
 /* CALENDAR COLUMN */
-.calendar-header { margin-bottom: 3rem; }
+.calendar-header {
+  margin-bottom: 1.5rem;
+  position: sticky;
+  top: 80px;
+  z-index: 20;
+  padding: 1rem 0 1.25rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.92) 100%);
+  backdrop-filter: blur(8px);
+}
 
 .title-row h1 {
   font-size: 1.8rem;
-  font-weight: 500;
+  font-weight: 400;
   text-transform: uppercase;
   color: #0f172a;
 }
@@ -269,7 +285,7 @@ const formatDate = (dateStr) => {
 .title-row h1 span { color: var(--primary); font-weight: 400; }
 
 .calendar-controls {
-  margin-top: 2rem;
+  margin-top: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -420,16 +436,25 @@ const formatDate = (dateStr) => {
 .stats-list li span:last-child { color: #0f172a; font-weight: 500; }
 
 @media (max-width: 1080px) {
-  .main-layout { grid-template-columns: 1fr; }
-  .sidebar-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .main-layout { grid-template-columns: 1fr; gap: 2rem; }
+  .sidebar-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
 }
 
 @media (max-width: 768px) {
-  .calendar-controls { flex-direction: column; align-items: stretch; }
-  .tour-row-card { flex-direction: column; align-items: stretch; gap: 1rem; text-align: center; }
+  .calendar-header h1 { font-size: 1.5rem; }
+  .calendar-controls { flex-direction: column; align-items: stretch; margin-top: 1rem; }
+  .tour-row-card { flex-direction: column; align-items: stretch; gap: 1rem; text-align: center; border-radius: 12px; padding: 1.5rem; }
   .tour-badge { width: 100%; border: none; border-bottom: 1px solid var(--border-light); padding: 0 0 1rem; margin: 0; }
-  .tour-specs { padding: 1rem 0; border: none; border-bottom: 1px solid var(--border-light); margin: 0; justify-content: center; }
+  .badge-inner { text-align: center; }
+  .tour-specs { padding: 1rem 0; border: none; border-bottom: 1px solid var(--border-light); margin: 0; justify-content: center; gap: 1rem; }
   .btn-tickets { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .calendar-header h1 { font-size: 1.3rem; }
+  .location-text { font-size: 1rem; }
+  .tour-name-text { font-size: 0.8rem; }
+  .month-header span:first-child { font-size: 1rem; }
 }
 
 .loading-state { text-align: center; padding: 4rem; }

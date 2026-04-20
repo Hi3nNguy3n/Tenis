@@ -359,19 +359,23 @@ onMounted(fetchNews)
 .mobile-news-list { display: none; }
 
 @media (max-width: 1024px) {
-  .magazine-layout { grid-template-columns: 1fr; }
+  .magazine-layout { grid-template-columns: 1fr; gap: 2rem; }
   .entry-title { font-size: 2.2rem; }
-  .mobile-news-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    margin-top: 3rem;
-  }
 }
 
 @media (max-width: 768px) {
-  .news-inner-nav { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .news-inner-nav { flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.5rem 0; }
+  .nav-brand { justify-content: space-between; font-size: 1rem; }
+  .el-dropdown-link { font-size: 1rem; }
   .minimal-search { width: 100%; }
+  .container { padding: 0 12px; }
+}
+
+@media (max-width: 480px) {
+  .atp-news-portal { padding-top: 50px; }
+  .entry-title { font-size: 1.4rem; margin-bottom: 0.75rem; line-height: 1.2; word-break: break-word; }
+  .entry-excerpt { font-size: 0.9rem; margin-bottom: 1rem; }
+  .featured-grand-entry { margin-bottom: 1.5rem; }
 }
 </style>
 

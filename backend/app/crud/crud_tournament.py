@@ -234,21 +234,45 @@ def get_all_matches_detail(db: Session):
     ).outerjoin(
         Court, Match.court_id == Court.id
     ).order_by(desc(Match.start_time)).all()
-    
+
+    # Helper lấy tên VĐV từ registration_id
+    def get_player_name(reg_id):
+        if not reg_id:
+            return None
+        reg = db.query(Registration).filter(Registration.id == reg_id).first()
+        if not reg:
+            return None
+        user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == reg.player_id).first()
+        return user.full_name if user else None
+
     results = []
     for m, t, c in matches:
-        # Chuyển đổi date thành string ISO để tránh lỗi 500 khi JSON serialize
-        match_date = m.match_date or t.start_date
+        # Ưu tiên match_date của trận, fallback về start_time.date(), cuối cùng là start_date giải
+        if m.match_date:
+            match_date = m.match_date
+        elif m.start_time:
+            match_date = m.start_time.date()
+        else:
+            match_date = t.start_date
+
         results.append({
-            "id": m.id, 
-            "tournament": t.name, 
-            "court": c.court_name if c else "Chưa gán sân",
+            "id": m.id,
+            "tournament_id": t.id,
+            "tournament": t.name,
+            "location": t.location or "Vietnam",
+            "round_code": m.round_code,
+            "court": c.court_name if c else "Chua gan san",
             "date": match_date.isoformat() if match_date else None,
+            "start_time": m.start_time.isoformat() if m.start_time else None,
             "start": m.start_time.strftime("%H:%M") if m.start_time else "--:--",
-            "end": "--:--", 
-            "status": m.status
+            "status": m.status,
+            "p1_name": get_player_name(m.side_a_registration_id),
+            "p2_name": get_player_name(m.side_b_registration_id),
+            "winner_side": m.winner_side,
+            "score": m.score_summary,
         })
     return results
+
 
 def calculate_elo_and_update_match(db: Session, match_id: int, payload):
     match = db.query(Match).filter(Match.id == match_id).first()

@@ -40,6 +40,7 @@ html, body {
 
 html {
   font-family: Arial, sans-serif;
+  scrollbar-gutter: stable; /* Prevent content jumping when scrollbar appears */
 }
 
 body {
@@ -87,8 +88,13 @@ figcaption {
    TYPOGRAPHY
    ============================================================ */
 h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.2;
+}
+
+strong,
+b {
+  font-weight: 600;
 }
 
 a {
@@ -130,7 +136,7 @@ ul {
 
 .atp-section-title {
   font-size: 1.4rem;
-  font-weight: 800;
+  font-weight: 500;
   color: var(--text-dark);
   text-transform: uppercase;
   letter-spacing: -0.01em;
@@ -143,7 +149,7 @@ ul {
 .btn {
   padding: 0.75rem 1.8rem;
   border-radius: 4px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   cursor: pointer;
@@ -196,7 +202,7 @@ ul {
 .atp-table-wrapper :deep(.el-table th) {
   background: var(--bg-soft) !important;
   color: var(--text-muted);
-  font-weight: 800;
+  font-weight: 500;
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
@@ -224,6 +230,14 @@ ul {
 :deep(.el-pagination),
 :deep(.el-tag) {
   font-family: Arial, sans-serif !important;
+}
+
+:deep(.el-button),
+:deep(.el-link),
+:deep(.el-form-item__label),
+:deep(.el-radio__label),
+:deep(.el-checkbox__label) {
+  font-weight: 500 !important;
 }
 
 /* Page transitions */

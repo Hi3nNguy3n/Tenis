@@ -12,6 +12,13 @@ const dialogVisible = ref(false)
 const selectedDateStr = ref('')
 const selectedDayMatches = ref([])
 
+const normalizeDateKey = (value) => {
+  if (!value) return ''
+  if (typeof value !== 'string') return ''
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})/)
+  return match ? match[1] : value
+}
+
 const fetchMatches = async () => {
   isLoading.value = true
   try {
@@ -25,7 +32,8 @@ const fetchMatches = async () => {
 }
 
 const getMatchesByDate = (dateStr) => {
-  return matches.value.filter(m => m.date === dateStr)
+  const dayKey = normalizeDateKey(dateStr)
+  return matches.value.filter(m => normalizeDateKey(m.date || m.start_time) === dayKey)
 }
 
 // --- HÀM MỞ POPUP HIỂN THỊ DANH SÁCH TRẬN THEO NGÀY ---
@@ -162,6 +170,9 @@ onMounted(fetchMatches)
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+  position: sticky;
+  top: 16px;
+  z-index: 40;
 }
 
 .kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
@@ -188,6 +199,7 @@ onMounted(fetchMatches)
 .calendar-card-premium {
   background: white; border-radius: 20px; border: 1px solid #f1f5f9;
   box-shadow: 0 10px 30px rgba(0,0,0,0.03); overflow: hidden;
+  min-height: calc(100vh - 160px);
 }
 
 .calendar-cell { height: 100%; display: flex; flex-direction: column; gap: 4px; }
@@ -207,7 +219,16 @@ onMounted(fetchMatches)
 .more-indicator { font-size: 0.55rem; color: #94a3b8; font-weight: 700; margin-top: 2px; }
 
 :deep(.modern-admin-calendar) { border: none !important; }
-:deep(.modern-admin-calendar .el-calendar-day) { height: 110px !important; padding: 12px !important; transition: all 0.2s ease; }
+:deep(.modern-admin-calendar .el-calendar-day) { height: 118px !important; padding: 12px !important; transition: all 0.2s ease; }
+:deep(.modern-admin-calendar .el-calendar__header) {
+  position: sticky;
+  top: 84px;
+  z-index: 35;
+  background: #fff;
+}
+:deep(.modern-admin-calendar .el-calendar__body) {
+  padding-top: 0 !important;
+}
 :deep(.modern-admin-calendar .el-calendar-day:hover) { background: #f8fafc; }
 :deep(.modern-admin-calendar .is-today .day-num) { color: #3b82f6; text-decoration: underline; }
 

@@ -10,6 +10,12 @@ const pendingMatches = ref([])
 const isLoading = ref(false)
 const selectedDate = ref(new Date().toISOString().split('T')[0])
 
+const normalizeDateKey = (value) => {
+  if (!value || typeof value !== 'string') return ''
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})/)
+  return match ? match[1] : value
+}
+
 // --- STATE CHO DIALOG ĐIỀU PHỐI ---
 const isDialogOpen = ref(false)
 const isSaving = ref(false)
@@ -31,7 +37,7 @@ const fetchData = async () => {
 
     const matchesData = await apiClient.get('/api/tournaments/matches/all')
     
-    matches.value = matchesData.filter(m => m.date === selectedDate.value && m.court && m.start !== '--:--')
+    matches.value = matchesData.filter(m => normalizeDateKey(m.date || m.start_time) === selectedDate.value && m.court && m.start !== '--:--')
     pendingMatches.value = matchesData.filter(m => m.status === 'pending' || !m.court || m.start === '--:--')
   } catch (err) {
     ElMessage.error('Lỗi tải lịch trình: ' + err.message)
@@ -41,7 +47,7 @@ const fetchData = async () => {
 }
 
 const changeDate = (days) => {
-  const date = new Date(selectedDate.value)
+  const date = new Date(`${selectedDate.value}T12:00:00`)
   date.setDate(date.getDate() + days)
   selectedDate.value = date.toISOString().split('T')[0]
   fetchData()
@@ -60,10 +66,11 @@ const openCreateSchedule = () => {
 const openEditSchedule = (match) => {
   isEditing.value = true
   const targetCourt = courts.value.find(c => c.court_name === match.court)
+  const dayKey = normalizeDateKey(match.date || match.start_time)
   form.value = {
     match_id: match.id,
     court_id: targetCourt ? targetCourt.id : null,
-    start_time: `${match.date}T${match.start}:00`
+    start_time: dayKey ? `${dayKey}T${match.start}:00` : ''
   }
   isDialogOpen.value = true
 }
@@ -256,6 +263,9 @@ onMounted(fetchData)
   display: flex; justify-content: space-between; align-items: center;
   border-left: 5px solid var(--primary); border: 1px solid #eef2f6;
   flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+  z-index: 35;
 }
 .action-info p { color: #888; font-size: 0.9rem; margin: 2px 0 0 0; }
 .section-kicker { font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 2px; }
@@ -269,9 +279,11 @@ onMounted(fetchData)
 .schedule-wrapper { 
   flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; 
   background: white; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+  min-height: calc(100vh - 230px);
 }
 .schedule-scroll-container { 
-  height: 100%; overflow: auto; position: relative; 
+  height: 100%; overflow: auto; position: relative;
+  max-height: calc(100vh - 230px);
 }
 
 /* Header Grid */
@@ -343,4 +355,17 @@ onMounted(fetchData)
 .form-row-2 { display: flex; gap: 20px; }
 :deep(.el-form-item__label) { font-weight: 700; color: #334155; padding-bottom: 5px; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 15px; border-top: 1px solid #f1f5f9; }
+
+@media (max-width: 1280px) {
+  .schedule-container {
+    height: auto;
+    min-height: calc(100vh - 100px);
+  }
+
+  .schedule-wrapper,
+  .schedule-scroll-container {
+    min-height: 0;
+    max-height: none;
+  }
+}
 </style>

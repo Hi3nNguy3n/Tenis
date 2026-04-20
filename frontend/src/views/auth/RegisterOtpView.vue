@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { User, Lock, Phone, Location, Calendar, Warning, Check, Female, Male, Loading } from '@element-plus/icons-vue'
+import { User, Lock, Phone, Location, Calendar, Check, Loading, View, Hide } from '@element-plus/icons-vue'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const SEND_OTP_ENDPOINT = `${API_BASE_URL}/api/auth/send-otp`
@@ -15,13 +15,13 @@ const successMessage = ref('')
 const showPassword = ref(false)
 
 const vietnamProvinces = [
-  "An Giang", "Bắc Ninh", "Cà Mau", "Cao Bằng", "Đắk Lắk", 
-  "Điện Biên", "Đồng Nai", "Đồng Tháp", "Gia Lai", "Hà Tĩnh", 
-  "Hưng Yên", "Khánh Hòa", "Lai Châu", "Lâm Đồng", "Lạng Sơn", 
-  "Lào Cai", "Nghệ An", "Ninh Bình", "Phú Thọ", "Quảng Ngãi", 
-  "Quảng Ninh", "Quảng Trị", "Sơn La", "Tây Ninh", "Thái Nguyên", 
-  "Thanh Hóa", "TP Cần Thơ", "TP Đà Nẵng", "TP Hà Nội", "TP Hải Phòng", 
-  "TP Hồ Chí Minh", "TP Huế", "Tuyên Quang", "Vĩnh Long"
+  'An Giang', 'Bắc Ninh', 'Cà Mau', 'Cao Bằng', 'Đắk Lắk',
+  'Điện Biên', 'Đồng Nai', 'Đồng Tháp', 'Gia Lai', 'Hà Tĩnh',
+  'Hưng Yên', 'Khánh Hòa', 'Lai Châu', 'Lâm Đồng', 'Lạng Sơn',
+  'Lào Cai', 'Nghệ An', 'Ninh Bình', 'Phú Thọ', 'Quảng Ngãi',
+  'Quảng Ninh', 'Quảng Trị', 'Sơn La', 'Tây Ninh', 'Thái Nguyên',
+  'Thanh Hóa', 'TP Cần Thơ', 'TP Đà Nẵng', 'TP Hà Nội', 'TP Hải Phòng',
+  'TP Hồ Chí Minh', 'TP Huế', 'Tuyên Quang', 'Vĩnh Long',
 ]
 
 const form = ref({
@@ -125,7 +125,6 @@ const startRegistration = async () => {
 
 <template>
   <div class="veridian-register-layout">
-    <!-- Visual Panel -->
     <div class="visual-panel">
       <div class="grid-overlay"></div>
       <div class="brand-content">
@@ -150,12 +149,10 @@ const startRegistration = async () => {
       </div>
     </div>
 
-    <!-- Form Panel -->
     <div class="form-panel">
       <div class="scroll-container">
         <div class="onboarding-box">
           <header class="veridian-header">
-            <p class="pre-title">QUẢN TRỊ VIÊN SAIGON TENNIS</p>
             <h1>Đăng ký Thành viên</h1>
             <p class="intro-p">Tạo tài khoản chính thức để đăng ký giải đấu và truy cập hệ thống quản lý.</p>
           </header>
@@ -229,24 +226,25 @@ const startRegistration = async () => {
                 <label>MẬT KHẨU TRUY CẬP</label>
                 <div class="input-wrap">
                   <el-icon class="icon"><Lock /></el-icon>
-                  <input 
-                    v-model="form.password" 
-                    :type="showPassword ? 'text' : 'password'" 
-                    placeholder="••••••••" 
-                    required 
+                  <input
+                    v-model="form.password"
+                    :type="showPassword ? 'text' : 'password'"
+                    placeholder="••••••••"
+                    required
                   />
                   <el-button link class="eye-btn" @click="showPassword = !showPassword">
-                    <el-icon v-if="!showPassword"><View /></el-icon><el-icon v-else><Hide /></el-icon>
+                    <el-icon v-if="!showPassword"><View /></el-icon>
+                    <el-icon v-else><Hide /></el-icon>
                   </el-button>
                 </div>
               </div>
             </div>
 
             <div class="form-options">
-               <label class="remember-check">
-                 <input type="checkbox"> <span>Ghi nhớ phiên đăng nhập</span>
-               </label>
-               <router-link to="/login" class="login-redirect">Đã có tài khoản?</router-link>
+              <label class="remember-check">
+                <input type="checkbox"> <span>Ghi nhớ phiên đăng nhập</span>
+              </label>
+              <router-link to="/login" class="login-redirect">Đã có tài khoản?</router-link>
             </div>
 
             <button type="submit" :disabled="isSendingOtp" class="btn-initialize-session">
@@ -269,326 +267,49 @@ const startRegistration = async () => {
 </template>
 
 <style scoped>
-.veridian-register-layout {
-  display: flex;
-  min-height: 100vh;
-  background: #f7f9fa;
-  color: #1a1c1e;
-  font-family: Arial, sans-serif;
-  overflow: hidden;
-}
-
-/* --- Visual Side (Left) --- */
-.visual-panel {
-  flex: 1.1;
-  position: relative;
-  background: linear-gradient(135deg, #abb1ab 0%, #878c87 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-right: 1px solid rgba(0,0,0,0.05);
-}
-
-.visual-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: 
-    linear-gradient(90deg, transparent 49%, rgba(0,0,0,0.02) 50%, transparent 51%),
-    linear-gradient(90deg, transparent 24%, rgba(0,0,0,0.02) 25%, transparent 26%);
-  background-size: 200px 100%;
-}
-
-.brand-content {
-  position: relative;
-  z-index: 10;
-  width: 70%;
-}
-
-.hero-text h2 {
-  font-size: clamp(4rem, 7vw, 7.5rem);
-  font-weight: 900;
-  line-height: 0.85;
-  font-style: italic;
-  margin: 0;
-  letter-spacing: -0.04em;
-}
-
-.text-top { color: #fff; }
-.text-bottom { color: rgba(255,255,255,0.4); }
-
-.kicker-line {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-top: 2rem;
-}
-
-.lime-bar {
-  width: 50px;
-  height: 3px;
-  background: #c1ff72;
-}
-
-.kicker-line p {
-  font-size: 0.8rem;
-  font-weight: 800;
-  letter-spacing: 0.15em;
-  color: #fff;
-}
-
-.status-box {
-  position: absolute;
-  bottom: 60px;
-  left: 60px;
-  background: #fff;
-  padding: 16px 24px;
-  border-radius: 6px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-}
-
-.status-inner {
-  display: flex;
-  align-items: center;
-  gap: 30px;
-}
-
-.status-label-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.status-title {
-  font-size: 0.6rem;
-  font-weight: 800;
-  color: #888;
-}
-
-.status-desc {
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.status-badge {
-  background: #4a6300;
-  color: #c1ff72;
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 900;
-}
-
-/* --- Form Side (Right) --- */
-.form-panel {
-  flex: 1;
-  background: #f7fbff; /* Very subtle blue tint */
-  display: flex;
-}
-
-.scroll-container {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 40px;
-}
-
-.onboarding-box {
-  width: 100%;
-  max-width: 480px;
-}
-
-.veridian-header {
-  margin-bottom: 2.5rem;
-}
-
-.pre-title {
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  color: #839100;
-  margin-bottom: 1rem;
-}
-
-.veridian-header h1 {
-  font-size: 2.8rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  margin-bottom: 1rem;
-}
-
-.intro-p {
-  color: #6c7278;
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
-
-.onboarding-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.field label {
-  display: block;
-  font-size: 0.65rem;
-  font-weight: 800;
-  color: #90a4ae;
-  margin-bottom: 0.6rem;
-  letter-spacing: 0.05em;
-}
-
-.input-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.input-wrap .icon {
-  position: absolute;
-  left: 14px;
-  color: #b0bec5;
-  font-size: 1.1rem;
-}
-
-.input-wrap input,
-.custom-native-select {
-  width: 100%;
-  padding: 1.1rem 1rem 1.1rem 3.5rem;
-  background: #e9eff2;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.95rem;
-  color: #263238;
-  outline: none;
-  transition: all 0.2s;
-}
-
-.input-wrap input:focus {
-  background: #fff;
-  box-shadow: 0 0 0 2px #c1ff72;
-}
-
-.gender-radio-group {
-  display: flex;
-  gap: 10px;
-}
-
-.radio-item {
-  flex: 1;
-  background: #e9eff2;
-  padding: 1.1rem;
-  border-radius: 4px;
-  text-align: center;
-  font-size: 0.8rem;
-  font-weight: 800;
-  color: #90a4ae;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
+.veridian-register-layout { display: flex; min-height: 100vh; background: #f7f9fa; color: #1a1c1e; font-family: Arial, sans-serif; overflow: hidden; }
+.visual-panel { flex: 1.1; position: relative; background: linear-gradient(135deg, #abb1ab 0%, #878c87 100%); display: flex; align-items: center; justify-content: center; border-right: 1px solid rgba(0,0,0,0.05); }
+.visual-panel::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 49%, rgba(0,0,0,0.02) 50%, transparent 51%), linear-gradient(90deg, transparent 24%, rgba(0,0,0,0.02) 25%, transparent 26%); background-size: 200px 100%; }
+.brand-content { position: relative; z-index: 10; width: 70%; }
+.hero-text h2 { font-size: clamp(4rem, 7vw, 7.5rem); font-weight: 500; line-height: 0.85; font-style: italic; margin: 0; letter-spacing: -0.04em; }
+.text-top { color: #fff; } .text-bottom { color: rgba(255,255,255,0.4); }
+.kicker-line { display: flex; align-items: center; gap: 15px; margin-top: 2rem; }
+.lime-bar { width: 50px; height: 3px; background: #c1ff72; }
+.kicker-line p { font-size: 0.8rem; font-weight: 500; letter-spacing: 0.15em; color: #fff; }
+.status-box { position: absolute; bottom: 60px; left: 60px; background: #fff; padding: 16px 24px; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+.status-inner { display: flex; align-items: center; gap: 30px; } .status-label-group { display: flex; flex-direction: column; }
+.status-title { font-size: 0.6rem; font-weight: 500; color: #888; } .status-desc { font-size: 0.95rem; font-weight: 500; }
+.status-badge { background: #4a6300; color: #c1ff72; padding: 4px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
+.form-panel { flex: 1; background: #f7fbff; display: flex; }
+.scroll-container { flex: 1; overflow-y: auto; display: flex; align-items: center; justify-content: center; padding: 60px 40px; }
+.onboarding-box { width: 100%; max-width: 480px; }
+.veridian-header { margin-bottom: 2.5rem; }
+.pre-title { font-size: 0.75rem; font-weight: 500; letter-spacing: 0.12em; color: #839100; margin-bottom: 1rem; }
+.veridian-header h1 { font-size: 2.8rem; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 1rem; }
+.intro-p { color: #6c7278; font-size: 0.95rem; line-height: 1.6; }
+.onboarding-form { display: flex; flex-direction: column; gap: 1.5rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.field label { display: block; font-size: 0.65rem; font-weight: 500; color: #90a4ae; margin-bottom: 0.6rem; letter-spacing: 0.05em; }
+.input-wrap { position: relative; display: flex; align-items: center; }
+.input-wrap .icon { position: absolute; left: 14px; color: #b0bec5; font-size: 1.1rem; }
+.input-wrap input, .custom-native-select { width: 100%; padding: 1.1rem 1rem 1.1rem 3.5rem; background: #e9eff2; border: none; border-radius: 4px; font-size: 0.95rem; color: #263238; outline: none; transition: all 0.2s; font-family: Arial, sans-serif; }
+.input-wrap input:focus { background: #fff; box-shadow: 0 0 0 2px #c1ff72; }
+.gender-radio-group { display: flex; gap: 10px; }
+.radio-item { flex: 1; background: #e9eff2; padding: 1.1rem; border-radius: 4px; text-align: center; font-size: 0.8rem; font-weight: 500; color: #90a4ae; cursor: pointer; transition: all 0.2s; }
 .radio-item input { display: none; }
-
-.radio-item.active {
-  background: #fff;
-  color: #839100;
-  box-shadow: inset 0 0 0 2px #c1ff72;
-}
-
-.form-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.8rem;
-}
-
-.remember-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #90a4ae;
-}
-
-.login-redirect {
-  color: #839100;
-  text-decoration: none;
-  font-weight: 700;
-}
-
-.btn-initialize-session {
-  margin-top: 1rem;
-  padding: 1.2rem;
-  border: none;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #4a6300 0%, #a4d100 100%);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 800;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  transition: all 0.3s;
-}
-
-.btn-initialize-session:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(74, 99, 0, 0.2);
-}
-
-.veridian-footer {
-  margin-top: 4rem;
-  padding-top: 2rem;
-  border-top: 1px solid #e0e6ed;
-  text-align: center;
-}
-
-.system-version {
-  font-size: 0.6rem;
-  font-weight: 800;
-  color: #cfd8dc;
-  letter-spacing: 0.1em;
-  margin-bottom: 2rem;
-}
-
-.footer-nav {
-  display: flex;
-  justify-content: center;
-  gap: 40px;
-}
-
-.footer-nav a {
-  font-size: 0.75rem;
-  font-weight: 800;
-  color: #90a4ae;
-  text-decoration: none;
-  letter-spacing: 0.05em;
-}
-
-.alert-box {
-  padding: 1rem;
-  border-radius: 4px;
-  margin-bottom: 1.5rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
+.radio-item.active { background: #fff; color: #839100; box-shadow: inset 0 0 0 2px #c1ff72; }
+.form-options { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; }
+.remember-check { display: flex; align-items: center; gap: 8px; color: #90a4ae; }
+.login-redirect { color: #839100; text-decoration: none; font-weight: 500; }
+.btn-initialize-session { margin-top: 1rem; padding: 1.2rem; border: none; border-radius: 4px; background: linear-gradient(90deg, #4a6300 0%, #a4d100 100%); color: #fff; font-size: 1rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 12px; transition: all 0.3s; font-family: Arial, sans-serif; }
+.btn-initialize-session:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(74, 99, 0, 0.2); }
+.veridian-footer { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid #e0e6ed; text-align: center; }
+.system-version { font-size: 0.6rem; font-weight: 500; color: #cfd8dc; letter-spacing: 0.1em; margin-bottom: 2rem; }
+.footer-nav { display: flex; justify-content: center; gap: 40px; }
+.footer-nav a { font-size: 0.75rem; font-weight: 400; color: #90a4ae; text-decoration: none; letter-spacing: 0.03em; }
+.alert-box { padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem; font-size: 0.85rem; font-weight: 600; }
 .alert-box.error { background: #ffebee; color: #c62828; }
 .alert-box.success { background: #e8f5e9; color: #2e7d32; }
-
-@media (max-width: 1024px) {
-  .visual-panel { display: none; }
-}
-
-@media (max-width: 640px) {
-  .form-row { grid-template-columns: 1fr; }
-}
+@media (max-width: 1024px) { .visual-panel { display: none; } }
+@media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
 </style>
