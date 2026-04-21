@@ -9,10 +9,16 @@ from app.core.tasks import start_scheduler
 
 app = FastAPI(title="Saigon Tennis Tour API")
 
+origins = [
+    "http://localhost:5173",         # Cho phép lúc dev local
+    "http://localhost:3000",
+    "https://saigon-tennis-frontend-deploy.vercel.app", # LINK VERCEL CỦA ÔNG
+]
+
 app.add_middleware(
     CORSMiddleware,
     # allow_origins=["*"],
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
