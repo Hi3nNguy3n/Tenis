@@ -8,6 +8,10 @@ import { playerService } from '../../../services/playerService'
 import { Ticket, Search, Filter, Calendar as CalendarIcon, Location, Trophy, ArrowRight } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const isVideo = (url) => {
+  if (!url) return false
+  return url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) !== null
+}
 const tournamentStore = useTournamentStore()
 const activeTab = ref('Tournaments')
 const searchQuery = ref('')
@@ -176,12 +180,28 @@ const formatDate = (dateStr) => {
           </div>
           <div class="widget-body news-mini">
             <div v-if="latestNews[0]" class="news-main-feature" @click="$router.push('/news/' + latestNews[0].slug)">
-              <img :src="latestNews[0].thumbnail_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=300'" />
+            <video 
+              v-if="isVideo(latestNews[0].media_url || latestNews[0].thumbnail_url)" 
+              :src="latestNews[0].media_url || latestNews[0].thumbnail_url" 
+              autoplay muted loop playsinline
+            ></video>
+            <img 
+              v-else 
+              :src="latestNews[0].thumbnail_url || latestNews[0].media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=300'" 
+            />
               <p>{{ latestNews[0].title }}</p>
             </div>
             <div class="news-sub-list">
               <div v-for="post in latestNews.slice(1)" :key="post.id" class="news-item" @click="$router.push('/news/' + post.slug)">
-                <img :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1622279457486-62dcc4a4bd13?auto=format&fit=crop&q=80&w=100'" />
+                <video 
+                  v-if="isVideo(post.media_url || post.thumbnail_url)" 
+                  :src="post.media_url || post.thumbnail_url" 
+                  autoplay muted loop playsinline
+                ></video>
+                <img 
+                  v-else 
+                  :src="post.thumbnail_url || post.media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150'" 
+                />
                 <p>{{ post.title }}</p>
               </div>
             </div>
@@ -218,6 +238,9 @@ const formatDate = (dateStr) => {
   min-height: 100vh;
   margin-top: 0;
 }
+
+.news-item-mini img,
+.news-item-mini video { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; flex-shrink: 0; display: block; }
 
 /* SUB NAVIGATION */
 .tour-subnav {
@@ -463,5 +486,7 @@ const formatDate = (dateStr) => {
   border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
 }
+.news-main-feature img,
+.news-main-feature video { width: 100%; border-radius: 4px; margin-bottom: 1rem; object-fit: cover; display: block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

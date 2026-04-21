@@ -1,8 +1,9 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import { tournamentService } from '../../services/tournamentService' 
-import { useAuthStore } from '../../stores/auth' // Gọi Store để lấy thông tin VĐV đăng nhập
+import { useAuthStore } from '../../stores/auth' 
 import { ElMessage } from 'element-plus'
+import apiClient from '../../services/apiClient'
 
 const authStore = useAuthStore()
 const tournaments = ref([])
@@ -12,14 +13,45 @@ const isLoading = ref(false)
 const generating = ref(false)
 const lastDrawSummary = ref(null)
 
-// Tự động nhận diện Tên người dùng đang đăng nhập (hoặc fallback mặc định)
+// --- BIẾN CHO BỐC THĂM BAN ĐẦU ---
+const isDrawDialogOpen = ref(false)
+const drawForm = ref({
+  format_type: 'knockout',
+  num_groups: 1
+})
+
+// --- BIẾN CHO VÒNG PLAYOFF ---
+const isPlayoffDialogOpen = ref(false)
+const generatingPlayoff = ref(false)
+const playoffForm = ref({
+  advancers_per_group: 2
+})
+
+const openDrawDialog = () => isDrawDialogOpen.value = true
+const openPlayoffDialog = () => isPlayoffDialogOpen.value = true
+
 const currentUserName = computed(() => {
   return authStore.profile?.full_name || authStore.user?.full_name || 'Nguyen Cuu Minh Phu'
 })
 
+// Tự động phát hiện xem giải có đang đánh vòng bảng không
+const hasGroupStage = computed(() => {
+  if (!matches.value) return false
+  return matches.value.some(m => m.round_code && m.round_code.includes('G'))
+})
+
+const currentTournament = computed(() => {
+  return tournaments.value.find(t => t.id === selectedTournamentId.value) || null
+})
+
+// Trạng thái cho phép bốc thăm mới 
+const canDraw = computed(() => {
+  if (!currentTournament.value) return false
+  return ['draft', 'open'].includes(currentTournament.value.status)
+})
+
 const fetchTournaments = async () => {
   try {
-    // Lấy toàn bộ danh sách giải đấu để admin chọn (Limit lớn)
     const data = await tournamentService.getAll({ limit: 100 })
     tournaments.value = data
   } catch (err) {
@@ -41,13 +73,15 @@ const fetchMatches = async () => {
   }
 }
 
-const generateDraw = async () => {
+const confirmGenerateDraw = async () => {
   if (!selectedTournamentId.value) return
+  isDrawDialogOpen.value = false
   generating.value = true
+  
   try {
-    const response = await tournamentService.generateDraw(selectedTournamentId.value)
-    lastDrawSummary.value = response
-    ElMessage.success(`${response.message} (Tổng số VĐV: ${response.total_players}, Số vòng đấu: ${response.rounds})`)
+    const response = await apiClient.post(`/api/tournaments/${selectedTournamentId.value}/generate-draw`, drawForm.value)
+    lastDrawSummary.value = { message: response.message } 
+    ElMessage.success(response.message || 'Tạo lịch thi đấu thành công!')
     await fetchMatches()
   } catch (err) {
     const errorMsg = err.response?.data?.detail || err.message
@@ -57,36 +91,37 @@ const generateDraw = async () => {
   }
 }
 
+const confirmGeneratePlayoff = async () => {
+  if (!selectedTournamentId.value) return
+  isPlayoffDialogOpen.value = false
+  generatingPlayoff.value = true
+  
+  try {
+    const response = await apiClient.post(`/api/tournaments/${selectedTournamentId.value}/generate-playoffs`, playoffForm.value)
+    ElMessage.success(response.message || 'Đã chốt bảng và tạo vòng Playoff thành công!')
+    await fetchMatches() 
+  } catch (err) {
+    const errorMsg = err.response?.data?.detail || err.message
+    ElMessage.error('Lỗi tạo Playoff: ' + errorMsg)
+  } finally {
+    generatingPlayoff.value = false
+  }
+}
+
 const roundOrder = (roundCode) => {
   const normalized = String(roundCode || '').toUpperCase()
-  const orderMap = {
-    R128: 1,
-    R64: 2,
-    R32: 3,
-    R16: 4,
-    R8: 5,
-    QF: 6,
-    SF: 7,
-    F: 8,
-    FINAL: 8,
-  }
-
+  if (normalized.includes('G')) return 0
+  const orderMap = { R128: 1, R64: 2, R32: 3, R16: 4, R8: 5, QF: 6, SF: 7, F: 8, FINAL: 8 }
   return orderMap[normalized] ?? 99
 }
 
-// XỬ LÝ DỮ LIỆU SƠ ĐỒ (BRACKET LOGIC)
-// Gom nhóm các trận đấu theo Vòng (Round) và sắp xếp từ vòng ngoài vào Chung kết
-const bracketRounds = computed(() => {
-  if (!matches.value || matches.value.length === 0) return []
-
+// Lọc dữ liệu thành 2 danh sách riêng biệt: Vòng bảng & Playoff
+const groupedMatches = computed(() => {
   const roundsMap = {}
   matches.value.forEach(m => {
-    if (!roundsMap[m.round_code]) {
-      roundsMap[m.round_code] = []
-    }
+    if (!roundsMap[m.round_code]) roundsMap[m.round_code] = []
     roundsMap[m.round_code].push(m)
   })
-
   return Object.entries(roundsMap)
     .map(([roundCode, items]) => ({
       roundCode,
@@ -95,33 +130,35 @@ const bracketRounds = computed(() => {
     .sort((a, b) => roundOrder(a.roundCode) - roundOrder(b.roundCode))
 })
 
+const groupRounds = computed(() => groupedMatches.value.filter(r => r.roundCode.includes('G')))
+const knockoutRounds = computed(() => groupedMatches.value.filter(r => !r.roundCode.includes('G')))
+
 onMounted(fetchTournaments)
 </script>
 
 <template>
   <div class="module-shell">
-    <!-- HEADER PREMIUM -->
     <section class="action-bar-glass shadow-sm">
       <div class="action-info">
         <div class="kicker-wrap">
           <span class="section-kicker">Drawing Matrix</span>
-          <div class="live-indicator">
-            <span class="dot"></span>
-            ACTIVE
-          </div>
+          <div class="live-indicator"><span class="dot"></span>ACTIVE</div>
         </div>
-        <p>Phân bổ hạt giống (Seeding) và bốc thăm tự động cho giải đấu.</p>
-        <p v-if="lastDrawSummary" class="draw-summary">
-          Đã tạo: {{ lastDrawSummary.total_players }} VĐV | {{ lastDrawSummary.seeded }} seed | {{ lastDrawSummary.byes }} bye
-        </p>
+        <p>Trung tâm quản lý, bốc thăm hạt giống và chốt sơ đồ Playoff.</p>
+        <p v-if="lastDrawSummary" class="draw-summary">Hệ thống: {{ lastDrawSummary.message }}</p>
       </div>
       <div class="hero-actions">
         <div class="control-group-v2">
-          <el-select v-model="selectedTournamentId" placeholder="-- Lấy giải đấu --" style="width: 240px" @change="fetchMatches" filterable round>
+          <el-select v-model="selectedTournamentId" placeholder="-- Chọn giải đấu --" style="width: 240px" @change="fetchMatches" filterable round>
             <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
           </el-select>
-          <el-button type="primary" :disabled="!selectedTournamentId" :loading="generating" @click="generateDraw" class="btn-generate-premium" round>
-            Bắt đầu Bốc thăm & Tạo Nhánh
+          
+          <el-button v-if="hasGroupStage" type="danger" :disabled="!selectedTournamentId" :loading="generatingPlayoff" @click="openPlayoffDialog" round>
+            Chốt Bảng & Tạo Playoff
+          </el-button>
+
+          <el-button type="primary" :disabled="!canDraw" :loading="generating" @click="openDrawDialog" class="btn-generate-premium" round>
+            Bắt đầu Bốc thăm Mới
           </el-button>
         </div>
       </div>
@@ -132,160 +169,179 @@ onMounted(fetchTournaments)
         <p>Vui lòng chọn một giải đấu để xem hoặc tạo sơ đồ nhánh đấu.</p>
       </div>
       <div v-else-if="matches.length === 0" class="empty-state">
-        <p>Giải đấu này chưa có nhánh đấu. Nhấn "Tạo nhánh đấu mới" để hệ thống tự động bốc thăm.</p>
+        <p>Giải đấu này chưa có nhánh đấu. Nhấn "Bắt đầu Bốc thăm Mới" để hệ thống tự động thiết lập.</p>
       </div>
       
-      <div v-else class="bracket-board">
-         <div v-for="(round, index) in bracketRounds" :key="round.roundCode" class="bracket-round">
-            <div class="round-header">
-               <span class="round-tag">{{ round.roundCode }}</span>
-            </div>
-            
-            <div class="matches-column">
-               <div v-for="m in round.items" :key="m.id" class="match-wrapper">
-                  <div class="match-card-premium">
-                     <div class="match-top">
-                        <span class="m-no">#{{ m.match_no }}</span>
-                        <span class="m-status" :class="m.status">{{ m.status?.toUpperCase() }}</span>
-                     </div>
-                     
-                     <div class="match-players">
-                        <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a', 'is-me': m.p1_name === currentUserName }">
-                           <div class="p-name-wrap">
-                             <span class="side-chip">{{ m.p1_label || 'VĐV' }}</span>
-                             <span class="p-name">{{ m.p1_name || 'Đang cập nhật...' }}</span>
-                             <el-tag v-if="m.seed_a" size="small" effect="plain" class="seed-tag">#{{ m.seed_a }}</el-tag>
-                           </div>
-                           <el-tag v-if="m.result_note === 'BYE' && m.winner_side === 'side_a'" size="small" effect="dark" type="info" class="bye-tag">BYE</el-tag>
-                        </div>
-                        
-                        <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b', 'is-me': m.p2_name === currentUserName }">
-                           <div class="p-name-wrap">
-                             <span class="side-chip">{{ m.p2_label || 'VĐV' }}</span>
-                             <span class="p-name">{{ m.p2_name || 'Đang chờ đối thủ...' }}</span>
-                             <el-tag v-if="m.seed_b" size="small" effect="plain" class="seed-tag">#{{ m.seed_b }}</el-tag>
-                           </div>
-                           <el-tag v-if="m.result_note === 'BYE' && m.winner_side === 'side_b'" size="small" effect="dark" type="info" class="bye-tag">BYE</el-tag>
-                        </div>
-                     </div>
+      <div v-else class="stages-wrapper">
+        
+        <div v-if="groupRounds.length > 0" class="stage-section">
+          <div class="stage-header">
+            <h3>Giai đoạn 1: Lịch Thi Đấu Vòng Bảng</h3>
+            <p>Tất cả VĐV sẽ thi đấu vòng tròn để tính điểm xếp hạng</p>
+          </div>
+          <div class="group-board">
+            <div v-for="round in groupRounds" :key="round.roundCode" class="group-column">
+              <div class="round-tag-wrapper"><span class="round-tag">{{ round.roundCode }}</span></div>
+              <div class="matches-list">
+                <div v-for="m in round.items" :key="m.id" class="match-card-premium">
+                  <div class="match-top">
+                    <span class="m-no">Trận #{{ m.match_no }}</span>
+                    <span class="m-status" :class="m.status">{{ m.status?.toUpperCase() }}</span>
                   </div>
-                  <div class="connector-line" v-if="index < bracketRounds.length - 1"></div>
-               </div>
+                  <div class="match-players">
+                    <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a', 'is-me': m.p1_name === currentUserName }">
+                      <span class="p-name">{{ m.p1_name || 'Đang cập nhật...' }}</span>
+                      <span v-if="m.score && m.winner_side" class="m-score-inline">{{ m.winner_side === 'side_a' ? 'WIN' : '' }}</span>
+                    </div>
+                    <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b', 'is-me': m.p2_name === currentUserName }">
+                      <span class="p-name">{{ m.p2_name || 'Đang chờ đối thủ...' }}</span>
+                      <span v-if="m.score && m.winner_side" class="m-score-inline">{{ m.winner_side === 'side_b' ? 'WIN' : '' }}</span>
+                    </div>
+                  </div>
+                  <div class="match-footer" v-if="m.result_note || m.score_summary">
+                    Tỷ số: <strong>{{ m.result_note || m.score_summary }}</strong>
+                  </div>
+                </div>
+              </div>
             </div>
-         </div>
+          </div>
+        </div>
+
+        <div v-if="groupRounds.length > 0 && knockoutRounds.length > 0" class="stage-divider"></div>
+
+        <div v-if="knockoutRounds.length > 0" class="stage-section">
+          <div class="stage-header playoff-header">
+            <h3>Giai đoạn 2: Sơ Đồ Playoff (Loại Trực Tiếp)</h3>
+            <p>Những VĐV xuất sắc nhất sẽ tiến vào nhánh đấu định đoạt ngôi vương</p>
+          </div>
+          
+          <div class="bracket-board">
+            <div v-for="(round, index) in knockoutRounds" :key="round.roundCode" class="bracket-column">
+              <div class="round-tag-wrapper"><span class="round-tag knockout-tag">{{ round.roundCode }}</span></div>
+              
+              <div class="bracket-matches">
+                <div v-for="m in round.items" :key="m.id" class="match-wrapper">
+                  <div class="bracket-line-left" v-if="index > 0"></div>
+
+                  <div class="match-card-premium knockout-card">
+                    <div class="match-top">
+                      <span class="m-no">#{{ m.match_no }}</span>
+                      <span class="m-status" :class="m.status">{{ m.status?.toUpperCase() }}</span>
+                    </div>
+                    <div class="match-players">
+                      <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a' }">
+                        <span class="p-name">{{ m.p1_name || 'Đang chờ...' }}</span>
+                      </div>
+                      <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b' }">
+                        <span class="p-name">{{ m.p2_name || 'Đang chờ...' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="bracket-line-right" v-if="index < knockoutRounds.length - 1"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
   </div>
+
+  <el-dialog v-model="isDrawDialogOpen" title="Tùy chọn Bốc thăm & Xếp lịch" width="450px" destroy-on-close>
+    <el-form :model="drawForm" label-position="top">
+      <el-form-item label="Thể thức thi đấu">
+        <el-radio-group v-model="drawForm.format_type">
+          <el-radio value="knockout">Loại trực tiếp (Knockout)</el-radio>
+          <el-radio value="round_robin">Vòng tròn (Chia bảng)</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item v-if="drawForm.format_type === 'round_robin'" label="Số lượng bảng đấu">
+        <el-input-number v-model="drawForm.num_groups" :min="1" :max="16" />
+        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Hệ thống sẽ tự động chia đều VĐV vào các bảng.</div>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="isDrawDialogOpen = false">Hủy</el-button>
+      <el-button type="primary" @click="confirmGenerateDraw">Bốc thăm</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="isPlayoffDialogOpen" title="Chốt Bảng & Tạo vòng Knockout" width="450px" destroy-on-close>
+    <el-form :model="playoffForm" label-position="top">
+      <div style="margin-bottom: 20px; color: #b91c1c; font-size: 0.9rem; background: #fef2f2; padding: 12px; border-radius: 8px;">
+        <strong>Lưu ý:</strong> Hành động này sẽ khóa dữ liệu vòng bảng, tự động quét Bảng xếp hạng và tạo các trận Playoff.
+      </div>
+      <el-form-item label="Số VĐV đi tiếp mỗi bảng">
+        <el-input-number v-model="playoffForm.advancers_per_group" :min="1" :max="4" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="isPlayoffDialogOpen = false">Hủy</el-button>
+      <el-button type="danger" @click="confirmGeneratePlayoff">Tạo Sơ Đồ Playoff</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
-.module-shell { display: grid; gap: 20px; padding: 10px; }
-
-.action-bar-glass {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  padding: 20px 24px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
-}
-
-.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
-.section-kicker { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
-
-.live-indicator {
-  display: flex; align-items: center; gap: 6px;
-  background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800;
-  padding: 2px 8px; border-radius: 99px;
-}
+/* GENERAL LAYOUT */
+.module-shell { display: grid; gap: 24px; padding: 10px; }
+.action-bar-glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); padding: 20px 24px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.section-kicker { font-size: 0.75rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
+.live-indicator { display: flex; align-items: center; gap: 6px; background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800; padding: 2px 8px; border-radius: 99px; }
 .dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
-
-@keyframes pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-}
-
+@keyframes pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34,197,94,0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34,197,94,0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
 .action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
-.draw-summary { margin-top: 6px; font-size: 0.82rem !important; color: #0f172a !important; }
-
 .control-group-v2 { display: flex; gap: 12px; align-items: center; }
-.btn-generate-premium {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  border: none;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-  transition: all 0.3s ease;
-}
-.btn-generate-premium:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
-}
+.empty-state { text-align: center; color: #94a3b8; font-style: italic; padding: 80px 0; }
+.draw-container { background: transparent; min-height: 600px; }
+.stages-wrapper { display: grid; gap: 40px; }
 
-.draw-container {
-  background: white; padding: 40px; border-radius: 24px; min-height: 600px;
-  border: 1px solid #f1f5f9; box-shadow: 0 10px 40px rgba(0,0,0,0.02);
-  overflow-x: auto;
-}
+/* STAGE HEADERS */
+.stage-section { background: white; padding: 30px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.02); border: 1px solid #f1f5f9; overflow-x: auto; }
+.stage-header { margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #f1f5f9; }
+.stage-header h3 { margin: 0 0 8px; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;}
+.stage-header p { margin: 0; color: #64748b; font-size: 0.95rem; }
+.playoff-header h3 { color: #b91c1c; } /* Nhấn mạnh Playoff màu đỏ đô */
 
-.bracket-board { display: flex; gap: 80px; padding: 20px 0; }
-.bracket-round { display: flex; flex-direction: column; min-width: 260px; }
+.stage-divider { height: 4px; background: repeating-linear-gradient(90deg, #e2e8f0, #e2e8f0 10px, transparent 10px, transparent 20px); border-radius: 2px; margin: -10px 20px; opacity: 0.6;}
 
-.round-header { text-align: center; margin-bottom: 30px; position: relative; }
-.round-tag {
-  background: #f8fafc; color: #1e293b; padding: 6px 20px; border-radius: 99px;
-  font-weight: 800; font-size: 0.75rem; text-transform: uppercase;
-  border: 1px solid #e2e8f0;
-}
-
-.matches-column { display: flex; flex-direction: column; justify-content: space-around; flex-grow: 1; gap: 40px; }
-
-.match-wrapper { position: relative; display: flex; align-items: center; width: 100%; }
-
-.match-card-premium {
-  width: 100%; background: white; border-radius: 16px; border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01);
-  overflow: hidden; z-index: 2; transition: all 0.3s ease;
-}
-.match-card-premium:hover {
-  transform: scale(1.02); border-color: #3b82f6;
-  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05);
-}
-
-.match-top {
-  background: #f8fafc; padding: 8px 12px; display: flex; justify-content: space-between;
-  align-items: center; border-bottom: 1px solid #f1f5f9;
-}
-.m-no { font-size: 0.65rem; font-weight: 800; color: #94a3b8; }
-.m-status { font-size: 0.6rem; font-weight: 800; padding: 2px 8px; border-radius: 4px; }
+/* CARDS COMMON */
+.match-card-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); overflow: hidden; transition: all 0.3s ease; position: relative; z-index: 2;}
+.match-card-premium:hover { transform: translateY(-3px); border-color: #3b82f6; box-shadow: 0 12px 20px -5px rgba(0,0,0,0.08); }
+.match-top { background: #f8fafc; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
+.m-no { font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;}
+.m-status { font-size: 0.6rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
 .m-status.pending { background: #fff7ed; color: #c2410c; }
 .m-status.completed { background: #f0fdf4; color: #15803d; }
-
+.m-status.scheduled { background: #eff6ff; color: #1d4ed8; }
 .match-players { padding: 4px; display: grid; gap: 2px; }
-.p-row {
-  padding: 10px 12px; border-radius: 10px; display: flex; justify-content: space-between;
-  align-items: center; transition: all 0.2s ease;
-}
-.p-name-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
+.p-row { padding: 12px 14px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
 .p-name { font-size: 0.9rem; font-weight: 600; color: #334155; }
-.seed-tag { font-size: 0.65rem; font-weight: 700; }
-
 .is-winner { background: #f0fdf4; }
-.is-winner .p-name { color: #15803d; font-weight: 700; }
-.is-me { border: 1px solid #fb923c; background: #fff7ed; }
+.is-winner .p-name { color: #15803d; font-weight: 800; }
+.m-score-inline { font-size: 0.7rem; font-weight: 900; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;}
+.match-footer { background: #f8fafc; padding: 8px 12px; font-size: 0.8rem; color: #475569; border-top: 1px dashed #e2e8f0; text-align: center;}
 
-.bye-tag { font-size: 0.6rem; font-weight: 900; }
+/* GROUP STAGE SPECIFIC */
+.group-board { display: flex; gap: 24px; }
+.group-column { min-width: 280px; display: flex; flex-direction: column; gap: 20px; }
+.matches-list { display: grid; gap: 16px; }
 
-.connector-line {
-  position: absolute; right: -40px; top: 50%; width: 40px; height: 1.5px;
-  background: #e2e8f0; z-index: 1;
-}
+/* PLAYOFF BRACKET SPECIFIC (TREE DESIGN) */
+.bracket-board { display: flex; gap: 60px; padding: 10px 0; }
+.bracket-column { display: flex; flex-direction: column; justify-content: space-around; flex: 1; min-width: 260px; position: relative; }
+.bracket-matches { display: flex; flex-direction: column; justify-content: space-around; flex-grow: 1; gap: 30px;}
+.match-wrapper { position: relative; width: 100%; display: flex; align-items: center;}
+.knockout-card { width: 100%; border: 2px solid #e2e8f0; }
+
+/* CSS TREE CONNECTORS */
+.bracket-line-right { position: absolute; right: -30px; top: 50%; width: 30px; height: 2px; background: #cbd5e1; z-index: 1; }
+.bracket-line-left { position: absolute; left: -30px; top: 50%; width: 30px; height: 2px; background: #cbd5e1; z-index: 1; }
+
+.round-tag-wrapper { text-align: center; margin-bottom: 24px; }
+.round-tag { background: #f1f5f9; color: #475569; padding: 6px 20px; border-radius: 99px; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; border: 1px solid #e2e8f0; }
+.knockout-tag { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
 </style>

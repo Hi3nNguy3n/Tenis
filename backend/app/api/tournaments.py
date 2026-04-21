@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from app.db.database import get_db
 from app.api.deps import get_current_admin
-from app.models.models import User, Player, Registration
+from app.models.models import User, Player, Registration, Tournament, Match
 from app.crud import crud_tournament
 from app.schemas import tournament_schemas
 from app.core.audit import audit_log
@@ -60,10 +60,31 @@ def update_tournament(
     return crud_tournament.update_tournament_info(db, tournament_id, tournament_in, current_admin.id)
 
 # 6. GENERATE DRAW (ADMIN ONLY)
+class GenerateDrawRequest(BaseModel):
+    format_type: str = "knockout" # Hoặc "round_robin"
+    num_groups: int = 1           # Số bảng đấu
+
 @router.post("/{tournament_id}/generate-draw", dependencies=[Depends(get_current_admin)])
-@audit_log(module="TOURNAMENT", action="UPDATE", event_name="Tự động sinh sơ đồ nhánh đấu (Bracket)")
-def generate_tournament_draw(tournament_id: int, db: Session = Depends(get_db)):
-    return crud_tournament.generate_knockout_draw(db, tournament_id=tournament_id)
+@audit_log(module="TOURNAMENT", action="GENERATE_DRAW", event_name="Tạo lịch thi đấu")
+def generate_tournament_draw(
+    tournament_id: int, 
+    request: GenerateDrawRequest, # Nhận payload từ Frontend
+    db: Session = Depends(get_db)
+):
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu")
+
+    try:
+        # Gọi "Thủ kho" ra làm việc tùy theo thể thức
+        if request.format_type == "round_robin":
+            return crud_tournament.generate_round_robin_draw(db, tournament_id, request.num_groups)
+        else:
+            # Code cũ của ông cho đấu loại trực tiếp
+            return crud_tournament.generate_draw(db, tournament_id) 
+            
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 # 7. XEM DANH SÁCH TRẬN ĐẤU (PUBLIC)
 @router.get("/{tournament_id}/matches")
@@ -136,8 +157,7 @@ class AnnouncementRequest(BaseModel):
 @router.post("/{tournament_id}/send-notifications", dependencies=[Depends(get_current_admin)])
 async def send_tournament_notifications(
     tournament_id: int, 
-    request: AnnouncementRequest, # <-- Nhận dữ liệu từ body
-    background_tasks: BackgroundTasks, 
+    request: tournament_schemas.AnnouncementRequest, # Đảm bảo file schemas đã có scheduled_at
     db: Session = Depends(get_db)
 ):
     tournament, bcc_emails = crud_tournament.get_tournament_and_valid_emails(db, tournament_id)
@@ -147,70 +167,48 @@ async def send_tournament_notifications(
     if not bcc_emails:
         raise HTTPException(status_code=400, detail="Không có VĐV nào hợp lệ.")
 
-    # Sử dụng Subject và Message từ Admin nhập vào
-    subject = f"🎾 {request.subject} - {tournament.name}"
-    # Thiết kế lại nội dung Email chuyên nghiệp
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%">
-            <tr>
-                <td align="center" style="padding: 20px 0;">
-                    <table border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                        <tr>
-                            <td align="center" style="background-color: #146250; padding: 40px 20px;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px;">Saigon Tennis Tours</h1>
-                                <p style="color: #d1e7dd; margin: 10px 0 0 0; font-size: 14px;">Hệ thống quản lý giải đấu chuyên nghiệp</p>
-                            </td>
-                        </tr>
-                        
-                        <tr>
-                            <td style="padding: 40px 30px;">
-                                <h2 style="color: #146250; margin-top: 0;">{request.subject}</h2>
-                                <div style="color: #444; line-height: 1.8; font-size: 16px; white-space: pre-wrap; background-color: #f9fbfb; padding: 20px; border-left: 4px solid #146250; border-radius: 4px;">
-{request.message}
-                                </div>
-                                
-                                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-                                    <tr>
-                                        <td>
-                                            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Giải đấu:</strong> {tournament.name}</p>
-                                            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Địa điểm:</strong> {tournament.location}</p>
-                                            <p style="margin: 5px 0; color: #666; font-size: 14px;"><strong>Thời gian:</strong> {tournament.start_date}</p>
-                                        </td>
-                                    </tr>
-                                </table>
+    # 1. Xác định thời gian gửi
+    schedule_time = request.scheduled_at
+    status = "pending" # Trạng thái chờ Scheduler quét
 
-                                <div style="margin-top: 30px; text-align: center;">
-                                    <a href="http://localhost:5173" style="background-color: #146250; color: #ffffff; padding: 15px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Xem Chi Tiết Giải Đấu</a>
-                                </div>
-                            </td>
-                        </tr>
-
-                        <tr>
-                            <td style="background-color: #f9f9f9; padding: 20px; text-align: center; color: #999; font-size: 12px;">
-                                <p style="margin: 0;">Đây là thông báo tự động từ hệ thống quản lý giải đấu Saigon Tennis Tours.</p>
-                                <p style="margin: 5px 0 0 0;">© 2026 Saigon Tennis. All rights reserved.</p>
-                            </td>
-                        </tr>
-                    </table>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
-
-    message = MessageSchema(
-        subject=subject,
-        recipients=[], 
-        bcc=bcc_emails, 
-        body=html_body,
-        subtype=MessageType.html
+    # 2. LƯU YÊU CẦU VÀO DATABASE
+    crud_tournament.save_mail_campaign(
+        db=db, 
+        tournament_id=tournament_id, 
+        subject=request.subject, 
+        message=request.message, 
+        total_recipients=len(bcc_emails),
+        scheduled_at=schedule_time,
+        status=status
     )
 
-    fm = FastMail(conf)
-    background_tasks.add_task(fm.send_message, message)
+    # 3. Trả về thông báo cho Frontend
+    if schedule_time:
+        return {"message": f"Đã lên lịch gửi thông báo vào lúc {schedule_time.strftime('%d/%m/%Y %H:%M')}."}
+    else:
+        return {"message": "Đã lưu yêu cầu. Hệ thống sẽ tự động gửi trong ít phút tới."}
+    
+@router.get("/{tournament_id}/standings")
+def get_tournament_standings(tournament_id: int, db: Session = Depends(get_db)):
+    """API tính điểm và xếp hạng Vòng tròn"""
+    # Gọi trực tiếp hàm tính điểm từ crud_tournament
+    return crud_tournament.calculate_tournament_standings(db, tournament_id)
 
-    return {"message": f"Hệ thống đang gửi thông báo tùy chỉnh đến {len(bcc_emails)} VĐV."}
+class PlayoffRequest(BaseModel):
+    advancers_per_group: int = 2 # Mặc định lấy Top 2 mỗi bảng
+
+@router.post("/{tournament_id}/generate-playoffs", dependencies=[Depends(get_current_admin)])
+@audit_log(module="TOURNAMENT", action="GENERATE_PLAYOFF", event_name="Tạo vòng Playoff từ Vòng bảng")
+def generate_tournament_playoffs(
+    tournament_id: int, 
+    request: PlayoffRequest,
+    db: Session = Depends(get_db)
+):
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu")
+
+    try:
+        return crud_tournament.generate_playoff_draw(db, tournament_id, request.advancers_per_group)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

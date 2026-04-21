@@ -6,7 +6,7 @@ from datetime import datetime
 import math
 import random
 
-from app.models.models import Tournament, Match, Registration, Player, User, Payment, Court
+from app.models.models import Tournament, Match, Registration, Player, User, Payment, Court, MailCampaign
 from app.schemas.tournament_schemas import TournamentCreate, TournamentUpdate
 from app.core.audit import log_action
 
@@ -261,7 +261,7 @@ def get_all_matches_detail(db: Session):
             "tournament": t.name,
             "location": t.location or "Vietnam",
             "round_code": m.round_code,
-            "court": c.court_name if c else "Chua gan san",
+            "court": c.court_name if c else "Chưa gán sân",
             "date": match_date.isoformat() if match_date else None,
             "start_time": m.start_time.isoformat() if m.start_time else None,
             "start": m.start_time.strftime("%H:%M") if m.start_time else "--:--",
@@ -489,3 +489,248 @@ def get_tournament_and_valid_emails(db: Session, tournament_id: int):
     bcc_emails = [reg[0] for reg in valid_regs if reg[0]]
     
     return tournament, bcc_emails
+
+def save_mail_campaign(
+    db: Session, 
+    tournament_id: int, 
+    subject: str, 
+    message: str, 
+    total_recipients: int,
+    scheduled_at = None,   # <--- Thêm dòng này
+    status: str = "pending" # <--- Thêm dòng này
+):
+    new_campaign = MailCampaign(
+        tournament_id=tournament_id,
+        subject=subject,
+        message=message,
+        total_recipients=total_recipients,
+        scheduled_at=scheduled_at, # <--- Lưu vào DB
+        status=status              # <--- Lưu vào DB
+    )
+    db.add(new_campaign)
+    db.commit()
+    db.refresh(new_campaign)
+    return new_campaign
+
+def generate_round_robin_draw(db: Session, tournament_id: int, num_groups: int = 1):
+    """Thuật toán chia bảng và tạo lịch thi đấu Vòng tròn"""
+    
+    # 1. Lấy danh sách VĐV đã xác nhận tham gia
+    players = db.query(Registration).filter(
+        Registration.tournament_id == tournament_id,
+        Registration.status == "confirmed",
+        Registration.deleted_at.is_(None)
+    ).all()
+
+    if len(players) < 2:
+        raise ValueError("Cần ít nhất 2 VĐV để tạo lịch thi đấu.")
+
+    # 2. Xóa lịch thi đấu cũ (nếu có) để tạo lại
+    db.query(Match).filter(Match.tournament_id == tournament_id).delete()
+    
+    # Đảo lộn ngẫu nhiên VĐV trước khi bốc thăm
+    random.shuffle(players) 
+
+    # 3. Chia đều VĐV vào các bảng
+    # Mẹo Python: players[i::num_groups] sẽ chia đều mảng thành các phần bằng nhau
+    groups = [players[i::num_groups] for i in range(num_groups)]
+    
+    match_no = 1
+    for group_idx, group_players in enumerate(groups):
+        group_id = group_idx + 1 # Đánh số bảng: 1 (A), 2 (B)...
+        n = len(group_players)
+        
+        # Nếu số VĐV lẻ, thêm một "bóng ma" (None) đại diện cho việc được nghỉ (Bye) ở vòng đó
+        if n % 2 != 0:
+            group_players.append(None)
+            n += 1
+            
+        # 4. Áp dụng thuật toán xoay vòng tạo trận
+        for round_num in range(n - 1):
+            for i in range(n // 2):
+                p1 = group_players[i]
+                p2 = group_players[n - 1 - i]
+                
+                # Nếu không ai đụng phải "bóng ma" thì tạo trận đấu
+                if p1 is not None and p2 is not None:
+                    new_match = Match(
+                        tournament_id=tournament_id,
+                        stage_type="group_stage",
+                        group_id=group_id, # Lưu ID bảng vào đây
+                        round_code=f"G{group_id}-R{round_num+1}", # Mã vòng: Bảng 1 - Vòng 1
+                        match_no=match_no,
+                        side_a_registration_id=p1.id,
+                        side_b_registration_id=p2.id,
+                        status="scheduled",
+                        best_of_sets=3 # Mặc định đánh 3 set
+                    )
+                    db.add(new_match)
+                    match_no += 1
+            
+            # Xoay vòng danh sách: Rút người cuối cùng nhét vào vị trí số 1 (Giữ nguyên người số 0)
+            group_players.insert(1, group_players.pop())
+
+    db.commit()
+    return {"message": f"Đã chia {num_groups} bảng và tạo lịch thi đấu vòng tròn thành công!"}
+
+def calculate_tournament_standings(db: Session, tournament_id: int):
+    """Hàm lõi tính điểm vòng tròn (Dùng chung cho cả API và Playoff)"""
+    matches = db.query(Match).filter(
+        Match.tournament_id == tournament_id,
+        Match.stage_type == "group_stage",
+        Match.status == "completed" 
+    ).all()
+
+    standings = {}
+
+    def safe_int(val):
+        return int(val) if val is not None else 0
+
+    for match in matches:
+        group = f"Bảng {match.group_id}"
+        if group not in standings:
+            standings[group] = {}
+
+        p1_id = match.side_a_registration_id
+        p2_id = match.side_b_registration_id
+
+        if not p1_id or not p2_id:
+            continue
+
+        for p_id in [p1_id, p2_id]:
+            if p_id not in standings[group]:
+                user_record = db.query(User.full_name).join(
+                    Player, User.id == Player.user_id
+                ).join(
+                    Registration, Player.id == Registration.player_id
+                ).filter(
+                    Registration.id == p_id
+                ).first()
+                
+                player_name = user_record[0] if user_record else "Unknown"
+                    
+                standings[group][p_id] = {
+                    "player_name": player_name, 
+                    "played": 0, "won": 0, "lost": 0, "points": 0,
+                    "sets_won": 0, "sets_lost": 0, 
+                    "games_won": 0, "games_lost": 0
+                }
+
+        p1_games = safe_int(match.set1_a) + safe_int(match.set2_a) + safe_int(match.set3_a)
+        p2_games = safe_int(match.set1_b) + safe_int(match.set2_b) + safe_int(match.set3_b)
+
+        p1_sets = 0
+        p2_sets = 0
+        if safe_int(match.set1_a) > safe_int(match.set1_b): p1_sets += 1
+        elif safe_int(match.set1_b) > safe_int(match.set1_a): p2_sets += 1
+        if safe_int(match.set2_a) > safe_int(match.set2_b): p1_sets += 1
+        elif safe_int(match.set2_b) > safe_int(match.set2_a): p2_sets += 1
+        if safe_int(match.set3_a) > safe_int(match.set3_b): p1_sets += 1
+        elif safe_int(match.set3_b) > safe_int(match.set3_a): p2_sets += 1
+
+        is_p1_winner = match.winner_registration_id == p1_id
+        standings[group][p1_id]["played"] += 1
+        standings[group][p1_id]["won"] += 1 if is_p1_winner else 0
+        standings[group][p1_id]["lost"] += 0 if is_p1_winner else 1
+        standings[group][p1_id]["points"] += 3 if is_p1_winner else 0
+        standings[group][p1_id]["sets_won"] += p1_sets
+        standings[group][p1_id]["sets_lost"] += p2_sets
+        standings[group][p1_id]["games_won"] += p1_games
+        standings[group][p1_id]["games_lost"] += p2_games
+
+        is_p2_winner = match.winner_registration_id == p2_id
+        standings[group][p2_id]["played"] += 1
+        standings[group][p2_id]["won"] += 1 if is_p2_winner else 0
+        standings[group][p2_id]["lost"] += 0 if is_p2_winner else 1
+        standings[group][p2_id]["points"] += 3 if is_p2_winner else 0
+        standings[group][p2_id]["sets_won"] += p2_sets
+        standings[group][p2_id]["sets_lost"] += p1_sets
+        standings[group][p2_id]["games_won"] += p2_games
+        standings[group][p2_id]["games_lost"] += p1_games
+
+    result = []
+    for group_name, players in standings.items():
+        for p_id, stats in players.items():
+            stats["set_diff"] = stats["sets_won"] - stats["sets_lost"]
+            stats["game_diff"] = stats["games_won"] - stats["games_lost"]
+
+        sorted_players = sorted(
+            players.items(), 
+            key=lambda x: (x[1]['points'], x[1]['set_diff'], x[1]['game_diff']), 
+            reverse=True
+        )
+        
+        result.append({
+            "group_name": group_name,
+            "rankings": [{"registration_id": k, **v} for k, v in sorted_players]
+        })
+
+    return result
+
+def generate_playoff_draw(db: Session, tournament_id: int, advancers_per_group: int = 2):
+    """Thuật toán tự động chốt vòng bảng và xếp cặp Playoff"""
+    
+    # 1. Gọi hàm cục bộ tính Bảng xếp hạng để lấy Top VĐV
+    standings_data = calculate_tournament_standings(db=db, tournament_id=tournament_id)
+    
+    if not standings_data:
+        raise ValueError("Chưa có trận vòng bảng nào hoàn thành. Vui lòng cập nhật tỷ số!")
+
+    qualified_players = []
+    num_groups = len(standings_data)
+
+    # 2. Nhặt những người Top đầu của mỗi bảng ra
+    for group in standings_data:
+        top_players = group["rankings"][:advancers_per_group]
+        qualified_players.append(top_players)
+
+    match_pairs = []
+    
+    # 3. Thuật toán ghép cặp (Đã vá lỗi cho giải 3 người)
+    if num_groups == 1:
+        top_n = qualified_players[0]
+        if len(top_n) < 2:
+            raise ValueError("Bảng xếp hạng chưa đủ 2 người có điểm.")
+            
+        # NẾU CÓ 2 HOẶC 3 NGƯỜI: Lấy 2 người đứng đầu đánh Chung Kết
+        if len(top_n) == 2 or len(top_n) == 3:
+            match_pairs.append((top_n[0], top_n[1])) 
+        # NẾU TỪ 4 NGƯỜI TRỞ LÊN: Bắt cặp Bán Kết (Nhất vs Tư, Nhì vs Ba)
+        elif len(top_n) >= 4:
+            match_pairs.append((top_n[0], top_n[3]))
+            match_pairs.append((top_n[1], top_n[2]))
+            
+    elif num_groups == 2:
+        group_a = qualified_players[0]
+        group_b = qualified_players[1]
+        
+        if len(group_a) >= 2 and len(group_b) >= 2:
+            match_pairs.append((group_a[0], group_b[1]))
+            match_pairs.append((group_b[0], group_a[1]))
+        else:
+            raise ValueError("Mỗi bảng cần ít nhất 2 VĐV có điểm để thi đấu chéo.")
+
+    if not match_pairs:
+        raise ValueError("Không thể tạo Playoff với số lượng này. Vui lòng kiểm tra lại.")
+
+    # 4. Ghi các trận Playoff vào Database
+    db.query(Match).filter(
+        Match.tournament_id == tournament_id,
+        Match.stage_type == "playoff"
+    ).delete()
+
+    for idx, pair in enumerate(match_pairs):
+        new_match = Match(
+            tournament_id=tournament_id,
+            stage_type="playoff",
+            round_code="SF" if len(match_pairs) > 1 else "F",
+            match_no=idx + 1,
+            side_a_registration_id=pair[0]["registration_id"],
+            side_b_registration_id=pair[1]["registration_id"],
+            status="scheduled",
+            best_of_sets=3
+        )
+        db.add(new_match)
+
+    db.commit()
+    return {"message": f"Đã chốt sổ Vòng bảng và tạo {len(match_pairs)} trận Playoff thành công!"}

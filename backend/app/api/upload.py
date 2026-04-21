@@ -12,13 +12,12 @@ def upload_image(
     current_user = Depends(get_current_admin)
 ):
     try:
-        # Tải ảnh lên Cloudinary vào thư mục riêng cho News
+        # Đổi thành "auto" để Cloudinary tự nhận diện cả Ảnh lẫn Video
         result = cloudinary.uploader.upload(
             file.file,
             folder="tennis_app/news",
-            resource_type="image"
+            resource_type="auto" # <--- ĐÃ SỬA
         )
-        # Trả về URL để Frontend lưu vào bảng Posts
         return {"url": result.get("secure_url")}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi hệ thống upload: {str(e)}")

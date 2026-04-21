@@ -40,7 +40,8 @@ const closeMenus = () => {
       <nav class="desktop-nav" aria-label="Main navigation">
         <RouterLink to="/" active-class="active">Trang chủ</RouterLink>
         <RouterLink to="/news" active-class="active">Tin tức</RouterLink>
-        <RouterLink to="/players" active-class="active">Vận động viên</RouterLink>
+        <RouterLink to="/players" active-class="active">Kênh trò chuyện</RouterLink>
+        <RouterLink to="/challenges" active-class="active">Vận động viên</RouterLink>
         <RouterLink to="/tournaments" active-class="active">Giải đấu</RouterLink>
         <RouterLink to="/matches" active-class="active">Lịch thi đấu</RouterLink>
         <RouterLink to="/rankings" active-class="active">Bảng xếp hạng</RouterLink>
@@ -128,14 +129,20 @@ const closeMenus = () => {
 }
 .site-logo:hover { transform: scale(1.05); }
 
-.desktop-nav { display: flex; align-items: center; justify-content: center; gap: 2rem; flex-wrap: wrap; }
+.desktop-nav { 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  gap: 1.2rem; /* Giảm xuống 1.2rem hoặc 1rem để tiết kiệm không gian */
+  flex-wrap: nowrap; /* BỎ wrap để ép menu nằm trên 1 hàng */
+}
 .desktop-nav a {
   position: relative;
   padding: 1.25rem 0;
   color: #475569; /* Slate 600 */
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   text-decoration: none;
 }

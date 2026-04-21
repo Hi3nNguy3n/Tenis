@@ -145,7 +145,8 @@ class Registration(Base):
 class Payment(Base):
     __tablename__ = "payments"
     id = Column(BigInteger, primary_key=True, index=True)
-    registration_id = Column(BigInteger, ForeignKey("registrations.id"), index=True, nullable=False)
+    registration_id = Column(BigInteger, ForeignKey("registrations.id"), index=True, nullable=True)
+    challenge_id = Column(BigInteger, ForeignKey("match_challenges.id"), nullable=True)
     amount = Column(Numeric(15, 2), nullable=False)
     currency = Column(String(10), nullable=False)
     payment_method = Column(String(30), index=True, nullable=False)
@@ -180,10 +181,10 @@ class DrawSlot(Base):
 class Match(Base):
     __tablename__ = "matches"
     id = Column(BigInteger, primary_key=True, index=True)
-    tournament_id = Column(BigInteger, ForeignKey("tournaments.id"), index=True, nullable=False)
+    tournament_id = Column(BigInteger, ForeignKey("tournaments.id"), index=True, nullable=True)
     stage_type = Column(String(20), index=True, nullable=False)
     group_id = Column(BigInteger, index=True) # ID ảo quản lý group, không fk cứng để dễ linh động
-    round_code = Column(String(20), index=True, nullable=False)
+    round_code = Column(String(100), index=True, nullable=False)
     match_no = Column(Integer, index=True, nullable=False)
     side_a_registration_id = Column(BigInteger, ForeignKey("registrations.id"), index=True, nullable=True)
     side_b_registration_id = Column(BigInteger, ForeignKey("registrations.id"), index=True, nullable=True)
@@ -221,9 +222,28 @@ class Match(Base):
     tie_break_3_a = Column(SmallInteger, nullable=True)
     tie_break_3_b = Column(SmallInteger, nullable=True)
 
+    player_a_id = Column(Integer, ForeignKey("players.id"), nullable=True)
+    player_b_id = Column(Integer, ForeignKey("players.id"), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at = Column(DateTime, index=True)
+
+class MatchChallenge(Base):
+    __tablename__ = "match_challenges"
+    id = Column(BigInteger, primary_key=True, index=True)
+    challenger_id = Column(BigInteger, ForeignKey("players.id"), nullable=False) # Người thách
+    challenged_id = Column(BigInteger, ForeignKey("players.id"), nullable=False) # Người bị thách
+    
+    proposed_date = Column(Date, nullable=False) # Ngày dự kiến
+    notes = Column(Text) # Lời nhắn (VD: 2 set cafe nhé)
+    
+    # Trạng thái: pending, accepted, rejected, waiting_payment, paid, scheduled, canceled
+    status = Column(String(20), default="pending", index=True) 
+    
+    fee_amount = Column(Numeric(15, 2), default=200000) # Phí dịch vụ sân/trọng tài
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class MatchProgression(Base):
     __tablename__ = "match_progressions"
@@ -428,3 +448,15 @@ class ChatMessage(Base):
     message_type = Column(String(20), nullable=False)
     is_read = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, index=True, default=datetime.utcnow)
+
+class MailCampaign(Base):
+    __tablename__ = "mail_campaigns"
+    
+    id = Column(BigInteger, primary_key=True, index=True)
+    tournament_id = Column(BigInteger, ForeignKey("tournaments.id"), nullable=False)
+    subject = Column(String(255), nullable=False)
+    message = Column(Text, nullable=False)
+    total_recipients = Column(Integer, default=0)
+    sent_at = Column(DateTime, default=datetime.utcnow)
+    scheduled_at = Column(DateTime, nullable=True) # Thời gian dự kiến gửi (Nếu Null là gửi ngay)
+    status = Column(String(20), default="pending", index=True) # Trạng thái: pending, sent, failed

@@ -11,12 +11,20 @@ from app.db.database import get_db
 from app.crud import crud_chat
 from fastapi import HTTPException
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-load_dotenv(BASE_DIR / ".env")
+# 1. LOAD .ENV THÔNG MINH (Tự động quét thư mục hiện tại)
+load_dotenv() 
+
 router = APIRouter()
 
+# 2. LẤY KHÓA
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
+
+# In ra log để check xem Chat Service đã ăn cấu hình chưa
+if not SECRET_KEY:
+    print("⚠️ CẢNH BÁO: Chat Service chưa nhận được SECRET_KEY!")
+else:
+    print(f"✅ Đã tải SECRET_KEY cho Chat Service: {SECRET_KEY[:5]}***")
 
 class ConnectionManager:
     def __init__(self):
@@ -59,10 +67,18 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 def verify_token(token: str):
+    if not SECRET_KEY:
+        raise ValueError("Lỗi Server: Chưa cấu hình SECRET_KEY")
+        
     try:
+        # Hỗ trợ cả token có hoặc không có chữ Bearer
+        if token.startswith("Bearer "):
+            token = token.split(" ")[1]
+            
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return int(payload.get("sub"))
-    except:
+    except JWTError as e:
+        print(f"🔥 LỖI GIẢI MÃ TOKEN: {str(e)}")
         raise ValueError("Invalid Token")
 
 def format_datetime(dt):

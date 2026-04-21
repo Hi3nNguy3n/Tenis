@@ -78,7 +78,6 @@ export const adminModules = [
     description: 'Quản lý danh sách sân, mặt sân, địa điểm và tình trạng khả dụng.',
     highlights: ['Court list', 'Surface type', 'Availability'],
   },
-/*
   {
     path: 'matches',
     name: 'admin-matches',
@@ -90,7 +89,17 @@ export const adminModules = [
     description: 'Điều hành trận đấu, cập nhật tỷ số, người thắng và referee assignment.',
     highlights: ['Live score', 'Match status', 'Winner selection'],
   },
-*/
+  {
+    path: 'create-match',
+    name: 'admin-create-match',
+    label: 'Tạo trận thủ công',
+    section: 'Điều phối',
+    view: 'AdminCreateMatchView',
+    badge: 'New',
+    title: 'Tạo trận giao hữu / 1vs1',
+    description: 'Ghép cặp vận động viên thủ công, chọn sân và lên lịch thi đấu.',
+    highlights: ['Manual Matchmaking', 'Player Selection', 'Court Assignment'],
+  },
   {
     path: 'schedule',
     name: 'admin-schedule',

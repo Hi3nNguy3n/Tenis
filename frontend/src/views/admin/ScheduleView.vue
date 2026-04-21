@@ -11,7 +11,7 @@ const filterDate = ref('')
 const loadMatches = async () => {
   isLoading.value = true
   try {
-    const data = await apiClient.get('/api/tournaments/matches/all')
+    const data = await apiClient.get('/api/matches/')
     schedule.value = data
   } catch (err) {
     ElMessage.error('Lỗi tải lịch thi đấu: ' + err.message)

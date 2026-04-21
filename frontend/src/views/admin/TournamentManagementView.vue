@@ -5,7 +5,10 @@ import { tournamentService } from '../../services/tournamentService'
 import apiClient from '../../services/apiClient'
 import { saveAs } from 'file-saver';
 import { getStoredAccessToken } from '../../utils/authStorage';
-import { Message, Plus, Search, Refresh, Delete, Edit } from '@element-plus/icons-vue'
+import { Message, Plus, Search, Refresh, Delete, Edit, Trophy, DataAnalysis, Calendar, User } from '@element-plus/icons-vue'
+
+import { useRouter } from 'vue-router'
+const router = useRouter()
 
 const categoryOptions = ['Open', 'Intermediate', 'Advanced', 'Elite']
 const formatOptions = ['Singles', 'Doubles']
@@ -30,7 +33,6 @@ const isEditMode = ref(false)
 const selectedTournament = ref(null)
 const errorMessage = ref('')
 const isDetailDrawerOpen = ref(false)
-
 const isExporting = ref(false)
 
 const downloadExcelReport = async (tournament) => {
@@ -131,55 +133,6 @@ const sendMassEmail = async (tournament) => {
   }
 }
 
-const isEmailDialogOpen = ref(false)
-const emailForm = ref({
-  subject: '',
-  message: ''
-})
-
-// Hàm để mở Dialog soạn thảo
-const openEmailDialog = () => {
-  emailForm.value = {
-    subject: `Thông báo quan trọng`, // Tiêu đề mặc định
-    message: ''
-  }
-  isEmailDialogOpen.value = true
-}
-
-const handleConfirmSendEmail = async () => {
-  // Validate cơ bản
-  if (!emailForm.value.subject || !emailForm.value.message) {
-    ElMessage.warning('Vui lòng nhập đầy đủ tiêu đề và nội dung thông báo')
-    return
-  }
-
-  try {
-    isSendingMail.value = true
-    const token = getStoredAccessToken() || localStorage.getItem('access_token')
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
-
-    const response = await fetch(`${baseUrl}/api/tournaments/${selectedTournament.value.id}/send-notifications`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(emailForm.value) // Gửi object {subject, message}
-    })
-
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.detail || 'Lỗi gửi mail')
-
-    ElMessage.success(data.message)
-    isEmailDialogOpen.value = false // Đóng dialog sau khi thành công
-  } catch (error) {
-    console.error("Lỗi gửi mail:", error)
-    ElMessage.error(error.message || 'Không thể kết nối đến server')
-  } finally {
-    isSendingMail.value = false
-  }
-}
-
 // Pagination
 const currentPage = ref(1)
 const pageSize = ref(100)
@@ -191,6 +144,14 @@ const stats = ref({
   pending_approvals: 0,
   total_registrations: 0
 })
+
+const goToMailCampaign = (tournamentId) => {
+  // Thay 'name' bằng 'path' để tránh lỗi không khớp tên route
+  router.push({ 
+    path: '/admin/mail-campaign', 
+    query: { tournamentId: tournamentId } 
+  })
+}
 
 const summaryCards = computed(() => [
   { label: 'TỔNG GIẢI ĐẤU', value: stats.value.total_tournaments, tone: 'primary' },
@@ -595,7 +556,7 @@ onMounted(() => {
           <div class="action-buttons-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
             <el-button 
               type="primary" 
-              @click="openEmailDialog" 
+              @click="goToMailCampaign(selectedTournament.id)" 
               :icon="Message"
               style="width: 100%"
             >
@@ -788,32 +749,6 @@ onMounted(() => {
     </template>
   </el-dialog>
 
-  <el-dialog
-    v-model="isEmailDialogOpen"
-    title="Soạn thông báo gửi VĐV"
-    width="550px"
-    append-to-body
-  >
-    <el-form :model="emailForm" label-position="top">
-      <el-form-item label="Tiêu đề thông báo">
-        <el-input v-model="emailForm.subject" placeholder="VD: Thay đổi lịch thi đấu sân số 2" />
-      </el-form-item>
-      <el-form-item label="Nội dung chi tiết">
-        <el-input
-          v-model="emailForm.message"
-          type="textarea"
-          :rows="8"
-          placeholder="Nhập nội dung bạn muốn gửi đến các vận động viên..."
-        />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="isEmailDialogOpen = false">Hủy</el-button>
-      <el-button type="primary" :loading="isSendingMail" @click="handleConfirmSendEmail">
-        Xác nhận gửi ngay
-      </el-button>
-    </template>
-  </el-dialog>
 </template>
 
 <style scoped>

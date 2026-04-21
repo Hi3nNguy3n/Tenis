@@ -50,6 +50,7 @@ const adminViewFactories = {
   news: () => import('../views/admin/NewsManagementView.vue'),
   rankings: () => import('../views/admin/AdminRankingsView.vue'),
   mailCampaign: () => import('../views/admin/MailCampaignView.vue'),
+  AdminCreateMatchView: () => import('../views/admin/AdminCreateMatchView.vue'),
 }
 
 
@@ -130,6 +131,16 @@ const router = createRouter({
       path: '/players',
       name: 'players',
       component: PlayersView,
+    },
+    {
+      path: '/challenges',
+      name: 'match-challenges',
+      component: () => import('../views/customer/ChallengePlayersView.vue'),
+    },
+    {
+      path: '/profile/challenges/waiting/:id',
+      name: 'challenge-waiting',
+      component: () => import('../views/customer/profile/ChallengePaymentWaitingView.vue'),
     },
     {
       path: '/rankings',

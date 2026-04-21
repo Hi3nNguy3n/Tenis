@@ -1,7 +1,7 @@
 # backend/app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, players, tournaments, registrations, payments, courts, matches, logs, news, upload
+from app.api import auth, players, tournaments, registrations, payments, courts, matches, logs, news, upload, challenges
 from app.db.seed import seed_data
 from app.core.config import settings
 from app.core.cloudinary_setup import init_cloudinary
@@ -47,6 +47,7 @@ app.include_router(matches.router, prefix="/api/matches", tags=["Matches"])
 app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
 app.include_router(news.router, prefix="/api/news", tags=["News"])
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload System"]) # 2. Khai báo
+app.include_router(challenges.router, prefix="/api/challenges", tags=["Challenges"])
 
 @app.get("/")
 def root():

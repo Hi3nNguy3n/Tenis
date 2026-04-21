@@ -1,16 +1,31 @@
 <script setup>
-import { Refresh, CreditCard } from '@element-plus/icons-vue'
+import { ref, onMounted } from 'vue'
+import { Refresh, CreditCard, Search, Document, Trophy, User } from '@element-plus/icons-vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 
 const payments = ref([])
+const tournaments = ref([])
 const loading = ref(false)
+
+// Biến cho bộ lọc
+const searchQuery = ref('')
+const filterTournament = ref(null)
+
+const fetchTournaments = async () => {
+  try {
+    tournaments.value = await apiClient.get('/api/tournaments?limit=100')
+  } catch (err) {}
+}
 
 const fetchPayments = async () => {
   loading.value = true
   try {
-    const data = await apiClient.get('/api/payments/list')
-    payments.value = data
+    const params = {}
+    if (filterTournament.value !== null && filterTournament.value !== '') params.tournament_id = filterTournament.value
+    if (searchQuery.value) params.search = searchQuery.value
+    
+    payments.value = await apiClient.get('/api/payments/list', { params })
   } catch (err) {
     ElMessage.error('Lỗi tải danh sách thanh toán: ' + err.message)
   } finally {
@@ -31,10 +46,12 @@ const handleExport = () => {
   isExporting.value = true
   
   try {
-    const headers = ['ID', 'Ma Giao Dich', 'Ma Don', 'So Tien', 'Phuong Thuc', 'Trang Thai', 'Ngay Thanh Toan']
+    const headers = ['ID', 'Mã Giao Dịch', 'Người Nộp', 'Nội Dung', 'Mã Đơn', 'Số Tiền', 'Phương Thức', 'Trạng Thái', 'Ngày Thanh Toán']
     const rows = payments.value.map(p => [
       p.id,
       p.transaction_ref,
+      `"${p.payer_name}"`, // Bọc ngoặc kép để tránh lỗi dấu phẩy trong tên
+      `"${p.tournament_name}"`,
       p.registration_id,
       p.amount,
       p.payment_method,
@@ -42,11 +59,7 @@ const handleExport = () => {
       p.paid_at ? new Date(p.paid_at).toLocaleString('vi-VN') : 'N/A'
     ])
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(r => r.join(','))
-    ].join('\n')
-
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
@@ -60,36 +73,49 @@ const handleExport = () => {
   }
 }
 
-onMounted(fetchPayments)
+onMounted(() => {
+  fetchTournaments()
+  fetchPayments()
+})
 </script>
 
 <template>
   <div class="module-shell">
-    <!-- HEADER PREMIUM -->
     <section class="action-bar-glass shadow-sm">
       <div class="action-info">
         <div class="kicker-wrap">
           <span class="section-kicker">Financial Oversight</span>
-          <div class="live-indicator">
-            <span class="dot"></span>
-            LIVE
-          </div>
+          <div class="live-indicator"><span class="dot"></span>LIVE</div>
         </div>
         <p>Theo dõi các giao dịch từ cổng thanh toán và quản lý doanh thu thời gian thực.</p>
       </div>
-      <div class="hero-actions-v2">
+      
+      <div class="filter-area">
+        <el-input 
+          v-model="searchQuery" 
+          placeholder="Tìm tên VĐV hoặc Mã giao dịch..." 
+          clearable 
+          :prefix-icon="Search"
+          @clear="fetchPayments"
+          @keyup.enter="fetchPayments"
+          style="width: 280px"
+        />
+        <el-select v-model="filterTournament" placeholder="Tất cả giải đấu" clearable @change="fetchPayments" style="width: 250px">
+          <el-option label="🌟 Phí Giao hữu (1vs1)" :value="0" />
+          <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
+        </el-select>
+        
         <el-button :icon="Refresh" circle @click="fetchPayments" />
         <el-button type="primary" round :loading="isExporting" @click="handleExport" class="btn-export">
-          Xuất báo cáo Excel
+          Xuất báo cáo CSV
         </el-button>
       </div>
     </section>
 
     <section class="table-card-premium shadow-sm">
       <el-table :data="payments" stripe v-loading="loading" class="modern-finance-table">
-        <el-table-column prop="id" label="ID" width="70" align="center" />
         
-        <el-table-column label="Giao dịch / Đơn hàng" min-width="220">
+        <el-table-column label="Giao dịch" width="180">
           <template #default="{ row }">
             <div class="tx-cell">
               <span class="tx-ref">{{ row.transaction_ref }}</span>
@@ -98,7 +124,25 @@ onMounted(fetchPayments)
           </template>
         </el-table-column>
 
-        <el-table-column label="Số tiền" width="160" align="right">
+        <el-table-column label="Người nộp" min-width="180">
+          <template #default="{ row }">
+            <div class="info-cell">
+              <el-icon class="info-icon"><User /></el-icon>
+              <span class="payer-name">{{ row.payer_name }}</span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="Nội dung" min-width="220">
+          <template #default="{ row }">
+            <div class="info-cell">
+              <el-icon class="info-icon"><Trophy /></el-icon>
+              <span class="tour-name">{{ row.tournament_name }}</span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="Số tiền" width="150" align="right">
            <template #default="{ row }">
              <div class="amount-cell">
                {{ new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(row.amount) }}
@@ -106,16 +150,7 @@ onMounted(fetchPayments)
            </template>
         </el-table-column>
 
-        <el-table-column label="Phương thức" width="180">
-          <template #default="{ row }">
-            <div class="method-cell">
-              <el-icon class="m-icon"><CreditCard /></el-icon>
-              <span>{{ row.payment_method }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="Trạng thái" width="140" align="center">
+        <el-table-column label="Trạng thái" width="130" align="center">
            <template #default="{ row }">
              <el-tag :type="getStatusType(row.status)" effect="light" class="status-pill">
                {{ row.status?.toUpperCase() }}
@@ -123,7 +158,7 @@ onMounted(fetchPayments)
            </template>
         </el-table-column>
 
-        <el-table-column label="Ngày thanh toán" min-width="180" align="right">
+        <el-table-column label="Thời gian" min-width="140" align="right">
            <template #default="{ row }">
              <div class="time-vertical" v-if="row.paid_at">
                <span class="d-val">{{ new Date(row.paid_at).toLocaleDateString('vi-VN') }}</span>
@@ -133,7 +168,7 @@ onMounted(fetchPayments)
            </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="payments.length === 0" description="Chưa có giao dịch thanh toán nào" />
+      <el-empty v-if="payments.length === 0" description="Không có dữ liệu giao dịch" />
     </section>
   </div>
 </template>
@@ -171,7 +206,7 @@ onMounted(fetchPayments)
 
 .action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
 
-.hero-actions-v2 { display: flex; align-items: center; gap: 12px; }
+.filter-area { display: flex; align-items: center; gap: 12px; }
 .btn-export {
   background: linear-gradient(135deg, #10b981, #059669);
   border: none;
@@ -186,13 +221,15 @@ onMounted(fetchPayments)
 }
 
 .tx-cell { display: flex; flex-direction: column; gap: 2px; }
-.tx-ref { font-weight: 700; color: #0f172a; font-size: 0.9rem; font-family: monospace; }
+.tx-ref { font-weight: 700; color: #0f172a; font-size: 0.85rem; font-family: monospace; }
 .reg-id { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
 
-.amount-cell { font-weight: 900; color: #10b981; font-size: 1.05rem; }
+.info-cell { display: flex; align-items: center; gap: 8px; }
+.info-icon { color: #3b82f6; font-size: 1.1rem; }
+.payer-name { font-weight: 700; color: #1e293b; font-size: 0.9rem; }
+.tour-name { font-weight: 600; color: #475569; font-size: 0.85rem; }
 
-.method-cell { display: flex; align-items: center; gap: 8px; color: #475569; font-weight: 600; font-size: 0.9rem; }
-.m-icon { color: #64748b; font-size: 1.1rem; }
+.amount-cell { font-weight: 900; color: #10b981; font-size: 1rem; }
 
 .status-pill { font-weight: 800; border-radius: 99px; padding: 0 16px; font-size: 0.65rem; border: none !important; }
 

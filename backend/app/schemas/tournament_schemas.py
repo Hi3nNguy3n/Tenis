@@ -52,3 +52,8 @@ class TournamentResponse(TournamentBase):
 
     class Config:
         from_attributes = True
+
+class AnnouncementRequest(BaseModel):
+    subject: str
+    message: str
+    scheduled_at: Optional[datetime] = None

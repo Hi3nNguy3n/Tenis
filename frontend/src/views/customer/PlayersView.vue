@@ -8,7 +8,10 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 
 const chatApiBase = import.meta.env.VITE_API_CHAT_URL || 'http://127.0.0.1:8001'
 const chatWsBase = chatApiBase.replace(/^http/, 'ws')
-
+const isVideo = (url) => {
+  if (!url) return false
+  return url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) !== null
+}
 const loading = ref(true)
 const players = ref([])
 const recentWinners = ref([])
@@ -143,6 +146,7 @@ const loadLatestNews = async () => {
           slug: post.slug,
           summary: post.summary || post.excerpt || '',
           thumbnail_url: post.thumbnail_url,
+          media_url: post.media_url,
           created_at: post.publish_at || post.created_at,
         }))
       : []
@@ -521,7 +525,16 @@ onBeforeUnmount(() => {
                 :to="news.slug ? `/news/${news.slug}` : '/news'"
                 class="news-mini-item"
               >
-                <img :src="news.thumbnail_url || 'https://images.unsplash.com/photo-1575428652377-a2d80e2277fc?auto=format&fit=crop&w=300&q=80'" :alt="news.title" />
+              <video 
+                v-if="isVideo(news.media_url || news.thumbnail_url)" 
+                :src="news.media_url || news.thumbnail_url" 
+                autoplay muted loop playsinline
+              ></video>
+              <img 
+                v-else 
+                :src="news.thumbnail_url || news.media_url || 'https://images.unsplash.com/photo-1575428652377-a2d80e2277fc?auto=format&fit=crop&w=300&q=80'" 
+                :alt="news.title" 
+              />
                 <div class="news-mini-content">
                   <div class="news-mini-title">{{ news.title }}</div>
                   <div class="news-mini-summary">{{ news.summary || 'Bấm để xem chi tiết.' }}</div>
@@ -541,7 +554,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .chat-app { height: calc(100vh - 100px); display: flex; flex-direction: column; background: #fff; font-family: Arial, sans-serif; overflow: hidden; }
-
+.news-mini-item img,
+.news-mini-item video {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
 /* Top Honor Bar */
 .top-honor { background: #1a202c; color: #fff; padding: 10px 20px; display: flex; align-items: center; gap: 20px; border-bottom: 2px solid #2d3748; flex-shrink: 0; }
 .honor-label { color: #f6e05e; font-weight: 600; font-size: 0.75rem; display: flex; align-items: center; gap: 5px; }
@@ -1023,5 +1043,6 @@ onBeforeUnmount(() => {
   .right-empty-link {
     align-self: flex-start;
   }
+  
 }
 </style>

@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bell, Calendar, Clock, Message, Promotion, Timer } from '@element-plus/icons-vue'
+import { Bell, Clock, Promotion } from '@element-plus/icons-vue'
 import { tournamentService } from '../../services/tournamentService'
 import apiClient from '../../services/apiClient'
 import { useAuthStore } from '../../stores/auth'
@@ -21,63 +21,23 @@ const sendAt = ref('')
 const templateKey = ref('announcement')
 const campaignLogs = ref([])
 const scheduledQueue = ref([])
-let schedulerTimer = null
+
+import { useRoute } from 'vue-router'
+const route = useRoute()
 
 const templates = [
-  {
-    key: 'announcement',
-    label: 'Thông báo giải',
-    subject: 'Thông báo quan trọng từ Ban tổ chức',
-    message:
-      'Ban tổ chức xin gửi thông báo tới các vận động viên: vui lòng theo dõi lịch thi đấu, cập nhật trạng thái đăng ký và kiểm tra thông tin giải đấu thường xuyên.',
-  },
-  {
-    key: 'reminder',
-    label: 'Nhắc lịch',
-    subject: 'Nhắc lịch thi đấu sắp diễn ra',
-    message:
-      'Giải đấu sắp diễn ra. Vui lòng kiểm tra lịch thi đấu, sân thi đấu và có mặt đúng giờ theo lịch đã công bố.',
-  },
-  {
-    key: 'result',
-    label: 'Kết quả',
-    subject: 'Cập nhật kết quả và lịch tiếp theo',
-    message:
-      'Kết quả thi đấu đã được cập nhật. Vui lòng xem lại bracket, kết quả trận và lịch thi đấu tiếp theo trên hệ thống.',
-  },
-  {
-    key: 'registration',
-    label: 'Mở đăng ký',
-    subject: 'Thông báo mở đăng ký giải đấu',
-    message:
-      'Hệ thống đã mở đăng ký cho giải đấu. Các vận động viên vui lòng hoàn tất đăng ký trước hạn chót để được xếp vào draw.',
-  },
+  { key: 'announcement', label: 'Thông báo giải', subject: 'Thông báo quan trọng từ Ban tổ chức', message: 'Ban tổ chức xin gửi thông báo tới các vận động viên: vui lòng theo dõi lịch thi đấu, cập nhật trạng thái đăng ký và kiểm tra thông tin giải đấu thường xuyên.' },
+  { key: 'reminder', label: 'Nhắc lịch', subject: 'Nhắc lịch thi đấu sắp diễn ra', message: 'Giải đấu sắp diễn ra. Vui lòng kiểm tra lịch thi đấu, sân thi đấu và có mặt đúng giờ theo lịch đã công bố.' },
+  { key: 'result', label: 'Kết quả', subject: 'Cập nhật kết quả và lịch tiếp theo', message: 'Kết quả thi đấu đã được cập nhật. Vui lòng xem lại bracket, kết quả trận và lịch thi đấu tiếp theo trên hệ thống.' },
+  { key: 'registration', label: 'Mở đăng ký', subject: 'Thông báo mở đăng ký giải đấu', message: 'Hệ thống đã mở đăng ký cho giải đấu. Các vận động viên vui lòng hoàn tất đăng ký trước hạn chót để được xếp vào draw.' },
 ]
 
-const selectedTournament = computed(() =>
-  tournaments.value.find((item) => String(item.id) === String(selectedTournamentId.value)) || null,
-)
-
-const selectedTemplate = computed(() => templates.find((item) => item.key === templateKey.value) || templates[0])
-
-const upcomingCampaigns = computed(() =>
-  [...scheduledQueue.value]
-    .sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime())
-    .slice(0, 5),
-)
+const selectedTournament = computed(() => tournaments.value.find((item) => String(item.id) === String(selectedTournamentId.value)) || null)
+const upcomingCampaigns = computed(() => [...scheduledQueue.value].sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime()).slice(0, 5))
 
 const loadStoredState = () => {
-  try {
-    campaignLogs.value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-  } catch {
-    campaignLogs.value = []
-  }
-
-  try {
-    scheduledQueue.value = JSON.parse(localStorage.getItem(SCHEDULE_KEY) || '[]')
-  } catch {
-    scheduledQueue.value = []
-  }
+  try { campaignLogs.value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { campaignLogs.value = [] }
+  try { scheduledQueue.value = JSON.parse(localStorage.getItem(SCHEDULE_KEY) || '[]') } catch { scheduledQueue.value = [] }
 }
 
 const persistStoredState = () => {
@@ -98,13 +58,11 @@ const loadTournaments = async () => {
   loadingTournaments.value = true
   try {
     const data = await tournamentService.getAll({ limit: 100, skip: 0 })
-    const items = Array.isArray(data) ? data : (data?.items || [])
-    tournaments.value = items
-    if (!selectedTournamentId.value && items.length) {
-      selectedTournamentId.value = String(items[0].id)
+    tournaments.value = Array.isArray(data) ? data : (data?.items || [])
+    if (!selectedTournamentId.value && tournaments.value.length) {
+      selectedTournamentId.value = String(tournaments.value[0].id)
     }
   } catch (error) {
-    console.error('Không tải được danh sách giải:', error)
     ElMessage.error('Không tải được danh sách giải đấu.')
   } finally {
     loadingTournaments.value = false
@@ -116,173 +74,73 @@ const appendLog = (entry) => {
   persistStoredState()
 }
 
-const buildPayload = () => ({
-  subject: subject.value.trim(),
-  message: message.value.trim(),
-})
-
+// 1. CHỈNH SỬA HÀM GỬI NGAY
 const sendNow = async () => {
-  if (!selectedTournament.value) {
-    ElMessage.warning('Chọn một giải đấu trước.')
-    return
+  if (!selectedTournament.value || !subject.value.trim() || !message.value.trim()) {
+    return ElMessage.warning('Vui lòng chọn giải và nhập đủ nội dung.')
   }
 
-  if (!subject.value.trim() || !message.value.trim()) {
-    ElMessage.warning('Vui lòng nhập tiêu đề và nội dung mail.')
-    return
-  }
-
-  const confirmed = await ElMessageBox.confirm(
-    `Gửi mail ngay cho giải "${selectedTournament.value.name}"?`,
-    'Xác nhận gửi',
-    { confirmButtonText: 'Gửi ngay', cancelButtonText: 'Hủy', type: 'warning' },
-  ).catch(() => false)
-
+  const confirmed = await ElMessageBox.confirm(`Gửi mail ngay cho giải "${selectedTournament.value.name}"?`, 'Xác nhận', { type: 'warning' }).catch(() => false)
   if (!confirmed) return
 
   sending.value = true
-  const startedAt = new Date().toISOString()
   try {
-    const result = await apiClient.post(
-      `/api/tournaments/${selectedTournament.value.id}/send-notifications`,
-      buildPayload(),
-    )
-
-    appendLog({
-      id: `campaign-${Date.now()}`,
-      mode: 'sent',
-      status: 'sent',
-      tournamentId: selectedTournament.value.id,
-      tournamentName: selectedTournament.value.name,
+    // Gửi payload với scheduled_at = null để Backend gửi ngay
+    const result = await apiClient.post(`/api/tournaments/${selectedTournament.value.id}/send-notifications`, {
       subject: subject.value.trim(),
       message: message.value.trim(),
-      sendAt: startedAt,
-      finishedAt: new Date().toISOString(),
-      author: authStore.user?.full_name || authStore.user?.email || 'Admin',
-      resultMessage: result?.message || 'Đã gửi thành công.',
+      scheduled_at: null 
+    })
+
+    appendLog({
+      id: `campaign-${Date.now()}`, mode: 'sent', status: 'sent',
+      tournamentName: selectedTournament.value.name, subject: subject.value.trim(),
+      sendAt: new Date().toISOString(), author: authStore.user?.full_name || 'Admin',
+      resultMessage: result.message
     })
     ElMessage.success('Đã gửi thông báo thành công.')
   } catch (error) {
-    appendLog({
-      id: `campaign-${Date.now()}`,
-      mode: 'sent',
-      status: 'failed',
-      tournamentId: selectedTournament.value.id,
-      tournamentName: selectedTournament.value.name,
-      subject: subject.value.trim(),
-      message: message.value.trim(),
-      sendAt: startedAt,
-      finishedAt: new Date().toISOString(),
-      author: authStore.user?.full_name || authStore.user?.email || 'Admin',
-      resultMessage: error.message || 'Gửi mail thất bại.',
-    })
     ElMessage.error(error.message || 'Không gửi được thông báo.')
   } finally {
     sending.value = false
   }
 }
 
+// 2. CHỈNH SỬA HÀM HẸN GIỜ (GIAO VIỆC CHO BACKEND)
 const scheduleCampaign = async () => {
-  if (!selectedTournament.value) {
-    ElMessage.warning('Chọn một giải đấu trước.')
-    return
-  }
-
-  if (!subject.value.trim() || !message.value.trim()) {
-    ElMessage.warning('Vui lòng nhập tiêu đề và nội dung mail.')
-    return
-  }
-
-  if (!sendAt.value) {
-    ElMessage.warning('Chọn thời gian gửi.')
-    return
+  if (!selectedTournament.value || !subject.value.trim() || !message.value.trim() || !sendAt.value) {
+    return ElMessage.warning('Vui lòng nhập đủ thông tin và chọn thời gian.')
   }
 
   const sendTime = new Date(sendAt.value).getTime()
-  if (Number.isNaN(sendTime) || sendTime <= Date.now()) {
-    ElMessage.warning('Thời gian gửi phải lớn hơn hiện tại.')
-    return
+  if (sendTime <= Date.now()) {
+    return ElMessage.warning('Thời gian hẹn phải lớn hơn hiện tại.')
   }
 
   scheduling.value = true
   try {
-    scheduledQueue.value = [
-      {
-        id: `schedule-${Date.now()}`,
-        tournamentId: selectedTournament.value.id,
-        tournamentName: selectedTournament.value.name,
-        subject: subject.value.trim(),
-        message: message.value.trim(),
-        sendAt: new Date(sendTime).toISOString(),
-        author: authStore.user?.full_name || authStore.user?.email || 'Admin',
-        status: 'scheduled',
-      },
-      ...scheduledQueue.value,
-    ]
-    persistStoredState()
-    appendLog({
-      id: `log-${Date.now()}`,
-      mode: 'scheduled',
-      status: 'scheduled',
-      tournamentId: selectedTournament.value.id,
-      tournamentName: selectedTournament.value.name,
+    // Ép kiểu Date thành chuẩn ISO (UTC) để Backend không bị lệch múi giờ
+    const payload = {
       subject: subject.value.trim(),
       message: message.value.trim(),
-      sendAt: new Date().toISOString(),
-      finishedAt: new Date().toISOString(),
-      author: authStore.user?.full_name || authStore.user?.email || 'Admin',
-      resultMessage: `Đã đặt lịch gửi vào ${new Date(sendTime).toLocaleString('vi-VN')}`,
-    })
-    ElMessage.success('Đã lưu lịch gửi.')
+      scheduled_at: new Date(sendTime).toISOString() 
+    }
+
+    const result = await apiClient.post(`/api/tournaments/${selectedTournament.value.id}/send-notifications`, payload)
+
+    // Thêm vào UI để Admin xem cho vui (Backend đã tự lo việc gửi)
+    scheduledQueue.value = [{
+      id: `schedule-${Date.now()}`, tournamentName: selectedTournament.value.name,
+      subject: payload.subject, sendAt: new Date(sendTime).toISOString(),
+      author: authStore.user?.full_name || 'Admin', status: 'scheduled',
+    }, ...scheduledQueue.value]
+    persistStoredState()
+
+    ElMessage.success('Đã giao lịch gửi mail cho Server thành công!')
+  } catch (error) {
+    ElMessage.error(error.message || 'Không thể lên lịch gửi.')
   } finally {
     scheduling.value = false
-  }
-}
-
-const runScheduler = async () => {
-  const now = Date.now()
-  const due = scheduledQueue.value.filter((item) => new Date(item.sendAt).getTime() <= now)
-
-  if (!due.length) return
-
-  const remaining = scheduledQueue.value.filter((item) => new Date(item.sendAt).getTime() > now)
-  scheduledQueue.value = remaining
-  persistStoredState()
-
-  for (const item of due) {
-    try {
-      const result = await apiClient.post(`/api/tournaments/${item.tournamentId}/send-notifications`, {
-        subject: item.subject,
-        message: item.message,
-      })
-      appendLog({
-        id: `log-${Date.now()}-${item.id}`,
-        mode: 'scheduled',
-        status: 'sent',
-        tournamentId: item.tournamentId,
-        tournamentName: item.tournamentName,
-        subject: item.subject,
-        message: item.message,
-        sendAt: item.sendAt,
-        finishedAt: new Date().toISOString(),
-        author: item.author,
-        resultMessage: result?.message || 'Đã gửi mail theo lịch.',
-      })
-    } catch (error) {
-      appendLog({
-        id: `log-${Date.now()}-${item.id}`,
-        mode: 'scheduled',
-        status: 'failed',
-        tournamentId: item.tournamentId,
-        tournamentName: item.tournamentName,
-        subject: item.subject,
-        message: item.message,
-        sendAt: item.sendAt,
-        finishedAt: new Date().toISOString(),
-        author: item.author,
-        resultMessage: error.message || 'Lỗi gửi mail theo lịch.',
-      })
-    }
   }
 }
 
@@ -292,31 +150,29 @@ const deleteLog = (id) => {
 }
 
 const clearAllLogs = () => {
-  ElMessageBox.confirm('Xóa toàn bộ log chiến dịch mail?', 'Xác nhận', {
-    confirmButtonText: 'Xóa',
-    cancelButtonText: 'Hủy',
-    type: 'warning',
-  }).then(() => {
-    campaignLogs.value = []
-    persistStoredState()
-    ElMessage.success('Đã xóa log.')
-  }).catch(() => {})
+  campaignLogs.value = []
+  persistStoredState()
+  ElMessage.success('Đã xóa log.')
 }
 
 onMounted(async () => {
+  // 1. Khởi tạo dữ liệu cơ bản
   authStore.hydrate()
   loadStoredState()
+  
+  // 2. Kiểm tra xem có tournamentId từ trang Giải Đấu truyền sang không
+  if (route.query.tournamentId) {
+    // Gán vào ID (biến ref), KHÔNG gán vào selectedTournament (biến computed)
+    selectedTournamentId.value = String(route.query.tournamentId)
+  }
+  
+  // 3. Gọi hàm load danh sách giải đấu (Nhớ là loadTournaments chứ không phải fetchTournaments)
   await loadTournaments()
+  
+  // 4. Áp dụng mẫu mail mặc định
   applyTemplate(templateKey.value)
-  runScheduler()
-  schedulerTimer = window.setInterval(runScheduler, 30000)
 })
 
-onUnmounted(() => {
-  if (schedulerTimer) {
-    window.clearInterval(schedulerTimer)
-  }
-})
 </script>
 
 <template>

@@ -111,7 +111,18 @@ onMounted(fetchNews)
               <span class="date">{{ formatDate(featuredPost.publish_at || featuredPost.created_at) }}</span>
             </div>
             <figure class="entry-visual">
-              <img :src="featuredPost.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=1200'" alt="hero" />
+              <video 
+                v-if="featuredPost.thumbnail_url && featuredPost.thumbnail_url.match(/\.(mp4|webm|ogg)$/i)" 
+                :src="featuredPost.thumbnail_url" 
+                style="width: 100%; border-radius: 4px;"
+                autoplay loop muted playsinline controls>
+              </video>
+              
+              <img 
+                v-else 
+                :src="featuredPost.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=1200'" 
+                alt="hero" 
+              />
             </figure>
           </div>
           
@@ -143,7 +154,16 @@ onMounted(fetchNews)
                 <div class="sidebar-news-list">
                   <div v-for="post in newsList.slice(1, 6)" :key="post.id" class="sb-news-item" @click="$router.push('/news/' + post.slug)">
                     <div class="sb-item-thumb">
-                      <img :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=200'" />
+                      <video 
+                        v-if="post.thumbnail_url && post.thumbnail_url.match(/\.(mp4|webm|ogg)$/i)" 
+                        :src="post.thumbnail_url" 
+                        style="width: 100%; height: 100%; object-fit: cover;"
+                        autoplay loop muted playsinline>
+                      </video>
+                      <img 
+                        v-else 
+                        :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=200'" 
+                      />
                     </div>
                     <div class="sb-item-info">
                       <h3>{{ post.title }}</h3>
@@ -151,11 +171,21 @@ onMounted(fetchNews)
                   </div>
                 </div>
               </el-tab-pane>
+
               <el-tab-pane label="Most Recent" name="recent">
                 <div class="sidebar-news-list">
-                   <div v-for="post in newsList.slice(0, 5)" :key="post.id" class="sb-news-item" @click="$router.push('/news/' + post.slug)">
+                  <div v-for="post in newsList.slice(0, 5)" :key="post.id" class="sb-news-item" @click="$router.push('/news/' + post.slug)">
                     <div class="sb-item-thumb">
-                      <img :src="post.thumbnail_url" />
+                      <video 
+                        v-if="post.thumbnail_url && post.thumbnail_url.match(/\.(mp4|webm|ogg)$/i)" 
+                        :src="post.thumbnail_url" 
+                        style="width: 100%; height: 100%; object-fit: cover;"
+                        autoplay loop muted playsinline>
+                      </video>
+                      <img 
+                        v-else 
+                        :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=200'" 
+                      />
                     </div>
                     <div class="sb-item-info">
                       <h3>{{ post.title }}</h3>

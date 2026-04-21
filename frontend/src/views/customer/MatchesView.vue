@@ -10,7 +10,10 @@ import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
 const router = useRouter()
-
+const isVideo = (url) => {
+  if (!url) return false
+  return url.match(/\.(mp4|webm|ogg)$/i) !== null
+}
 const loading = ref(false)
 const tournamentsWithMatches = ref([])
 const latestNews = ref([])
@@ -375,7 +378,15 @@ onUnmounted(() => {
               class="news-item-mini"
               @click="openNewsDetail(post.slug)"
             >
-              <img :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150'" />
+              <video 
+                v-if="isVideo(post.media_url || post.thumbnail_url)" 
+                :src="post.media_url || post.thumbnail_url" 
+                autoplay muted loop playsinline
+              ></video>
+              <img 
+                v-else 
+                :src="post.thumbnail_url || post.media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150'" 
+              />
               <p>{{ post.title }}</p>
             </div>
             <p v-if="latestNews.length === 0" class="empty-widget">Chưa có tin tức.</p>
@@ -770,7 +781,8 @@ onUnmounted(() => {
 }
 .news-item-mini:last-child { border-bottom: none; }
 .news-item-mini:hover { background: #f8fafc; }
-.news-item-mini img { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.news-item-mini img,
+.news-item-mini video { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; flex-shrink: 0; display: block; }
 .news-item-mini p { font-size: 0.82rem; font-weight: 500; color: #334155; line-height: 1.4; margin: 0; }
 
 .rank-row {

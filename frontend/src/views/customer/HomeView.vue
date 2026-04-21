@@ -8,6 +8,12 @@ import { useAuthStore } from '../../stores/auth'
 const authStore = useAuthStore()
 let inboxRefreshTimer = null
 
+// --- HÀM KIỂM TRA ĐỊNH DẠNG VIDEO ---
+const isVideo = (url) => {
+  if (!url) return false
+  return url.match(/\.(mp4|webm|ogg)$/i) !== null
+}
+
 const featureCards = [
   {
     id: 'coaching',
@@ -109,7 +115,8 @@ onMounted(async () => {
       date: new Date(post.publish_at || post.created_at).toLocaleDateString('vi-VN'),
       category: 'Tin tức',
       excerpt: post.summary,
-      image: post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
+      // Ưu tiên lấy media_url (Video) trước, nếu không có mới dùng thumbnail_url
+      image: post.media_url || post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
     }))
 
     // Map the latest news to feature cards if available
@@ -163,7 +170,6 @@ onUnmounted(() => {
     window.clearInterval(inboxRefreshTimer)
   }
 })
-
 </script>
 
 <template>
@@ -219,7 +225,18 @@ onUnmounted(() => {
       <div class="bento-grid">
         <div class="grid-left-col">
           <RouterLink :to="featureCards[0].slug ? '/news/' + featureCards[0].slug : '/tournaments'" class="bento-card bento-feature bento-coaching">
-            <div class="feature-image" :style="featureCards[0].image ? { backgroundImage: `url(${featureCards[0].image})` } : {}"></div>
+            
+            <video 
+              v-if="isVideo(featureCards[0].image)" 
+              :src="featureCards[0].image" 
+              class="feature-media" 
+              autoplay muted loop playsinline
+            ></video>
+            <div 
+              v-else 
+              class="feature-image" 
+              :style="featureCards[0].image ? { backgroundImage: `url(${featureCards[0].image})` } : {}"
+            ></div>
             <div class="feature-overlay"></div>
             <div class="feature-content">
               <span class="feature-badge">{{ featureCards[0].badge }}</span>
@@ -281,7 +298,19 @@ onUnmounted(() => {
       <div class="news-grid">
         <article v-for="news in newsItems" :key="news.id" class="news-card">
           <div class="news-img-wrap">
-            <img :src="news.image" :alt="news.title" />
+            
+            <video 
+              v-if="isVideo(news.image)" 
+              :src="news.image" 
+              class="news-media" 
+              autoplay muted loop playsinline
+            ></video>
+            <img 
+              v-else 
+              :src="news.image" 
+              :alt="news.title" 
+              class="news-media" 
+            />
             <span class="news-cat">{{ news.category }}</span>
           </div>
           <div class="news-body">
@@ -342,15 +371,12 @@ onUnmounted(() => {
   border: 2px solid #fff;
 }
 
-
-
 @media (max-width: 640px) {
   .floating-inbox-btn {
     left: 14px;
     bottom: 14px;
   }
 }
-
 
 .hero-section {
   position: relative;
@@ -413,7 +439,7 @@ onUnmounted(() => {
 
 .hero-copy h1 {
   margin-bottom: 1.5rem;
-  font-size: clamp(2rem, 6vw, 4.2rem); /* Dynamic fluid scaling */
+  font-size: clamp(2rem, 6vw, 4.2rem);
   line-height: 1.1;
   letter-spacing: -0.01em;
   font-weight: 500;
@@ -516,15 +542,9 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
-  }
-  70% {
-    box-shadow: 0 0 0 12px rgba(34, 197, 94, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
-  }
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+  70% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
 }
 
 .hero-accent-card button {
@@ -565,7 +585,7 @@ onUnmounted(() => {
 .bento-card {
   position: relative;
   overflow: hidden;
-  border-radius: 8px; /* Softer radius */
+  border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
   border: 1px solid var(--border-light);
@@ -585,8 +605,17 @@ onUnmounted(() => {
   border-bottom: 4px solid var(--primary);
 }
 
+/* Thêm CSS cho Video ở card lớn */
+.feature-media {
+  width: 100%;
+  height: 360px;
+  object-fit: cover;
+  border-bottom: 4px solid var(--primary);
+  display: block;
+}
+
 .feature-overlay {
-  display: none; /* Removed gradient */
+  display: none;
 }
 
 .feature-content {
@@ -773,23 +802,10 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1024px) {
-  .bento-grid {
-    flex-direction: column;
-  }
-  
-  .grid-left-col, .grid-right-col {
-    flex: 1 1 100%;
-  }
-
-  .bento-shop {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .shop-visual {
-    width: 100%;
-    justify-content: center;
-  }
+  .bento-grid { flex-direction: column; }
+  .grid-left-col, .grid-right-col { flex: 1 1 100%; }
+  .bento-shop { flex-direction: column; align-items: flex-start; }
+  .shop-visual { width: 100%; justify-content: center; }
 }
 
 .news-section {
@@ -843,10 +859,12 @@ onUnmounted(() => {
   height: 200px;
 }
 
-.news-img-wrap img {
+/* Thêm CSS cho media list tin tức */
+.news-media {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .news-cat {
@@ -907,7 +925,6 @@ onUnmounted(() => {
   transform: translateX(4px);
 }
 
-
 @media (max-width: 1200px) {
   .hero-copy { max-width: 600px; }
   .bento-grid { gap: 1rem; }
@@ -929,6 +946,7 @@ onUnmounted(() => {
   .hero-accent-card { display: none; }
   .featured-section { padding-top: 2rem; padding-bottom: 2rem; }
   .feature-image { height: 240px; }
+  .feature-media { height: 240px; }
   .section-header h2 { font-size: 1.8rem; }
   .news-img-wrap { height: 180px; }
   .bento-card { border-radius: 12px; }
@@ -944,7 +962,3 @@ onUnmounted(() => {
   .container { padding-left: 15px; padding-right: 15px; }
 }
 </style>
-
-
-
-

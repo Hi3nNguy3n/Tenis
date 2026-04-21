@@ -16,10 +16,25 @@ const tournamentId = route.params.id
 const activeTab = ref('info')
 const publicMatches = ref([])
 const loadingBracket = ref(false)
+const standingsData = ref([])
+const loadingStandings = ref(false)
+
+const fetchStandings = async () => {
+  loadingStandings.value = true
+  try {
+    const data = await apiClient.get(`/api/tournaments/${tournamentId}/standings`)
+    standingsData.value = data
+  } catch (err) {
+    console.error("Lỗi tải bảng xếp hạng:", err)
+  } finally {
+    loadingStandings.value = false
+  }
+}
 
 onMounted(async () => {
   tournamentStore.fetchTournamentById(tournamentId)
   fetchBracket()
+  fetchStandings()
 })
 
 const fetchBracket = async () => {
@@ -131,7 +146,7 @@ const formatDate = (dateStr) => {
                 </div>
                 
                 <div v-else class="bracket-scroll">
-                  <div v-for="round in groupedMatches" :key="round.label" class="round-column">
+                  <div v-for="round in groupedMatches" :key="round.label" class="round-column" :class="{ 'is-group-stage': round.label.includes('G') }">
                     <h3 class="round-title">{{ round.label }}</h3>
                     <div class="match-list">
                       <div v-for="m in round.items" :key="m.id" class="public-match-card">
@@ -159,7 +174,53 @@ const formatDate = (dateStr) => {
                 </div>
               </div>
             </el-tab-pane>
-          </el-tabs>
+
+            <el-tab-pane label="Bảng xếp hạng (Vòng bảng)" name="standings">
+              <div v-loading="loadingStandings" class="bracket-wrapper" style="padding: 20px;">
+                <div v-if="standingsData.length === 0" class="empty-bracket">
+                  <p>Giải đấu này không có dữ liệu vòng bảng hoặc chưa có trận đấu nào kết thúc.</p>
+                </div>
+                
+                <div v-else>
+                  <div v-for="group in standingsData" :key="group.group_name" class="group-standings-card">
+                    <h3 class="group-title">{{ group.group_name }}</h3>
+                    
+                    <el-table :data="group.rankings" stripe border style="width: 100%; border-radius: 8px; overflow: hidden;">
+                      <el-table-column type="index" label="Hạng" width="70" align="center" />
+                      <el-table-column prop="player_name" label="Vận động viên" min-width="180">
+                        <template #default="{ row }">
+                          <strong style="color: #1e293b;">{{ row.player_name }}</strong>
+                        </template>
+                      </el-table-column>
+                      <el-table-column prop="played" label="Đã đá" width="80" align="center" />
+                      <el-table-column prop="won" label="Thắng" width="80" align="center" />
+                      <el-table-column prop="lost" label="Thua" width="80" align="center" />
+                      <el-table-column prop="set_diff" label="HS Set" width="90" align="center">
+                        <template #default="{ row }">
+                          <strong :style="{ color: row.set_diff > 0 ? '#15803d' : (row.set_diff < 0 ? '#dc2626' : 'inherit') }">
+                            {{ row.set_diff > 0 ? '+' + row.set_diff : row.set_diff }}
+                          </strong>
+                        </template>
+                      </el-table-column>
+
+                      <el-table-column prop="game_diff" label="HS Game" width="100" align="center">
+                        <template #default="{ row }">
+                          <strong :style="{ color: row.game_diff > 0 ? '#15803d' : (row.game_diff < 0 ? '#dc2626' : 'inherit') }">
+                            {{ row.game_diff > 0 ? '+' + row.game_diff : row.game_diff }}
+                          </strong>
+                        </template>
+                      </el-table-column>
+                      <el-table-column prop="points" label="Điểm" width="90" align="center">
+                        <template #default="{ row }">
+                          <span style="font-size: 1.1rem; font-weight: 800; color: #15803d;">{{ row.points }}</span>
+                        </template>
+                      </el-table-column>
+                    </el-table>
+                  </div>
+                </div>
+              </div>
+            </el-tab-pane>
+            </el-tabs>
 
         </div>
 
@@ -238,10 +299,70 @@ const formatDate = (dateStr) => {
 /* Bracket Styles */
 .bracket-wrapper { padding: 20px 0; background: white; border-radius: 16px; min-height: 400px;}
 .empty-bracket { text-align: center; color: #94a3b8; font-style: italic; padding: 50px 0; }
-.bracket-scroll { display: flex; gap: 30px; overflow-x: auto; padding: 10px; }
-.round-column { min-width: 260px; display: flex; flex-direction: column; justify-content: center; gap: 20px; }
-.round-title { text-align: center; color: var(--primary); font-weight: 500; margin-bottom: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;}
-.public-match-card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+.bracket-scroll { 
+  display: flex; 
+  gap: 0; /* Xóa khoảng cách để vẽ đường nối */
+  overflow-x: auto; 
+  padding: 20px 10px; 
+  background: #f8fafc;
+  border-radius: 12px;
+}
+.round-column { 
+  min-width: 280px; 
+  display: flex; 
+  flex-direction: column; 
+  justify-content: space-around; /* Quan trọng: Tự động giãn đều thẻ để khớp với nhánh */
+  position: relative;
+}
+.round-title { 
+  text-align: center; 
+  color: var(--primary); 
+  font-weight: bold; 
+  margin-bottom: 20px; 
+  border-bottom: 2px solid #e2e8f0; 
+  padding-bottom: 10px;
+  text-transform: uppercase;
+}
+.match-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  flex-grow: 1; /* Để nó chiếm hết chiều cao và chia đều */
+  gap: 20px;
+  padding: 10px 20px;
+}
+.public-match-card { 
+  background: white; 
+  border: 2px solid #e2e8f0; 
+  border-radius: 8px; 
+  overflow: hidden; 
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s;
+}
+/* VẼ ĐƯỜNG KẺ NỐI (CONNECTION LINES) */
+/* 1. Đường kẻ ngang từ bên phải của card (trừ cột cuối cùng) */
+.round-column:not(:last-child):not(.is-group-stage) .public-match-card::after {
+  content: '';
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  width: 20px;
+  border-top: 2px solid #94a3b8;
+  z-index: 1;
+}
+/* 2. Đường kẻ dọc nối 2 nhánh lại với nhau (Nằm ở cột tiếp theo) */
+.round-column:not(:first-child):not(.is-group-stage) .public-match-card::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  width: 20px;
+  border-top: 2px solid #94a3b8;
+  z-index: 1;
+}
+.public-match-card:hover { border-color: var(--primary); transform: translateY(-2px); }
 .p-item { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; font-weight: 500; color: #475569;}
 .p-item:last-child { border-bottom: none; }
 .p-name { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -273,4 +394,5 @@ const formatDate = (dateStr) => {
   .sidebar { order: -1; }
   .hero-meta { flex-direction: column; gap: 0.5rem; }
 }
+
 </style>

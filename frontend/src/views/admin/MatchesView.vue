@@ -64,12 +64,21 @@ const fetchCourts = async () => {
 }
 
 const fetchMatches = async () => {
-  if (!selectedTournamentId.value) return
+  // Sửa logic check (Cho phép số 0 đi qua)
+  if (selectedTournamentId.value === null || selectedTournamentId.value === '') return
+  
   isLoading.value = true
   try {
-    const data = await apiClient.get(`/api/tournaments/${selectedTournamentId.value}/matches`)
+    // Sửa đường dẫn gọi API để ăn khớp với Backend mới nâng cấp
+    const data = await apiClient.get('/api/matches/', {
+      params: { tournament_id: selectedTournamentId.value }
+    })
     matches.value = data
-  } catch (err) { ElMessage.error('Lỗi tải trận đấu') } finally { isLoading.value = false }
+  } catch (err) { 
+    ElMessage.error('Lỗi tải trận đấu') 
+  } finally { 
+    isLoading.value = false 
+  }
 }
 
 // --- Xử lý Xếp lịch ---
@@ -162,12 +171,18 @@ onMounted(() => {
         <el-select v-model="selectedTournamentId" placeholder="--- Chọn giải đấu vận hành ---" size="large" @change="fetchMatches" filterable style="width: 320px">
           <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
         </el-select>
+
+        <el-select v-model="selectedTournamentId" placeholder="--- Chọn giải đấu vận hành ---" size="large" @change="fetchMatches" filterable style="width: 320px">
+          <el-option label="🌟 Các trận Giao hữu tự do (1vs1)" :value="0" />
+          
+          <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
+        </el-select>
         <el-button :icon="Plus" plain @click="fetchMatches" style="margin-left: 12px">Làm mới</el-button>
       </div>
     </header>
 
     <main class="ops-content" v-loading="isLoading">
-      <div v-if="!selectedTournamentId" class="empty-state-lux">
+      <div v-if="selectedTournamentId === null || selectedTournamentId === ''" class="empty-state-lux">
         <div class="empty-icon-wrap">
           <el-icon :size="80"><Trophy /></el-icon>
         </div>

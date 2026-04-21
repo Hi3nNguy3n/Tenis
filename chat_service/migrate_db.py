@@ -1,7 +1,7 @@
 import sqlalchemy
 from sqlalchemy import text
 
-DATABASE_URL = 'postgresql://admin:secret@localhost:5433/tennis_chat_db'
+DATABASE_URL = 'postgresql://admin:secret@localhost:5432/tennis_chat_db'
 engine = sqlalchemy.create_engine(DATABASE_URL)
 
 def migrate():

@@ -93,7 +93,18 @@ const formatDate = (dateStr) => {
           </header>
 
           <figure class="article-hero">
-            <img :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=1200'" alt="cover" />
+            <video 
+              v-if="post.thumbnail_url && post.thumbnail_url.match(/\.(mp4|webm|ogg)$/i)" 
+              :src="post.thumbnail_url" 
+              autoplay loop playsinline controls>
+            </video>
+            
+            <img 
+              v-else 
+              :src="post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=1200'" 
+              alt="cover" 
+            />
+            
             <figcaption v-if="post.summary">{{ post.summary }}</figcaption>
           </figure>
 
@@ -233,12 +244,14 @@ const formatDate = (dateStr) => {
 
 /* Hero Image */
 .article-hero { margin: 0 0 4rem 0; }
-.article-hero img { 
+.article-hero img,
+.article-hero video {
   width: 100%; 
   max-height: 600px;
   object-fit: cover;
   border-radius: 24px; 
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2);
+  display: block;
 }
 .article-hero figcaption {
   margin-top: 1.5rem;
@@ -299,5 +312,7 @@ const formatDate = (dateStr) => {
   .article-hero img { border-radius: 12px; }
   .article-content-rich { font-size: 1.1rem; }
   .article-content-rich :deep(blockquote) { padding: 20px; font-size: 1.2rem; }
+  .article-hero img,
+  .article-hero video { border-radius: 12px; }
 }
 </style>

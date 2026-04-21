@@ -13,6 +13,7 @@ const categoryFilter = ref('')
 const isDialogOpen = ref(false)
 const isSaving = ref(false)
 const isEditMode = ref(false)
+const isUploading = ref(false)
 
 const form = ref({
   id: null,
@@ -65,26 +66,24 @@ const handleThumbnailUpload = async (event) => {
   const file = event.target.files[0]
   if (!file) return
 
-  // Đồng bộ cách đóng gói dữ liệu với Profile
   const formData = new FormData()
   formData.append('file', file)
 
-  isSaving.value = true // Hiện loading để user không bấm lung tung
+  isUploading.value = true // <--- DÙNG isUploading BẬT HIỆU ỨNG TẢI
   try {
-    // Gọi đến cổng upload tập trung vừa tạo ở Bước 1
     const res = await apiClient.request('/api/upload/image', {
       method: 'POST',
       body: formData,
-      includeJson: false // Quan trọng: Để apiClient không tự ép kiểu JSON khi gửi file
+      includeJson: false
     })
     
-    // Gán URL trả về từ server vào form
     form.value.thumbnail_url = res.url 
-    ElMessage.success('Tải ảnh bìa thành công!')
+    ElMessage.success('Tải file thành công!')
   } catch (err) {
-    ElMessage.error('Lỗi upload ảnh: ' + (err.message || 'Server không phản hồi'))
+    ElMessage.error('Lỗi upload: ' + (err.message || 'Server không phản hồi'))
   } finally {
-    isSaving.value = false
+    isUploading.value = false // <--- TẮT HIỆU ỨNG KHI XONG
+    event.target.value = '' // Reset input để có thể chọn lại file cũ nếu tải lỗi
   }
 }
 
@@ -230,14 +229,37 @@ onMounted(fetchPosts)
               </el-select>
             </el-form-item>
 
-            <el-form-item label="Ảnh bìa (Thumbnail)">
-              <div class="thumbnail-uploader">
-                <img v-if="form.thumbnail_url" :src="form.thumbnail_url" class="thumbnail-preview" />
+            <el-form-item label="Ảnh bìa / Video (Media)">
+              <div 
+                class="thumbnail-uploader" 
+                v-loading="isUploading" 
+                element-loading-text="Đang tải lên, vui lòng chờ..."
+              >
+                <video 
+                  v-if="form.thumbnail_url && form.thumbnail_url.match(/\.(mp4|webm|ogg)$/i)" 
+                  :src="form.thumbnail_url" 
+                  class="thumbnail-preview" 
+                  controls>
+                </video>
+                
+                <img 
+                  v-else-if="form.thumbnail_url" 
+                  :src="form.thumbnail_url" 
+                  class="thumbnail-preview" 
+                />
+                
                 <div v-else class="upload-placeholder">
                   <el-icon><Picture /></el-icon>
-                  <span>Nhấp để tải ảnh</span>
+                  <span>Nhấp để tải Ảnh/Video</span>
                 </div>
-                <input type="file" class="hidden-input" accept="image/*" @change="handleThumbnailUpload" />
+                
+                <input 
+                  type="file" 
+                  class="hidden-input" 
+                  accept="image/*,video/*" 
+                  :disabled="isUploading"
+                  @change="handleThumbnailUpload" 
+                />
               </div>
             </el-form-item>
           </el-col>
