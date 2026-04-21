@@ -47,17 +47,28 @@ const closeMenus = () => {
         <RouterLink to="/rankings" active-class="active">Bảng xếp hạng</RouterLink>
       </nav>
 
-      <!-- Mobile Overlay Menu -->
-      <transition name="mobile-nav">
-        <div v-if="isMobileMenuOpen" class="mobile-menu-overlay">
-          <button class="mobile-close-btn" @click="closeMenus">✕</button>
-          <div class="mobile-links">
-            <RouterLink to="/" active-class="active" @click="closeMenus">Home</RouterLink>
-            <RouterLink to="/news" active-class="active" @click="closeMenus">News</RouterLink>
-            <RouterLink to="/players" active-class="active" @click="closeMenus">Players</RouterLink>
-            <RouterLink to="/tournaments" active-class="active" @click="closeMenus">Tournaments</RouterLink>
-            <RouterLink to="/matches" active-class="active" @click="closeMenus">Matches</RouterLink>
-            <RouterLink to="/rankings" active-class="active" @click="closeMenus">Ranking</RouterLink>
+      <!-- Mobile Sidebar Menu -->
+      <div v-if="isMobileMenuOpen" class="mobile-menu-backdrop" @click="closeMenus"></div>
+      
+      <transition name="slide-right">
+        <div v-if="isMobileMenuOpen" class="mobile-sidebar">
+          <div class="sidebar-header">
+            <button class="sidebar-close-btn" @click="closeMenus">✕</button>
+            <img src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png" alt="Logo" class="sidebar-logo" />
+          </div>
+          
+          <nav class="sidebar-links">
+            <RouterLink to="/" active-class="active" @click="closeMenus">Trang chủ</RouterLink>
+            <RouterLink to="/news" active-class="active" @click="closeMenus">Tin tức</RouterLink>
+            <RouterLink to="/players" active-class="active" @click="closeMenus">Kênh trò chuyện</RouterLink>
+            <RouterLink to="/challenges" active-class="active" @click="closeMenus">Vận động viên</RouterLink>
+            <RouterLink to="/tournaments" active-class="active" @click="closeMenus">Giải đấu</RouterLink>
+            <RouterLink to="/matches" active-class="active" @click="closeMenus">Lịch thi đấu</RouterLink>
+            <RouterLink to="/rankings" active-class="active" @click="closeMenus">Bảng xếp hạng</RouterLink>
+          </nav>
+
+          <div class="sidebar-footer" v-if="!authStore.isAuthenticated">
+             <RouterLink to="/login" class="sidebar-login-btn" @click="closeMenus">Đăng nhập</RouterLink>
           </div>
         </div>
       </transition>
@@ -123,7 +134,6 @@ const closeMenus = () => {
 .site-logo { 
   height: 60px; 
   width: auto; 
-  filter: brightness(0) saturate(100%) invert(32%) sepia(95%) saturate(415%) hue-rotate(94deg) brightness(92%) contrast(92%); /* Giữ màu xanh cho logo trên nền sáng */
   object-fit: contain; 
   transition: transform 0.3s ease; 
 }
@@ -133,13 +143,13 @@ const closeMenus = () => {
   display: flex; 
   align-items: center; 
   justify-content: center; 
-  gap: 1.2rem; /* Giảm xuống 1.2rem hoặc 1rem để tiết kiệm không gian */
-  flex-wrap: nowrap; /* BỎ wrap để ép menu nằm trên 1 hàng */
+  gap: 1.2rem; 
+  flex-wrap: nowrap; 
 }
 .desktop-nav a {
   position: relative;
   padding: 1.25rem 0;
-  color: #475569; /* Slate 600 */
+  color: #475569;
   font-size: 0.8rem;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -184,7 +194,6 @@ const closeMenus = () => {
 }
 .nav-cta:hover { background: #166534; transform: translateY(-1px); }
 
-/* User Profile & Dropdown */
 .user-profile-wrapper { position: relative; }
 .nav-user-button {
   display: flex;
@@ -209,7 +218,7 @@ const closeMenus = () => {
   justify-content: center;
 }
 .user-avatar-mini img { width: 100%; height: 100%; object-fit: cover; }
-.user-name-text { font-weight: 500; color: #1e293b; font-size: 0.9rem; } /* Chuyển sang màu tối slate-800 */
+.user-name-text { font-weight: 500; color: #1e293b; font-size: 0.9rem; }
 .dropdown-arrow { color: #64748b; font-size: 0.8rem; }
 
 .user-dropdown-menu {
@@ -249,66 +258,94 @@ hr { margin: 0.5rem 0; border: none; border-top: 1px solid rgba(0, 0, 0, 0.05); 
 .dropdown-item:hover { background: rgba(21, 128, 61, 0.05); color: #15803d; }
 .logout-action { color: #dc2626; }
 
-/* Responsive Styles */
-/* Mobile Overlay Styles */
-.mobile-menu-overlay {
+/* Sidebar Mobile Styles */
+.mobile-menu-backdrop {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
+  width: 100vw;
   height: 100vh;
-  background: #0d1930;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 4999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobile-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 280px;
+  max-width: 85vw;
+  height: 100vh;
+  background: white;
   z-index: 5000;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+}
+
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  padding: 2rem;
 }
 
-.mobile-close-btn {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  background: transparent;
-  border: none;
-  color: white;
-  font-size: 2rem;
-  cursor: pointer;
-}
+.sidebar-logo { height: 40px; width: auto; object-fit: contain; }
+.sidebar-close-btn { background: none; border: none; font-size: 1.5rem; color: #64748b; cursor: pointer; }
 
-.mobile-links {
+.sidebar-links {
+  flex: 1;
+  padding: 2rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-  width: 100%;
-  text-align: center;
+  gap: 1.5rem;
 }
 
-.mobile-links a {
-  font-size: 1.8rem;
-  font-weight: 500;
-  color: white;
+.sidebar-links a {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
   text-decoration: none;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  transition: color 0.2s;
+  letter-spacing: 0.05em;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
 }
 
-.mobile-links a.active {
-  color: #c1ff72;
+.sidebar-links a.active { color: #15803d; }
+.sidebar-links a:hover { padding-left: 5px; color: #15803d; }
+
+.sidebar-footer { padding: 1.5rem; border-top: 1px solid #f1f5f9; }
+.sidebar-login-btn {
+  display: block;
+  width: 100%;
+  padding: 0.8rem;
+  background: #15803d;
+  color: white;
+  text-align: center;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.85rem;
 }
 
 /* Transitions */
-.mobile-nav-enter-active, .mobile-nav-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+.slide-right-enter-active, .slide-right-leave-active {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
-.mobile-nav-enter-from, .mobile-nav-leave-to {
-  opacity: 0;
-  transform: translateY(-20px);
+.slide-right-enter-from, .slide-right-leave-to {
+  transform: translateX(100%);
 }
-
 
 @media (max-width: 1080px) {
   .nav-shell { padding: 0.5rem 1.5rem; }
@@ -341,6 +378,4 @@ hr { margin: 0.5rem 0; border: none; border-top: 1px solid rgba(0, 0, 0, 0.05); 
   .site-logo { height: 36px; }
   .nav-shell { min-height: 50px; }
 }
-
-
 </style>

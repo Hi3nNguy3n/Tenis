@@ -240,6 +240,58 @@ onMounted(loadCourts)
 <style scoped>
 .module-shell { display: grid; gap: 16px; padding: 10px; }
 
+@media (max-width: 960px) {
+  .module-shell { padding: 0; }
+
+  .action-bar-glass,
+  .filter-card,
+  .table-card {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .action-bar-glass {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .hero-actions,
+  .filter-row,
+  .table-actions {
+    flex-wrap: wrap;
+  }
+
+  .filter-row {
+    width: 100%;
+  }
+
+  :deep(.el-input),
+  :deep(.el-select) {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .action-bar-glass,
+  .filter-card,
+  .table-card {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .hero-actions,
+  .filter-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  :deep(.el-dialog) {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+  }
+}
+
 .action-bar-glass {
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(12px);

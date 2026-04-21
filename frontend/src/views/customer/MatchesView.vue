@@ -184,7 +184,6 @@ const fetchAllMatchesData = async (silent = false) => {
   }
 }
 
-// ── Filtered tournaments ─────────────────────────────────────────
 const filteredTournaments = computed(() =>
   tournamentsWithMatches.value
     .map(t => ({ ...t, matches: t.matches.filter(m => m.matchDate === activeDate.value) }))
@@ -208,7 +207,6 @@ function weekdayLabel(date) {
   return labels[new Date(date + 'T12:00:00').getDay()]
 }
 
-// ── Navigation helpers ────────────────────────────────────────────
 const openTournamentDetail = (id) => router.push(`/tournaments/${id}`)
 const openReplay = (tId, match) => {
   if (match.status === 'Scheduled') { ElMessage.info('Trận này chưa có kết quả để xem lại.'); return }
@@ -225,7 +223,7 @@ onMounted(async () => {
 
   // Tự động cập nhật mỗi 30 giây — khi admin thêm trận, bên khách hiện liền
   pollingTimer = setInterval(async () => {
-    await fetchAllMatchesData(silentMode = true)
+    await fetchAllMatchesData(true)
   }, 30_000)
 })
 
@@ -449,7 +447,7 @@ onUnmounted(() => {
 
 /* ═══════════════════════════════════════════════════════════════
    DATE NAV BAR  (sticky, spans full width, dark like ATP/ESPN)
-═══════════════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════ */
 .date-nav-bar {
   position: sticky;
   top: 80px;          /* below site header */
@@ -750,6 +748,43 @@ onUnmounted(() => {
 }
 .quick-day-btn:hover { background: #146250; color: #fff; }
 
+/* ── Media Queries ────────────────────────────────────────────── */
+@media (max-width: 1080px) {
+  .main-layout { grid-template-columns: 1fr; gap: 2rem; padding: 1.5rem 1rem; }
+  .sidebar-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+  .widget { margin-bottom: 0; }
+}
+
+@media (max-width: 768px) {
+  .date-nav-bar { top: 56px; } /* Phù hợp với header mobile nhỏ hơn */
+  .date-nav-inner { padding: 0 0.75rem; height: 68px; gap: 0.5rem; }
+  .today-pill { padding: 0.3rem 0.8rem; font-size: 0.72rem; border-width: 1.5px; }
+  
+  .date-heading h2 { font-size: 1rem; }
+  .match-count-badge { font-size: 0.65rem; padding: 0.1rem 0.5rem; }
+
+  .tournament-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; padding: 1rem; }
+  .tournament-header .el-button { padding: 0; }
+
+  .match-list { grid-template-columns: 1fr; }
+  .match-card { border-radius: 12px; }
+  .match-players { padding: 1rem; gap: 0.75rem; }
+  .player-name { font-size: 0.9rem; }
+  .set-score { width: 26px; height: 26px; font-size: 0.75rem; }
+  
+  .m-btn { padding: 0.75rem; font-size: 0.68rem; }
+}
+
+@media (max-width: 480px) {
+  .date-nav-inner { gap: 0.25rem; }
+  .today-pill { display: none; } /* Ẩn nút hôm nay trên màn hình quá nhỏ để dành chỗ cho lịch */
+  
+  .sidebar-col { grid-template-columns: 1fr; }
+  .t-title h3 { font-size: 1rem; }
+  .match-info-strip { padding: 0.5rem 0.75rem; }
+  .round-badge { font-size: 0.6rem; padding: 0.15rem 0.4rem; }
+}
+
 /* ── Sidebar widgets ────────────────────────────────────────────── */
 .widget {
   background: #fff;
@@ -782,7 +817,15 @@ onUnmounted(() => {
 .news-item-mini:last-child { border-bottom: none; }
 .news-item-mini:hover { background: #f8fafc; }
 .news-item-mini img,
-.news-item-mini video { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; flex-shrink: 0; display: block; }
+.news-item-mini video { 
+  width: 80px !important; 
+  height: 80px !important; 
+  border-radius: 8px; 
+  object-fit: cover; 
+  flex-shrink: 0; 
+  display: block;
+  background: #000;
+}
 .news-item-mini p { font-size: 0.82rem; font-weight: 500; color: #334155; line-height: 1.4; margin: 0; }
 
 .rank-row {
@@ -799,42 +842,26 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.rank-no.rank-1 { background: #fbbf24; color: #fff; }
-.rank-no.rank-2 { background: #94a3b8; color: #fff; }
-.rank-no.rank-3 { background: #cd7c3d; color: #fff; }
-.rank-name { font-size: 0.88rem; font-weight: 500; color: #334155; flex: 1; }
-.rank-elo { font-size: 0.9rem; font-weight: 700; color: #146250; }
+.rank-1 { background: #fef9c3; color: #854d0e; }
+.rank-2 { background: #f1f5f9; color: #475569; }
+.rank-3 { background: #ffedd5; color: #9a3412; }
+.rank-name { flex: 1; font-size: 0.85rem; font-weight: 600; color: #1e293b; }
+.rank-elo { font-size: 0.85rem; color: #146250; font-weight: 800; }
 
-.all-match-days { padding: 0.75rem 1.25rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.all-match-days { padding: 0.5rem 1rem 1rem; }
 .match-day-pill {
-  padding: 0.35rem 0.85rem;
-  border: 1px solid #e2e8f0; border-radius: 20px;
-  background: transparent; color: #475569;
-  font-size: 0.78rem; font-weight: 500; cursor: pointer;
-  transition: all 0.15s;
-  display: flex; align-items: center; gap: 0.4rem;
+  display: flex; justify-content: space-between; align-items: center;
+  width: 100%; padding: 0.6rem 1rem; margin-bottom: 0.4rem;
+  border: 1px solid #f1f5f9; border-radius: 8px;
+  background: #fff; font-size: 0.8rem; font-weight: 600;
+  color: #475569; cursor: pointer; transition: all 0.2s;
 }
-.match-day-pill:hover { border-color: #146250; color: #146250; background: #f0fdf4; }
-.match-day-pill.active { background: #146250; color: #fff; border-color: #146250; }
+.match-day-pill:hover, .match-day-pill.active {
+  background: #146250; color: #fff; border-color: #146250;
+}
 .pill-count {
-  background: rgba(255,255,255,.25);
-  border-radius: 10px; padding: 0 5px;
-  font-size: 0.68rem; font-weight: 700;
+  font-size: 0.7rem; background: #e2e8f0; color: #475569;
+  padding: 2px 6px; border-radius: 10px;
 }
-.match-day-pill:not(.active) .pill-count {
-  background: #e2e8f0; color: #475569;
-}
-
-.empty-widget { padding: 0.75rem 1.25rem; color: #94a3b8; font-size: 0.82rem; }
-
-/* ── Responsive ─────────────────────────────────────────────────── */
-@media (max-width: 1080px) {
-  .main-layout { grid-template-columns: 1fr; }
-}
-@media (max-width: 600px) {
-  .match-list { grid-template-columns: 1fr; }
-  .hero-inner h1 { font-size: 1.8rem; }
-  .cal-cell { border-radius: 6px; }
-  .cell-day { font-size: 0.78rem; }
-}
+.match-day-pill.active .pill-count { background: #c1ff72; color: #0f172a; }
 </style>

@@ -125,7 +125,7 @@ onMounted(loadPlayers)
 <style scoped>
 .challenge-page { padding: 40px 0; }
 .page-header { text-align: center; margin-bottom: 40px; }
-.title { font-size: 2.2rem; color: #1e293b; font-weight: 800; }
+.title { font-size: 2.2rem; color: #1e293b; font-weight: 600; }
 .subtitle { color: #64748b; }
 
 .players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
@@ -138,20 +138,20 @@ onMounted(loadPlayers)
 .card-top { position: relative; display: inline-block; margin-bottom: 15px; }
 .rank-badge { 
   position: absolute; bottom: 0; right: 0; background: #fbbf24; 
-  color: #92400e; font-weight: 800; font-size: 0.75rem;
+  color: #92400e; font-weight: 600; font-size: 0.75rem;
   padding: 4px 8px; border-radius: 10px; border: 3px solid white;
 }
 
 .name { margin: 10px 0 5px; color: #0f172a; }
-.elo-tag { background: #f1f5f9; color: #475569; font-weight: 700; font-size: 0.8rem; padding: 4px 12px; border-radius: 20px; display: inline-block; }
+.elo-tag { background: #f1f5f9; color: #475569; font-weight: 500; font-size: 0.8rem; padding: 4px 12px; border-radius: 20px; display: inline-block; }
 
 .stats-mini { display: flex; justify-content: center; gap: 30px; margin: 20px 0; }
 .stat { display: flex; flex-direction: column; }
-.stat .val { font-weight: 800; color: #1e293b; }
+.stat .val { font-weight: 600; color: #1e293b; }
 .stat .lbl { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
 
 .card-actions { display: flex; flex-direction: column; gap: 10px; }
-.btn-challenge { background: linear-gradient(135deg, #15803d, #166534); border: none; font-weight: 700; }
+.btn-challenge { background: linear-gradient(135deg, #15803d, #166534); border: none; font-weight: 600; }
 
-.fee-notice { background: #fffbeb; color: #b45309; padding: 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; margin-top: 15px; text-align: center; }
+.fee-notice { background: #fffbeb; color: #b45309; padding: 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 500; margin-top: 15px; text-align: center; }
 </style>

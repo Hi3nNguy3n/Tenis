@@ -89,6 +89,7 @@ const pageDescription = computed(
     'Hệ thống quản lý giải đấu Saigon Tennis - Admin Dashboard.',
 )
 const currentUserName = computed(() => authStore.user?.full_name || authStore.user?.email || 'Quản trị viên')
+const isSidebarOpen = ref(false)
 
 onMounted(() => {
   document.body.classList.add('admin-body')
@@ -102,6 +103,14 @@ const handleLogout = () => {
   authStore.logout()
   router.push({ name: 'login' })
 }
+
+const closeSidebar = () => {
+  isSidebarOpen.value = false
+}
+
+const toggleSidebar = () => {
+  isSidebarOpen.value = !isSidebarOpen.value
+}
 </script>
 
 <template>
@@ -110,12 +119,20 @@ const handleLogout = () => {
     <div class="bg-orb orb-2"></div>
     <div class="bg-orb orb-3"></div>
 
-    <aside class="admin-sidebar">
+    <div v-if="isSidebarOpen" class="sidebar-backdrop" @click="closeSidebar"></div>
+
+    <aside class="admin-sidebar" :class="{ 'is-open': isSidebarOpen }">
       <div class="sidebar-glow"></div>
 
       <div class="brand-block">
         <RouterLink to="/admin" class="brand-link">
-          <span class="brand-mark"></span>
+          <span class="brand-logo-wrap">
+            <img
+              src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png"
+              alt="Saigon Tennis"
+              class="brand-logo"
+            />
+          </span>
           <span>Saigon Tennis</span>
         </RouterLink>
         <p>Trung tâm Điều hành</p>
@@ -141,6 +158,7 @@ const handleLogout = () => {
                   :to="item.to"
                   class="nav-item"
                   active-class="nav-item-active"
+                  @click="closeSidebar"
                 >
                   <div class="nav-leading">
                     <span class="nav-icon-shell">
@@ -168,6 +186,11 @@ const handleLogout = () => {
     <section class="admin-shell">
       <header class="admin-topbar">
         <div class="topbar-panel">
+          <button class="mobile-menu-button" type="button" @click="toggleSidebar" aria-label="Mở menu">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
           <div class="topbar-copy">
             <p class="page-kicker">Không gian Quản trị</p>
             <h1>{{ pageTitle }}</h1>
@@ -209,6 +232,14 @@ const handleLogout = () => {
     radial-gradient(circle at 62% 80%, rgba(34, 197, 94, 0.08), transparent 28%),
     linear-gradient(135deg, #083a31 0%, #0f5c4d 35%, #146250 60%, #0f5c4d 82%, #083a31 100%);
   color: #e2e8f0;
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 20;
 }
 
 .bg-orb {
@@ -278,26 +309,38 @@ const handleLogout = () => {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  font-size: 1.34rem;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
   text-decoration: none;
-  color: #0f172a;
+  color: #07111f;
 }
 
-.brand-mark {
-  width: 14px;
-  height: 14px;
-  border-radius: 5px;
-  background: linear-gradient(135deg, #d9f43b 0%, #146250 100%);
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.32);
+.brand-logo-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(217, 244, 59, 0.18), rgba(255, 255, 255, 0.92));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  flex-shrink: 0;
+}
+
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  display: block;
 }
 
 .brand-block p {
   margin: 0;
-  color: #475569;
-  font-size: 0.82rem;
-  letter-spacing: 0.08em;
+  color: rgba(225, 255, 236, 0.75);
+  font-size: 0.84rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -308,27 +351,38 @@ const handleLogout = () => {
   gap: 10px;
   overflow-y: auto;
   padding-right: 4px;
+  padding-bottom: 4px;
 }
 
 .nav-group {
   border-radius: 18px;
-  padding: 4px;
-  background: rgba(220, 252, 231, 0.95);
-  border: 1px solid rgba(220, 252, 231, 0.1);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  overflow: visible;
 }
 
 .group-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 12px;
+  padding: 12px 14px;
   cursor: pointer;
   border-radius: 14px;
-  transition: background 0.25s ease, transform 0.25s ease;
+  transition:
+    background 0.28s ease,
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    border-color 0.28s ease;
+  background: rgba(220, 252, 231, 0.95);
+  border: 1px solid rgba(220, 252, 231, 0.12);
+  will-change: transform;
 }
 
 .group-header:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(220, 252, 231, 1);
+  transform: translateX(2px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
 .group-label {
@@ -343,7 +397,7 @@ const handleLogout = () => {
 .arrow-icon {
   font-size: 12px;
   color: #64748b;
-  transition: transform 0.28s ease, color 0.28s ease;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), color 0.28s ease;
 }
 
 .is-expanded .arrow-icon {
@@ -356,13 +410,17 @@ const handleLogout = () => {
 }
 
 .group-body {
-  padding-top: 2px;
+  margin-top: 8px;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 .admin-nav {
   display: grid;
-  gap: 6px;
-  padding: 2px 8px 8px 8px;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
 }
 
 .nav-item {
@@ -372,19 +430,26 @@ const handleLogout = () => {
   gap: 10px;
   min-height: 44px;
   padding: 0 10px 0 8px;
-  border-radius: 14px;
+  border-radius: 16px;
   color: #0f172a;
-  transition: all 0.24s ease;
+  transition:
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.24s ease,
+    color 0.24s ease,
+    border-color 0.24s ease,
+    box-shadow 0.24s ease;
   text-decoration: none;
   font-size: 0.92rem;
   border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .nav-item:hover {
   color: #0f172a;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.92);
   border-color: rgba(220, 252, 231, 0.24);
-  transform: translateX(4px);
+  transform: translateX(6px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
 }
 
 .nav-leading {
@@ -413,7 +478,7 @@ const handleLogout = () => {
 }
 
 .nav-item-active {
-  background: linear-gradient(135deg, rgba(220, 252, 231, 0.98), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(240, 253, 244, 0.96));
   border-color: rgba(34, 197, 94, 0.28);
   color: #0f5c4d !important;
   font-weight: 700;
@@ -430,8 +495,8 @@ const handleLogout = () => {
 .nav-badge {
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(220, 252, 231, 0.2);
-  border: 1px solid rgba(220, 252, 231, 0.35);
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   color: #0f172a;
   font-size: 0.63rem;
   font-weight: 700;
@@ -447,16 +512,25 @@ const handleLogout = () => {
 
 .collapse-enter-active,
 .collapse-leave-active {
-  transition: all 0.28s ease;
-  max-height: 800px;
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    max-height 0.32s ease;
   overflow: hidden;
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+  max-height: 800px;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .collapse-enter-from,
 .collapse-leave-to {
   max-height: 0;
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-6px);
 }
 
 .sidebar-footer {
@@ -469,7 +543,7 @@ const handleLogout = () => {
   box-sizing: border-box;
   padding: 12px 12px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(220, 252, 231, 0.12);
   backdrop-filter: blur(14px);
 }
@@ -510,6 +584,30 @@ const handleLogout = () => {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+.mobile-menu-button {
+  display: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-direction: column;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-menu-button span {
+  width: 18px;
+  height: 2px;
+  border-radius: 99px;
+  background: #0f172a;
+  display: block;
 }
 
 .admin-topbar {
@@ -602,13 +700,22 @@ const handleLogout = () => {
 
 @media (max-width: 1200px) {
   .admin-layout {
-    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-columns: 232px minmax(0, 1fr);
   }
 
   .admin-topbar,
   .admin-main {
     padding-left: 20px;
     padding-right: 20px;
+  }
+
+  .brand-link {
+    font-size: 1.32rem;
+  }
+
+  .nav-item {
+    min-height: 42px;
+    font-size: 0.88rem;
   }
 }
 
@@ -618,20 +725,56 @@ const handleLogout = () => {
   }
 
   .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 300px;
     min-height: auto;
+    max-height: none;
     border-right: none;
     border-bottom: 1px solid rgba(173, 216, 255, 0.15);
+    transform: translateX(-102%);
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    z-index: 30;
+  }
+
+  .admin-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .nav-groups {
+    max-height: none;
+  }
+
+  .admin-shell {
+    min-width: 0;
   }
 
   .topbar-panel {
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .mobile-menu-button {
+    display: inline-flex;
+  }
+
+  .topbar-status {
+    align-self: flex-start;
+  }
 }
 
 @media (max-width: 640px) {
+  .admin-layout {
+    grid-template-columns: 1fr;
+    overflow-x: hidden;
+  }
+
   .admin-sidebar {
-    padding: 18px 10px 14px;
+    width: min(86vw, 320px);
+    padding: 16px 10px 12px;
+    gap: 12px;
   }
 
   .admin-topbar,
@@ -640,9 +783,73 @@ const handleLogout = () => {
     padding-right: 14px;
   }
 
-  
+  .brand-block {
+    padding: 8px 8px 10px;
+  }
+
+  .brand-link {
+    font-size: 1.18rem;
+    gap: 10px;
+  }
+
+  .brand-logo-wrap {
+    width: 36px;
+    height: 36px;
+  }
+
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .brand-block p {
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+  }
+
+  .nav-groups {
+    gap: 8px;
+  }
+
+  .group-header {
+    padding: 10px 12px;
+  }
+
+  .nav-item {
+    min-height: 40px;
+    padding: 0 10px 0 8px;
+  }
+
+  .nav-icon-shell {
+    width: 26px;
+    height: 26px;
+  }
+
+  .sidebar-footer {
+    padding: 10px;
+  }
+
+  .topbar-panel {
+    padding: 18px 16px;
+    border-radius: 20px;
+  }
+
+  .mobile-menu-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
   .admin-topbar h1 {
     font-size: 1.8rem;
+  }
+
+  .admin-topbar p {
+    font-size: 0.92rem;
+  }
+
+  .admin-content-panel {
+    border-radius: 20px;
   }
 }
 </style>

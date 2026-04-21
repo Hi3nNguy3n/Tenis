@@ -754,6 +754,70 @@ onMounted(() => {
 <style scoped>
 .module-shell { display: grid; gap: 24px; }
 
+@media (max-width: 960px) {
+  .module-shell {
+    gap: 16px;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+  }
+
+  .filter-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-group {
+    flex-wrap: wrap;
+  }
+
+  .content-grid,
+  .detail-grid,
+  .two-columns,
+  .three-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .table-card {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-action-bar,
+  .action-left,
+  .filter-group {
+    width: 100%;
+  }
+
+  .admin-action-bar {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .action-left,
+  .filter-group {
+    flex-wrap: wrap;
+  }
+
+  .filter-card,
+  .table-card {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  :deep(.el-dialog) {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+  }
+}
+
 .admin-action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: -8px; }
 
 /* Thẻ thống kê Glassmorphism */
