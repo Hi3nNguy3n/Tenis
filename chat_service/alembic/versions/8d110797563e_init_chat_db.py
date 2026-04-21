@@ -1,8 +1,8 @@
-"""Tạo bảng chat_messages
+"""init_chat_db
 
-Revision ID: 01bc6b0d018f
+Revision ID: 8d110797563e
 Revises: 
-Create Date: 2026-04-17 15:12:05.714210
+Create Date: 2026-04-21 19:19:05.215860
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '01bc6b0d018f'
+revision: str = '8d110797563e'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -28,6 +28,8 @@ def upgrade() -> None:
     sa.Column('sender_name', sa.String(), nullable=True),
     sa.Column('message', sa.Text(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('is_read', sa.Boolean(), nullable=False),
+    sa.Column('read_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_chat_messages_id'), 'chat_messages', ['id'], unique=False)

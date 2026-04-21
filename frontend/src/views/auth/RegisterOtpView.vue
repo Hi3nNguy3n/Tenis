@@ -21,25 +21,54 @@ const form = ref({
 })
 
 const handleNext = async () => {
-  if (!form.value.email || !form.value.full_name || !form.value.password) {
-    ElMessage.warning('Vui lòng điền đầy đủ họ tên, email và mật khẩu.')
-    return
-  }
-  if (!form.value.play_hand) {
-    ElMessage.warning('Thiếu phần tay thuận.')
-    return
+  // Xóa khoảng trắng thừa 2 đầu
+  form.value.full_name = form.value.full_name?.trim() || ''
+  form.value.phone = form.value.phone?.trim() || ''
+
+  // 1. Kiểm tra rỗng
+  if (!form.value.full_name) return ElMessage.warning('Họ và tên không được để trống.')
+  if (!form.value.email) return ElMessage.warning('Email không được để trống.')
+  if (!form.value.phone) return ElMessage.warning('Số điện thoại không được để trống.')
+  if (!form.value.password) return ElMessage.warning('Mật khẩu không được để trống.')
+
+  // 2. Kiểm tra định dạng Email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(form.value.email)) return ElMessage.warning('Email không đúng định dạng.')
+
+  // 3. Kiểm tra định dạng Số điện thoại (Chỉ cho nhập 10 số, bắt đầu bằng 0)
+  const phoneRegex = /^0\d{9}$/
+  if (!phoneRegex.test(form.value.phone)) {
+    return ElMessage.warning('Số điện thoại không hợp lệ! Vui lòng nhập 10 chữ số và bắt đầu bằng số 0.')
   }
 
+  // 4. Kiểm tra độ dài mật khẩu
+  if (form.value.password.length < 6) return ElMessage.warning('Mật khẩu quá ngắn, vui lòng nhập ít nhất 6 ký tự.')
+
+  // 5. Kiểm tra tay thuận
+  if (!form.value.play_hand) return ElMessage.warning('Vui lòng chọn tay thuận để hệ thống phân loại trình độ.')
+
   loading.value = true
+  let isSuccess = false // Cờ đánh dấu API gọi thành công
+
   try {
     sessionStorage.setItem('pending_registration', JSON.stringify({ ...form.value }))
     await authService.sendOtp(form.value.email)
-    ElMessage.success(`Mã OTP đã được gửi đến ${form.value.email}`)
-    router.push({ name: 'verify-register-otp' })
+    isSuccess = true // Đánh dấu là đã gửi mail và DB nhận ok
   } catch (error) {
-    ElMessage.error(error.response?.data?.detail || 'Không thể gửi OTP.')
+    // Chỗ này giờ CHỈ bắt lỗi thực sự từ Backend (ví dụ: Trùng email)
+    ElMessage.error(error.response?.data?.detail || 'Lỗi từ máy chủ khi gửi OTP.')
   } finally {
     loading.value = false
+  }
+
+  // Nếu gửi mail thành công thì mới hiển thị màu xanh và chuyển trang
+  if (isSuccess) {
+    ElMessage.success(`Mã OTP đã được gửi đến ${form.value.email}`)
+    
+    // Gọi đúng tên 'register-otp-verify' đã khai báo trong index.js
+    router.push({ name: 'register-otp-verify' }).catch(err => {
+        console.error("Lỗi chuyển trang:", err)
+    })
   }
 }
 </script>

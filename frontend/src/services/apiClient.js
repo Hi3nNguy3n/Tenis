@@ -65,36 +65,10 @@ const parseResponse = async (response) => {
  */
 export const apiClient = {
   async request(endpoint, options = {}) {
-    const {
-      headers,
-      body,
-      params,
-      method = 'GET',
-      includeJson = true,
-      useChatApi = false,
-      ...rest
-    } = options
+    const { method = 'GET', body, headers = {}, includeJson = true, useChatApi = false, ...rest } = options
 
     const baseUrl = useChatApi ? CHAT_API_URL : MAIN_API_URL
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
-
-    let url = `${baseUrl}${cleanEndpoint}`
-
-    if (params && Object.keys(params).length > 0) {
-      const cleanParams = Object.keys(params).reduce((acc, key) => {
-        const value = params[key]
-        if (value !== null && value !== undefined && value !== '') {
-          acc[key] = value
-        }
-        return acc
-      }, {})
-
-      if (Object.keys(cleanParams).length > 0) {
-        const queryString = new URLSearchParams(cleanParams).toString()
-        url += `?${queryString}`
-      }
-    }
-
+    const url = `${baseUrl}${endpoint}`
     const isFormData = body instanceof FormData
     const finalIncludeJson = isFormData ? false : includeJson
 
@@ -119,7 +93,13 @@ export const apiClient = {
 
       const error = new Error(message)
       error.status = response.status
-      error.payload = data
+      
+      // MÔ PHỎNG CẤU TRÚC LỖI CỦA AXIOS ĐỂ FORM BẮT ĐƯỢC
+      error.response = {
+        status: response.status,
+        data: typeof data === 'object' ? data : { detail: message }
+      }
+      
       throw error
     }
 

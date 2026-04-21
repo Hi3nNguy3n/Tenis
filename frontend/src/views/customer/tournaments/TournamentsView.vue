@@ -486,6 +486,14 @@ const formatDate = (dateStr) => {
   border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
 }
+.widget-body video, 
+.widget-body img {
+  width: 100% !important;        /* Rộng full cột */
+  height: 180px !important;      /* Chiều cao cố định (Có thể tăng giảm tùy ý) */
+  object-fit: cover !important;  /* Cực kỳ quan trọng: Giúp cắt gọt phần thừa mà không làm méo hình */
+  border-radius: 8px;            /* Bo góc cho đẹp */
+  display: block;
+}
 .news-main-feature img,
 .news-main-feature video { width: 100%; border-radius: 4px; margin-bottom: 1rem; object-fit: cover; display: block; }
 @keyframes spin { to { transform: rotate(360deg); } }

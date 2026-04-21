@@ -15,8 +15,17 @@ def send_challenge(
     db: Session = Depends(deps.get_db),
     current_user = Depends(deps.get_current_user)
 ):
+    # 1. BẢO MẬT: Chặn Admin không được phép đi thách đấu
+    if hasattr(current_user, 'role') and current_user.role == "admin":
+        raise HTTPException(status_code=403, detail="Tài khoản Admin không được phép tham gia sự kiện này!")
+
     player = crud_player.get_player_by_user_id(db, current_user.id)
     if not player: raise HTTPException(status_code=404, detail="Bạn chưa có hồ sơ VĐV")
+    
+    # 2. FIX BUG TESTER: Chặn thách đấu chính mình (Trả về lỗi 400)
+    if player.id == obj_in.challenged_id:
+        raise HTTPException(status_code=400, detail="Lỗi: Bạn không thể tự gửi lời mời thách đấu cho chính mình!")
+
     return crud_challenge.create_challenge(db, player.id, obj_in)
 
 @router.get("/my-challenges")

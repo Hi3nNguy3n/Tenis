@@ -15,6 +15,16 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 
 def create_tournament(db: Session, tournament: TournamentCreate):
+    # 1. KIỂM TRA TRÙNG SLUG TRƯỚC KHI LƯU
+    existing_slug = db.query(Tournament).filter(Tournament.slug == tournament.slug).first()
+    if existing_slug:
+        # Nếu trùng, trả về lỗi 400 (Bad Request) thay vì để DB sập (500)
+        raise HTTPException(
+            status_code=400, 
+            detail="Đường dẫn (Slug) này đã được sử dụng cho một giải đấu khác. Vui lòng chọn đường dẫn khác!"
+        )
+
+    # 2. NẾU KHÔNG TRÙNG THÌ MỚI CHO TẠO
     db_tournament = Tournament(**tournament.model_dump())
     db.add(db_tournament)
     db.commit()

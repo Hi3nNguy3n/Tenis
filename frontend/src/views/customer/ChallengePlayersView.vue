@@ -3,25 +3,44 @@ import { ref, onMounted, computed } from 'vue'
 import { Trophy, DataAnalysis, Calendar, Message, Aim } from '@element-plus/icons-vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
+import { useAuthStore } from '../../stores/auth' // QUAN TRỌNG: Phải import cái này
 
+const authStore = useAuthStore()
 const players = ref([])
 const isLoading = ref(false)
 const selectedOpponent = ref(null)
 
-// --- Dialog Thách đấu ---
 const showChallengeDialog = ref(false)
 const challengeForm = ref({ date: '', notes: '' })
 
-// --- Dialog Lịch sử đối đầu (Head-to-Head) ---
 const showH2HDialog = ref(false)
 const h2hHistory = ref([])
+
+const filteredPlayers = computed(() => {
+  if (!players.value || !Array.isArray(players.value)) return []
+  return players.value.filter(p => {
+    // 1. Kiểm tra xem có phải chính mình không (dựa vào tên)
+    const isMe = p.full_name === authStore.user?.full_name
+    
+    // 2. Kiểm tra xem có phải tài khoản Admin không (dựa vào chữ 'admin' trong tên)
+    const isAdmin = p.full_name?.toLowerCase().includes('admin')
+    
+    // Chỉ giữ lại những người KHÔNG PHẢI mình và KHÔNG PHẢI admin
+    return !isMe && !isAdmin
+  })
+})
 
 const loadPlayers = async () => {
   isLoading.value = true
   try {
     const data = await apiClient.get('/api/players/rankings')
-    players.value = data
-  } catch (err) { ElMessage.error('Lỗi tải danh sách VĐV') }
+    console.log("🛠️ Dữ liệu VĐV từ API:", data) // <--- Xem dòng này trong Console F12
+    // Đảm bảo gán đúng mảng
+    players.value = Array.isArray(data) ? data : (data.data || [])
+  } catch (err) { 
+    ElMessage.error('Lỗi tải danh sách VĐV') 
+    console.error(err)
+  }
   finally { isLoading.value = false }
 }
 
@@ -40,14 +59,16 @@ const sendChallengeRequest = async () => {
     })
     ElMessage.success('Đã gửi lời mời thách đấu! Vui lòng chờ đối thủ xác nhận.')
     showChallengeDialog.value = false
-  } catch (err) { ElMessage.error('Lỗi gửi lời mời') }
+  } catch (err) { 
+    // Bắt lỗi 400 từ Backend và hiển thị lên cho người dùng
+    const errorMsg = err.response?.data?.detail || 'Lỗi gửi lời mời'
+    ElMessage.error(errorMsg) 
+  }
 }
 
 const viewH2H = async (p) => {
   selectedOpponent.value = p
   showH2HDialog.value = true
-  // Giả lập lấy dữ liệu H2H từ API
-  // const data = await apiClient.get(`/api/matches/h2h?opponent_id=${p.player_id}`)
   h2hHistory.value = [
     { date: '2026-03-15', score: '6-4, 6-2', winner: 'Bạn' },
     { date: '2026-02-10', score: '3-6, 4-6', winner: p.full_name }
@@ -64,19 +85,21 @@ onMounted(loadPlayers)
       <p class="subtitle">Tìm kiếm đối thủ xứng tầm và tổ chức trận đấu riêng của bạn.</p>
     </div>
 
-    <div class="players-grid" v-loading="isLoading">
-      <div v-for="p in players" :key="p.player_id" class="player-card">
+    <el-empty v-if="!isLoading && filteredPlayers.length === 0" description="Chưa có VĐV nào trong sảnh để thách đấu" />
+
+    <div class="players-grid" v-loading="isLoading" v-else>
+      <div v-for="p in filteredPlayers" :key="p.player_id" class="player-card">
         <div class="card-top">
           <el-avatar :size="80" :src="p.avatar_url" />
           <div class="rank-badge">#{{ p.rank }}</div>
         </div>
         
         <h3 class="name">{{ p.full_name }}</h3>
-        <div class="elo-tag">{{ p.elo_points }} ELO</div>
+        <div class="elo-tag">{{ p.elo_points || 1000 }} ELO</div>
 
         <div class="stats-mini">
-          <div class="stat"><span class="val">{{ p.wins }}</span><span class="lbl">Thắng</span></div>
-          <div class="stat"><span class="val">{{ p.losses }}</span><span class="lbl">Bại</span></div>
+          <div class="stat"><span class="val">{{ p.wins || 0 }}</span><span class="lbl">Thắng</span></div>
+          <div class="stat"><span class="val">{{ p.losses || 0 }}</span><span class="lbl">Bại</span></div>
         </div>
 
         <div class="card-actions">
@@ -123,35 +146,23 @@ onMounted(loadPlayers)
 </template>
 
 <style scoped>
+/* Copy CSS cũ vào đây, hoặc giữ nguyên phần style của ông */
 .challenge-page { padding: 40px 0; }
 .page-header { text-align: center; margin-bottom: 40px; }
 .title { font-size: 2.2rem; color: #1e293b; font-weight: 600; }
 .subtitle { color: #64748b; }
-
 .players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
-.player-card { 
-  background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0;
-  text-align: center; transition: 0.3s;
-}
+.player-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; text-align: center; transition: 0.3s; }
 .player-card:hover { transform: translateY(-8px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); }
-
 .card-top { position: relative; display: inline-block; margin-bottom: 15px; }
-.rank-badge { 
-  position: absolute; bottom: 0; right: 0; background: #fbbf24; 
-  color: #92400e; font-weight: 600; font-size: 0.75rem;
-  padding: 4px 8px; border-radius: 10px; border: 3px solid white;
-}
-
+.rank-badge { position: absolute; bottom: 0; right: 0; background: #fbbf24; color: #92400e; font-weight: 600; font-size: 0.75rem; padding: 4px 8px; border-radius: 10px; border: 3px solid white; }
 .name { margin: 10px 0 5px; color: #0f172a; }
 .elo-tag { background: #f1f5f9; color: #475569; font-weight: 500; font-size: 0.8rem; padding: 4px 12px; border-radius: 20px; display: inline-block; }
-
 .stats-mini { display: flex; justify-content: center; gap: 30px; margin: 20px 0; }
 .stat { display: flex; flex-direction: column; }
 .stat .val { font-weight: 600; color: #1e293b; }
 .stat .lbl { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
-
 .card-actions { display: flex; flex-direction: column; gap: 10px; }
 .btn-challenge { background: linear-gradient(135deg, #15803d, #166534); border: none; font-weight: 600; }
-
 .fee-notice { background: #fffbeb; color: #b45309; padding: 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 500; margin-top: 15px; text-align: center; }
 </style>

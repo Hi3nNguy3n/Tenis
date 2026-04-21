@@ -1,5 +1,5 @@
 # backend/app/schemas/auth_schemas.py
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import date
 
@@ -8,10 +8,15 @@ class SendOTPRequest(BaseModel):
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
-    full_name: str
+    # Ép mật khẩu tối thiểu 6 ký tự
+    password: str = Field(..., min_length=6, description="Mật khẩu phải có ít nhất 6 ký tự")
+    # Ép họ tên không được để trống (ít nhất 2 ký tự)
+    full_name: str = Field(..., min_length=2, description="Họ tên không được để trống")
     otp_code: str
-    phone: Optional[str] = None
+    
+    # Regex: Bắt buộc bắt đầu bằng số 0, theo sau là 9 chữ số (Tổng 10 số)
+    phone: Optional[str] = Field(None, pattern=r"^0\d{9}$", description="Số điện thoại không hợp lệ")
+    
     province: Optional[str] = None
     date_of_birth: Optional[date] = None
     gender: Optional[str] = None

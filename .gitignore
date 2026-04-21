@@ -1,17 +1,30 @@
-# --- Frontend ---
-frontend/node_modules/
-frontend/dist/
-frontend/.env
-frontend/.env.local
-
-# --- Backend ---
-backend/venv/
-backend/__pycache__/
-backend/.env
-*.pyc
-*.pyo
-
 # --- OS/IDE ---
 .DS_Store
 .vscode/
 .idea/
+*.swp
+
+# --- Frontend (VueJS/Vite) ---
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# --- Backend Chính (FastAPI) ---
+backend/venv/
+backend/__pycache__/
+backend/.env
+backend/alembic/__pycache__/
+
+# --- Chat Service (FastAPI) ---
+chat_service/venv/
+chat_service/__pycache__/
+chat_service/.env
+chat_service/alembic/__pycache__/
+
+# --- Chung cho Python ---
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
