@@ -10,6 +10,7 @@ class PostBase(BaseModel):
     content: Optional[str] = None
     post_type: str = Field(default="news", max_length=30)
     category_id: Optional[int] = None
+    category: Optional[str] = "Thông báo"
     thumbnail_url: Optional[str] = None
     media_url: Optional[str] = None
     status: str = Field(default="draft", max_length=20) # draft, pending, published, rejected

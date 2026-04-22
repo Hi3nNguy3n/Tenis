@@ -6,7 +6,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal
-from app.crud.crud_registration import cleanup_expired_registrations
 from app.models.models import MailCampaign, Tournament, Registration, Player, User
 from app.api.auth import conf
 from fastapi_mail import FastMail, MessageSchema, MessageType
@@ -16,26 +15,8 @@ logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
-def run_cleanup_job():
-    """Hàm này sẽ tự mở một luồng DB riêng để dọn dẹp"""
-    db = SessionLocal()
-    try:
-        num_cleaned = cleanup_expired_registrations(db)
-        if num_cleaned > 0:
-            logger.info(f"🧹 [Auto-Cleanup] Đã tự động nhả {num_cleaned} slot quá hạn 15 phút.")
-    except Exception as e:
-        logger.error(f"Lỗi khi dọn rác: {e}")
-    finally:
-        db.close() # Xong việc phải đóng kết nối DB lại
-
-# ==========================================
-# KHỞI ĐỘNG HỆ THỐNG
-# ==========================================
 def start_scheduler():
-    """Khởi động con Bot (Gọi trong main.py)"""
-    # 1. Gắn nhiệm vụ dọn rác (mỗi 1 phút)
-    scheduler.add_job(run_cleanup_job, 'interval', minutes=1, id='cleanup_job', replace_existing=True)
-    
+    """Khởi động con Bot (Gọi trong main.py)"""    
     # 2. Gắn nhiệm vụ gửi email (mỗi 1 phút)
     scheduler.add_job(process_pending_emails, 'interval', minutes=1, id='mail_sender_job', replace_existing=True)
     

@@ -12,6 +12,7 @@ app = FastAPI(title="Saigon Tennis Tour API")
 origins = [
     "http://localhost:5173",         # Cho phép lúc dev local
     "http://localhost:3000",
+    "http://127.0.0.1:5173",
     "https://saigon-tennis-frontend-deploy.vercel.app", # LINK VERCEL CỦA ÔNG
 ]
 

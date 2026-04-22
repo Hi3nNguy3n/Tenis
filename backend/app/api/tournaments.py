@@ -1,12 +1,12 @@
 # backend/app/api/tournaments.py
 from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel
 
 from app.db.database import get_db
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, get_current_user
 from app.models.models import User, Player, Registration, Tournament, Match
 from app.crud import crud_tournament
 from app.schemas import tournament_schemas
@@ -16,6 +16,10 @@ from fastapi.responses import Response
 from fastapi_mail import FastMail, MessageSchema, MessageType
 from app.api.auth import conf
 import urllib.parse
+from app.api.auth import verify_otp
+from app.crud import crud_registration
+from fastapi import BackgroundTasks
+from app.api.registrations import update_qr
 router = APIRouter()
 
 # 1. TẠO GIẢI ĐẤU (CHỈ ADMIN)
@@ -81,7 +85,7 @@ def generate_tournament_draw(
             return crud_tournament.generate_round_robin_draw(db, tournament_id, request.num_groups)
         else:
             # Code cũ của ông cho đấu loại trực tiếp
-            return crud_tournament.generate_draw(db, tournament_id) 
+            return crud_tournament.generate_knockout_draw(db, tournament_id) 
             
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -212,3 +216,46 @@ def generate_tournament_playoffs(
         return crud_tournament.generate_playoff_draw(db, tournament_id, request.advancers_per_group)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+class TournamentRegisterRequest(BaseModel):
+    notes: Optional[str] = None
+    partners: List[dict] = []
+    otp: str
+
+@router.post("/{tournament_id}/register")
+def register_tournament_with_otp(
+    tournament_id: int, 
+    request: TournamentRegisterRequest, 
+    background_tasks: BackgroundTasks, # 1. Thêm cái này vào param
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # 1. Xác thực OTP
+    if not verify_otp(current_user.email, request.otp):
+        raise HTTPException(status_code=400, detail="Mã OTP không chính xác hoặc đã hết hạn.")
+
+    try:
+        player = db.query(Player).filter(Player.user_id == current_user.id).first()
+        if not player:
+            raise HTTPException(status_code=404, detail="Hồ sơ vận động viên không tồn tại.")
+
+        # 2. Lưu database (bây giờ nó sẽ auto return status = confirmed)
+        reg = crud_registration.register_with_otp_flow(
+            db=db,
+            tournament_id=tournament_id,
+            player_id=player.id,
+            notes=request.notes,
+            partners=request.partners
+        )
+        
+        # 3. Lấy tên giải đấu và Kích hoạt tạo mã QR ngầm
+        tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+        tourn_name = tournament.name if tournament else "Saigon Tennis"
+        background_tasks.add_task(update_qr, reg.id, tourn_name)
+
+        return reg
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

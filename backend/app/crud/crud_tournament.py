@@ -113,8 +113,8 @@ def generate_knockout_draw(db: Session, tournament_id: int):
     ).all()
 
     if not regs:
-        raise Exception("Không có vận động viên nào hợp lệ để tạo nhánh đấu.")
-
+        raise HTTPException(status_code=400, detail="Chưa có vận động viên nào được duyệt tham gia để tạo nhánh đấu.")
+    
     random.shuffle(regs)
     count = len(regs)
     rounds_needed = math.ceil(math.log2(count))
@@ -533,7 +533,7 @@ def generate_round_robin_draw(db: Session, tournament_id: int, num_groups: int =
     ).all()
 
     if len(players) < 2:
-        raise ValueError("Cần ít nhất 2 VĐV để tạo lịch thi đấu.")
+        raise HTTPException(status_code=400, detail="Cần ít nhất 2 VĐV đã duyệt để tạo lịch thi đấu vòng tròn.")
 
     # 2. Xóa lịch thi đấu cũ (nếu có) để tạo lại
     db.query(Match).filter(Match.tournament_id == tournament_id).delete()

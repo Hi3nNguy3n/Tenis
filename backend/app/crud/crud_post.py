@@ -1,7 +1,7 @@
 # backend/app/crud/crud_post.py
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from app.models.models import Post
+from app.models.models import Post, Category
 from app.schemas.post_schemas import PostCreate, PostUpdate
 from app.core.text import slugify
 
@@ -11,15 +11,19 @@ def get_post(db: Session, post_id: int):
 def get_post_by_slug(db: Session, slug: str):
     return db.query(Post).filter(Post.slug == slug).first()
 
+from app.models.models import Post, Category # Nhớ import Category
+
 def get_posts(db: Session, skip: int = 0, limit: int = 100, search: str = None, category: str = None):
-    query = db.query(Post)
+    # Dùng outerjoin để kết nối bảng Post và Category
+    query = db.query(Post).outerjoin(Category, Post.category_id == Category.id)
     
     if search:
         query = query.filter(Post.title.ilike(f"%{search}%"))
-    # Nếu category là String (Tên danh mục), bạn sẽ cần Join bảng Categories. 
-    # Nhưng hiện tại category đang truyền vào là ID hoặc xử lý mảng
-    
-    # Sắp xếp bài mới nhất lên đầu
+        
+    if category and category != 'Tất cả':
+        # Lọc dựa trên tên của bảng Category
+        query = query.filter(Category.name == category)
+        
     return query.order_by(Post.created_at.desc()).offset(skip).limit(limit).all()
 
 def create_post(db: Session, post: PostCreate, author_id: int):
@@ -33,29 +37,43 @@ def create_post(db: Session, post: PostCreate, author_id: int):
         unique_slug = f"{base_slug}-{counter}"
         counter += 1
 
-    # 3. Chuẩn bị dữ liệu (BỎ exclude_unset=True)
-    # Sử dụng model_dump() bình thường để lấy cả các giá trị default (như post_type="news")
-    post_data = post.model_dump() 
+    # 3. XỬ LÝ DANH MỤC: Đổi 'Chữ' thành 'ID'
+    category_name = post.category or "Thông báo"
+    category_obj = db.query(Category).filter(Category.name == category_name).first()
+    
+    # Nếu danh mục chưa có, tự động tạo mới KÈM THEO SLUG
+    if not category_obj:
+        cat_slug = slugify(category_name) # Tạo slug cho danh mục
+        category_obj = Category(name=category_name, slug=cat_slug, type="news", sort_order=1) # Thêm slug vào đây
+        db.add(category_obj)
+        db.commit()
+        db.refresh(category_obj)
+
+    # 4. Chuẩn bị dữ liệu: LOẠI BỎ cột 'category' (chữ) ra khỏi dict
+    post_data = post.model_dump(exclude={"category"}) 
     
     db_post = Post(
         **post_data,
+        category_id=category_obj.id, # Gắn ID thật vào DB
         slug=unique_slug,
         author_id=author_id,
-        owner_user_id=author_id
+        owner_user_id=author_id,
+        post_type="news" # Gán cứng post_type vì Model yêu cầu nullable=False nhưng Frontend không gửi
     )
     
-    # 4. Lưu vào DB
+    # 5. Lưu vào DB
     try:
         db.add(db_post)
         db.commit()
         db.refresh(db_post)
         return db_post
     except Exception as e:
-        db.rollback() # Luôn rollback nếu lỗi để tránh treo session
+        db.rollback() 
         raise e
 
 def update_post(db: Session, db_post: Post, post_in: PostUpdate):
-    update_data = post_in.model_dump(exclude_unset=True)
+    # Lấy dữ liệu update, LOẠI BỎ cột 'category' (chữ)
+    update_data = post_in.model_dump(exclude_unset=True, exclude={"category"})
     
     # Nếu đổi tiêu đề, cập nhật lại slug
     if "title" in update_data and update_data["title"] != db_post.title:
@@ -66,6 +84,18 @@ def update_post(db: Session, db_post: Post, post_in: PostUpdate):
             unique_slug = f"{base_slug}-{counter}"
             counter += 1
         update_data["slug"] = unique_slug
+
+    # XỬ LÝ DANH MỤC (Nếu Frontend có gửi category mới)
+    if post_in.category:
+        category_obj = db.query(Category).filter(Category.name == post_in.category).first()
+        if not category_obj:
+            cat_slug = slugify(post_in.category) # Tạo slug cho danh mục
+            category_obj = Category(name=post_in.category, slug=cat_slug, type="news", sort_order=1) # Thêm slug vào đây
+            db.add(category_obj)
+            db.commit()
+            db.refresh(category_obj)
+            
+        update_data["category_id"] = category_obj.id
 
     for field, value in update_data.items():
         setattr(db_post, field, value)

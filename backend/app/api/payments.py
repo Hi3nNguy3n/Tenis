@@ -18,7 +18,6 @@ from app.models.models import User, MatchChallenge # Thêm MatchChallenge vào �
 
 router = APIRouter()
 
-@router.post("/{registration_id}/create-url")
 def create_payment_url(
     registration_id: int, 
     current_user: User = Depends(get_current_user),
@@ -48,7 +47,6 @@ def process_qr_background(r_id: int, t_name: str):
     finally:
         db_task.close() # Luôn đóng session ngầm
 
-@router.get("/vnpay-callback")
 @audit_log(module="PAYMENT", action="UPDATE", event_name="Xác nhận thanh toán")
 def vnpay_callback(
     status: str, 

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Check, Close } from '@element-plus/icons-vue'
 import { registrationService } from '../../services/registrationService'
-
+import { apiClient } from '../../services/apiClient'
 const search = ref('')
 const statusFilter = ref('')
 const registrations = ref([])
@@ -22,13 +22,22 @@ const loadRegistrations = async () => {
 }
 
 const handleConfirm = (id) => {
-  ElMessageBox.confirm('Xác nhận đã thanh toán cho đơn này?', 'Xác nhận', { type: 'success' }).then(async () => {
+  ElMessageBox.confirm(
+    'Xác nhận VĐV này đã hoàn tất thanh toán và cho phép tham gia giải?',
+    'Duyệt đăng ký',
+    { 
+      confirmButtonText: 'Duyệt ngay',
+      cancelButtonText: 'Hủy',
+      type: 'success' 
+    }
+  ).then(async () => {
     try {
-      await registrationService.confirm(id)
-      ElMessage.success('Đã xác nhận thanh toán')
-      loadRegistrations()
+      // Gọi API confirm mới thay vì confirm-payment cũ
+      await apiClient.post(`/api/registrations/${id}/confirm`)
+      ElMessage.success('Đã duyệt vận động viên thành công!')
+      loadRegistrations() // Tải lại danh sách
     } catch (err) {
-      ElMessage.error('Lỗi: ' + err.message)
+      ElMessage.error('Lỗi khi duyệt: ' + (err.response?.data?.detail || err.message))
     }
   })
 }
@@ -36,11 +45,12 @@ const handleConfirm = (id) => {
 const handleCancel = (id) => {
   ElMessageBox.confirm('Bạn có chắc muốn hủy đơn đăng ký này?', 'Cảnh báo', { type: 'warning' }).then(async () => {
     try {
-      await registrationService.cancel(id)
-      ElMessage.success('Đã hủy đơn')
+      // SỬA DÒNG NÀY: Dùng method DELETE của Admin thay vì gọi service của User
+      await apiClient.delete(`/api/registrations/${id}`) 
+      ElMessage.success('Đã hủy đơn thành công')
       loadRegistrations()
     } catch (err) {
-      ElMessage.error('Lỗi: ' + err.message)
+      ElMessage.error('Lỗi: ' + (err.response?.data?.detail || err.message))
     }
   })
 }

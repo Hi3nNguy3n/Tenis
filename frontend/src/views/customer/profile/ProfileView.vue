@@ -33,7 +33,9 @@ const editForm = ref({
   email: '',
   phone: '',
   gender: '',
-  birth_date: ''
+  date_of_birth: '',
+  province: '', // Thêm tỉnh thành
+  play_hand: ''
 })
 
 // --- LOGIC THÁCH ĐẤU ---
@@ -101,7 +103,9 @@ onMounted(async () => {
         full_name: authStore.user.full_name,
         phone: authStore.user.phone,
         gender: profileData?.player_profile?.gender || authStore.user.gender,
-        birth_date: profileData?.player_profile?.date_of_birth || authStore.user.date_of_birth
+        date_of_birth: profileData?.player_profile?.date_of_birth || authStore.user.date_of_birth,
+        province: authStore.user.province || '',
+        play_hand: profileData?.player_profile?.play_hand || ''
       }
     }
 
@@ -290,6 +294,10 @@ const selectTab = (tab) => {
                 <div class="display-item"><label>Email liên hệ</label><p class="text-break email-value">{{ authStore.user?.email || '---' }}</p></div>
                 <div class="display-item"><label>Số điện thoại</label><p>{{ authStore.user?.phone || 'Chưa cập nhật' }}</p></div>
                 <div class="display-item"><label>Giới tính</label><p>{{ authStore.user?.gender === 'male' ? 'Nam' : authStore.user?.gender === 'female' ? 'Nữ' : 'Khác' }}</p></div>
+                
+                <div class="display-item"><label>Ngày sinh</label><p>{{ authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth ? new Date(authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth).toLocaleDateString('vi-VN') : 'Chưa cập nhật' }}</p></div>
+                <div class="display-item"><label>Tỉnh / Thành phố</label><p>{{ authStore.user?.province || 'Chưa cập nhật' }}</p></div>
+                <div class="display-item"><label>Tay thuận</label><p>{{ authStore.profile?.player_profile?.play_hand === 'right' ? 'Phải' : authStore.profile?.player_profile?.play_hand === 'left' ? 'Trái' : authStore.profile?.player_profile?.play_hand === 'both' ? 'Cả hai' : 'Chưa cập nhật' }}</p></div>
               </div>
 
               <el-form v-else :model="editForm" label-position="top" class="atp-form-modern">
@@ -298,10 +306,27 @@ const selectTab = (tab) => {
                   <el-form-item label="Số điện thoại"><el-input v-model="editForm.phone" /></el-form-item>
                   <el-form-item label="Giới tính">
                     <el-select v-model="editForm.gender" style="width: 100%">
-                      <el-option label="Nam" value="male" /><el-option label="Nữ" value="female" /><el-option label="Khác" value="other" />
+                      <el-option label="Nam" value="male" />
+                      <el-option label="Nữ" value="female" />
+                      <el-option label="Khác" value="other" />
+                    </el-select>
+                  </el-form-item>
+                  
+                  <el-form-item label="Ngày sinh">
+                    <el-input type="date" v-model="editForm.date_of_birth" />
+                  </el-form-item>
+                  <el-form-item label="Tỉnh / Thành phố">
+                    <el-input v-model="editForm.province" placeholder="VD: TP. Hồ Chí Minh" />
+                  </el-form-item>
+                  <el-form-item label="Tay thuận">
+                    <el-select v-model="editForm.play_hand" style="width: 100%">
+                      <el-option label="Phải" value="right" />
+                      <el-option label="Trái" value="left" />
+                      <el-option label="Cả hai" value="both" />
                     </el-select>
                   </el-form-item>
                 </div>
+                
                 <div class="form-actions-row">
                   <button type="button" class="btn-atp-text" @click="isEditing = false">Hủy bỏ</button>
                   <button type="button" class="btn-atp-solid" :disabled="isLoading" @click="handleUpdate">{{ isLoading ? 'Đang lưu...' : 'Lưu thay đổi' }}</button>
