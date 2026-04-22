@@ -448,7 +448,7 @@ const toggleSidebar = () => {
   color: #0f172a;
   background: rgba(255, 255, 255, 0.92);
   border-color: rgba(220, 252, 231, 0.24);
-  transform: translateX(6px);
+
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
 }
 

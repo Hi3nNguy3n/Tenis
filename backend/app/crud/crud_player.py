@@ -10,6 +10,9 @@ def get_player_by_user_id(db: Session, user_id: int):
 def update_player_profile(db: Session, user: User, update_data: PlayerUpdate):
     if update_data.full_name: user.full_name = update_data.full_name
     if update_data.phone: user.phone = update_data.phone
+    
+    # BỔ SUNG DÒNG NÀY: Lưu province vào bảng User
+    if update_data.province: user.province = update_data.province 
 
     player = get_player_by_user_id(db, user.id)
     if player:

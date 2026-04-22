@@ -44,26 +44,22 @@ def change_password(
 
 @router.post("/send-otp")
 async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
-    if r.get(f"limit:{request.email}"):
-        raise HTTPException(status_code=429, detail="Vui lòng thử lại sau 60 giây.")
-
-    if crud_auth.get_user_by_email(db, request.email):
-        raise HTTPException(status_code=400, detail="Email đã được đăng ký.")
-
     otp = str(random.randint(100000, 999999))
-    r.setex(f"otp:{request.email}", 300, otp)
-    r.setex(f"limit:{request.email}", 60, "locked")
+    
+    # Lưu OTP vào Redis (giữ nguyên thời gian hết hạn của ông)
+    r.setex(f"otp:{request.email}", 300, otp) 
 
+    # Gửi Email (giữ nguyên template của ông)
     message = MessageSchema(
         subject="Mã xác thực Saigon Tennis Tour",
         recipients=[request.email],
-        body=f"Mã OTP của bạn là: {otp}. Mã có hiệu lực trong 5 phút.",
+        body=f"Mã xác thực của bạn là: {otp}. Mã có hiệu lực trong 5 phút.",
         subtype=MessageType.plain
     )
     fm = FastMail(conf)
     await fm.send_message(message)
-
-    return {"message": "Mã OTP đã được gửi thành công!"}
+    
+    return {"message": "Mã OTP đã được gửi thành công."}
 
 @router.post("/register")
 def register(
@@ -143,3 +139,29 @@ def reset_password(email: str, otp: str, new_password: str, db: Session = Depend
     crud_auth.update_password(db, user=user, new_password=new_password)
     r.delete(f"reset_otp:{email}")
     return {"message": "Đổi mật khẩu thành công!"}
+
+def verify_otp(email: str, otp_code: str):
+    """Hàm helper để kiểm tra mã OTP từ Redis"""
+    from app.db.redis_client import get_redis
+    
+    try:
+        # Vì get_redis là một generator, ta dùng next() để lấy instance
+        redis_gen = get_redis()
+        r = next(redis_gen)
+        
+        cached_otp = r.get(f"otp:{email}")
+        
+        if not cached_otp:
+            return False
+            
+        # Nếu redis_client đã set decode_responses=True thì cached_otp là string
+        # Nếu chưa, ta cần decode. Để an toàn nhất, ta ép kiểu về string để so sánh
+        if str(cached_otp) == str(otp_code):
+            r.delete(f"otp:{email}") # Dùng xong xóa luôn
+            return True
+    except StopIteration:
+        pass
+    except Exception as e:
+        print(f"Lỗi Redis verify_otp: {e}")
+        
+    return False

@@ -73,6 +73,11 @@ const openEditDialog = (row) => {
 }
 
 const saveCourt = async () => {
+  // 1. Chuẩn hóa chuỗi (Xóa dấu cách dư thừa ở đầu và cuối)
+  form.value.court_name = form.value.court_name?.trim() || ''
+  form.value.location_name = form.value.location_name?.trim() || ''
+
+  // 2. Validate rỗng
   if (!form.value.court_name || !form.value.location_name) {
     return ElMessage.warning('Vui lòng nhập tên và địa điểm sân')
   }
@@ -89,7 +94,9 @@ const saveCourt = async () => {
     isDialogOpen.value = false
     loadCourts()
   } catch (err) {
-    ElMessage.error('Lỗi khi lưu: ' + err.message)
+    // 3. Hiển thị thông báo lỗi từ Backend (Cực kỳ quan trọng)
+    const errorMsg = err.response?.data?.detail || err.message || 'Lỗi khi lưu thông tin'
+    ElMessage.error(errorMsg)
   } finally {
     isSaving.value = false
   }

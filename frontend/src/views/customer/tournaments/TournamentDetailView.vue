@@ -4,6 +4,19 @@ import { useRoute, useRouter } from 'vue-router'
 import { useTournamentStore } from '../../../stores/tournament'
 import { useAuthStore } from '../../../stores/auth'
 import { apiClient } from '../../../services/apiClient' // Thêm apiClient để gọi API Bracket
+import { 
+  Trophy, 
+  Calendar as CalendarIcon, 
+  Location, 
+  Check,
+  Checked, 
+  User, 
+  ArrowRight, 
+  InfoFilled, 
+  Search, 
+  Filter, 
+  Ticket 
+} from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +31,7 @@ const publicMatches = ref([])
 const loadingBracket = ref(false)
 const standingsData = ref([])
 const loadingStandings = ref(false)
+const isAlreadyRegistered = ref(false)
 
 const fetchStandings = async () => {
   loadingStandings.value = true
@@ -35,6 +49,20 @@ onMounted(async () => {
   tournamentStore.fetchTournamentById(tournamentId)
   fetchBracket()
   fetchStandings()
+
+  // 2. Kiểm tra xem user này đã đăng ký giải này chưa
+  if (authStore.isAuthenticated) {
+    try {
+      const myRegs = await apiClient.get('/api/registrations/my-registrations')
+      // Nếu có đơn đăng ký khác trạng thái 'cancelled' và 'rejected'
+      const exists = myRegs.find(r => r.tournament_id === parseInt(tournamentId) && r.status !== 'cancelled' && r.status !== 'rejected')
+      if (exists) {
+        isAlreadyRegistered.value = true
+      }
+    } catch (err) {
+      console.error("Lỗi kiểm tra đăng ký:", err)
+    }
+  }
 })
 
 const fetchBracket = async () => {
@@ -247,9 +275,10 @@ const formatDate = (dateStr) => {
               <button 
                 class="btn-register" 
                 @click="goToRegister" 
-                :disabled="t.current_participants >= (t.max_participants || t.draw_size)"
+                :disabled="isAlreadyRegistered || t.current_participants >= (t.max_participants || t.draw_size)"
+                :style="isAlreadyRegistered ? 'background: #94a3b8; cursor: not-allowed;' : ''"
               >
-                {{ t.current_participants >= (t.max_participants || t.draw_size) ? 'Đã hết chỗ' : 'Đăng ký ngay' }}
+                {{ isAlreadyRegistered ? 'Bạn đã đăng ký giải này' : (t.current_participants >= (t.max_participants || t.draw_size) ? 'Đã hết chỗ' : 'Đăng ký ngay') }}
               </button>
             </div>
             <div v-else class="status-message">

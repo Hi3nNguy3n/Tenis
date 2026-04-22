@@ -27,10 +27,6 @@ const VerifyRegisterOtpView = () => import('../views/auth/VerifyRegisterOtpView.
 const AdminLoginView = () => import('../views/auth/AdminLoginView.vue')
 const ForgotPasswordView = () => import('../views/auth/ForgotPasswordView.vue')
 
-const PaymentWaitingView = () => import('../views/customer/tournaments/PaymentWaitingView.vue')
-const PaymentFailureView = () => import('../views/customer/tournaments/PaymentFailureView.vue')
-
-
 const adminViewFactories = {
   dashboard: () => import('../views/admin/AdminDashboardView.vue'),
   profile: () => import('../views/admin/AdminProfileView.vue'),
@@ -163,18 +159,6 @@ const router = createRouter({
       path: '/profile/change-password',
       name: 'change-password',
       component: ChangePasswordView,
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/tournaments/:id/waiting',
-      name: 'payment-waiting',
-      component: PaymentWaitingView,
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/tournaments/:id/failure',
-      name: 'payment-failure',
-      component: PaymentFailureView,
       meta: { requiresAuth: true },
     },
     {

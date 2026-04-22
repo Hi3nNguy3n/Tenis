@@ -9,7 +9,6 @@
   --border-light: #e2e8f0;
   --glass-bg: rgba(255, 255, 255, 0.9);
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --font-main: Arial, sans-serif;
 
   /* Unified Layout Tokens */
   --radius-sm: 4px;
@@ -21,6 +20,7 @@
   --gap-section: 4rem;
   --gap-card: 2rem;
   --container-pad: 1.5rem;
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif, Arial;
 }
 
 /* ============================================================
@@ -50,6 +50,9 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  button, input, select, textarea {
+  font-family: inherit;
+}
 }
 
 /* Force font on ALL elements — catches third-party UI libs */
@@ -214,29 +217,27 @@ ul {
 }
 
 /* Element Plus overrides: force font globally */
-:deep(.el-button),
-:deep(.el-input__inner),
-:deep(.el-input__wrapper),
-:deep(.el-select__wrapper),
-:deep(.el-select__selected-item),
-:deep(.el-dropdown-menu__item),
-:deep(.el-form-item__label),
-:deep(.el-table),
-:deep(.el-table th),
-:deep(.el-table td),
-:deep(.el-table__empty-text),
-:deep(.el-message),
-:deep(.el-message__content),
-:deep(.el-pagination),
-:deep(.el-tag) {
-  font-family: Arial, sans-serif !important;
+/* Sửa lỗi hiển thị font cho thư viện Element Plus trên toàn hệ thống */
+.el-button,
+.el-input__inner,
+.el-input__wrapper,
+.el-select__wrapper,
+.el-select__selected-item,
+.el-dropdown-menu__item,
+.el-form-item__label,
+.el-table,
+.el-table th,
+.el-table td,
+.el-message,
+.el-message__content,
+.el-pagination,
+.el-tag {
+  font-family: var(--font-main) !important;
 }
 
-:deep(.el-button),
-:deep(.el-link),
-:deep(.el-form-item__label),
-:deep(.el-radio__label),
-:deep(.el-checkbox__label) {
+/* Giữ độ đậm nhạt (weight) vừa phải để giao diện trông hiện đại hơn */
+.el-button,
+.el-form-item__label {
   font-weight: 500 !important;
 }
 

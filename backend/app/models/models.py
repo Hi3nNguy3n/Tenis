@@ -336,6 +336,12 @@ class Post(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    category_rel = relationship("Category")
+    
+    @property
+    def category(self):
+        return self.category_rel.name if self.category_rel else "Chung"
+
 class NewsletterSubscriber(Base):
     __tablename__ = "newsletter_subscribers"
     id = Column(BigInteger, primary_key=True, index=True)

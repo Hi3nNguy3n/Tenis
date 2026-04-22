@@ -2,11 +2,15 @@
 import { ref } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
+import jsQR from 'jsqr'
 
 const registrationId = ref('')
 const isLoading = ref(false)
 const checkInData = ref(null)
 const error = ref('')
+
+// Ref để trỏ tới thẻ input file ẩn
+const fileInput = ref(null)
 
 const handleCheckIn = async () => {
   let id = registrationId.value.trim()
@@ -28,11 +32,53 @@ const handleCheckIn = async () => {
     ElMessage.success('Check-in thành công!')
     registrationId.value = '' // Clear for next scan
   } catch (err) {
-    error.value = err.message || 'Lỗi khi check-in.'
+    error.value = err.response?.data?.detail || err.message || 'Lỗi khi check-in.'
     ElMessage.error(error.value)
   } finally {
     isLoading.value = false
   }
+}
+
+// Hàm kích hoạt click vào input file ẩn
+const triggerFileInput = () => {
+  fileInput.value.click()
+}
+
+// Hàm xử lý khi người dùng chọn ảnh
+const handleFileUpload = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const img = new Image()
+    img.onload = () => {
+      // 1. Tạo canvas để trích xuất dữ liệu ảnh (ImageData)
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+      canvas.width = img.width
+      canvas.height = img.height
+      context.drawImage(img, 0, 0, canvas.width, canvas.height)
+      
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+      
+      // 2. Dùng jsQR để giải mã dữ liệu pixel
+      const code = jsQR(imageData.data, imageData.width, imageData.height)
+      
+      if (code && code.data) {
+        registrationId.value = code.data
+        ElMessage.success('Quét mã QR thành công! Đang xử lý...')
+        handleCheckIn() // Tự động gọi hàm check-in sau khi quét xong
+      } else {
+        ElMessage.error('Không tìm thấy mã QR hợp lệ trong ảnh. Vui lòng thử ảnh khác rõ nét hơn.')
+      }
+    }
+    img.src = e.target.result
+  }
+  reader.readAsDataURL(file)
+  
+  // Reset input để người dùng có thể chọn lại cùng 1 file nếu cần
+  event.target.value = ''
 }
 </script>
 
@@ -44,7 +90,18 @@ const handleCheckIn = async () => {
           <div class="scan-line"></div>
           <div class="scanner-placeholder">
              <span class="icon">📷</span>
-             <p> Camera Scanner Mock </p>
+             <p style="margin-bottom: 10px;">Tải ảnh QR Code để quét</p>
+             
+             <input 
+               type="file" 
+               accept="image/*" 
+               ref="fileInput" 
+               style="display: none" 
+               @change="handleFileUpload"
+             />
+             <el-button type="success" plain @click="triggerFileInput">
+               Chọn ảnh tải lên
+             </el-button>
           </div>
         </div>
         
@@ -76,7 +133,6 @@ const handleCheckIn = async () => {
              </div>
              <p class="success-tip">Vận động viên đã được xác nhận có mặt.</p>
           </div>
-
         </div>
 
         <div v-else-if="error" class="error-card">
@@ -94,6 +150,7 @@ const handleCheckIn = async () => {
 </template>
 
 <style scoped>
+/* Giữ nguyên toàn bộ CSS cũ của bạn */
 .checkin-module { display: grid; gap: 24px; }
 
 .hero-card {
@@ -166,10 +223,11 @@ const handleCheckIn = async () => {
   justify-content: center;
   height: 100%;
   color: white;
-  opacity: 0.5;
+  z-index: 10;
+  position: relative;
 }
 
-.scanner-placeholder .icon { font-size: 3rem; margin-bottom: 1rem; }
+.scanner-placeholder .icon { font-size: 3rem; margin-bottom: 0.5rem; }
 
 .manual-input { width: 100%; text-align: center; }
 .manual-input p { font-size: 0.9rem; color: #6e7a74; margin-bottom: 1rem; }
@@ -216,7 +274,6 @@ const handleCheckIn = async () => {
 }
 
 .empty-result { color: #bdc9c3; text-align: center; font-style: italic; }
-
 
 @media (max-width: 800px) {
   .scanner-container { grid-template-columns: 1fr; }

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.db.database import get_db, SessionLocal
 from app.api.deps import get_current_user, get_current_admin
-from app.models.models import User
+from app.models.models import User, Registration, Tournament, Player
 from app.crud import crud_registration, crud_player # Import crud_player
 from app.schemas import registration_schemas
 from app.core.qr_generator import generate_registration_qr
@@ -23,19 +23,6 @@ def update_qr(r_id: int, t_name: str):
         print(f"❌ [Background Error] Lỗi khi tạo QR Code: {str(e)}")
     finally:
         db_task.close()
-
-# 1. VĐV ĐĂNG KÝ GIẢI ĐẤU
-@router.post("/", response_model=registration_schemas.RegistrationResponse)
-def register_for_tournament(
-    reg_in: registration_schemas.RegistrationCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    player = crud_player.get_player_by_user_id(db, current_user.id)
-    if not player:
-        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ Vận động viên của bạn.")
-
-    return crud_registration.register_tournament(db=db, reg_in=reg_in, current_player_id=player.id)
 
 # 2. VĐV XEM CÁC GIẢI MÌNH ĐÃ ĐĂNG KÝ
 @router.get("/my-registrations", response_model=List[registration_schemas.RegistrationResponse])
@@ -82,25 +69,6 @@ def user_cancel_registration(
         return {"message": "Đơn này đã được hủy trước đó."}
         
     return {"message": "Hủy đăng ký thành công. Slot của bạn đã được giải phóng."}
-
-# 4. GIẢ LẬP THANH TOÁN THÀNH CÔNG
-@router.post("/{registration_id}/confirm-payment")
-def confirm_payment(
-    registration_id: int,
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    reg, tourn = crud_registration.confirm_simulated_payment(db, registration_id)
-    if not reg:
-        raise HTTPException(status_code=404, detail="Đơn đăng ký không tồn tại.")
-    if not tourn: # Đã trả về None từ tuple nếu đã payment
-        return {"message": "Đơn này đã thanh toán rồi."}
-
-    # Sinh mã QR chạy ngầm...
-    background_tasks.add_task(update_qr, reg.id, tourn.name if tourn else "Saigon Tennis")
-    
-    return {"message": "Thanh toán thành công. Đã lưu Payment & Sinh mã QR."}
 
 # 5. ADMIN XEM TẤT CẢ ĐƠN ĐĂNG KÝ
 @router.get("/", response_model=List[registration_schemas.RegistrationResponse])
@@ -151,3 +119,27 @@ def admin_check_in(registration_id: int, db: Session = Depends(get_db)):
         "tournament_name": info["tourn"].name,
         "location": info["tourn"].location
     }
+
+@router.post("/{registration_id}/confirm", dependencies=[Depends(get_current_admin)])
+def admin_confirm_registration(
+    registration_id: int, 
+    background_tasks: BackgroundTasks, # 1. Thêm BackgroundTasks vào đây
+    db: Session = Depends(get_db)
+):
+    reg = db.query(Registration).filter(Registration.id == registration_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
+    
+    reg.status = "confirmed"
+    reg.payment_status = "paid"
+    reg.approved_at = datetime.utcnow()
+    
+    # 2. Lấy tên giải đấu để in lên QR Code
+    tourn = db.query(Tournament).filter(Tournament.id == reg.tournament_id).first()
+    tourn_name = tourn.name if tourn else "Saigon Tennis"
+
+    # 3. Kích hoạt chạy ngầm tạo QR Code
+    background_tasks.add_task(update_qr, reg.id, tourn_name)
+    
+    db.commit()
+    return {"message": "Đã duyệt vận động viên và tạo mã QR thành công!"}

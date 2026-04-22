@@ -143,12 +143,14 @@ const formatDate = (dateStr) => {
                 <!-- Technical Specs -->
                 <div class="tour-specs">
                   <div class="spec">
-                    <span class="label">SGL 28</span>
-                    <span class="label">DBL 16</span>
+                    <span class="label">
+                      {{ t.format_type === 'Singles' ? 'SGL' : 'DBL' }} {{ t.draw_size }}
+                    </span>
+                    <span class="label">{{ t.gender_division }}</span>
                   </div>
                   <div class="spec">
                     <span class="value">{{ t.surface_type || 'Hard' }}</span>
-                    <span class="sub">Outdoor</span>
+                    <span class="sub">Outdoor</span> 
                   </div>
                 </div>
 

@@ -8,9 +8,14 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Saigon Tennis - Chat Microservice")
 
+origins = [
+    "http://localhost:5173",
+    "https://saigon-tennis-frontend-deploy.vercel.app", # Link Vercel của Phú
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Cho phép Frontend Vue kết nối
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

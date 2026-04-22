@@ -8,6 +8,7 @@ class PlayerUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=15)
     gender: Optional[str] = Field(None, description="nam, nu, khac")
     date_of_birth: Optional[date] = None
+    province: Optional[str] = None       # Thêm trường này
     play_hand: Optional[str] = Field(None, description="right, left, both")
     skill_level: Optional[str] = None
     preferred_category: Optional[str] = None
