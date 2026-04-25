@@ -49,16 +49,17 @@ def create_post(db: Session, post: PostCreate, author_id: int):
         db.commit()
         db.refresh(category_obj)
 
-    # 4. Chuẩn bị dữ liệu: LOẠI BỎ cột 'category' (chữ) ra khỏi dict
-    post_data = post.model_dump(exclude={"category"}) 
+    # 4. Chuẩn bị dữ liệu: LOẠI BỎ cả 'category' và 'category_id' cũ ra khỏi dict
+    # Chỉ cần thêm "category_id" vào danh sách exclude
+    post_data = post.model_dump(exclude={"category", "category_id"}) 
     
     db_post = Post(
         **post_data,
-        category_id=category_obj.id, # Gắn ID thật vào DB
+        category_id=category_obj.id, # Bây giờ gán ID thật vào đây sẽ KHÔNG CÒN BỊ TRÙNG nữa
         slug=unique_slug,
         author_id=author_id,
         owner_user_id=author_id,
-        post_type="news" # Gán cứng post_type vì Model yêu cầu nullable=False nhưng Frontend không gửi
+        post_type="news" 
     )
     
     # 5. Lưu vào DB
