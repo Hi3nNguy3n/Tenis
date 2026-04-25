@@ -105,7 +105,7 @@ const savePost = async () => {
       await apiClient.put(`/api/news/${form.value.id}`, form.value)
       ElMessage.success(t('admin.saveArticleSuccess'))
     } else {
-      await apiClient.post('/api/news', form.value)
+      await apiClient.post('/api/news/', form.value)
       ElMessage.success(t('admin.publishSuccess'))
     }
     isDialogOpen.value = false
