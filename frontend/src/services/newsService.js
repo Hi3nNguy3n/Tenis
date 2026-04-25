@@ -9,7 +9,7 @@ export const newsService = {
     if (params.category) searchParams.append('category', params.category)
 
     const query = searchParams.toString()
-    return apiClient.get(`/api/news?${query}`)
+    return apiClient.get(`/api/news/?${query}`)
   },
 
   getPost(slugOrId) {
