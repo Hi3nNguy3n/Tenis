@@ -6,6 +6,7 @@ import { useTournamentStore } from '../../../stores/tournament'
 import { newsService } from '../../../services/newsService'
 import { playerService } from '../../../services/playerService'
 import { Ticket, Search, Filter, Calendar as CalendarIcon, Location, Trophy, ArrowRight } from '@element-plus/icons-vue'
+import { currentLocale, t } from '../../../utils/locale'
 
 const router = useRouter()
 const isVideo = (url) => {
@@ -49,14 +50,18 @@ onMounted(async () => {
   }
 })
 
+const getMonthLabel = (date) => {
+  return date.toLocaleString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { month: 'long', year: 'numeric' })
+}
+
 // Group tournaments by month for the layout
 const groupedTournaments = computed(() => {
   const groups = {}
-  tournamentStore.tournaments.forEach(t => {
-    const dateKey = normalizeDateKey(t.start_date)
-    const monthYear = dateKey ? new Date(`${dateKey}T12:00:00`).toLocaleString('en-US', { month: 'long', year: 'numeric' }) : 'Khác'
+  tournamentStore.tournaments.forEach(tour => {
+    const dateKey = normalizeDateKey(tour.start_date)
+    const monthYear = dateKey ? getMonthLabel(new Date(`${dateKey}T12:00:00`)) : t('common.other')
     if (!groups[monthYear]) groups[monthYear] = []
-    groups[monthYear].push(t)
+    groups[monthYear].push(tour)
   })
   return groups
 })
@@ -69,7 +74,7 @@ const formatDate = (dateStr) => {
   if (!dateStr) return ''
   const dateKey = normalizeDateKey(dateStr)
   if (!dateKey) return ''
-  return new Date(`${dateKey}T12:00:00`).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+  return new Date(`${dateKey}T12:00:00`).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit' })
 }
 </script>
 
@@ -84,14 +89,14 @@ const formatDate = (dateStr) => {
         <!-- HEADER & SEARCH -->
         <header class="calendar-header">
           <div class="title-row">
-            <h1>Lịch Thi Đấu</h1>
+            <h1>{{ t('tournaments.title') }}</h1>
           </div>
           
           <div class="calendar-controls">
             <div class="search-wrap">
               <el-input 
                 v-model="searchQuery" 
-                placeholder="Tìm giải đấu..." 
+                :placeholder="t('tournaments.searchPlaceholder')" 
                 class="atp-search-input"
                 clearable
                 @input="fetchTournaments"
@@ -105,7 +110,7 @@ const formatDate = (dateStr) => {
         <!-- LOADING STATE -->
         <div v-if="tournamentStore.loading" class="loading-state">
           <div class="spinner"></div>
-          <p>Tải lịch thi đấu...</p>
+          <p>{{ t('common.loading') }}...</p>
         </div>
 
         <!-- CALENDAR LIST -->
@@ -113,20 +118,20 @@ const formatDate = (dateStr) => {
           <div v-for="(tournaments, month) in groupedTournaments" :key="month" class="month-group">
             <div class="month-header">
               <span>{{ month }}</span>
-              <span class="count">({{ tournaments.length }} events)</span>
+              <span class="count">({{ tournaments.length }} {{ t('tournaments.events') }})</span>
             </div>
 
             <div class="tournament-rows">
               <article 
-                v-for="t in tournaments" 
-                :key="t.id" 
+                v-for="tour in tournaments" 
+                :key="tour.id" 
                 class="tour-row-card"
-                @click="viewDetail(t.id)"
+                @click="viewDetail(tour.id)"
               >
                 <!-- Category Badge -->
                 <div class="tour-badge">
                   <div class="badge-inner">
-                    <span class="type">{{ t.category_type }}</span>
+                    <span class="type">{{ tour.category_type }}</span>
                     <span class="points">250</span>
                   </div>
                 </div>
@@ -135,29 +140,29 @@ const formatDate = (dateStr) => {
                 <div class="tour-main-info">
                   <div class="location-flag">
                     <span class="flag-icon">📍</span>
-                    <h3 class="location-text">{{ t.location || 'Saigon, Vietnam' }}</h3>
+                    <h3 class="location-text">{{ tour.location || 'Saigon, Vietnam' }}</h3>
                   </div>
-                  <h4 class="tour-name-text">{{ t.name }} | {{ new Date(t.start_date).toLocaleDateString('vi-VN') }}</h4>
+                  <h4 class="tour-name-text">{{ tour.name }} | {{ new Date(tour.start_date).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US') }}</h4>
                 </div>
 
                 <!-- Technical Specs -->
                 <div class="tour-specs">
                   <div class="spec">
                     <span class="label">
-                      {{ t.format_type === 'Singles' ? 'SGL' : 'DBL' }} {{ t.draw_size }}
+                      {{ tour.format_type === 'Singles' ? 'SGL' : 'DBL' }} {{ tour.draw_size }}
                     </span>
-                    <span class="label">{{ t.gender_division }}</span>
+                    <span class="label">{{ tour.gender_division }}</span>
                   </div>
                   <div class="spec">
-                    <span class="value">{{ t.surface_type || 'Hard' }}</span>
+                    <span class="value">{{ tour.surface_type || 'Hard' }}</span>
                     <span class="sub">Outdoor</span> 
                   </div>
                 </div>
 
                 <!-- Actions -->
                 <div class="tour-row-actions">
-                  <el-button type="primary" class="btn-tickets" @click.stop="viewDetail(t.id)">
-                    Tickets <el-icon class="el-icon--right"><Ticket /></el-icon>
+                  <el-button type="primary" class="btn-tickets" @click.stop="viewDetail(tour.id)">
+                    {{ t('tournaments.tickets') }} <el-icon class="el-icon--right"><Ticket /></el-icon>
                   </el-button>
                 </div>
               </article>
@@ -166,7 +171,7 @@ const formatDate = (dateStr) => {
 
           <!-- Empty State -->
           <div v-if="Object.keys(groupedTournaments).length === 0" class="empty-state">
-            <el-empty description="Không có giải đấu nào trong thời gian này" />
+            <el-empty :description="t('common.noData')" />
           </div>
         </div>
       </main>
@@ -177,8 +182,8 @@ const formatDate = (dateStr) => {
         <!-- WIDGET: TOP NEWS (Real) -->
         <div class="widget">
           <div class="widget-header">
-            <h4>Latest News</h4>
-            <RouterLink to="/news" class="view-all">View All</RouterLink>
+            <h4>{{ t('news.latest') }}</h4>
+            <RouterLink to="/news" class="view-all">{{ t('tournaments.viewAll') }}</RouterLink>
           </div>
           <div class="widget-body news-mini">
             <div v-if="latestNews[0]" class="news-main-feature" @click="$router.push('/news/' + latestNews[0].slug)">
@@ -213,7 +218,7 @@ const formatDate = (dateStr) => {
         <!-- WIDGET: ATP STATS (Real Rankings) -->
         <div class="widget stats-widget">
           <div class="widget-header">
-            <h4>Player Rankings</h4>
+            <h4>{{ t('players.topPlayers') }}</h4>
           </div>
           <div class="widget-body">
             <div class="stats-tabs">

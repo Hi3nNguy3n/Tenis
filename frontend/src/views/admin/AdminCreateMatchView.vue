@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Trophy, Calendar, Location, User, Pointer, Check } from '@element-plus/icons-vue'
 import apiClient from '../../services/apiClient'
+import { t } from '../../utils/locale'
 
 const router = useRouter()
 
@@ -50,7 +51,7 @@ const fetchInitialData = async () => {
       elo_points: p.elo_points || 1200
     }))
   } catch (error) {
-    ElMessage.error('Lỗi khi tải dữ liệu khởi tạo.')
+    ElMessage.error(t('admin.loadInitDataError'))
   } finally {
     loadingData.value = false
   }
@@ -65,12 +66,12 @@ const selectChallenge = (c) => {
   form.value.challenge_id = c.id
   form.value.tournament_id = null
   activeTab.value = 'manual' // Nhảy về tab form để gán sân
-  ElMessage.success(`Đã lấy thông tin kèo #${c.id}. Vui lòng chọn Sân và Giờ.`)
+  ElMessage.success(`${t('admin.assignScheduleNow')} #${c.id}.`)
 }
 
 const submitMatch = async () => {
   if (!form.value.side_a_id || !form.value.side_b_id || !form.value.court_id || !form.value.start_time) {
-    return ElMessage.warning('Vui lòng điền đủ VĐV, Sân và Giờ thi đấu.')
+    return ElMessage.warning(t('admin.fillAllFields'))
   }
 
   submitting.value = true
@@ -83,7 +84,7 @@ const submitMatch = async () => {
        await apiClient.patch(`/api/challenges/${form.value.challenge_id}/respond`, { status: 'scheduled' })
     }
 
-    ElMessage.success('Xác nhận & Xếp lịch thành công!')
+    ElMessage.success(t('admin.scheduleSuccess'))
     router.push({ path: '/admin/matches' })
   } catch (error) {
     ElMessage.error('Lỗi: ' + (error.response?.data?.detail || error.message))
@@ -102,16 +103,16 @@ onMounted(fetchInitialData)
   <div class="create-match-page" v-loading="loadingData">
     <div class="page-header">
       <div>
-        <h1 class="page-title">Vận hành Trận đấu 1vs1</h1>
-        <p class="page-subtitle">Quản lý gán lịch cho kèo thách đấu hoặc tạo trận thủ công.</p>
+        <h1 class="page-title">{{ $t('admin.createMatch') }}</h1>
+        <p class="page-subtitle">{{ $t('admin.createMatchSub') }}</p>
       </div>
-      <el-button @click="router.back()" plain>Quay lại</el-button>
+      <el-button @click="router.back()" plain>{{ $t('admin.back') }}</el-button>
     </div>
 
     <el-tabs v-model="activeTab" type="border-card" class="main-tabs">
       <el-tab-pane name="approve">
         <template #label>
-          <span class="tab-label"><el-icon><Pointer /></el-icon> Kèo cần gán lịch (PAID)</span>
+          <span class="tab-label"><el-icon><Pointer /></el-icon> {{ $t('admin.paidChallengesTab') }}</span>
           <el-badge v-if="paidChallenges.length" :value="paidChallenges.length" class="tab-badge" />
         </template>
 
@@ -122,42 +123,42 @@ onMounted(fetchInitialData)
                 <strong>{{ c.challenger_name }}</strong> <span>VS</span> <strong>{{ c.challenged_name }}</strong>
               </div>
               <div class="c-meta">
-                <span><el-icon><Calendar /></el-icon> Ngày dự kiến: {{ c.proposed_date }}</span>
+                <span><el-icon><Calendar /></el-icon> {{ $t('admin.expectedDate') }} {{ c.proposed_date }}</span>
                 <p v-if="c.notes" class="c-note">"{{ c.notes }}"</p>
               </div>
             </div>
-            <el-button type="primary" :icon="Check" round @click="selectChallenge(c)">Gán lịch ngay</el-button>
+            <el-button type="primary" :icon="Check" round @click="selectChallenge(c)">{{ $t('admin.assignScheduleNow') }}</el-button>
           </div>
-          <el-empty v-if="!paidChallenges.length" description="Hiện không có kèo thách đấu nào đang chờ duyệt." />
+          <el-empty v-if="!paidChallenges.length" :description="$t('admin.noPendingChallenges')" />
         </div>
       </el-tab-pane>
 
       <el-tab-pane name="manual">
         <template #label>
-          <span class="tab-label"><el-icon><Trophy /></el-icon> Thiết lập chi tiết trận đấu</span>
+          <span class="tab-label"><el-icon><Trophy /></el-icon> {{ $t('admin.matchSetupTab') }}</span>
         </template>
 
         <div class="form-container">
           <div class="form-section">
-            <h3 class="section-title">1. Thông tin sự kiện</h3>
+            <h3 class="section-title">{{ $t('admin.eventInfo') }}</h3>
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="Thuộc Giải đấu (Nếu có)">
+                <el-form-item :label="$t('admin.tournamentLabel')">
                   <el-select v-model="form.tournament_id" placeholder="Chọn giải" class="w-full" clearable filterable>
                     <el-option v-for="t in tournamentsList" :key="t.id" :label="t.name" :value="t.id" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="Tên trận đấu / Ghi chú">
-                  <el-input v-model="form.match_name" placeholder="VD: Kèo Cafe, Trận giao hữu..." />
+                <el-form-item :label="$t('admin.matchNameLabel')">
+                  <el-input v-model="form.match_name" :placeholder="$t('admin.matchNamePlaceholder')" />
                 </el-form-item>
               </el-col>
             </el-row>
           </div>
 
           <div class="form-section arena-section">
-            <h3 class="section-title">2. Cặp đấu</h3>
+            <h3 class="section-title">{{ $t('admin.pairings') }}</h3>
             <div class="vs-arena-compact">
               <div class="p-select">
                 <el-select v-model="form.side_a_id" placeholder="VĐV A" filterable class="w-full">
@@ -176,22 +177,22 @@ onMounted(fetchInitialData)
           </div>
 
           <div class="form-section">
-            <h3 class="section-title">3. Gán sân & Thời gian</h3>
+            <h3 class="section-title">{{ $t('admin.courtAndTime') }}</h3>
             <el-row :gutter="20">
               <el-col :span="8">
-                <el-form-item label="Sân thi đấu" required>
+                <el-form-item :label="$t('admin.courtLabel')" required>
                   <el-select v-model="form.court_id" placeholder="Chọn sân" class="w-full">
                     <el-option v-for="c in courtsList" :key="c.id" :label="c.court_name" :value="c.id" />
                   </el-select>
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="Ngày thi đấu" required>
+                <el-form-item :label="$t('admin.dateLabel')" required>
                   <el-date-picker v-model="form.match_date" type="date" value-format="YYYY-MM-DD" class="w-full" />
                 </el-form-item>
               </el-col>
               <el-col :span="8">
-                <el-form-item label="Giờ bắt đầu" required>
+                <el-form-item :label="$t('admin.timeLabel')" required>
                   <el-time-picker v-model="form.start_time" format="HH:mm" value-format="HH:mm:ss" class="w-full" />
                 </el-form-item>
               </el-col>
@@ -200,7 +201,7 @@ onMounted(fetchInitialData)
 
           <div class="form-footer">
             <el-button type="primary" size="large" :loading="submitting" @click="submitMatch" class="btn-confirm">
-              XÁC NHẬN & CẬP NHẬT LỊCH THI ĐẤU
+              {{ $t('admin.confirmAndSchedule') }}
             </el-button>
           </div>
         </div>

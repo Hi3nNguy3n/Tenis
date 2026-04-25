@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { playerService } from '../../services/playerService'
+import { t } from '../../utils/locale'
 
 const players = ref([])
 const loading = ref(false)
@@ -30,7 +31,7 @@ const fetchPlayers = async () => {
     })
     players.value = Array.isArray(data) ? data : (data.items || [])
   } catch (err) {
-    ElMessage.error('Lỗi tải danh sách VĐV: ' + err.message)
+    ElMessage.error(t('admin.loadPlayersError') + ': ' + err.message)
   } finally {
     loading.value = false
   }
@@ -52,11 +53,11 @@ const handleUpdatePlayer = async () => {
   isSaving.value = true
   try {
     await playerService.update(editForm.value.id, editForm.value)
-    ElMessage.success('Cập nhật thành công')
+    ElMessage.success(t('admin.updateSuccess'))
     isEditDialogVisible.value = false
     fetchPlayers()
   } catch (err) {
-    ElMessage.error('Lỗi cập nhật: ' + err.message)
+    ElMessage.error(t('admin.updateError') + ': ' + err.message)
   } finally {
     isSaving.value = false
   }
@@ -75,24 +76,24 @@ const getSkillType = (skill) => {
 <template>
   <div class="module-shell">
     <section class="filter-card">
-      <el-input v-model="search" placeholder="Tìm tên, email..." clearable @change="fetchPlayers" style="width: 300px" />
-      <el-select v-model="skillFilter" placeholder="Trình độ" clearable @change="fetchPlayers" style="width: 150px">
+      <el-input v-model="search" :placeholder="$t('admin.searchPlayersPlaceholder')" clearable @change="fetchPlayers" style="width: 300px" />
+      <el-select v-model="skillFilter" :placeholder="$t('admin.skillLevel')" clearable @change="fetchPlayers" style="width: 150px">
         <el-option label="Beginner" value="Beginner" />
         <el-option label="Intermediate" value="Intermediate" />
         <el-option label="Advanced" value="Advanced" />
         <el-option label="Professional" value="Professional" />
       </el-select>
-      <el-select v-model="statusFilter" placeholder="Trạng thái" clearable @change="fetchPlayers" style="width: 150px">
-        <el-option label="Hoạt động" value="active" />
-        <el-option label="Bị khóa" value="inactive" />
+      <el-select v-model="statusFilter" :placeholder="$t('admin.status')" clearable @change="fetchPlayers" style="width: 150px">
+        <el-option :label="$t('admin.active')" value="active" />
+        <el-option :label="$t('admin.locked')" value="inactive" />
       </el-select>
-      <el-button @click="() => { search=''; skillFilter=''; statusFilter=''; fetchPlayers(); }">Reset</el-button>
-      <el-button plain @click="fetchPlayers">Làm mới</el-button>
+      <el-button @click="() => { search=''; skillFilter=''; statusFilter=''; fetchPlayers(); }">{{ $t('admin.reset') }}</el-button>
+      <el-button plain @click="fetchPlayers">{{ $t('admin.refresh') }}</el-button>
     </section>
 
     <section class="table-card">
       <el-table :data="players" v-loading="loading" stripe>
-        <el-table-column label="VĐV" min-width="200">
+        <el-table-column :label="$t('admin.player')" min-width="200">
           <template #default="{ row }">
             <div class="player-info">
               <el-avatar :src="row.user.avatar_url" shape="square">{{ row.user.full_name.charAt(0) }}</el-avatar>
@@ -103,43 +104,43 @@ const getSkillType = (skill) => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column property="user.phone" label="SĐT" width="120" />
-        <el-table-column label="Trình độ" width="130">
+        <el-table-column property="user.phone" :label="$t('admin.phone')" width="120" />
+        <el-table-column :label="$t('admin.skillLevel')" width="130">
           <template #default="{ row }">
             <el-tag :type="getSkillType(row.player_profile?.skill_level)">
               {{ row.player_profile?.skill_level || 'N/A' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Elo" width="80" align="center">
+        <el-table-column :label="$t('admin.elo')" width="80" align="center">
            <template #default="{ row }">
              <span>{{ row.player_profile?.elo_points || 0 }}</span>
            </template>
         </el-table-column>
-        <el-table-column label="Trạng thái" width="120">
+        <el-table-column :label="$t('admin.status')" width="120">
            <template #default="{ row }">
              <el-tag :type="row.user.is_active ? 'success' : 'danger'">
-               {{ row.user.is_active ? 'Hoạt động' : 'Đã khóa' }}
+               {{ row.user.is_active ? $t('admin.active') : $t('admin.locked') }}
              </el-tag>
            </template>
         </el-table-column>
-        <el-table-column label="Hành động" width="100" fixed="right">
+        <el-table-column :label="$t('admin.action')" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" plain @click="openEditDialog(row)">Sửa</el-button>
+            <el-button size="small" type="primary" plain @click="openEditDialog(row)">{{ $t('admin.edit') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </section>
 
-    <el-dialog v-model="isEditDialogVisible" title="Chỉnh sửa hồ sơ VĐV" width="450px">
+    <el-dialog v-model="isEditDialogVisible" :title="$t('admin.editPlayerProfile')" width="450px">
       <el-form label-position="top">
-        <el-form-item label="Họ và tên">
+        <el-form-item :label="$t('admin.fullName')">
           <el-input v-model="editForm.full_name" />
         </el-form-item>
-        <el-form-item label="Số điện thoại">
+        <el-form-item :label="$t('admin.phoneNumber')">
           <el-input v-model="editForm.phone" />
         </el-form-item>
-        <el-form-item label="Trình độ">
+        <el-form-item :label="$t('admin.skillLevel')">
           <el-select v-model="editForm.skill_level" style="width: 100%">
             <el-option label="Beginner" value="Beginner" />
             <el-option label="Intermediate" value="Intermediate" />
@@ -147,13 +148,13 @@ const getSkillType = (skill) => {
             <el-option label="Professional" value="Professional" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Trạng thái tài khoản">
-           <el-switch v-model="editForm.is_active" active-text="Hoạt động" inactive-text="Đã khóa" />
+        <el-form-item :label="$t('admin.accountStatus')">
+           <el-switch v-model="editForm.is_active" :active-text="$t('admin.active')" :inactive-text="$t('admin.locked')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="isEditDialogVisible = false">Hủy</el-button>
-        <el-button type="primary" :loading="isSaving" @click="handleUpdatePlayer">Lưu</el-button>
+        <el-button @click="isEditDialogVisible = false">{{ $t('admin.cancel') }}</el-button>
+        <el-button type="primary" :loading="isSaving" @click="handleUpdatePlayer">{{ $t('admin.save') }}</el-button>
       </template>
     </el-dialog>
   </div>

@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { User, Lock, View, Hide, Warning } from '@element-plus/icons-vue'
+import { t } from '../../utils/locale'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const LOGIN_ENDPOINT = `${API_BASE_URL}/api/auth/login`
@@ -44,12 +45,12 @@ const login = async () => {
   clearMessages()
 
   if (!form.value.email.trim()) {
-    errorMessage.value = 'Vui lòng nhập email.'
+    errorMessage.value = t('auth.loginErrorEmail')
     return
   }
 
   if (!form.value.password) {
-    errorMessage.value = 'Vui lòng nhập mật khẩu.'
+    errorMessage.value = t('auth.loginErrorPassword')
     return
   }
 
@@ -68,7 +69,7 @@ const login = async () => {
     if (!response.ok) {
       errorMessage.value = await handleApiError(
         response,
-        'Đăng nhập thất bại. Vui lòng kiểm tra lại email hoặc mật khẩu.'
+        t('auth.loginErrorGeneric')
       )
       return
     }
@@ -87,7 +88,7 @@ const login = async () => {
       },
     })
 
-    successMessage.value = 'Đăng nhập thành công! Chào mừng bạn quay trở lại.'
+    successMessage.value = t('auth.loginSuccessWelcome')
 
     if (data.account_type === 'admin') {
       router.push('/admin')
@@ -97,7 +98,7 @@ const login = async () => {
       })
     }
   } catch {
-    errorMessage.value = 'Không thể kết nối tới backend. Hãy kiểm tra API server và thử lại.'
+    errorMessage.value = t('auth.loginErrorConnection')
   } finally {
     isLoggingIn.value = false
   }
@@ -110,17 +111,15 @@ const login = async () => {
       <section class="brand-panel">
         <div class="brand-content">
           <div>
-            <p class="brand-kicker">KHU VỰC THÀNH VIÊN</p>
+            <p class="brand-kicker">{{ $t('auth.brandKicker') }}</p>
             <h1 id="login-page-heading">Saigon Tennis</h1>
             <p class="brand-description">
-              Nâng tầm trải nghiệm tennis ngay tại trung tâm thành phố với hệ sinh thái thi đấu,
-              đặt sân và cộng đồng thành viên cao cấp.
+              {{ $t('auth.brandDesc') }}
             </p>
           </div>
 
           <blockquote class="brand-quote">
-            “Tennis không chỉ là môn thể thao, mà là nhịp điệu của sự tập trung, bản lĩnh và đẳng
-            cấp.”
+            {{ $t('auth.brandQuote') }}
           </blockquote>
         </div>
 
@@ -134,11 +133,10 @@ const login = async () => {
           <div class="mobile-brand">Saigon Tennis</div>
 
           <header class="form-header">
-            <p class="form-kicker">Đăng nhập thành viên</p>
-            <h2>Chào mừng quay trở lại</h2>
+            <p class="form-kicker">{{ $t('auth.loginHeaderKicker') }}</p>
+            <h2>{{ $t('auth.loginHeaderTitle') }}</h2>
             <p>
-              Nhập thông tin tài khoản để truy cập khu vực quản lý giải đấu, thành viên và lịch thi
-              đấu.
+              {{ $t('auth.loginHeaderSubtitle') }}
             </p>
           </header>
 
@@ -152,7 +150,7 @@ const login = async () => {
 
           <form class="auth-form" @submit.prevent="login">
             <label class="field-group" for="login-email">
-              <span>Email</span>
+              <span>{{ $t('auth.email') }}</span>
               <div class="field-control with-icon">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path
@@ -172,8 +170,8 @@ const login = async () => {
 
             <label class="field-group" for="login-password">
               <div class="field-label-row">
-                <span>Mật khẩu</span>
-                <RouterLink id="forgot-password-link" to="/forgot-password">Quên mật khẩu?</RouterLink>
+                <span>{{ $t('auth.password') }}</span>
+                <RouterLink id="forgot-password-link" to="/forgot-password">{{ $t('auth.forgotPassword') }}</RouterLink>
               </div>
               <div class="field-control with-icon with-action">
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -195,24 +193,24 @@ const login = async () => {
                   type="button"
                   @click="showPassword = !showPassword"
                 >
-                  {{ showPassword ? 'Ẩn' : 'Hiện' }}
+                  {{ showPassword ? $t('auth.hide') : $t('auth.show') }}
                 </button>
               </div>
             </label>
 
             <button id="login-submit-button" class="submit-button" type="submit" :disabled="isLoggingIn">
-              <span>{{ isLoggingIn ? 'Đang đăng nhập...' : 'Đăng nhập' }}</span>
+              <span>{{ isLoggingIn ? $t('auth.loggingIn') : $t('auth.login') }}</span>
               <span class="submit-arrow">→</span>
             </button>
           </form>
 
           <footer class="form-footer">
             <p>
-              Chưa có tài khoản?
-              <RouterLink id="go-register-link" to="/register-otp">Đăng ký ngay</RouterLink>
+              {{ $t('auth.noAccount') }}
+              <RouterLink id="go-register-link" to="/register-otp">{{ $t('auth.registerNow') }}</RouterLink>
             </p>
             <p style="margin-top: 10px;">
-              <RouterLink to="/forgot-password" style="font-size: 0.9rem; color: #6e7a74;">Quên mật khẩu?</RouterLink>
+              <RouterLink to="/forgot-password" style="font-size: 0.9rem; color: #6e7a74;">{{ $t('auth.forgotPassword') }}</RouterLink>
             </p>
           </footer>
         </div>

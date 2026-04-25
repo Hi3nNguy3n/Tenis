@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import apiClient from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
 import { useAuthStore } from '../../stores/auth'
+import { currentLocale, t, toggleLocale } from '../../utils/locale'
 
 const authStore = useAuthStore()
 let inboxRefreshTimer = null
@@ -14,34 +15,81 @@ const isVideo = (url) => {
   return url.match(/\.(mp4|webm|ogg)$/i) !== null
 }
 
-const featureCards = [
+const featureCards = computed(() => [
   {
     id: 'coaching',
-    title: 'Performance Coaching',
-    description: 'Huấn luyện chuyên sâu cùng đội ngũ coach giàu kinh nghiệm để nâng cấp kỹ thuật và thể lực thi đấu.',
-    badge: 'ATP-level training',
+    title: t('home.coachingTitle'),
+    description: t('home.coachingDesc'),
+    badge: t('home.coachingBadge'),
   },
   {
     id: 'lounge',
-    title: 'Member Lounge',
-    description: 'Không gian kết nối thành viên, networking sau trận đấu và trải nghiệm dịch vụ cao cấp tại câu lạc bộ.',
-    stat: '68% Full',
+    title: t('home.loungeTitle'),
+    description: t('home.loungeDesc'),
+    stat: t('home.capacityStatus', { percent: 68 }),
   },
   {
     id: 'mixers',
-    title: 'Weekly Open Mixers',
-    description: 'Các buổi giao lưu định kỳ giúp bạn thi đấu thực chiến, mở rộng cộng đồng và duy trì phong độ.',
-    cta: 'Tham gia ngay',
+    title: t('home.mixersTitle'),
+    description: t('home.mixersDesc'),
+    cta: t('home.joinNow'),
   },
   {
     id: 'shop',
-    title: 'The Pro Shop',
-    description: 'Trang bị thi đấu, phụ kiện và dịch vụ căng vợt được tuyển chọn cho người chơi bán chuyên và chuyên nghiệp.',
+    title: t('home.shopTitle'),
+    description: t('home.shopDesc'),
     brands: ['WILSON', 'BABOLAT', 'HEAD'],
   },
-]
+])
 
-const newsItems = ref([])
+// Computed property to merge defaults with news overrides
+const displayedFeatures = computed(() => {
+  const cards = featureCards.value.map((card) => ({ ...card }))
+
+  if (newsItems.value.length > 0) {
+    cards[0].title = newsItems.value[0].title
+    cards[0].description = newsItems.value[0].excerpt
+    cards[0].badge = t('common.latest')
+    cards[0].image = newsItems.value[0].image
+    cards[0].slug = newsItems.value[0].slug
+  }
+
+  if (newsItems.value.length > 1) {
+    cards[1].title = newsItems.value[1].title
+    cards[1].description = newsItems.value[1].excerpt
+    cards[1].slug = newsItems.value[1].slug
+    cards[1].isNews = true
+  }
+
+  if (newsItems.value.length > 2) {
+    cards[3].title = newsItems.value[2].title
+    cards[3].description = newsItems.value[2].excerpt
+    cards[3].slug = newsItems.value[2].slug
+    cards[3].isNews = true
+  }
+
+  if (newsItems.value.length > 3) {
+    cards[2].title = newsItems.value[3].title
+    cards[2].description = newsItems.value[3].excerpt
+    cards[2].slug = newsItems.value[3].slug
+    cards[2].isNews = true
+  }
+
+  return cards
+})
+
+const rawNewsPosts = ref([])
+const newsItems = computed(() => {
+  return rawNewsPosts.value.map(post => ({
+    id: post.id,
+    slug: post.slug,
+    title: post.title,
+    date: new Date(post.publish_at || post.created_at).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US'),
+    category: t('home.tennisNews'),
+    excerpt: post.summary,
+    image: post.media_url || post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
+  }))
+})
 const inboxThreads = ref([])
 const inboxOpen = ref(false)
 const inboxLoading = ref(false)
@@ -83,7 +131,7 @@ const loadInboxPreview = async () => {
         }))
       : []
   } catch (error) {
-    console.warn('Không tải được inbox preview:', error)
+    console.warn(t('home.errorLoadingInbox'), error)
     inboxThreads.value = []
   } finally {
     inboxLoading.value = false
@@ -106,52 +154,7 @@ onMounted(async () => {
     const data = await newsService.getAllPosts()
     
     // Sort by date descending to ensure latest is first
-    const sorted = data.sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
-    
-    newsItems.value = sorted.map(post => ({
-      id: post.id,
-      slug: post.slug,
-      title: post.title,
-      date: new Date(post.publish_at || post.created_at).toLocaleDateString('vi-VN'),
-      category: 'Tin tức',
-      excerpt: post.summary,
-      // Ưu tiên lấy media_url (Video) trước, nếu không có mới dùng thumbnail_url
-      image: post.media_url || post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
-    }))
-
-    // Map the latest news to feature cards if available
-    if (newsItems.value.length > 0) {
-      // Slot 1: Big Feature (Performance Coaching slot)
-      featureCards[0].title = newsItems.value[0].title
-      featureCards[0].description = newsItems.value[0].excerpt
-      featureCards[0].badge = 'Mới nhất'
-      featureCards[0].image = newsItems.value[0].image
-      featureCards[0].slug = newsItems.value[0].slug
-    }
-    
-    if (newsItems.value.length > 1) {
-      // Slot 2: Top Right (Member Lounge slot)
-      featureCards[1].title = newsItems.value[1].title
-      featureCards[1].description = newsItems.value[1].excerpt
-      featureCards[1].slug = newsItems.value[1].slug
-      featureCards[1].isNews = true
-    }
-
-    if (newsItems.value.length > 2) {
-      // Slot 3: Bottom Left (Pro Shop slot)
-      featureCards[3].title = newsItems.value[2].title
-      featureCards[3].description = newsItems.value[2].excerpt
-      featureCards[3].slug = newsItems.value[2].slug
-      featureCards[3].isNews = true
-    }
-
-    if (newsItems.value.length > 3) {
-      // Slot 4: Bottom Right (Weekly Mixers slot)
-      featureCards[2].title = newsItems.value[3].title
-      featureCards[2].description = newsItems.value[3].excerpt
-      featureCards[2].slug = newsItems.value[3].slug
-      featureCards[2].isNews = true
-    }
+    rawNewsPosts.value = data.sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
   } catch (error) {
     console.error('Failed to fetch news:', error)
   }
@@ -178,7 +181,7 @@ onUnmounted(() => {
       class="floating-inbox-btn"
       type="button"
       v-if="authStore.isAuthenticated"
-      :title="unreadInboxCount > 0 ? `Có ${unreadInboxCount} tin nhắn chưa đọc` : 'Không có tin nhắn chưa đọc'"
+      :title="unreadInboxCount > 0 ? $t('home.inboxUnread', { count: unreadInboxCount }) : $t('home.inboxNone')"
       @click="$router.push('/players')"
     >
       <span class="floating-inbox-icon">✉</span>
@@ -191,22 +194,21 @@ onUnmounted(() => {
 
       <div class="container hero-content">
         <div class="hero-copy">
-          <span class="hero-pill">Premium Club Experience</span>
+          <span class="hero-pill">{{ $t('home.pill') }}</span>
           <h1 id="home-page-heading">
-            Welcome to
+            {{ $t('home.welcome') }}
             <span>Saigon Tennis</span>
           </h1>
           <p>
-            Trải nghiệm nhịp điệu tennis hiện đại, nơi hiệu suất thi đấu, cộng đồng đẳng cấp và hệ thống quản lý
-            chuyên nghiệp hội tụ trong một không gian premium.
+            {{ $t('home.description') }}
           </p>
 
           <div class="hero-actions">
             <RouterLink id="book-court-home-button" to="/register-otp" class="btn-primary-solid">
-              Đăng ký trải nghiệm
+              {{ $t('home.register') }}
             </RouterLink>
             <RouterLink id="view-programs-home-button" to="/players" class="btn-secondary-ghost">
-              Khám phá vận động viên
+              {{ $t('home.discoverPlayers') }}
             </RouterLink>
           </div>
         </div>
@@ -215,7 +217,7 @@ onUnmounted(() => {
       <div class="hero-accent-card glass-card">
         <div class="accent-status">
           <span class="pulse-dot"></span>
-          <strong>Live: 4 sân đang trống</strong>
+          <strong>{{ $t('home.liveCourts') }}</strong>
         </div>
         <button id="hero-live-cta" type="button">+</button>
       </div>
@@ -224,64 +226,64 @@ onUnmounted(() => {
     <section class="featured-section container">
       <div class="bento-grid">
         <div class="grid-left-col">
-          <RouterLink :to="featureCards[0].slug ? '/news/' + featureCards[0].slug : '/tournaments'" class="bento-card bento-feature bento-coaching">
+          <RouterLink :to="displayedFeatures[0].slug ? '/news/' + displayedFeatures[0].slug : '/tournaments'" class="bento-card bento-feature bento-coaching">
             
             <video 
-              v-if="isVideo(featureCards[0].image)" 
-              :src="featureCards[0].image" 
+              v-if="isVideo(displayedFeatures[0].image)" 
+              :src="displayedFeatures[0].image" 
               class="feature-media" 
               autoplay muted loop playsinline
             ></video>
             <div 
               v-else 
               class="feature-image" 
-              :style="featureCards[0].image ? { backgroundImage: `url(${featureCards[0].image})` } : {}"
+              :style="displayedFeatures[0].image ? { backgroundImage: `url(${displayedFeatures[0].image})` } : {}"
             ></div>
             <div class="feature-overlay"></div>
             <div class="feature-content">
-              <span class="feature-badge">{{ featureCards[0].badge }}</span>
-              <h2>{{ featureCards[0].title }}</h2>
-              <p>{{ featureCards[0].description }}</p>
+              <span class="feature-badge">{{ displayedFeatures[0].badge }}</span>
+              <h2>{{ displayedFeatures[0].title }}</h2>
+              <p>{{ displayedFeatures[0].description }}</p>
             </div>
           </RouterLink>
 
-          <RouterLink :to="featureCards[3].isNews ? '/news/' + featureCards[3].slug : '/tournaments'" class="bento-card bento-shop">
+          <RouterLink :to="displayedFeatures[3].isNews ? '/news/' + displayedFeatures[3].slug : '/tournaments'" class="bento-card bento-shop">
             <div class="shop-copy">
-              <h3>{{ featureCards[3].title }}</h3>
-              <p>{{ featureCards[3].description }}</p>
-              <div v-if="!featureCards[3].isNews" class="brand-list">
-                <span v-for="brand in featureCards[3].brands" :key="brand">{{ brand }}</span>
+              <h3>{{ displayedFeatures[3].title }}</h3>
+              <p>{{ displayedFeatures[3].description }}</p>
+              <div v-if="!displayedFeatures[3].isNews" class="brand-list">
+                <span v-for="brand in displayedFeatures[3].brands" :key="brand">{{ brand }}</span>
               </div>
-              <div v-else class="inline-link" style="margin-top: 1rem;">Xem tin tức <span>→</span></div>
+              <div v-else class="inline-link" style="margin-top: 1rem;">{{ $t('home.seeNews') }} <span>→</span></div>
             </div>
-            <div v-if="!featureCards[3].isNews" class="shop-visual">
+            <div v-if="!displayedFeatures[3].isNews" class="shop-visual">
               <div class="racket-card"></div>
             </div>
           </RouterLink>
         </div>
 
         <div class="grid-right-col">
-          <RouterLink :to="featureCards[1].isNews ? '/news/' + featureCards[1].slug : '/register-otp'" class="bento-card bento-lounge">
+          <RouterLink :to="displayedFeatures[1].isNews ? '/news/' + displayedFeatures[1].slug : '/register-otp'" class="bento-card bento-lounge">
             <div class="icon-wrap">✦</div>
             <div>
-              <h3>{{ featureCards[1].title }}</h3>
-              <p>{{ featureCards[1].description }}</p>
+              <h3>{{ displayedFeatures[1].title }}</h3>
+              <p>{{ displayedFeatures[1].description }}</p>
             </div>
-            <div v-if="!featureCards[1].isNews" class="capacity-block">
+            <div v-if="!displayedFeatures[1].isNews" class="capacity-block">
               <div class="capacity-track">
                 <div class="capacity-fill"></div>
               </div>
-              <span>Capacity: {{ featureCards[1].stat }}</span>
+              <span>{{ $t('home.capacity') }}: {{ displayedFeatures[1].stat }}</span>
             </div>
-            <div v-else class="inline-link" style="color: white; border-color: white; margin-top: 1rem;">Xem chi tiết <span>→</span></div>
+            <div v-else class="inline-link" style="color: white; border-color: white; margin-top: 1rem;">{{ $t('home.seeDetails') }} <span>→</span></div>
           </RouterLink>
 
-          <RouterLink :to="featureCards[2].isNews ? '/news/' + featureCards[2].slug : '/matches'" class="bento-card bento-mixers">
+          <RouterLink :to="displayedFeatures[2].isNews ? '/news/' + displayedFeatures[2].slug : '/matches'" class="bento-card bento-mixers">
             <div class="icon-wrap calendar">◌</div>
-            <h3>{{ featureCards[2].title }}</h3>
-            <p>{{ featureCards[2].description }}</p>
+            <h3>{{ displayedFeatures[2].title }}</h3>
+            <p>{{ displayedFeatures[2].description }}</p>
             <div class="inline-link">
-              {{ featureCards[2].isNews ? 'Xem ngay' : featureCards[2].cta }}
+              {{ displayedFeatures[2].isNews ? $t('home.seeNow') : displayedFeatures[2].cta }}
               <span>→</span>
             </div>
           </RouterLink>
@@ -291,8 +293,8 @@ onUnmounted(() => {
 
     <section class="news-section container">
       <div class="section-header">
-        <span class="section-kicker">Tin mới nhất</span>
-        <h2>Tin tức Tennis</h2>
+        <span class="section-kicker">{{ $t('home.latestNews') }}</span>
+        <h2>{{ $t('home.tennisNews') }}</h2>
       </div>
       
       <div class="news-grid">
@@ -317,7 +319,7 @@ onUnmounted(() => {
             <span class="news-date">{{ news.date }}</span>
             <h3>{{ news.title }}</h3>
             <p>{{ news.excerpt }}</p>
-            <RouterLink :to="'/news/' + news.slug" class="news-link">Xem chi tiết <span>→</span></RouterLink>
+            <RouterLink :to="'/news/' + news.slug" class="news-link">{{ $t('home.seeDetails') }} <span>→</span></RouterLink>
           </div>
         </article>
       </div>

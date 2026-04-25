@@ -1,0 +1,23 @@
+export default {
+  inputPlaceholder: 'Nhập tin nhắn...',
+  globalInputPlaceholder: 'Chat với cộng đồng...',
+  send: 'Gửi',
+  topPlayers: 'Vinh danh vận động viên',
+  online: 'Đang hoạt động',
+  privateTab: 'Hội thoại',
+  communityTab: 'Cộng đồng',
+  you: 'Bạn',
+  noChats: 'Chưa có hội thoại',
+  startChatHint: 'Chọn một vận động viên từ danh sách trên để bắt đầu trò chuyện.',
+  deleteConfirm: 'Bạn có chắc chắn muốn xóa cuộc hội thoại này?',
+  deleteTitle: 'Xác nhận xóa',
+  deleteSuccess: 'Đã xóa hội thoại.',
+  typing: 'Đang soạn tin...',
+  communityRoom: 'Phòng cộng đồng',
+  connected: 'Đã kết nối',
+  connecting: 'Đang kết nối...',
+  newsTitle: 'Bản tin Tennis',
+  newsSubtitle: 'Cập nhật diễn biến mới nhất',
+  noNews: 'Hiện chưa có tin tức mới.',
+  user: 'Người dùng'
+}

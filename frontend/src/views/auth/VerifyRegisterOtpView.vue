@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { authService } from '../../services/authService'
+import { t } from '../../utils/locale'
 
 const router = useRouter()
 const loading = ref(false)
@@ -14,7 +15,7 @@ const otpInputs = ref([])
 onMounted(() => {
   const pending = JSON.parse(sessionStorage.getItem('pending_registration') || 'null')
   if (!pending) {
-    ElMessage.error('Không tìm thấy phiên đăng ký.')
+    ElMessage.error(t('auth.sessionNotFound'))
     router.push({ name: 'register-otp' })
     return
   }
@@ -31,7 +32,7 @@ const handleInput = (index, event) => {
 const registerAccount = async () => {
   const otpCode = otp.value.join('')
   if (otpCode.length !== 6) {
-    ElMessage.warning('Vui lòng nhập đủ 6 số OTP.')
+    ElMessage.warning(t('auth.valOtpRequired'))
     return
   }
 
@@ -50,11 +51,11 @@ const registerAccount = async () => {
       otp_code: otpCode,
     })
 
-    ElMessage.success('Đăng ký thành công.')
+    ElMessage.success(t('auth.registerSuccess'))
     sessionStorage.removeItem('pending_registration')
     router.push({ name: 'login' })
   } catch (error) {
-    ElMessage.error(error.response?.data?.detail || 'Xác nhận OTP thất bại.')
+    ElMessage.error(error.response?.data?.detail || t('auth.verifyFailed'))
   } finally {
     loading.value = false
   }
@@ -64,8 +65,8 @@ const registerAccount = async () => {
 <template>
   <div class="verify-page">
     <div class="verify-card">
-      <h1>Xác thực tài khoản</h1>
-      <p>OTP đã gửi tới: <strong>{{ emailDisplay }}</strong></p>
+      <h1>{{ $t('auth.verifyTitle') }}</h1>
+      <p>{{ $t('auth.otpSentTo', { email: emailDisplay }) }}</p>
 
       <div class="otp-row">
         <input
@@ -80,7 +81,7 @@ const registerAccount = async () => {
       </div>
 
       <button class="submit-btn" :disabled="loading" @click="registerAccount">
-        {{ loading ? 'Đang xác nhận...' : 'Xác nhận & đăng ký' }}
+        {{ loading ? $t('auth.verifying') : $t('auth.verifyAndRegister') }}
       </button>
     </div>
   </div>

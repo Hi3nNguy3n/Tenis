@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { currentLocale, t, toggleLocale } from '../../utils/locale'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -18,10 +19,12 @@ const toggleUserMenu = () => {
 }
 
 const handleLogout = () => {
-  authStore.logout()
-  isMenuOpen.value = false
-  isMobileMenuOpen.value = false
-  router.push({ name: 'login' })
+  if (confirm(t('auth.logoutConfirm'))) {
+    authStore.logout()
+    isMenuOpen.value = false
+    isMobileMenuOpen.value = false
+    router.push({ name: 'login' })
+  }
 }
 
 const closeMenus = () => {
@@ -38,13 +41,13 @@ const closeMenus = () => {
       </RouterLink>
 
       <nav class="desktop-nav" aria-label="Main navigation">
-        <RouterLink to="/" active-class="active">Trang chủ</RouterLink>
-        <RouterLink to="/news" active-class="active">Tin tức</RouterLink>
-        <RouterLink to="/players" active-class="active">Kênh trò chuyện</RouterLink>
-        <RouterLink to="/challenges" active-class="active">Vận động viên</RouterLink>
-        <RouterLink to="/tournaments" active-class="active">Giải đấu</RouterLink>
-        <RouterLink to="/matches" active-class="active">Lịch thi đấu</RouterLink>
-        <RouterLink to="/rankings" active-class="active">Bảng xếp hạng</RouterLink>
+        <RouterLink to="/" active-class="active">{{ $t('nav.home') }}</RouterLink>
+        <RouterLink to="/news" active-class="active">{{ $t('nav.news') }}</RouterLink>
+        <RouterLink to="/players" active-class="active">{{ $t('nav.players') }}</RouterLink>
+        <RouterLink to="/challenges" active-class="active">{{ $t('nav.challenges') }}</RouterLink>
+        <RouterLink to="/tournaments" active-class="active">{{ $t('nav.tournaments') }}</RouterLink>
+        <RouterLink to="/matches" active-class="active">{{ $t('nav.matches') }}</RouterLink>
+        <RouterLink to="/rankings" active-class="active">{{ $t('nav.rankings') }}</RouterLink>
       </nav>
 
       <!-- Mobile Sidebar Menu -->
@@ -58,21 +61,37 @@ const closeMenus = () => {
           </div>
           
           <nav class="sidebar-links">
-            <RouterLink to="/" active-class="active" @click="closeMenus">Trang chủ</RouterLink>
-            <RouterLink to="/news" active-class="active" @click="closeMenus">Tin tức</RouterLink>
-            <RouterLink to="/players" active-class="active" @click="closeMenus">Kênh trò chuyện</RouterLink>
-            <RouterLink to="/challenges" active-class="active" @click="closeMenus">Vận động viên</RouterLink>
-            <RouterLink to="/tournaments" active-class="active" @click="closeMenus">Giải đấu</RouterLink>
-            <RouterLink to="/matches" active-class="active" @click="closeMenus">Lịch thi đấu</RouterLink>
-            <RouterLink to="/rankings" active-class="active" @click="closeMenus">Bảng xếp hạng</RouterLink>
+            <RouterLink to="/" active-class="active" @click="closeMenus">{{ $t('nav.home') }}</RouterLink>
+            <RouterLink to="/news" active-class="active" @click="closeMenus">{{ $t('nav.news') }}</RouterLink>
+            <RouterLink to="/players" active-class="active" @click="closeMenus">{{ $t('nav.players') }}</RouterLink>
+            <RouterLink to="/challenges" active-class="active" @click="closeMenus">{{ $t('nav.challenges') }}</RouterLink>
+            <RouterLink to="/tournaments" active-class="active" @click="closeMenus">{{ $t('nav.tournaments') }}</RouterLink>
+            <RouterLink to="/matches" active-class="active" @click="closeMenus">{{ $t('nav.matches') }}</RouterLink>
+            <RouterLink to="/rankings" active-class="active" @click="closeMenus">{{ $t('nav.rankings') }}</RouterLink>
           </nav>
 
-          <div class="sidebar-footer" v-if="!authStore.isAuthenticated">
-             <RouterLink to="/login" class="sidebar-login-btn" @click="closeMenus">Đăng nhập</RouterLink>
+          <div class="sidebar-footer">
+             <button class="sidebar-lang-btn" @click="toggleLocale">
+               <span class="globe-icon">🌐</span>
+               <span>{{ currentLocale.toUpperCase() }}</span>
+             </button>
+             <RouterLink v-if="!authStore.isAuthenticated" to="/login" class="sidebar-login-btn" @click="closeMenus">{{ t('nav.login') }}</RouterLink>
           </div>
         </div>
       </transition>
       <div class="nav-actions">
+        <!-- Premium Globe Locale Toggle -->
+        <button 
+          class="lang-toggle-btn" 
+          @click="toggleLocale" 
+          :title="$t('home.globeTitle')"
+        >
+          <div class="globe-wrapper">
+            <span class="globe-icon">🌐</span>
+          </div>
+          <span class="lang-text">{{ currentLocale === 'vi' ? 'VN' : 'EN' }}</span>
+        </button>
+
         <!-- Hamburger Menu Button (Mobile Only) -->
         <button :class="['mobile-toggle', { 'is-active': isMobileMenuOpen }]" @click="toggleMobileMenu" aria-label="Toggle menu">
           <div class="hamburger-box">
@@ -86,7 +105,7 @@ const closeMenus = () => {
               <img v-if="authStore.user?.avatar_url" :src="authStore.user.avatar_url" alt="Avatar" />
               <span v-else>👤</span>
             </div>
-            <span class="user-name-text">{{ authStore.user?.full_name || 'User' }}</span>
+            <span class="user-name-text">{{ authStore.user?.full_name || $t('nav.user') }}</span>
             <span class="dropdown-arrow">▾</span>
           </button>
           
@@ -95,15 +114,15 @@ const closeMenus = () => {
               <p class="user-email">{{ authStore.user?.email }}</p>
             </div>
             <hr />
-            <RouterLink v-if="authStore.isAdmin" to="/admin" class="dropdown-item" @click="closeMenus">Admin Console</RouterLink>
-            <RouterLink to="/profile" class="dropdown-item" @click="closeMenus">Trang cá nhân</RouterLink>
-            <RouterLink to="/profile/my-tournaments" class="dropdown-item" @click="closeMenus">Giải đấu của mình</RouterLink>
+            <RouterLink v-if="authStore.isAdmin" to="/admin" class="dropdown-item" @click="closeMenus">{{ $t('nav.adminConsole') }}</RouterLink>
+            <RouterLink to="/profile" class="dropdown-item" @click="closeMenus">{{ $t('nav.profile') }}</RouterLink>
+            <RouterLink to="/profile/my-tournaments" class="dropdown-item" @click="closeMenus">{{ $t('nav.myTournaments') }}</RouterLink>
             <hr />
-            <button class="dropdown-item logout-action" @click="handleLogout">Đăng xuất</button>
+            <button class="dropdown-item logout-action" @click="handleLogout">{{ $t('nav.logout') }}</button>
           </div>
         </div>
 
-        <RouterLink v-else id="open-login-nav" to="/login" class="nav-cta">Đăng nhập</RouterLink>
+        <RouterLink v-else id="open-login-nav" to="/login" class="nav-cta">{{ $t('nav.login') }}</RouterLink>
       </div>
     </div>
   </header>
@@ -173,8 +192,71 @@ const closeMenus = () => {
 .desktop-nav a:hover, .desktop-nav a.active { color: #15803d; }
 .desktop-nav a:hover::after, .desktop-nav a.active::after { transform: scaleX(1); }
 
-.nav-actions { display: flex; align-items: center; gap: 0.75rem; }
+.nav-actions { display: flex; align-items: center; gap: 1rem; }
 .mobile-toggle { display: none; }
+
+.lang-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #1e293b;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.lang-toggle-btn:hover {
+  border-color: #15803d;
+  background: #f0fdf4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.1);
+}
+
+.globe-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #f1f5f9;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.lang-toggle-btn:hover .globe-wrapper {
+  background: #dcfce7;
+  transform: rotate(20deg);
+}
+
+.lang-text {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.globe-icon {
+  font-size: 1rem;
+}
+
+.sidebar-lang-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.8rem;
+  margin-bottom: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #475569;
+  font-weight: 600;
+  cursor: pointer;
+}
 
 .nav-cta {
   min-height: 40px;

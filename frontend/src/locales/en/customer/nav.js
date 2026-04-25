@@ -1,0 +1,16 @@
+export default {
+  home: 'Home',
+  news: 'News',
+  players: 'Players',
+  challenges: 'Challenges',
+  tournaments: 'Tournaments',
+  matches: 'Matches',
+  rankings: 'Rankings',
+  profile: 'Profile',
+  myTournaments: 'My Tournaments',
+  login: 'Login',
+  logout: 'Logout',
+  adminConsole: 'Admin Console',
+  register: 'Register',
+  user: 'User',
+}

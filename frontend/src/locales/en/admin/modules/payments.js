@@ -1,0 +1,18 @@
+export default {
+  loadPaymentsError: 'Error loading payments: ',
+  noDataToExport: 'No data to export',
+  exportSuccess: 'CSV report exported successfully',
+  exportError: 'Error exporting report: ',
+  financialOversight: 'Financial Oversight',
+  financialOversightDesc: 'Monitor payment gateway transactions and manage real-time revenue.',
+  searchPaymentPlaceholder: 'Search player or transaction code...',
+  allTournaments: 'All Tournaments',
+  friendlyFee: '🌟 Friendly Fee (1vs1)',
+  exportCsvBtn: 'Export CSV Report',
+  transactionCol: 'Transaction',
+  payerCol: 'Payer',
+  contentCol: 'Content',
+  amountCol: 'Amount',
+  timeCol: 'Time',
+  noPaymentData: 'No payment data',
+}

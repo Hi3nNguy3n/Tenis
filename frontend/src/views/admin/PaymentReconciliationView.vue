@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { Refresh, CreditCard, Search, Document, Trophy, User } from '@element-plus/icons-vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
+import { t } from '../../utils/locale'
 
 const payments = ref([])
 const tournaments = ref([])
@@ -27,7 +28,7 @@ const fetchPayments = async () => {
     
     payments.value = await apiClient.get('/api/payments/list', { params })
   } catch (err) {
-    ElMessage.error('Lỗi tải danh sách thanh toán: ' + err.message)
+    ElMessage.error(t('admin.loadPaymentsError') + err.message)
   } finally {
     loading.value = false
   }
@@ -42,7 +43,7 @@ const getStatusType = (status) => {
 
 const isExporting = ref(false)
 const handleExport = () => {
-  if (payments.value.length === 0) return ElMessage.warning('Không có dữ liệu để xuất')
+  if (payments.value.length === 0) return ElMessage.warning(t('admin.noDataToExport'))
   isExporting.value = true
   
   try {
@@ -65,9 +66,9 @@ const handleExport = () => {
     link.href = URL.createObjectURL(blob)
     link.download = `BaoCao_ThanhToan_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.csv`
     link.click()
-    ElMessage.success('Đã xuất báo cáo CSV thành công')
+    ElMessage.success(t('admin.exportSuccess'))
   } catch (err) {
-    ElMessage.error('Lỗi khi xuất báo cáo: ' + err.message)
+    ElMessage.error(t('admin.exportError') + err.message)
   } finally {
     isExporting.value = false
   }
@@ -84,30 +85,30 @@ onMounted(() => {
     <section class="action-bar-glass shadow-sm">
       <div class="action-info">
         <div class="kicker-wrap">
-          <span class="section-kicker">Financial Oversight</span>
+          <span class="section-kicker">{{ $t('admin.financialOversight') }}</span>
           <div class="live-indicator"><span class="dot"></span>LIVE</div>
         </div>
-        <p>Theo dõi các giao dịch từ cổng thanh toán và quản lý doanh thu thời gian thực.</p>
+        <p>{{ $t('admin.financialOversightDesc') }}</p>
       </div>
       
       <div class="filter-area">
         <el-input 
           v-model="searchQuery" 
-          placeholder="Tìm tên VĐV hoặc Mã giao dịch..." 
+          :placeholder="$t('admin.searchPaymentPlaceholder')" 
           clearable 
           :prefix-icon="Search"
           @clear="fetchPayments"
           @keyup.enter="fetchPayments"
           style="width: 280px"
         />
-        <el-select v-model="filterTournament" placeholder="Tất cả giải đấu" clearable @change="fetchPayments" style="width: 250px">
-          <el-option label="🌟 Phí Giao hữu (1vs1)" :value="0" />
+        <el-select v-model="filterTournament" :placeholder="$t('admin.allTournaments')" clearable @change="fetchPayments" style="width: 250px">
+          <el-option :label="$t('admin.friendlyFee')" :value="0" />
           <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
         </el-select>
         
         <el-button :icon="Refresh" circle @click="fetchPayments" />
         <el-button type="primary" round :loading="isExporting" @click="handleExport" class="btn-export">
-          Xuất báo cáo CSV
+          {{ $t('admin.exportCsvBtn') }}
         </el-button>
       </div>
     </section>
@@ -115,7 +116,7 @@ onMounted(() => {
     <section class="table-card-premium shadow-sm">
       <el-table :data="payments" stripe v-loading="loading" class="modern-finance-table">
         
-        <el-table-column label="Giao dịch" width="180">
+        <el-table-column :label="$t('admin.transactionCol')" width="180">
           <template #default="{ row }">
             <div class="tx-cell">
               <span class="tx-ref">{{ row.transaction_ref }}</span>
@@ -124,7 +125,7 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="Người nộp" min-width="180">
+        <el-table-column :label="$t('admin.payerCol')" min-width="180">
           <template #default="{ row }">
             <div class="info-cell">
               <el-icon class="info-icon"><User /></el-icon>
@@ -133,7 +134,7 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="Nội dung" min-width="220">
+        <el-table-column :label="$t('admin.contentCol')" min-width="220">
           <template #default="{ row }">
             <div class="info-cell">
               <el-icon class="info-icon"><Trophy /></el-icon>
@@ -142,7 +143,7 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="Số tiền" width="150" align="right">
+        <el-table-column :label="$t('admin.amountCol')" width="150" align="right">
            <template #default="{ row }">
              <div class="amount-cell">
                {{ new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(row.amount) }}
@@ -150,7 +151,7 @@ onMounted(() => {
            </template>
         </el-table-column>
 
-        <el-table-column label="Trạng thái" width="130" align="center">
+        <el-table-column :label="$t('admin.statusCol')" width="130" align="center">
            <template #default="{ row }">
              <el-tag :type="getStatusType(row.status)" effect="light" class="status-pill">
                {{ row.status?.toUpperCase() }}
@@ -158,7 +159,7 @@ onMounted(() => {
            </template>
         </el-table-column>
 
-        <el-table-column label="Thời gian" min-width="140" align="right">
+        <el-table-column :label="$t('admin.timeCol')" min-width="140" align="right">
            <template #default="{ row }">
              <div class="time-vertical" v-if="row.paid_at">
                <span class="d-val">{{ new Date(row.paid_at).toLocaleDateString('vi-VN') }}</span>
@@ -168,7 +169,7 @@ onMounted(() => {
            </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="payments.length === 0" description="Không có dữ liệu giao dịch" />
+      <el-empty v-if="payments.length === 0" :description="$t('admin.noPaymentData')" />
     </section>
   </div>
 </template>

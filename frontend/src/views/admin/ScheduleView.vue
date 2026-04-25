@@ -3,6 +3,7 @@ import { onMounted, ref, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import { Refresh, Download, Edit, Location, Timer } from '@element-plus/icons-vue'
+import { t } from '../../utils/locale'
 
 const isLoading = ref(false)
 const schedule = ref([])
@@ -14,7 +15,7 @@ const loadMatches = async () => {
     const data = await apiClient.get('/api/matches/')
     schedule.value = data
   } catch (err) {
-    ElMessage.error('Lỗi tải lịch thi đấu: ' + err.message)
+    ElMessage.error(t('admin.loadScheduleError') + err.message)
   } finally {
     isLoading.value = false
   }
@@ -41,7 +42,7 @@ const fetchCourts = async () => {
   try {
     const data = await apiClient.get('/api/courts/')
     courts.value = data
-  } catch (err) { ElMessage.error('Lỗi tải danh sách sân') }
+  } catch (err) { ElMessage.error(t('admin.loadCourtsError')) }
 }
 
 const handleEdit = (row) => {
@@ -54,7 +55,7 @@ const handleEdit = (row) => {
 
 const handleSchedule = async () => {
   if (!editForm.value.court_id || !editForm.value.start_time) {
-    return ElMessage.warning('Vui lòng chọn sân và giờ thi đấu')
+    return ElMessage.warning(t('admin.chooseCourtAndTime'))
   }
   try {
     // Phải gán lại đúng format cho API
@@ -62,11 +63,11 @@ const handleSchedule = async () => {
       court_id: editForm.value.court_id,
       start_time: editForm.value.start_time
     })
-    ElMessage.success('Cập nhật lịch thi đấu thành công')
+    ElMessage.success(t('admin.updateScheduleSuccess'))
     showEditDialog.value = false
     loadMatches()
   } catch (err) {
-    ElMessage.error('Lỗi cập nhật: ' + err.message)
+    ElMessage.error(t('admin.updateError') + err.message)
   }
 }
 
@@ -82,56 +83,56 @@ onMounted(() => {
     <section class="action-bar-glass shadow-sm">
       <div class="action-info">
         <div class="kicker-wrap">
-          <span class="section-kicker">Schedule Overview</span>
+          <span class="section-kicker">{{ $t('admin.scheduleOverview') }}</span>
           <div class="live-indicator">
             <span class="dot"></span>
             ACTIVE
           </div>
         </div>
-        <p>Theo dõi và tổng hợp lịch thi đấu của tất cả các giải đấu trên hệ thống.</p>
+        <p>{{ $t('admin.scheduleOverviewDesc') }}</p>
       </div>
 
       <div class="hero-actions-v2">
         <el-date-picker 
           v-model="filterDate" 
           type="date" 
-          placeholder="Lọc theo ngày" 
+          :placeholder="$t('admin.filterByDate')" 
           value-format="YYYY-MM-DD" 
           style="width: 180px" 
           round
           @change="loadMatches"
         />
         <el-button :icon="Refresh" circle @click="loadMatches" />
-        <el-button :icon="Download" type="primary" round class="btn-excel">Xuất dữ liệu</el-button>
+        <el-button :icon="Download" type="primary" round class="btn-excel">{{ $t('admin.exportData') }}</el-button>
       </div>
     </section>
 
     <main class="table-card-premium shadow-sm" v-loading="isLoading">
       <div class="table-meta">
-        <h3>Lịch trình thi đấu hệ thống</h3>
-        <span class="count-chip">{{ filteredSchedule.length }} Trận đấu</span>
+        <h3>{{ $t('admin.systemSchedule') }}</h3>
+        <span class="count-chip">{{ filteredSchedule.length }} {{ $t('admin.matchesCount') }}</span>
       </div>
 
       <el-table :data="filteredSchedule" style="width: 100%" stripe class="modern-table">
-        <el-table-column label="Giải đấu" min-width="240">
+        <el-table-column :label="$t('admin.tournamentCol')" min-width="240">
           <template #default="{ row }">
             <div class="tour-cell">
               <span class="tour-name">{{ row.tournament }}</span>
-              <span class="tour-sub">Hệ thống giải Saigon Tennis</span>
+              <span class="tour-sub">{{ $t('admin.saigonTennisSystem') }}</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="Địa điểm & Sân" min-width="200">
+        <el-table-column :label="$t('admin.locationCol')" min-width="200">
           <template #default="{ row }">
             <div class="location-cell">
               <el-icon class="loc-icon"><Location /></el-icon>
-              <span>{{ row.court || 'Chưa gán sân' }}</span>
+              <span>{{ row.court || $t('admin.unassignedCourt') }}</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="Ngày & Giờ" width="200">
+        <el-table-column :label="$t('admin.dateTimeCol')" width="200">
           <template #default="{ row }">
             <div class="schedule-cell">
               <span class="d-val">{{ row.date }}</span>
@@ -143,7 +144,7 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="Trạng thái" width="140" align="center">
+        <el-table-column :label="$t('admin.statusCol')" width="140" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" effect="light" class="status-pill">
               {{ row.status?.toUpperCase() }}
@@ -151,13 +152,13 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column label="Hành động" width="120" fixed="right" align="center">
+        <el-table-column :label="$t('admin.actionCol')" width="120" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-cell">
-              <el-tooltip content="Sửa trận đấu" placement="top">
+              <el-tooltip :content="$t('admin.editMatch')" placement="top">
                 <el-button circle size="small" type="primary" plain :icon="Edit" @click="handleEdit(row)" />
               </el-tooltip>
-              <el-tooltip content="Dời lịch" placement="top">
+              <el-tooltip :content="$t('admin.reschedule')" placement="top">
                 <el-button circle size="small" type="success" plain :icon="Timer" @click="handleEdit(row)" />
               </el-tooltip>
             </div>
@@ -165,32 +166,32 @@ onMounted(() => {
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="filteredSchedule.length === 0" description="Không có lịch thi đấu phù hợp" />
+      <el-empty v-if="filteredSchedule.length === 0" :description="$t('admin.noScheduleMatch')" />
     </main>
 
-    <el-dialog v-model="showEditDialog" title="Điều chỉnh lịch thi đấu" width="460px" destroy-on-close class="premium-dialog">
+    <el-dialog v-model="showEditDialog" :title="$t('admin.adjustSchedule')" width="460px" destroy-on-close class="premium-dialog">
       <div v-if="editingMatch" class="edit-context shadow-inner">
         <div class="context-item">
-          <span class="label">Giải đấu:</span>
+          <span class="label">{{ $t('admin.tournamentCol') }}:</span>
           <span class="val">{{ editingMatch.tournament }}</span>
         </div>
         <div class="context-item">
-          <span class="label">Hiện tại:</span>
-          <span class="val">{{ editingMatch.court || 'Chưa gán sân' }} | {{ editingMatch.start || '--:--' }}</span>
+          <span class="label">{{ $t('admin.currentVal') }}</span>
+          <span class="val">{{ editingMatch.court || $t('admin.unassignedCourt') }} | {{ editingMatch.start || '--:--' }}</span>
         </div>
       </div>
 
       <el-form label-position="top" class="mt-4">
-        <el-form-item label="Chọn sân thi đấu mới" required>
-          <el-select v-model="editForm.court_id" style="width: 100%" placeholder="Nhấn để chọn sân...">
+        <el-form-item :label="$t('admin.selectNewCourt')" required>
+          <el-select v-model="editForm.court_id" style="width: 100%" :placeholder="$t('admin.clickToSelectCourt')">
             <el-option v-for="c in courts" :key="c.id" :label="c.court_name" :value="c.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Ngày & Giờ thi đấu mới" required>
+        <el-form-item :label="$t('admin.newDateTime')" required>
           <el-date-picker
             v-model="editForm.start_time"
             type="datetime"
-            placeholder="Chọn ngày và giờ cụ thể"
+            :placeholder="$t('admin.selectSpecificTime')"
             format="DD/MM/YYYY HH:mm"
             value-format="YYYY-MM-DDTHH:mm:ss"
             style="width: 100%"
@@ -199,8 +200,8 @@ onMounted(() => {
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="showEditDialog = false" plain>Hủy bỏ</el-button>
-          <el-button type="primary" @click="handleSchedule" class="px-6">Xác nhận cập nhật</el-button>
+          <el-button @click="showEditDialog = false" plain>{{ $t('admin.cancel') }}</el-button>
+          <el-button type="primary" @click="handleSchedule" class="px-6">{{ $t('admin.confirmUpdate') }}</el-button>
         </div>
       </template>
     </el-dialog>

@@ -1,0 +1,18 @@
+export default {
+  typeNews: 'Tin tức',
+  typeAnnouncement: 'Thông báo',
+  admin: 'Ban Quản Trị',
+  editorial: 'Saigon Tennis Editorial',
+  backToNews: 'Quay lại trang tin',
+  latest: 'Mới nhất',
+  readMore: 'Xem thêm',
+  all: 'Tất cả',
+  highlight: 'Highlight',
+  analysis: 'Phân tích',
+  interview: 'Phỏng vấn',
+  searchPlaceholder: 'Tìm kiếm tin tức...',
+  related: 'Liên quan',
+  mostRecent: 'Mới nhất',
+  noNews: 'Không có tin tức nào được tìm thấy',
+  official: 'CHÍNH THỨC',
+}

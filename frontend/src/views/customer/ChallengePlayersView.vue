@@ -3,7 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import { Trophy, DataAnalysis, Calendar, Message, Aim } from '@element-plus/icons-vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
-import { useAuthStore } from '../../stores/auth' // QUAN TRỌNG: Phải import cái này
+import { useAuthStore } from '../../stores/auth'
+import { t } from '../../utils/locale'
 
 const authStore = useAuthStore()
 const players = ref([])
@@ -81,11 +82,11 @@ onMounted(loadPlayers)
 <template>
   <div class="challenge-page container">
     <div class="page-header">
-      <h1 class="title">Sảnh Thách Đấu 1vs1</h1>
-      <p class="subtitle">Tìm kiếm đối thủ xứng tầm và tổ chức trận đấu riêng của bạn.</p>
+      <h1 class="title">{{ t('challenges.title') }}</h1>
+      <p class="subtitle">{{ t('challenges.subtitle') }}</p>
     </div>
 
-    <el-empty v-if="!isLoading && filteredPlayers.length === 0" description="Chưa có VĐV nào trong sảnh để thách đấu" />
+    <el-empty v-if="!isLoading && filteredPlayers.length === 0" :description="t('common.noData')" />
 
     <div class="players-grid" v-loading="isLoading" v-else>
       <div v-for="p in filteredPlayers" :key="p.player_id" class="player-card">
@@ -98,13 +99,13 @@ onMounted(loadPlayers)
         <div class="elo-tag">{{ p.elo_points || 1000 }} ELO</div>
 
         <div class="stats-mini">
-          <div class="stat"><span class="val">{{ p.wins || 0 }}</span><span class="lbl">Thắng</span></div>
-          <div class="stat"><span class="val">{{ p.losses || 0 }}</span><span class="lbl">Bại</span></div>
+          <div class="stat"><span class="val">{{ p.wins || 0 }}</span><span class="lbl">{{ t('challenges.win') }}</span></div>
+          <div class="stat"><span class="val">{{ p.losses || 0 }}</span><span class="lbl">{{ t('challenges.loss') }}</span></div>
         </div>
 
         <div class="card-actions">
-          <el-button type="primary" :icon="Aim" class="btn-challenge" @click="openChallenge(p)">Thách đấu</el-button>
-          <el-button plain :icon="DataAnalysis" @click="viewH2H(p)">H2H</el-button>
+          <el-button type="primary" :icon="Aim" class="btn-challenge" @click="openChallenge(p)">{{ t('challenges.challengeBtn') }}</el-button>
+          <el-button plain :icon="DataAnalysis" @click="viewH2H(p)">{{ t('challenges.h2h') }}</el-button>
         </div>
       </div>
     </div>

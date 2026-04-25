@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { VideoPlay, PieChart, ArrowLeft as ArrowLeftIcon, ArrowRight as ArrowRightIcon } from '@element-plus/icons-vue'
+import { currentLocale, t } from '../../utils/locale'
 import { apiClient } from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
 import { playerService } from '../../services/playerService'
@@ -65,7 +66,7 @@ const groupedStrip = computed(() => {
     const monthKey = item.key.slice(0, 7) // "YYYY-MM"
     if (monthKey !== currentMonth) {
       currentMonth = monthKey
-      const label = new Date(item.key + 'T12:00:00').toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
+      const label = new Date(item.key + 'T12:00:00').toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { month: 'long', year: 'numeric' })
       groups.push({ monthKey, label, days: [] })
     }
     groups[groups.length - 1].days.push(item)
@@ -108,7 +109,7 @@ const fetchAllMatchesData = async (silent = false) => {
       if (!buckets[bucketKey]) {
         buckets[bucketKey] = {
           id: tournamentId,
-          name: matchItem.tournament || matchItem.tournament_name || 'Giải đấu',
+          name: matchItem.tournament || matchItem.tournament_name || t('nav.tournaments'),
           location: matchItem.location || 'Vietnam',
           matches: [],
         }
@@ -121,19 +122,19 @@ const fetchAllMatchesData = async (silent = false) => {
         time: matchItem.start
           ? matchItem.start
           : matchItem.start_time
-            ? new Date(matchItem.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+            ? new Date(matchItem.start_time).toLocaleTimeString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { hour: '2-digit', minute: '2-digit' })
             : '--:--',
         status: matchItem.status === 'completed'
           ? 'Finished'
           : matchItem.status === 'ongoing' ? 'Live' : 'Scheduled',
         players: [
           {
-            name: matchItem.p1_name || matchItem.player_a || matchItem.player1 || 'Chưa xác định',
+            name: matchItem.p1_name || matchItem.player_a || matchItem.player1 || t('matches.undetermined'),
             winner: matchItem.winner_side === 'side_a',
             sets: matchItem.score ? matchItem.score.split(',').map(s => s.trim().split('-')[0]) : [],
           },
           {
-            name: matchItem.p2_name || matchItem.player_b || matchItem.player2 || 'Chưa xác định',
+            name: matchItem.p2_name || matchItem.player_b || matchItem.player2 || t('matches.undetermined'),
             winner: matchItem.winner_side === 'side_b',
             sets: matchItem.score ? matchItem.score.split(',').map(s => s.trim().split('-')[1]) : [],
           },
@@ -178,7 +179,7 @@ const fetchAllMatchesData = async (silent = false) => {
 
   } catch (err) {
     console.error('Loi khi tai du lieu tran dau:', err)
-    if (!silent) ElMessage.error('Không thể tải dữ liệu trận đấu.')
+    if (!silent) ElMessage.error(t('common.errorLoading'))
   } finally {
     if (!silent) loading.value = false
   }
@@ -194,8 +195,8 @@ const activeDateLabel = computed(() => {
   if (!activeDate.value) return ''
   const d = new Date(`${activeDate.value}T12:00:00`)
   if (activeDate.value === todayKey)
-    return 'Hôm nay — ' + d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
-  return d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
+    return t('matches.today') + ' — ' + d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
+  return d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
 })
 
 const matchCountForDay = (key) =>
@@ -203,13 +204,13 @@ const matchCountForDay = (key) =>
 
 // Weekday abbrev (T2…CN)
 function weekdayLabel(date) {
-  const labels = ['CN','T2','T3','T4','T5','T6','T7']
-  return labels[new Date(date + 'T12:00:00').getDay()]
+  const d = new Date(date + 'T12:00:00')
+  return d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { weekday: 'short' }).replace('.', '').toUpperCase()
 }
 
 const openTournamentDetail = (id) => router.push(`/tournaments/${id}`)
 const openReplay = (tId, match) => {
-  if (match.status === 'Scheduled') { ElMessage.info('Trận này chưa có kết quả để xem lại.'); return }
+  if (match.status === 'Scheduled') { ElMessage.info(t('matches.noReplayYet')); return }
   router.push(`/tournaments/${tId}`)
 }
 const openStats = () => router.push('/rankings')
@@ -240,7 +241,7 @@ onUnmounted(() => {
       <div class="date-nav-inner">
 
         <!-- Today button -->
-        <button class="today-pill" @click="selectDate(todayKey)">Hôm nay</button>
+        <button class="today-pill" @click="selectDate(todayKey)">{{ t('matches.today') }}</button>
 
         <!-- Scrollable strip grouped by month -->
         <div class="strip-scroll-wrap" ref="stripRef">
@@ -281,7 +282,7 @@ onUnmounted(() => {
         <div class="date-heading">
           <h2>{{ activeDateLabel }}</h2>
           <span v-if="filteredTournaments.length > 0" class="match-count-badge">
-            {{ filteredTournaments.reduce((s, t) => s + t.matches.length, 0) }} trận
+            {{ filteredTournaments.reduce((s, t) => s + t.matches.length, 0) }} {{ t('matches.match') }}
           </span>
         </div>
 
@@ -293,7 +294,7 @@ onUnmounted(() => {
                 <span class="location">{{ tournament.location }}</span>
                 <h3>{{ tournament.name }}</h3>
               </div>
-              <el-button link @click="openTournamentDetail(tournament.id)">Chi tiết giải →</el-button>
+              <el-button link @click="openTournamentDetail(tournament.id)">{{ t('common.details') }} →</el-button>
             </header>
 
             <div class="match-list">
@@ -302,7 +303,7 @@ onUnmounted(() => {
                   <span class="round-badge">{{ match.round }}</span>
                   <span :class="['match-status', match.status.toLowerCase()]">
                     <span v-if="match.status === 'Live'" class="pulse"></span>
-                    {{ match.status === 'Live' ? 'TRỰC TIẾP' : match.status === 'Finished' ? 'Kết thúc' : match.time }}
+                    {{ match.status === 'Live' ? t('common.live') : match.status === 'Finished' ? t('matches.final') : match.time }}
                   </span>
                 </div>
 
@@ -330,10 +331,10 @@ onUnmounted(() => {
 
                 <div class="match-actions">
                   <button class="m-btn highlight" @click="openReplay(tournament.id, match)">
-                    <el-icon><VideoPlay /></el-icon> Xem lại
+                    <el-icon><VideoPlay /></el-icon> {{ t('matches.replay') }}
                   </button>
                   <button class="m-btn" @click="openStats">
-                    <el-icon><PieChart /></el-icon> Thống kê
+                    <el-icon><PieChart /></el-icon> {{ t('matches.stats') }}
                   </button>
                 </div>
               </article>
@@ -343,21 +344,21 @@ onUnmounted(() => {
           <!-- Empty state -->
           <div v-if="!loading && filteredTournaments.length === 0" class="empty-state">
             <div class="empty-icon">📅</div>
-            <p class="empty-title">Không có trận đấu nào</p>
+            <p class="empty-title">{{ t('matches.noMatches') }}</p>
             <p class="empty-sub">
               {{ matchDays.size === 0
-                  ? 'Chưa có lịch thi đấu nào được lên kế hoạch.'
-                  : 'Hãy chọn ngày có chấm xanh trên thanh lịch để xem trận đấu.' }}
+                  ? t('matches.noScheduleYet')
+                  : t('matches.selectDayHint') }}
             </p>
             <div v-if="matchDays.size > 0" class="quick-days">
-              <p>Ngày gần nhất có trận:</p>
+              <p>{{ t('matches.nearestDays') }}:</p>
               <button
                 v-for="day in [...matchDays].sort().slice(0, 6)"
                 :key="day"
                 class="quick-day-btn"
                 @click="selectDate(day)"
               >
-                {{ new Date(day + 'T12:00:00').toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) }}
+                {{ new Date(day + 'T12:00:00').toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit' }) }}
               </button>
             </div>
           </div>
@@ -368,7 +369,7 @@ onUnmounted(() => {
       <aside class="sidebar-col">
         <!-- Tin tức -->
         <div class="widget">
-          <div class="widget-header"><h4>Tin Tức Giải Đấu</h4></div>
+          <div class="widget-header"><h4>{{ t('matches.tournamentNews') }}</h4></div>
           <div class="widget-body">
             <div
               v-for="post in latestNews"
@@ -387,26 +388,26 @@ onUnmounted(() => {
               />
               <p>{{ post.title }}</p>
             </div>
-            <p v-if="latestNews.length === 0" class="empty-widget">Chưa có tin tức.</p>
+            <p v-if="latestNews.length === 0" class="empty-widget">{{ t('common.noNews') }}</p>
           </div>
         </div>
 
         <!-- Xếp hạng -->
         <div class="widget">
-          <div class="widget-header"><h4>Xếp Hạng Elo</h4></div>
+          <div class="widget-header"><h4>{{ t('matches.eloRankings') }}</h4></div>
           <div class="widget-body">
             <div v-for="(player, i) in topPlayers" :key="player.player_id" class="rank-row">
               <span class="rank-no" :class="`rank-${i+1}`">{{ i + 1 }}</span>
               <span class="rank-name">{{ player.full_name }}</span>
               <strong class="rank-elo">{{ player.elo_points }}</strong>
             </div>
-            <p v-if="topPlayers.length === 0" class="empty-widget">Chưa có dữ liệu xếp hạng.</p>
+            <p v-if="topPlayers.length === 0" class="empty-widget">{{ t('common.noData') }}</p>
           </div>
         </div>
 
         <!-- Các ngày có trận -->
         <div class="widget" v-if="matchDays.size > 0">
-          <div class="widget-header"><h4>Ngày Có Trận</h4></div>
+          <div class="widget-header"><h4>{{ t('matches.matchDays') }}</h4></div>
           <div class="widget-body all-match-days">
             <button
               v-for="day in [...matchDays].sort()"
@@ -414,7 +415,7 @@ onUnmounted(() => {
               :class="['match-day-pill', { active: day === activeDate }]"
               @click="selectDate(day)"
             >
-              {{ new Date(day + 'T12:00:00').toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) }}
+              {{ new Date(day + 'T12:00:00').toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }) }}
               <span class="pill-count">{{ matchCountForDay(day) }}</span>
             </button>
           </div>

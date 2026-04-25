@@ -1,0 +1,16 @@
+export default {
+  home: 'Trang chủ',
+  news: 'Tin tức',
+  players: 'Vận động viên',
+  challenges: 'Thách đấu',
+  tournaments: 'Giải đấu',
+  matches: 'Lịch thi đấu',
+  rankings: 'Bảng xếp hạng',
+  profile: 'Hồ sơ cá nhân',
+  myTournaments: 'Giải đấu của tôi',
+  login: 'Đăng nhập',
+  logout: 'Đăng xuất',
+  adminConsole: 'Quản trị viên',
+  register: 'Đăng ký',
+  user: 'Người dùng',
+}

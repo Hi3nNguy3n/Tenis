@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { authService } from '../../services/authService'
 import { Trophy, Right, InfoFilled, Loading } from '@element-plus/icons-vue'
+import { t, currentLocale } from '../../utils/locale'
 
 const router = useRouter()
 const loading = ref(false)
@@ -27,26 +28,26 @@ const handleNext = async () => {
   form.value.phone = form.value.phone?.trim() || ''
 
   // 1. Kiểm tra rỗng
-  if (!form.value.full_name) return ElMessage.warning('Họ và tên không được để trống.')
-  if (!form.value.email) return ElMessage.warning('Email không được để trống.')
-  if (!form.value.phone) return ElMessage.warning('Số điện thoại không được để trống.')
-  if (!form.value.password) return ElMessage.warning('Mật khẩu không được để trống.')
+  if (!form.value.full_name) return ElMessage.warning(t('auth.valNameRequired'))
+  if (!form.value.email) return ElMessage.warning(t('auth.valEmailRequired'))
+  if (!form.value.phone) return ElMessage.warning(t('auth.valPhoneRequired'))
+  if (!form.value.password) return ElMessage.warning(t('auth.valPasswordRequired'))
 
   // 2. Kiểm tra định dạng Email
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(form.value.email)) {
-    return ElMessage.warning('Email không đúng định dạng. VD: example@gmail.com')
+    return ElMessage.warning(t('auth.valEmailInvalid'))
   }
 
   // 3. Kiểm tra số điện thoại (chỉ chứa số, độ dài 10-11 số)
   const phoneRegex = /^[0-9]{10,11}$/
   if (!phoneRegex.test(form.value.phone)) {
-    return ElMessage.warning('Số điện thoại không hợp lệ (Phải là 10-11 chữ số).')
+    return ElMessage.warning(t('auth.valPhoneInvalid'))
   }
 
   // 4. Kiểm tra độ dài mật khẩu (ít nhất 6 ký tự)
   if (form.value.password.length < 6) {
-    return ElMessage.warning('Mật khẩu phải có ít nhất 6 ký tự.')
+    return ElMessage.warning(t('auth.valPasswordLength'))
   }
 
   // Nếu hợp lệ thì gọi API gửi OTP
@@ -60,7 +61,7 @@ const handleNext = async () => {
     await authService.sendOtp(form.value.email)
     isSuccess = true
   } catch (err) {
-    const errorMsg = err.response?.data?.detail || err.message || 'Lỗi gửi OTP'
+    const errorMsg = err.response?.data?.detail || err.message || t('auth.loginErrorConnection')
     ElMessage.error(errorMsg)
   } finally {
     loading.value = false
@@ -68,7 +69,7 @@ const handleNext = async () => {
 
   // Chỉ chuyển trang và báo thành công KHI VÀ CHỈ KHI API không lỗi
   if (isSuccess) {
-    ElMessage.success(`Mã OTP đã được gửi đến email: ${form.value.email}`)
+    ElMessage.success(t('auth.otpSent', { email: form.value.email }))
     
     // Chuyển trang theo đúng Name Route
     router.push({ name: 'register-otp-verify' }).catch(err => {
@@ -93,16 +94,16 @@ const handleNext = async () => {
              <img src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png" alt="Saigon Tennis Logo" class="brand-logo" />
             
             <h1 class="brand-title">Saigon Tennis Tour</h1>
-            <p class="brand-subtitle">Hệ thống quản lý giải đấu chuyên nghiệp và cộng đồng thể thao lớn nhất khu vực.</p>
+            <p class="brand-subtitle">{{ $t('auth.brandDesc') }}</p>
             
             <div class="feature-list">
               <div class="feature-item">
                 <el-icon><Trophy /></el-icon>
-                <span>Tham gia các giải đấu hấp dẫn</span>
+                <span>{{ $t('challenges.winTitle') }}</span>
               </div>
               <div class="feature-item">
                 <el-icon><InfoFilled /></el-icon>
-                <span>Cập nhật kết quả & bảng xếp hạng real-time</span>
+                <span>{{ $t('chat.newsSubtitle') }}</span>
               </div>
             </div>
           </div>
@@ -113,14 +114,14 @@ const handleNext = async () => {
 
         <div class="card-form">
           <div class="form-header">
-            <h2>Tạo tài khoản mới</h2>
-            <p>Tham gia cộng đồng quần vợt ngay hôm nay</p>
+            <h2>{{ $t('auth.registerTitle') }}</h2>
+            <p>{{ $t('auth.registerSubtitle') }}</p>
           </div>
 
           <div class="form-body">
             <div class="form-row">
               <div class="form-group">
-                <label>Họ và tên <span class="required">*</span></label>
+                <label>{{ $t('auth.fullName') }} <span class="required">*</span></label>
                 <el-input 
                   v-model="form.full_name" 
                   placeholder="VD: Nguyễn Văn A" 
@@ -132,7 +133,7 @@ const handleNext = async () => {
 
             <div class="form-row two-col">
               <div class="form-group">
-                <label>Email liên hệ <span class="required">*</span></label>
+                <label>{{ $t('auth.email') }} <span class="required">*</span></label>
                 <el-input 
                   v-model="form.email" 
                   type="email" 
@@ -142,7 +143,7 @@ const handleNext = async () => {
                 />
               </div>
               <div class="form-group">
-                <label>Số điện thoại <span class="required">*</span></label>
+                <label>{{ $t('auth.phone') }} <span class="required">*</span></label>
                 <el-input 
                   v-model="form.phone" 
                   type="tel" 
@@ -155,7 +156,7 @@ const handleNext = async () => {
 
             <div class="form-row two-col">
               <div class="form-group">
-                <label>Tỉnh / Thành phố</label>
+                <label>{{ $t('auth.province') }}</label>
                  <el-input 
                   v-model="form.province" 
                   placeholder="VD: TP. Hồ Chí Minh" 
@@ -164,7 +165,7 @@ const handleNext = async () => {
                 />
               </div>
                <div class="form-group">
-                <label>Ngày sinh</label>
+                <label>{{ $t('auth.dob') }}</label>
                 <el-input 
                   type="date" 
                   v-model="form.date_of_birth" 
@@ -176,29 +177,29 @@ const handleNext = async () => {
 
             <div class="form-row two-col">
                <div class="form-group">
-                <label>Giới tính</label>
+                <label>{{ $t('auth.gender') }}</label>
                 <el-select v-model="form.gender" class="modern-select" size="large">
-                  <el-option label="Nam" value="male" />
-                  <el-option label="Nữ" value="female" />
+                  <el-option :label="$t('auth.male')" value="male" />
+                  <el-option :label="$t('auth.female')" value="female" />
                 </el-select>
               </div>
                <div class="form-group">
-                <label>Tay thuận</label>
+                <label>{{ $t('auth.playHand') }}</label>
                 <el-select v-model="form.play_hand" class="modern-select" size="large">
-                  <el-option label="Tay phải" value="right" />
-                  <el-option label="Tay trái" value="left" />
-                  <el-option label="Cả hai" value="both" />
+                  <el-option :label="$t('auth.right')" value="right" />
+                  <el-option :label="$t('auth.left')" value="left" />
+                  <el-option :label="$t('auth.both')" value="both" />
                 </el-select>
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
-                <label>Mật khẩu <span class="required">*</span></label>
+                <label>{{ $t('auth.password') }} <span class="required">*</span></label>
                 <el-input 
                   v-model="form.password" 
                   :type="showPassword ? 'text' : 'password'" 
-                  placeholder="Ít nhất 6 ký tự" 
+                  :placeholder="$t('auth.passwordHint')" 
                   class="modern-input"
                   size="large"
                 >
@@ -207,7 +208,7 @@ const handleNext = async () => {
                       class="password-toggle" 
                       @click="showPassword = !showPassword"
                     >
-                      {{ showPassword ? 'Ẩn' : 'Hiện' }}
+                      {{ showPassword ? $t('auth.hide') : $t('auth.show') }}
                     </span>
                   </template>
                 </el-input>
@@ -223,13 +224,13 @@ const handleNext = async () => {
               @click="handleNext"
               size="large"
             >
-              <span v-if="!loading">Nhận mã xác thực OTP</span>
+              <span v-if="!loading">{{ $t('auth.getOtp') }}</span>
               <el-icon v-if="!loading" class="el-icon--right"><Right /></el-icon>
             </el-button>
             
             <p class="login-prompt">
-              Đã có tài khoản? 
-              <router-link to="/login" class="login-link">Đăng nhập tại đây</router-link>
+              {{ $t('auth.hasAccount') }} 
+              <router-link to="/login" class="login-link">{{ $t('auth.loginHere') }}</router-link>
             </p>
           </div>
         </div>

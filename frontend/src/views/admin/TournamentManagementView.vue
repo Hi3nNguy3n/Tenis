@@ -6,6 +6,7 @@ import apiClient from '../../services/apiClient'
 import { saveAs } from 'file-saver';
 import { getStoredAccessToken } from '../../utils/authStorage';
 import { Message, Plus, Search, Refresh, Delete, Edit, Trophy, DataAnalysis, Calendar, User } from '@element-plus/icons-vue'
+import { t, currentLocale } from '../../utils/locale'
 
 import { useRouter } from 'vue-router'
 const router = useRouter()
@@ -14,12 +15,12 @@ const categoryOptions = ['Open', 'Intermediate', 'Advanced', 'Elite']
 const formatOptions = ['Singles', 'Doubles']
 const drawSizeOptions = [2, 4, 8, 16, 32, 64]
 const surfaceOptions = ['Hard', 'Clay', 'Grass', 'Carpet']
-const statusOptions = [
-  { label: 'Bản nháp', value: 'draft' },
-  { label: 'Mở đăng ký', value: 'open' },
-  { label: 'Đang diễn ra', value: 'ongoing' },
-  { label: 'Đã kết thúc', value: 'finished' },
-]
+const statusOptions = computed(() => [
+  { label: t('admin.draft'), value: 'draft' },
+  { label: t('admin.openReg'), value: 'open' },
+  { label: t('admin.ongoing'), value: 'ongoing' },
+  { label: t('admin.finished'), value: 'finished' },
+])
 
 const search = ref('')
 const statusFilter = ref('')
@@ -35,18 +36,20 @@ const errorMessage = ref('')
 const isDetailDrawerOpen = ref(false)
 const isExporting = ref(false)
 
+const formatCurrency = (value) => {
+  const locale = currentLocale.value === 'vi' ? 'vi-VN' : 'en-US'
+  const currency = currentLocale.value === 'vi' ? 'VND' : 'USD'
+  return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(value)
+}
+
 const downloadExcelReport = async (tournament) => {
   if (!tournament || !tournament.id) return;
   isExporting.value = true;
 
   try {
-    // 1. Lấy token chuẩn từ tiện ích của dự án
     const token = getStoredAccessToken() || localStorage.getItem('access_token');
-    
-    // 2. Sử dụng đúng tên biến môi trường (Có fallback về localhost y hệt apiClient.js)
     const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
 
-    // 3. Dùng fetch thuần để giữ nguyên vẹn dữ liệu nhị phân (Blob)
     const response = await fetch(`${baseUrl}/api/tournaments/${tournament.id}/export-excel`, {
       method: 'GET',
       headers: {
@@ -57,41 +60,38 @@ const downloadExcelReport = async (tournament) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Lỗi server: ${errorText}`);
+      throw new Error(`Server Error: ${errorText}`);
     }
 
-    // 4. Lấy dữ liệu dưới dạng Blob và lưu
     const blob = await response.blob();
     const safeName = tournament.name
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-zA-Z0-9]/g, '_');
 
-    saveAs(blob, `BaoCao_${safeName}.xlsx`);
+    saveAs(blob, `Report_${safeName}.xlsx`);
 
-    ElMessage.success('Tải báo cáo thành công!');
+    ElMessage.success(t('admin.exportSuccess'));
   } catch (error) {
-    console.error("Lỗi xuất Excel:", error);
-    ElMessage.error('Không thể xuất báo cáo. Vui lòng kiểm tra lại quyền truy cập.');
+    console.error("Excel Export Error:", error);
+    ElMessage.error(t('admin.exportError'));
   } finally {
     isExporting.value = false;
   }
 };
 
-// --- THÊM BIẾN VÀ HÀM GỬI EMAIL ---
 const isSendingMail = ref(false)
 
 const sendMassEmail = async (tournament) => {
   if (!tournament || !tournament.id) return;
 
   try {
-    // 1. Xác nhận trước khi gửi để tránh bấm nhầm
     await ElMessageBox.confirm(
-      `Hệ thống sẽ gửi email thông báo đến toàn bộ VĐV của giải "${tournament.name}". Bạn có chắc chắn muốn thực hiện?`,
-      'Xác nhận gửi thông báo hàng loạt',
+      t('admin.sendMailConfirm', { name: tournament.name }),
+      t('admin.sendMailTitle'),
       {
-        confirmButtonText: 'Xác nhận gửi',
-        cancelButtonText: 'Hủy',
+        confirmButtonText: t('admin.confirmSend'),
+        cancelButtonText: t('admin.cancel'),
         type: 'warning',
       }
     )
@@ -100,7 +100,6 @@ const sendMassEmail = async (tournament) => {
     const token = getStoredAccessToken() || localStorage.getItem('access_token')
     const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
-    // 2. Gọi API POST để kích hoạt gửi mail hàng loạt
     const response = await fetch(`${baseUrl}/api/tournaments/${tournament.id}/send-notifications`, {
       method: 'POST',
       headers: {
@@ -112,10 +111,9 @@ const sendMassEmail = async (tournament) => {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.detail || 'Lỗi khi gửi thông báo')
+      throw new Error(data.detail || 'Error sending notification')
     }
 
-    // 3. Thông báo cho Admin biết hệ thống đang xử lý ngầm
     ElMessage({
       message: data.message,
       type: 'success',
@@ -125,8 +123,8 @@ const sendMassEmail = async (tournament) => {
 
   } catch (error) {
     if (error !== 'cancel') {
-      console.error("Lỗi gửi mail:", error)
-      ElMessage.error(error.message || 'Không thể gửi thông báo lúc này.')
+      console.error("Mail Error:", error)
+      ElMessage.error(error.message || 'Unable to send notification at this time.')
     }
   } finally {
     isSendingMail.value = false
@@ -146,7 +144,6 @@ const stats = ref({
 })
 
 const goToMailCampaign = (tournamentId) => {
-  // Thay 'name' bằng 'path' để tránh lỗi không khớp tên route
   router.push({ 
     path: '/admin/mail-campaign', 
     query: { tournamentId: tournamentId } 
@@ -154,10 +151,10 @@ const goToMailCampaign = (tournamentId) => {
 }
 
 const summaryCards = computed(() => [
-  { label: 'TỔNG GIẢI ĐẤU', value: stats.value.total_tournaments, tone: 'primary' },
-  { label: 'ĐANG DIỄN RA', value: stats.value.active_tournaments, tone: 'success' },
-  { label: 'ĐĂNG KÝ MỚI', value: stats.value.pending_approvals, tone: 'warning' },
-  { label: 'VĐV ĐĂNG KÝ', value: stats.value.total_registrations, tone: 'accent' },
+  { label: t('admin.totalTournaments'), value: stats.value.total_tournaments, tone: 'primary' },
+  { label: t('admin.ongoing'), value: stats.value.active_tournaments, tone: 'success' },
+  { label: t('admin.newRegistration'), value: stats.value.pending_approvals, tone: 'warning' },
+  { label: t('admin.totalRegistrations'), value: stats.value.total_registrations, tone: 'accent' },
 ])
 
 const createDefaultForm = () => ({
@@ -181,31 +178,26 @@ const createDefaultForm = () => ({
 
 const form = ref(createDefaultForm())
 
-// --- LOGIC CHẶN NGÀY THÁNG QUÁ KHỨ ---
-// 1. Chặn các ngày trước ngày hôm nay
 const disabledPastDates = (time) => {
-  return time.getTime() < Date.now() - 8.64e7 // Trừ 1 ngày để cho phép chọn hôm nay
+  return time.getTime() < Date.now() - 8.64e7 
 }
 
-// 2. Ngày kết thúc Đăng ký phải sau ngày Mở đăng ký
 const disabledCloseRegDate = (time) => {
   if (!form.value.registration_open_at) return disabledPastDates(time)
   return time.getTime() < new Date(form.value.registration_open_at).getTime()
 }
 
-// 3. Ngày Kết thúc giải đấu phải sau Ngày khai mạc
 const disabledEndDate = (time) => {
   if (!form.value.start_date) return disabledPastDates(time)
   return time.getTime() < new Date(form.value.start_date).getTime()
 }
-// --------------------------------------
 
 const loadStats = async () => {
   try {
     const data = await tournamentService.getStats()
     stats.value = data
   } catch (err) {
-    console.error('Lỗi tải thống kê:', err)
+    console.error('Stats Load Error:', err)
   }
 }
 
@@ -224,7 +216,7 @@ const loadTournaments = async () => {
       selectedTournament.value = tournaments.value[0]
     }
   } catch (err) {
-    errorMessage.value = 'Lỗi tải danh sách: ' + err.message
+    errorMessage.value = t('admin.loadTournamentsError') + ': ' + err.message
   } finally {
     isLoading.value = false
   }
@@ -253,7 +245,6 @@ const openEditDialog = (row) => {
   isEditMode.value = true
   form.value = { 
     ...row,
-    // Format lại ngày giờ cho Component Element Plus
     registration_open_at: row.registration_open_at ? new Date(row.registration_open_at).toISOString().slice(0, 19) : '',
     registration_close_at: row.registration_close_at ? new Date(row.registration_close_at).toISOString().slice(0, 19) : '',
     start_date: row.start_date || '',
@@ -279,14 +270,13 @@ const generateSlug = (name) => {
 }
 
 const saveTournament = async () => {
-  if (!form.value.name) return ElMessage.warning('Vui lòng nhập tên giải')
+  if (!form.value.name) return ElMessage.warning(t('admin.tournamentNameLabel'))
   
   isSaving.value = true
   try {
     const payload = { ...form.value }
     if (!payload.slug) payload.slug = generateSlug(payload.name)
     
-    // Convert empty dates to null for backend
     if (!payload.registration_open_at) delete payload.registration_open_at
     if (!payload.registration_close_at) delete payload.registration_close_at
     if (!payload.end_date) delete payload.end_date
@@ -311,10 +301,10 @@ const saveTournament = async () => {
 
     if (isEditMode.value) {
       await tournamentService.update(form.value.id, finalData)
-      ElMessage.success('Cập nhật thành công')
+      ElMessage.success(t('admin.updateSuccess'))
     } else {
       await tournamentService.create(finalData)
-      ElMessage.success('Tạo giải thành công')
+      ElMessage.success(t('admin.createSuccess'))
     }
     isDialogOpen.value = false
     loadTournaments()
@@ -322,23 +312,25 @@ const saveTournament = async () => {
   } catch (err) {
     const detail = err.response?.data?.detail
     const msg = Array.isArray(detail) ? detail.map(d => `${d.loc[d.loc.length-1]}: ${d.msg}`).join(', ') : (detail || err.message)
-    ElMessage.error('Lỗi khi lưu: ' + msg)
+    ElMessage.error(t('admin.updateError') + ': ' + msg)
   } finally {
     isSaving.value = false
   }
 }
 
 const deleteTournament = (id) => {
-  ElMessageBox.confirm('Bạn có chắc chắn muốn xóa giải đấu này?', 'Cảnh báo', {
-    type: 'warning'
+  ElMessageBox.confirm(t('admin.confirmDeleteTournament'), t('admin.action'), {
+    type: 'warning',
+    confirmButtonText: t('admin.confirm'),
+    cancelButtonText: t('admin.cancel'),
   }).then(async () => {
     try {
       await tournamentService.delete(id)
-      ElMessage.success('Đã xóa giải đấu')
+      ElMessage.success(t('admin.deleteSuccess'))
       loadTournaments()
       loadStats()
     } catch (err) {
-      ElMessage.error('Lỗi khi xóa: ' + err.message)
+      ElMessage.error(t('admin.updateError') + ': ' + err.message)
     }
   })
 }
@@ -346,18 +338,15 @@ const deleteTournament = (id) => {
 const filteredRows = computed(() => {
   let result = [...tournaments.value]
 
-  // 1. Lọc theo tên (Search) - Client-side
   if (search.value) {
     const s = search.value.toLowerCase().trim()
     result = result.filter(t => t.name.toLowerCase().includes(s))
   }
 
-  // 2. Lọc theo Loại hình (Format) - Client-side
   if (formatFilter.value) {
     result = result.filter(t => t.format_type === formatFilter.value)
   }
 
-  // 3. Lọc theo Draw size - Client-side
   if (drawSizeFilter.value) {
     result = result.filter(t => t.draw_size === drawSizeFilter.value)
   }
@@ -373,14 +362,12 @@ onMounted(() => {
 
 <template>
   <div class="module-shell">
-    <!-- Redundant header removed - handled by AdminLayout -->
-
     <section class="admin-action-bar">
       <div class="action-left">
         <el-button type="primary" size="large" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>&nbsp;Tạo giải mới
+          <el-icon><Plus /></el-icon>&nbsp;{{ $t('admin.createNewTournament') }}
         </el-button>
-        <el-button plain size="large" @click="loadTournaments">Tải lại</el-button>
+        <el-button plain size="large" @click="loadTournaments">{{ $t('admin.reload') }}</el-button>
       </div>
     </section>
 
@@ -391,7 +378,7 @@ onMounted(() => {
           <el-icon><Trophy /></el-icon>
         </div>
         <div class="stat-info-v2">
-          <span class="stat-kicker">Tổng giải đấu</span>
+          <span class="stat-kicker">{{ $t('admin.totalTournaments') }}</span>
           <strong class="stat-number">{{ stats.total_tournaments }}</strong>
         </div>
       </article>
@@ -401,7 +388,7 @@ onMounted(() => {
           <el-icon><DataAnalysis /></el-icon>
         </div>
         <div class="stat-info-v2">
-          <span class="stat-kicker">Đang diễn ra</span>
+          <span class="stat-kicker">{{ $t('admin.ongoing') }}</span>
           <strong class="stat-number">{{ stats.active_tournaments }}</strong>
         </div>
       </article>
@@ -411,7 +398,7 @@ onMounted(() => {
           <el-icon><Calendar /></el-icon>
         </div>
         <div class="stat-info-v2">
-          <span class="stat-kicker">Đăng ký mới</span>
+          <span class="stat-kicker">{{ $t('admin.newRegistration') }}</span>
           <strong class="stat-number">{{ stats.pending_approvals }}</strong>
         </div>
       </article>
@@ -421,18 +408,17 @@ onMounted(() => {
           <el-icon><User /></el-icon>
         </div>
         <div class="stat-info-v2">
-          <span class="stat-kicker">VĐV đăng ký</span>
+          <span class="stat-kicker">{{ $t('admin.totalRegistrations') }}</span>
           <strong class="stat-number">{{ stats.total_registrations }}</strong>
         </div>
       </article>
     </section>
 
-    <!-- Dynamic Filter Options from Data -->
     <section class="filter-card">
       <div class="search-box">
         <el-input 
           v-model="search" 
-          placeholder="Tìm theo tên giải..." 
+          :placeholder="$t('admin.searchTournamentPlaceholder')" 
           clearable 
           style="width: 320px"
           :prefix-icon="Search"
@@ -440,8 +426,7 @@ onMounted(() => {
       </div>
 
       <div class="filter-group">
-        <!-- Lọc trạng thái (Server-side trigger) -->
-        <el-select v-model="statusFilter" placeholder="Trạng thái" clearable @change="loadTournaments" style="width: 140px">
+        <el-select v-model="statusFilter" :placeholder="$t('admin.status')" clearable @change="loadTournaments" style="width: 140px">
           <el-option 
             v-for="opt in statusOptions" 
             :key="opt.value" 
@@ -450,8 +435,7 @@ onMounted(() => {
           />
         </el-select>
 
-        <!-- Lọc Loại hình (Client-side reactive) -->
-        <el-select v-model="formatFilter" placeholder="Loại hình" clearable style="width: 140px">
+        <el-select v-model="formatFilter" :placeholder="$t('admin.tournamentFormat')" clearable style="width: 140px">
           <el-option 
             v-for="format in Array.from(new Set(tournaments.map(t => t.format_type)))" 
             :key="format" 
@@ -460,8 +444,7 @@ onMounted(() => {
           />
         </el-select>
 
-        <!-- Lọc Draw size (Client-side reactive) -->
-        <el-select v-model="drawSizeFilter" placeholder="Draw size" clearable style="width: 110px">
+        <el-select v-model="drawSizeFilter" :placeholder="$t('admin.drawSize')" clearable style="width: 110px">
           <el-option 
             v-for="size in Array.from(new Set(tournaments.map(t => t.draw_size))).sort((a,b) => a-b)" 
             :key="size" 
@@ -471,7 +454,7 @@ onMounted(() => {
         </el-select>
 
         <el-button plain @click="resetFilters">
-          <el-icon><Refresh /></el-icon>&nbsp;Làm mới bộ lọc
+          <el-icon><Refresh /></el-icon>&nbsp;{{ $t('admin.resetFilters') }}
         </el-button>
       </div>
     </section>
@@ -480,24 +463,24 @@ onMounted(() => {
       <article class="table-card">
         <div class="card-heading">
           <div>
-            <h3>Danh sách giải đấu</h3>
-            <p>{{ total }} giải đấu được ghi nhận.</p>
+            <h3>{{ $t('admin.tournamentList') }}</h3>
+            <p>{{ $t('admin.tournamentsRecorded', { count: total }) }}</p>
           </div>
         </div>
 
         <el-table :data="filteredRows" stripe v-loading="isLoading" @row-click="selectTournament" highlight-current-row>
-          <el-table-column prop="name" label="Tên giải" min-width="200" />
-          <el-table-column prop="status" label="Trạng thái" width="120">
+          <el-table-column prop="name" :label="$t('admin.tournamentName')" min-width="200" />
+          <el-table-column prop="status" :label="$t('admin.status')" width="120">
             <template #default="{ row }">
               <el-tag :type="row.status === 'open' ? 'success' : 'info'">{{ row.status.toUpperCase() }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="category_type" label="Hạng" width="140" />
-          <el-table-column prop="draw_size" label="Draw" width="80" />
-          <el-table-column label="Điều khiển" width="120" fixed="right" align="center">
+          <el-table-column prop="category_type" :label="$t('admin.category')" width="140" />
+          <el-table-column prop="draw_size" :label="$t('admin.drawSize')" width="80" />
+          <el-table-column :label="$t('admin.action')" width="120" fixed="right" align="center">
             <template #default="{ row }">
               <div class="table-actions">
-                <el-tooltip content="Chỉnh sửa" placement="top">
+                <el-tooltip :content="$t('admin.edit')" placement="top">
                   <el-button 
                     circle 
                     size="small" 
@@ -507,7 +490,7 @@ onMounted(() => {
                     @click.stop="openEditDialog(row)"
                   />
                 </el-tooltip>
-                <el-tooltip content="Xóa" placement="top">
+                <el-tooltip :content="$t('admin.delete')" placement="top">
                   <el-button 
                     circle 
                     size="small" 
@@ -534,10 +517,9 @@ onMounted(() => {
       </article>
     </section>
 
-    <!-- Drawer cho chi tiết giải đấu -->
     <el-drawer
       v-model="isDetailDrawerOpen"
-      title="Hồ sơ Giải đấu"
+      :title="$t('admin.tournamentProfile')"
       size="480px"
       destroy-on-close
     >
@@ -560,7 +542,7 @@ onMounted(() => {
               :icon="Message"
               style="width: 100%"
             >
-              Gửi thông báo
+              {{ $t('admin.sendNotification') }}
             </el-button>
 
             <el-button 
@@ -569,53 +551,53 @@ onMounted(() => {
               @click="downloadExcelReport(selectedTournament)"
               style="width: 100%"
             >
-              Xuất Excel
+              {{ $t('admin.exportExcel') }}
             </el-button>
           </div>
         </div>
 
         <div class="detail-sections" style="display: grid; gap: 20px; margin-top: 30px;">
           <div class="info-group">
-            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">Thông tin thi đấu</h5>
+            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">{{ $t('admin.competitionInfo') }}</h5>
             <div class="detail-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px;">
               <div class="detail-item">
-                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Loại hình</span>
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">{{ $t('admin.tournamentFormat') }}</span>
                 <strong style="font-size: 0.95rem">{{ selectedTournament.format_type }}</strong>
               </div>
               <div class="detail-item">
-                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Hạng đấu</span>
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">{{ $t('admin.category') }}</span>
                 <strong style="font-size: 0.95rem">{{ selectedTournament.category_type }}</strong>
               </div>
               <div class="detail-item">
-                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Draw size</span>
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">{{ $t('admin.drawSize') }}</span>
                 <strong style="font-size: 0.95rem">{{ selectedTournament.draw_size }}</strong>
               </div>
               <div class="detail-item">
-                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Mặt sân</span>
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">{{ $t('admin.surface') }}</span>
                 <strong style="font-size: 0.95rem">{{ selectedTournament.surface_type }}</strong>
               </div>
             </div>
           </div>
 
           <div class="info-group">
-            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">Chi phí & Địa điểm</h5>
+            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">{{ $t('admin.entryFeePerPerson') }} & {{ $t('admin.location') }}</h5>
             <div class="detail-grid" style="display: grid; gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px;">
               <div class="detail-item">
-                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Lệ phí cá nhân</span>
-                <strong style="font-size: 1.1rem; color: #15803d">{{ new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selectedTournament.entry_fee || 0) }}</strong>
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">{{ $t('admin.entryFeePerPerson') }}</span>
+                <strong style="font-size: 1.1rem; color: #15803d">{{ formatCurrency(selectedTournament.entry_fee || 0) }}</strong>
               </div>
               <div class="detail-item">
-                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Địa điểm</span>
-                <strong style="font-size: 0.95rem">{{ selectedTournament.location || 'Chưa cập nhật' }}</strong>
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">{{ $t('admin.location') }}</span>
+                <strong style="font-size: 0.95rem">{{ selectedTournament.location || 'N/A' }}</strong>
               </div>
             </div>
           </div>
 
           <div class="info-group">
-            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">Thời gian giải đấu</h5>
+            <h5 style="color: #64748b; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.05em">{{ $t('admin.competitionTime') }}</h5>
             <div class="detail-grid" style="display: grid; gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px;">
               <div class="detail-item">
-                <span style="display: block; font-size: 0.75rem; color: #94a3b8">Ngày thi đấu</span>
+                <span style="display: block; font-size: 0.75rem; color: #94a3b8">{{ $t('admin.startDate') }}</span>
                 <strong style="font-size: 0.95rem">{{ selectedTournament.start_date }}</strong>
               </div>
             </div>
@@ -627,23 +609,23 @@ onMounted(() => {
 
   <el-dialog
     v-model="isDialogOpen"
-    :title="isEditMode ? 'Chỉnh sửa giải đấu' : 'Tạo giải đấu mới'"
+    :title="isEditMode ? $t('admin.editTournament') : $t('admin.createNewTournament')"
     width="720px"
     destroy-on-close
   >
     <el-form label-position="top" class="tournament-form">
-      <el-form-item label="Tên giải đấu" required>
-        <el-input v-model="form.name" placeholder="Ví dụ: Saigon Open 2026" />
+      <el-form-item :label="$t('admin.tournamentNameLabel')" required>
+        <el-input v-model="form.name" placeholder="Ex: Saigon Open 2026" />
       </el-form-item>
 
       <div class="form-grid two-columns">
-        <el-form-item label="Trạng thái">
+        <el-form-item :label="$t('admin.status')">
           <el-select v-model="form.status" style="width: 100%">
             <el-option v-for="option in statusOptions" :key="option.value" :label="option.label" :value="option.value" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="Loại hình thi đấu">
+        <el-form-item :label="$t('admin.tournamentFormat')">
           <el-select v-model="form.format_type" style="width: 100%">
             <el-option v-for="option in formatOptions" :key="option" :label="option" :value="option" />
           </el-select>
@@ -651,13 +633,13 @@ onMounted(() => {
       </div>
 
       <div class="form-grid three-columns">
-        <el-form-item label="Hạng cân">
+        <el-form-item :label="$t('admin.category')">
           <el-select v-model="form.category_type" style="width: 100%">
             <el-option v-for="option in categoryOptions" :key="option" :label="option" :value="option" />
           </el-select>
         </el-form-item>
 
-        <el-form-item label="Phân nhóm phái">
+        <el-form-item :label="$t('admin.genderDivision')">
           <el-select v-model="form.gender_division" style="width: 100%">
             <el-option label="Men" value="Men" />
             <el-option label="Women" value="Women" />
@@ -665,7 +647,7 @@ onMounted(() => {
           </el-select>
         </el-form-item>
 
-        <el-form-item label="Draw size">
+        <el-form-item :label="$t('admin.drawSize')">
           <el-select v-model="form.draw_size" style="width: 100%">
             <el-option v-for="size in drawSizeOptions" :key="size" :label="`${size}`" :value="size" />
           </el-select>
@@ -673,11 +655,11 @@ onMounted(() => {
       </div>
 
       <div class="form-grid two-columns">
-        <el-form-item label="Địa điểm thi đấu">
-          <el-input v-model="form.location" placeholder="Nhập địa điểm hoặc cụm sân" />
+        <el-form-item :label="$t('admin.location')">
+          <el-input v-model="form.location" placeholder="Enter location" />
         </el-form-item>
 
-        <el-form-item label="Mặt sân">
+        <el-form-item :label="$t('admin.surface')">
           <el-select v-model="form.surface_type" style="width: 100%">
             <el-option v-for="surface in surfaceOptions" :key="surface" :label="surface" :value="surface" />
           </el-select>
@@ -685,31 +667,31 @@ onMounted(() => {
       </div>
 
       <div class="form-grid two-columns">
-        <el-form-item label="Lệ phí cá nhân (VNĐ)">
+        <el-form-item :label="$t('admin.entryFeePerPerson')">
           <el-input-number v-model="form.entry_fee" :min="0" :step="50000" style="width: 100%" />
         </el-form-item>
 
-        <el-form-item label="Lệ phí đội (VNĐ)">
+        <el-form-item :label="$t('admin.entryFeeTeam')">
           <el-input-number v-model="form.entry_fee_team" :min="0" :step="50000" style="width: 100%" />
         </el-form-item>
       </div>
 
       <div class="form-grid two-columns">
-        <el-form-item label="Bắt đầu đăng ký">
+        <el-form-item :label="$t('admin.regStart')">
           <el-date-picker
             v-model="form.registration_open_at"
             type="datetime"
-            placeholder="Chọn ngày và giờ"
+            placeholder="Select date and time"
             value-format="YYYY-MM-DDTHH:mm:ss"
             :disabled-date="disabledPastDates"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="Kết thúc đăng ký">
+        <el-form-item :label="$t('admin.regEnd')">
           <el-date-picker
             v-model="form.registration_close_at"
             type="datetime"
-            placeholder="Chọn ngày và giờ"
+            placeholder="Select date and time"
             value-format="YYYY-MM-DDTHH:mm:ss"
             :disabled-date="disabledCloseRegDate"
             style="width: 100%"
@@ -718,21 +700,21 @@ onMounted(() => {
       </div>
 
       <div class="form-grid two-columns">
-        <el-form-item label="Ngày khai mạc">
+        <el-form-item :label="$t('admin.startDate')">
           <el-date-picker
             v-model="form.start_date"
             type="date"
-            placeholder="Chọn ngày bắt đầu"
+            placeholder="Select start date"
             value-format="YYYY-MM-DD"
             :disabled-date="disabledPastDates"
             style="width: 100%"
           />
         </el-form-item>
-        <el-form-item label="Ngày kết thúc">
+        <el-form-item :label="$t('admin.endDate')">
           <el-date-picker
             v-model="form.end_date"
             type="date"
-            placeholder="Chọn ngày kết thúc"
+            placeholder="Select end date"
             value-format="YYYY-MM-DD"
             :disabled-date="disabledEndDate"
             style="width: 100%"
@@ -742,13 +724,12 @@ onMounted(() => {
     </el-form>
 
     <template #footer>
-      <el-button @click="closeDialog">Hủy</el-button>
+      <el-button @click="closeDialog">{{ $t('admin.cancel') }}</el-button>
       <el-button type="primary" :loading="isSaving" @click="saveTournament">
-        {{ isEditMode ? 'Lưu cập nhật' : 'Tạo giải đấu' }}
+        {{ isEditMode ? $t('admin.save') : $t('admin.confirm') }}
       </el-button>
     </template>
   </el-dialog>
-
 </template>
 
 <style scoped>

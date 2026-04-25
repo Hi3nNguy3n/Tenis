@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import jsQR from 'jsqr'
+import { t } from '../../utils/locale'
 
 const registrationId = ref('')
 const isLoading = ref(false)
@@ -29,10 +30,10 @@ const handleCheckIn = async () => {
     // API scan check-in
     const result = await apiClient.post(`/api/registrations/${id}/check-in`)
     checkInData.value = result
-    ElMessage.success('Check-in thành công!')
+    ElMessage.success(t('admin.checkInSuccess'))
     registrationId.value = '' // Clear for next scan
   } catch (err) {
-    error.value = err.response?.data?.detail || err.message || 'Lỗi khi check-in.'
+    error.value = err.response?.data?.detail || err.message || t('admin.checkInError')
     ElMessage.error(error.value)
   } finally {
     isLoading.value = false
@@ -67,10 +68,10 @@ const handleFileUpload = (event) => {
       
       if (code && code.data) {
         registrationId.value = code.data
-        ElMessage.success('Quét mã QR thành công! Đang xử lý...')
+        ElMessage.success(t('admin.scanSuccess'))
         handleCheckIn() // Tự động gọi hàm check-in sau khi quét xong
       } else {
-        ElMessage.error('Không tìm thấy mã QR hợp lệ trong ảnh. Vui lòng thử ảnh khác rõ nét hơn.')
+        ElMessage.error(t('admin.scanError'))
       }
     }
     img.src = e.target.result
@@ -90,7 +91,7 @@ const handleFileUpload = (event) => {
           <div class="scan-line"></div>
           <div class="scanner-placeholder">
              <span class="icon">📷</span>
-             <p style="margin-bottom: 10px;">Tải ảnh QR Code để quét</p>
+             <p style="margin-bottom: 10px;">{{ $t('admin.uploadQrTitle') }}</p>
              
              <input 
                type="file" 
@@ -100,16 +101,16 @@ const handleFileUpload = (event) => {
                @change="handleFileUpload"
              />
              <el-button type="success" plain @click="triggerFileInput">
-               Chọn ảnh tải lên
+               {{ $t('admin.uploadImageBtn') }}
              </el-button>
           </div>
         </div>
         
         <div class="manual-input">
-          <p>Hoặc nhập mã Registration ID thủ công:</p>
+          <p>{{ $t('admin.manualInputLabel') }}</p>
           <div class="input-group">
-            <el-input v-model="registrationId" placeholder="VD: 123" @keyup.enter="handleCheckIn" />
-            <el-button type="primary" :loading="isLoading" @click="handleCheckIn">Xác nhận</el-button>
+            <el-input v-model="registrationId" :placeholder="$t('admin.manualInputPlaceholder')" @keyup.enter="handleCheckIn" />
+            <el-button type="primary" :loading="isLoading" @click="handleCheckIn">{{ $t('admin.confirm') }}</el-button>
           </div>
         </div>
       </div>
@@ -117,32 +118,32 @@ const handleFileUpload = (event) => {
       <div class="result-panel">
         <div v-if="checkInData" class="success-card">
           <div class="check-icon">✓</div>
-          <h3>Check-in thành công!</h3>
+          <h3>{{ $t('admin.checkInSuccess') }}</h3>
           <div class="info-details">
              <div class="info-row">
-               <span>Vận động viên:</span>
+               <span>{{ $t('admin.playerLabel') }}</span>
                <strong>{{ checkInData.player_name }}</strong>
              </div>
              <div class="info-row">
-               <span>Giải đấu:</span>
+               <span>{{ $t('admin.tournamentLabel') }}</span>
                <strong>{{ checkInData.tournament_name }}</strong>
              </div>
              <div class="info-row">
-               <span>Cụm sân:</span>
+               <span>{{ $t('admin.locationLabel') }}</span>
                <strong>{{ checkInData.location }}</strong>
              </div>
-             <p class="success-tip">Vận động viên đã được xác nhận có mặt.</p>
+             <p class="success-tip">{{ $t('admin.playerPresentTip') }}</p>
           </div>
         </div>
 
         <div v-else-if="error" class="error-card">
           <div class="err-icon">!</div>
-          <h3>Lỗi xác thực</h3>
+          <h3>{{ $t('admin.authError') }}</h3>
           <p>{{ error }}</p>
         </div>
 
         <div v-else class="empty-result">
-          <p>Yêu cầu quét mã QR để hiển thị kết quả xác thực tại đây.</p>
+          <p>{{ $t('admin.qrScanPrompt') }}</p>
         </div>
       </div>
     </section>

@@ -1,0 +1,72 @@
+export default {
+  // Sidebar
+  dashboard: 'Dashboard',
+  adminProfile: 'Admin Profile',
+  players: 'Players',
+  tournaments: 'Tournaments',
+  registrations: 'Registrations',
+  draws: 'Draws & Brackets',
+  courts: 'Courts',
+  matches: 'Matches',
+  schedule: 'Schedule',
+  rankings: 'Rankings & Stats',
+  checkIn: 'QR Check-in',
+  payments: 'Payments',
+  logs: 'System Logs',
+  dailySchedule: 'Daily Schedule',
+  calendar: 'Calendar',
+  news: 'News & Blog',
+  mailCampaign: 'Mail Campaign',
+  createMatch: 'Manual Match',
+
+  // Descriptions
+  dashboardDesc: 'Overview dashboard for the entire administrative system.',
+  playersDesc: 'Manage player profiles, skills, regions, and match statistics.',
+  tournamentsDesc: 'Tournament lists, filters, creation, and configuration.',
+  registrationsDesc: 'Approve registrations, track payments, and main draw status.',
+  drawsDesc: 'Setup brackets, seed slots, bye slots, and match flows.',
+  courtsDesc: 'Manage courts, surfaces, locations, and availability.',
+  matchesDesc: 'Control matches, update scores, winners, and referee assignments.',
+  scheduleDesc: 'Match schedule timeline by day, court, and time slot.',
+  rankingsDesc: 'Leaderboards and ELO rating history with multiple filters.',
+  checkInDesc: 'Scan player QR codes to confirm tournament attendance.',
+  paymentsDesc: 'Reconcile payment transactions, webhook status, and refunds.',
+  logsDesc: 'Trace system changes and administrator activities.',
+  dailyScheduleDesc: 'Detailed daily schedule by court clusters and time slots.',
+  calendarDesc: 'Monthly calendar view to track match density.',
+  newsDesc: 'Write articles, upload media, and post tournament announcements.',
+  mailCampaignDesc: 'Compose templates, schedule, log, and send bulk emails.',
+
+  // Sections
+  overview: 'Overview',
+  operation: 'Operation',
+  coordination: 'Coordination',
+  system: 'System',
+
+  // Topbar
+  adminSpace: 'Admin Space',
+  opsCenter: 'Ops Center',
+  systemActive: 'System Active',
+  loggedInAs: 'Logged in as',
+  logout: 'Logout',
+  admin: 'Administrator',
+
+  // Profile Page
+  adminAccount: 'Admin Account',
+  adminProfileDesc: 'Current account information based on API /api/players/me.',
+  loadProfileError: 'Unable to load profile from API /api/players/me.',
+  userID: 'User ID',
+  roleID: 'Role ID',
+
+  // Common UI
+  search: 'Search...',
+  filter: 'Filters',
+  add: 'Add New',
+  edit: 'Edit',
+  delete: 'Delete',
+  save: 'Save Changes',
+  cancel: 'Cancel',
+  confirm: 'Confirm',
+  status: 'Status',
+  action: 'Action',
+}

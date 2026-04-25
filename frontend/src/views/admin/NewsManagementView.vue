@@ -1,15 +1,15 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DocumentAdd, Edit, Delete, Picture, View } from '@element-plus/icons-vue'
+import { t } from '../../utils/locale'
 
 const posts = ref([])
 const isLoading = ref(false)
 const search = ref('')
 const categoryFilter = ref('')
 
-// State cho Dialog
 const isDialogOpen = ref(false)
 const isSaving = ref(false)
 const isEditMode = ref(false)
@@ -19,30 +19,38 @@ const form = ref({
   id: null,
   title: '',
   content: '',
-  category: 'Thông báo',
+  category: 'announcement',
   status: 'published',
   thumbnail_url: ''
 })
 
-const categories = ['Thông báo', 'Highlight', 'Phân tích', 'Phỏng vấn', 'Khác']
+const categories = computed(() => [
+  { label: t('admin.announcement'), value: 'announcement' },
+  { label: t('admin.highlight'), value: 'highlight' },
+  { label: t('admin.analysis'), value: 'analysis' },
+  { label: t('admin.interview'), value: 'interview' },
+  { label: t('admin.others'), value: 'others' }
+])
+
+const getCategoryLabel = (val) => {
+  const cat = categories.value.find(c => c.value === val)
+  return cat ? cat.label : val
+}
 
 const fetchPosts = async () => {
   isLoading.value = true
   try {
-    // Giả định Backend đã có API này. Nếu chưa, hệ thống sẽ báo lỗi 404 để bạn biết đường code thêm Backend
     const data = await apiClient.get('/api/news/', {
       params: { search: search.value, category: categoryFilter.value }
     })
     posts.value = data
   } catch (err) {
-    console.error('Lỗi tải tin tức:', err)
-    // Nếu chưa có API, tạo dữ liệu ảo để test UI
+    console.error('Fetch News Error:', err)
     if (err.message.includes('404')) {
       posts.value = [
-        { id: 1, title: 'Khai mạc Saigon Open 2026', category: 'Thông báo', status: 'published', views: 120, created_at: '2026-04-15' },
-        { id: 2, title: 'Highlight: Nguyễn Văn A vs Trần B', category: 'Highlight', status: 'draft', views: 0, created_at: '2026-04-16' }
+        { id: 1, title: 'Saigon Open 2026 Opening', category: 'announcement', status: 'published', views: 120, created_at: '2026-04-15' },
+        { id: 2, title: 'Highlight: A vs B', category: 'highlight', status: 'draft', views: 0, created_at: '2026-04-16' }
       ]
-      ElMessage.warning('Đang dùng dữ liệu ảo vì chưa có API Backend /api/news')
     }
   } finally {
     isLoading.value = false
@@ -51,7 +59,7 @@ const fetchPosts = async () => {
 
 const openCreateDialog = () => {
   isEditMode.value = false
-  form.value = { id: null, title: '', content: '', category: 'Thông báo', status: 'published', thumbnail_url: '' }
+  form.value = { id: null, title: '', content: '', category: 'announcement', status: 'published', thumbnail_url: '' }
   isDialogOpen.value = true
 }
 
@@ -61,7 +69,6 @@ const openEditDialog = (row) => {
   isDialogOpen.value = true
 }
 
-// Xử lý upload ảnh bìa (Thumbnail)
 const handleThumbnailUpload = async (event) => {
   const file = event.target.files[0]
   if (!file) return
@@ -69,7 +76,7 @@ const handleThumbnailUpload = async (event) => {
   const formData = new FormData()
   formData.append('file', file)
 
-  isUploading.value = true // <--- DÙNG isUploading BẬT HIỆU ỨNG TẢI
+  isUploading.value = true 
   try {
     const res = await apiClient.request('/api/upload/image', {
       method: 'POST',
@@ -78,47 +85,51 @@ const handleThumbnailUpload = async (event) => {
     })
     
     form.value.thumbnail_url = res.url 
-    ElMessage.success('Tải file thành công!')
+    ElMessage.success(t('admin.uploadSuccess') || 'Upload successful!')
   } catch (err) {
-    ElMessage.error('Lỗi upload: ' + (err.message || 'Server không phản hồi'))
+    ElMessage.error(t('admin.uploadError') || 'Upload failed: ' + (err.message || 'Server error'))
   } finally {
-    isUploading.value = false // <--- TẮT HIỆU ỨNG KHI XONG
-    event.target.value = '' // Reset input để có thể chọn lại file cũ nếu tải lỗi
+    isUploading.value = false 
+    event.target.value = '' 
   }
 }
 
 const savePost = async () => {
   if (!form.value.title || !form.value.content) {
-    return ElMessage.warning('Vui lòng nhập đủ Tiêu đề và Nội dung')
+    return ElMessage.warning(t('admin.inputRequired'))
   }
 
   isSaving.value = true
   try {
     if (isEditMode.value) {
       await apiClient.put(`/api/news/${form.value.id}`, form.value)
-      ElMessage.success('Cập nhật bài viết thành công')
+      ElMessage.success(t('admin.saveArticleSuccess'))
     } else {
       await apiClient.post('/api/news', form.value)
-      ElMessage.success('Tạo bài viết mới thành công')
+      ElMessage.success(t('admin.publishSuccess'))
     }
     isDialogOpen.value = false
     fetchPosts()
   } catch (err) {
-    ElMessage.error('Lỗi khi lưu: ' + err.message)
+    ElMessage.error(t('admin.updateError') + ': ' + err.message)
   } finally {
     isSaving.value = false
   }
 }
 
 const deletePost = (id) => {
-  ElMessageBox.confirm('Bạn có chắc muốn xóa bài viết này không?', 'Cảnh báo', { type: 'warning' })
+  ElMessageBox.confirm(t('admin.deletePostConfirm'), t('admin.action'), { 
+    type: 'warning',
+    confirmButtonText: t('admin.confirm'),
+    cancelButtonText: t('admin.cancel'),
+  })
     .then(async () => {
       try {
         await apiClient.delete(`/api/news/${id}`)
-        ElMessage.success('Đã xóa bài viết')
+        ElMessage.success(t('admin.deletePostSuccess'))
         fetchPosts()
       } catch (err) {
-        ElMessage.error('Lỗi xóa bài: ' + err.message)
+        ElMessage.error(t('admin.updateError') + ': ' + err.message)
       }
     })
 }
@@ -128,7 +139,6 @@ onMounted(fetchPosts)
 
 <template>
   <div class="news-container">
-    <!-- HEADER PREMIUM -->
     <section class="action-bar-glass shadow-sm">
       <div class="action-info">
         <div class="kicker-wrap">
@@ -138,57 +148,57 @@ onMounted(fetchPosts)
             LIVE
           </div>
         </div>
-        <h2>Quản lý Tin tức & Blog</h2>
-        <p>Viết bài, tải ảnh và điều phối luồng thông tin giải đấu đến vận động viên.</p>
+        <h2>{{ $t('admin.newsManagementTitle') }}</h2>
+        <p>{{ $t('admin.newsManagementDesc') }}</p>
       </div>
       <div class="hero-actions-v2">
         <el-button :icon="DocumentAdd" type="primary" round @click="openCreateDialog">
-          Viết bài mới
+          {{ $t('admin.writeNewPost') }}
         </el-button>
       </div>
     </section>
 
     <section class="filter-card">
-      <el-input v-model="search" placeholder="Tìm kiếm tiêu đề bài viết..." clearable @input="fetchPosts" style="width: 300px" />
-      <el-select v-model="categoryFilter" placeholder="Lọc theo Danh mục" clearable @change="fetchPosts" style="width: 200px">
-        <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
+      <el-input v-model="search" :placeholder="$t('admin.searchPostPlaceholder')" clearable @input="fetchPosts" style="width: 300px" />
+      <el-select v-model="categoryFilter" :placeholder="$t('admin.filterByCategory')" clearable @change="fetchPosts" style="width: 200px">
+        <el-option v-for="cat in categories" :key="cat.value" :label="cat.label" :value="cat.value" />
       </el-select>
     </section>
 
     <section class="table-card-premium shadow-sm" v-loading="isLoading">
       <el-table :data="posts" stripe style="width: 100%" class="modern-news-table">
-        <el-table-column label="Bài viết" min-width="350">
+        <el-table-column :label="$t('admin.article')" min-width="350">
           <template #default="{ row }">
             <div class="post-info-cell">
               <span class="post-title">{{ row.title }}</span>
-              <span class="post-meta">{{ row.created_at ? new Date(row.created_at).toLocaleDateString('vi-VN') : 'Hôm nay' }}</span>
+              <span class="post-meta">{{ row.created_at ? new Date(row.created_at).toLocaleDateString() : 'Today' }}</span>
             </div>
           </template>
         </el-table-column>
         
-        <el-table-column label="Danh mục" width="180">
+        <el-table-column :label="$t('admin.filterByCategory')" width="180">
           <template #default="{ row }">
             <el-tag effect="light" type="info" class="category-pill">
-              {{ row.category || 'Chung' }}
+              {{ getCategoryLabel(row.category) }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column label="Trạng thái" width="160" align="center">
+        <el-table-column :label="$t('admin.status')" width="160" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 'published' ? 'success' : 'warning'" class="status-pill">
-              {{ row.status === 'published' ? 'Đã xuất bản' : 'Bản nháp' }}
+              {{ row.status === 'published' ? $t('admin.published') : $t('admin.draft') }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column label="Điều hành" width="140" align="center" fixed="right">
+        <el-table-column :label="$t('admin.action')" width="140" align="center" fixed="right">
           <template #default="{ row }">
             <div class="action-buttons">
-              <el-tooltip content="Chỉnh sửa bài viết" placement="top">
+              <el-tooltip :content="$t('admin.editPost')" placement="top">
                 <el-button type="primary" plain circle :icon="Edit" @click="openEditDialog(row)" />
               </el-tooltip>
-              <el-tooltip content="Xóa bài viết" placement="top">
+              <el-tooltip :content="$t('admin.delete')" placement="top">
                 <el-button type="danger" plain circle :icon="Delete" @click="deletePost(row.id)" />
               </el-tooltip>
             </div>
@@ -197,43 +207,43 @@ onMounted(fetchPosts)
       </el-table>
     </section>
 
-    <el-dialog v-model="isDialogOpen" :title="isEditMode ? 'Chỉnh sửa bài viết' : 'Soạn bài viết mới'" width="800px" destroy-on-close top="5vh">
+    <el-dialog v-model="isDialogOpen" :title="isEditMode ? $t('admin.editPost') : $t('admin.createNewPost')" width="800px" destroy-on-close top="5vh">
       <el-form label-position="top" class="news-form">
         <el-row :gutter="20">
           <el-col :span="16">
-            <el-form-item label="Tiêu đề bài viết" required>
-              <el-input v-model="form.title" placeholder="Nhập tiêu đề hấp dẫn..." size="large" />
+            <el-form-item :label="$t('admin.postTitleLabel')" required>
+              <el-input v-model="form.title" placeholder="..." size="large" />
             </el-form-item>
 
-            <el-form-item label="Nội dung" required>
+            <el-form-item :label="$t('admin.postContentLabel')" required>
               <el-input 
                 v-model="form.content" 
                 type="textarea" 
                 :rows="12" 
-                placeholder="Nội dung bài viết... (Có thể nhập mã HTML nếu cần)" 
+                placeholder="..." 
               />
             </el-form-item>
           </el-col>
 
           <el-col :span="8">
-            <el-form-item label="Trạng thái">
+            <el-form-item :label="$t('admin.status')">
               <el-select v-model="form.status" style="width: 100%">
-                <el-option label="Đã xuất bản (Công khai)" value="published" />
-                <el-option label="Lưu bản nháp (Ẩn)" value="draft" />
+                <el-option :label="$t('admin.publishedPublic')" value="published" />
+                <el-option :label="$t('admin.draftHidden')" value="draft" />
               </el-select>
             </el-form-item>
 
-            <el-form-item label="Danh mục">
+            <el-form-item :label="$t('admin.filterByCategory')">
               <el-select v-model="form.category" style="width: 100%">
-                <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
+                <el-option v-for="cat in categories" :key="cat.value" :label="cat.label" :value="cat.value" />
               </el-select>
             </el-form-item>
 
-            <el-form-item label="Ảnh bìa / Video (Media)">
+            <el-form-item :label="$t('admin.thumbnailMedia')">
               <div 
                 class="thumbnail-uploader" 
                 v-loading="isUploading" 
-                element-loading-text="Đang tải lên, vui lòng chờ..."
+                :element-loading-text="$t('admin.uploadingWait')"
               >
                 <video 
                   v-if="form.thumbnail_url && form.thumbnail_url.match(/\.(mp4|webm|ogg)$/i)" 
@@ -250,7 +260,7 @@ onMounted(fetchPosts)
                 
                 <div v-else class="upload-placeholder">
                   <el-icon><Picture /></el-icon>
-                  <span>Nhấp để tải Ảnh/Video</span>
+                  <span>{{ $t('admin.uploadHint') }}</span>
                 </div>
                 
                 <input 
@@ -267,9 +277,9 @@ onMounted(fetchPosts)
       </el-form>
       
       <template #footer>
-        <el-button @click="isDialogOpen = false">Hủy bỏ</el-button>
+        <el-button @click="isDialogOpen = false">{{ $t('admin.cancel') }}</el-button>
         <el-button type="primary" :loading="isSaving" @click="savePost">
-          {{ isEditMode ? 'Cập nhật' : 'Đăng bài' }}
+          {{ isEditMode ? $t('admin.update') : $t('admin.confirm') }}
         </el-button>
       </template>
     </el-dialog>

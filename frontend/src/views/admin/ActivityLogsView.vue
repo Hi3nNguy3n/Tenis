@@ -2,21 +2,22 @@
 import { ref, onMounted, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { Document, Search, Timer } from '@element-plus/icons-vue'
+import { t } from '../../utils/locale'
 
 const logs = ref([])
 const isLoading = ref(true)
 const filterModule = ref('')
 
 // Danh sách các module để filter
-const modules = [
-  { label: 'Tất cả', value: '' },
-  { label: 'Giải đấu (Tournament)', value: 'TOURNAMENT' },
-  { label: 'Vận động viên (Player)', value: 'PLAYER' },
-  { label: 'Trận đấu (Match)', value: 'MATCH' },
-  { label: 'Sân đấu (Court)', value: 'COURT' },
-  { label: 'Tin tức (News)', value: 'NEWS' },
-  { label: 'Hệ thống (System)', value: 'SYSTEM' }
-]
+const modules = computed(() => [
+  { label: t('admin.moduleAll'), value: '' },
+  { label: t('admin.moduleTournament'), value: 'TOURNAMENT' },
+  { label: t('admin.modulePlayer'), value: 'PLAYER' },
+  { label: t('admin.moduleMatch'), value: 'MATCH' },
+  { label: t('admin.moduleCourt'), value: 'COURT' },
+  { label: t('admin.moduleNews'), value: 'NEWS' },
+  { label: t('admin.moduleSystem'), value: 'SYSTEM' }
+])
 
 const currentPage = ref(1)
 const pageSize = ref(15)
@@ -29,7 +30,7 @@ const fetchLogs = async () => {
     logs.value = data
     currentPage.value = 1 // Reset về trang 1 khi lọc
   } catch (error) {
-    console.error('Lỗi khi tải lịch sử:', error)
+    console.error(t('admin.loadLogsError'), error)
   } finally {
     isLoading.value = false
   }
@@ -73,20 +74,37 @@ const getActionTagType = (action) => {
   }
   return map[action?.toUpperCase()] || 'info'
 }
+
+// Dịch Event Name từ DB
+const translateEvent = (eventName) => {
+  if (!eventName) return ''
+  const map = {
+    'Khởi tạo giải đấu mới': 'admin.eventCreateTournament',
+    'Đăng bài viết mới': 'admin.eventCreateNews',
+    'Tạo sân thi đấu mới': 'admin.eventCreateCourt',
+    'Cập nhật giải đấu': 'admin.eventUpdateTournament',
+    'Cập nhật bài viết': 'admin.eventUpdateNews',
+    'Cập nhật sân thi đấu': 'admin.eventUpdateCourt',
+    'Xóa giải đấu': 'admin.eventDeleteTournament',
+    'Xóa bài viết': 'admin.eventDeleteNews',
+    'Xóa sân thi đấu': 'admin.eventDeleteCourt'
+  }
+  return map[eventName] ? t(map[eventName]) : eventName
+}
 </script>
 
 <template>
   <div class="logs-page">
     <section class="action-bar shadow-sm">
       <div class="action-info">
-        <span class="section-kicker">Audit Trails</span>
-        <p>Truy vết các thay đổi dữ liệu và thao tác của quản trị viên (Live data từ hệ thống).</p>
+        <span class="section-kicker">{{ $t('admin.auditTrails') }}</span>
+        <p>{{ $t('admin.auditTrailsDesc') }}</p>
       </div>
       
       <div class="hero-actions">
         <el-select 
           v-model="filterModule" 
-          placeholder="Lọc theo Module" 
+          :placeholder="$t('admin.filterModulePlaceholder')" 
           style="width: 220px"
           @change="fetchLogs"
         >
@@ -98,7 +116,7 @@ const getActionTagType = (action) => {
             :value="item.value" 
           />
         </el-select>
-        <el-button type="primary" @click="fetchLogs" :icon="Timer">Làm mới</el-button>
+        <el-button type="primary" @click="fetchLogs" :icon="Timer">{{ $t('admin.refreshBtn') }}</el-button>
       </div>
     </section>
 
@@ -110,37 +128,37 @@ const getActionTagType = (action) => {
             <div class="expand-detail">
               <div class="detail-grid">
                 <div class="data-block">
-                  <h4>Dữ liệu cũ (Old Data)</h4>
+                  <h4>{{ $t('admin.oldDataTitle') }}</h4>
                   <pre v-if="props.row.old_data">{{ JSON.stringify(parseJson(props.row.old_data), null, 2) }}</pre>
-                  <span v-else class="text-muted">Không có dữ liệu</span>
+                  <span v-else class="text-muted">{{ $t('admin.noData') }}</span>
                 </div>
                 
                 <div class="data-block">
-                  <h4>Dữ liệu mới (New Data)</h4>
+                  <h4>{{ $t('admin.newDataTitle') }}</h4>
                   <pre v-if="props.row.new_data">{{ JSON.stringify(parseJson(props.row.new_data), null, 2) }}</pre>
-                  <span v-else class="text-muted">Không có dữ liệu</span>
+                  <span v-else class="text-muted">{{ $t('admin.noData') }}</span>
                 </div>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="Thời gian" width="180">
+        <el-table-column :label="$t('admin.timeCol')" width="180">
           <template #default="scope">
             <span class="time-text">{{ formatDateTime(scope.row.created_at) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="Người thực hiện" prop="user_name" width="200">
+        <el-table-column :label="$t('admin.userCol')" prop="user_name" width="200">
           <template #default="scope">
             <strong>{{ scope.row.user_name }}</strong>
             <div class="ip-text">{{ scope.row.ip_address || 'IP: N/A' }}</div>
           </template>
         </el-table-column>
 
-        <el-table-column label="Module" prop="module_name" width="150" />
+        <el-table-column :label="$t('admin.moduleCol')" prop="module_name" width="150" />
 
-        <el-table-column label="Hành động" width="120">
+        <el-table-column :label="$t('admin.actionCol')" width="120">
           <template #default="scope">
             <el-tag :type="getActionTagType(scope.row.action_type)" effect="dark" size="small">
               {{ scope.row.action_type }}
@@ -148,7 +166,11 @@ const getActionTagType = (action) => {
           </template>
         </el-table-column>
 
-        <el-table-column label="Mô tả chi tiết (Event)" prop="event_name" />
+        <el-table-column :label="$t('admin.eventDescCol')" min-width="200">
+          <template #default="scope">
+            {{ translateEvent(scope.row.event_name) }}
+          </template>
+        </el-table-column>
 
       </el-table>
 

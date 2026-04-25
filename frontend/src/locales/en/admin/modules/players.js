@@ -1,0 +1,18 @@
+export default {
+  searchPlayersPlaceholder: 'Search name, email...',
+  skillLevel: 'Skill Level',
+  active: 'Active',
+  locked: 'Locked',
+  reset: 'Reset',
+  refresh: 'Refresh',
+  player: 'Player',
+  phone: 'Phone',
+  elo: 'Elo',
+  editPlayerProfile: 'Edit Player Profile',
+  fullName: 'Full Name',
+  phoneNumber: 'Phone Number',
+  accountStatus: 'Account Status',
+  updateSuccess: 'Updated successfully',
+  loadPlayersError: 'Failed to load players',
+  updateError: 'Update failed',
+}

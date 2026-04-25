@@ -1,7 +1,8 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { Money, Trophy, UserFilled, Loading, DataLine } from '@element-plus/icons-vue'
+import { currentLocale, t } from '../../utils/locale'
 
 const stats = ref(null)
 const isLoading = ref(true)
@@ -19,9 +20,11 @@ const fetchStats = async () => {
 
 onMounted(fetchStats)
 
-// Hàm format tiền tệ VNĐ
-const formatVND = (value) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
+// Reactive currency formatter
+const formatCurrency = (value) => {
+  const locale = currentLocale.value === 'vi' ? 'vi-VN' : 'en-US'
+  const currency = currentLocale.value === 'vi' ? 'VND' : 'USD'
+  return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(value)
 }
 </script>
 
@@ -31,22 +34,22 @@ const formatVND = (value) => {
       <section class="hero-panel">
         <div class="hero-copy">
           <span class="eyebrow">Admin control center</span>
-          <h2>Dashboard điều hành Saigon Tennis</h2>
+          <h2>{{ $t('admin.adminOpsCenter') }}</h2>
           <p>
-            Theo dõi doanh thu, giải đấu, đăng ký và tiến độ vận hành trong một màn hình, theo phong cách gọn, sáng và hiện đại.
+            {{ $t('admin.adminOpsDesc') }}
           </p>
         </div>
         <div class="hero-actions">
           <div class="hero-metric">
-            <span>Hoàn thành</span>
+            <span>{{ $t('admin.completed') }}</span>
             <strong>{{ stats.completion_rate }}%</strong>
           </div>
           <div class="hero-metric">
-            <span>Trận đã xong</span>
+            <span>{{ $t('admin.matchesDone') }}</span>
             <strong>{{ stats.completed_matches }}</strong>
           </div>
           <div class="hero-metric accent">
-            <span>Tổng trận</span>
+            <span>{{ $t('admin.totalMatches') }}</span>
             <strong>{{ stats.total_matches }}</strong>
           </div>
         </div>
@@ -57,8 +60,8 @@ const formatVND = (value) => {
           <div class="card-bg-decoration"></div>
           <div class="stat-content">
             <div class="stat-text">
-              <span class="stat-label">Tổng Doanh Thu</span>
-              <strong class="stat-value">{{ formatVND(stats.revenue) }}</strong>
+              <span class="stat-label">{{ $t('admin.totalRevenue') }}</span>
+              <strong class="stat-value">{{ formatCurrency(stats.revenue) }}</strong>
             </div>
             <div class="stat-icon-wrap finance-icon">
               <el-icon><Money /></el-icon>
@@ -69,7 +72,7 @@ const formatVND = (value) => {
         <div class="stat-card glass-stat-card">
           <div class="stat-content">
             <div class="stat-text">
-              <span class="stat-label">Giải Đang Diễn Ra</span>
+              <span class="stat-label">{{ $t('admin.activeTournaments') }}</span>
               <strong class="stat-value">
                 {{ stats.active_tournaments }}
                 <span class="val-sep">/</span>
@@ -85,7 +88,7 @@ const formatVND = (value) => {
         <div class="stat-card glass-stat-card">
           <div class="stat-content">
             <div class="stat-text">
-              <span class="stat-label">Đơn Chờ Phê Duyệt</span>
+              <span class="stat-label">{{ $t('admin.pendingApprovals') }}</span>
               <strong class="stat-value warning-text">{{ stats.pending_approvals }}</strong>
             </div>
             <div class="stat-icon-wrap pending-icon">
@@ -97,7 +100,7 @@ const formatVND = (value) => {
         <div class="stat-card glass-stat-card">
           <div class="stat-content">
             <div class="stat-text">
-              <span class="stat-label">Lượt Đăng Ký Tham Gia</span>
+              <span class="stat-label">{{ $t('admin.totalRegistrations') }}</span>
               <strong class="stat-value">{{ stats.total_registrations }}</strong>
             </div>
             <div class="stat-icon-wrap user-icon">
@@ -110,8 +113,8 @@ const formatVND = (value) => {
       <div class="overview-details-grid">
         <div class="premium-glass-card performance-section">
           <div class="card-header-row">
-            <h3><el-icon><DataLine /></el-icon> Hiệu suất Hệ thống</h3>
-            <span class="live-tag">● Cập nhật thời gian thực</span>
+            <h3><el-icon><DataLine /></el-icon> {{ $t('admin.systemPerformance') }}</h3>
+            <span class="live-tag">● {{ $t('admin.liveUpdate') }}</span>
           </div>
 
           <div class="performance-body">
@@ -126,7 +129,7 @@ const formatVND = (value) => {
                 <template #default="{ percentage }">
                   <div class="percentage-wrap">
                     <span class="percentage-value">{{ percentage }}%</span>
-                    <span class="percentage-label">Hoàn thành</span>
+                    <span class="percentage-label">{{ $t('admin.completed') }}</span>
                   </div>
                 </template>
               </el-progress>
@@ -136,16 +139,16 @@ const formatVND = (value) => {
               <div class="p-stat-item">
                 <span class="p-dot bg-primary"></span>
                 <div class="p-info">
-                  <span class="p-label">Trận đấu đã xong</span>
-                  <strong class="p-val">{{ stats.completed_matches }} trận</strong>
+                  <span class="p-label">{{ $t('admin.matchesDone') }}</span>
+                  <strong class="p-val">{{ stats.completed_matches }} {{ $t('admin.matches').toLowerCase() }}</strong>
                 </div>
               </div>
 
               <div class="p-stat-item">
                 <span class="p-dot bg-neutral"></span>
                 <div class="p-info">
-                  <span class="p-label">Tổng số trận dự kiến</span>
-                  <strong class="p-val">{{ stats.total_matches }} trận</strong>
+                  <span class="p-label">{{ $t('admin.matchesExpected') }}</span>
+                  <strong class="p-val">{{ stats.total_matches }} {{ $t('admin.matches').toLowerCase() }}</strong>
                 </div>
               </div>
             </div>
@@ -153,23 +156,23 @@ const formatVND = (value) => {
         </div>
 
         <div class="quick-summary-card">
-          <h4>Báo cáo nhanh</h4>
+          <h4>{{ $t('admin.quickReport') }}</h4>
           <div class="summary-list">
             <div class="summary-item">
               <el-icon class="icon-success"><Trophy /></el-icon>
-              <p>Hiện có <span class="summary-val">{{ stats.active_tournaments }}</span> giải đấu đang mở.</p>
+              <p>{{ $t('admin.reportActiveTournaments', { count: stats.active_tournaments }) }}</p>
             </div>
             <div class="summary-item">
               <el-icon class="icon-warning"><Loading /></el-icon>
-              <p>Cần xử lý <span class="summary-val">{{ stats.pending_approvals }}</span> đơn đăng ký mới.</p>
+              <p>{{ $t('admin.reportPendingApprovals', { count: stats.pending_approvals }) }}</p>
             </div>
             <div class="summary-item">
               <el-icon class="icon-info"><UserFilled /></el-icon>
-              <p>Tổng cộng <span class="summary-val">{{ stats.total_registrations }}</span> người chơi tham gia.</p>
+              <p>{{ $t('admin.reportTotalRegistrations', { count: stats.total_registrations }) }}</p>
             </div>
             <div class="summary-item">
               <el-icon class="icon-success"><DataLine /></el-icon>
-              <p>Tỷ lệ hoàn tất trận đấu đang ở mức <span class="summary-val">{{ stats.completion_rate }}%</span>.</p>
+              <p>{{ $t('admin.reportCompletionRate', { rate: stats.completion_rate }) }}</p>
             </div>
           </div>
         </div>
@@ -177,24 +180,24 @@ const formatVND = (value) => {
 
       <section class="ops-report-grid">
         <article class="ops-report-card">
-          <span class="ops-label">Doanh thu</span>
-          <strong>{{ formatVND(stats.revenue) }}</strong>
-          <p>Ghi nhận từ các khoản thanh toán đã hoàn tất.</p>
+          <span class="ops-label">{{ $t('admin.totalRevenue') }}</span>
+          <strong>{{ formatCurrency(stats.revenue) }}</strong>
+          <p>{{ $t('admin.revenueDesc') }}</p>
         </article>
         <article class="ops-report-card">
-          <span class="ops-label">Tỷ lệ hoàn tất</span>
+          <span class="ops-label">{{ $t('admin.completed') }}</span>
           <strong>{{ stats.completion_rate }}%</strong>
-          <p>Phản ánh tiến độ xử lý các trận đấu.</p>
+          <p>{{ $t('admin.completionDesc') }}</p>
         </article>
         <article class="ops-report-card">
-          <span class="ops-label">Giải đang mở</span>
+          <span class="ops-label">{{ $t('admin.activeTournaments') }}</span>
           <strong>{{ stats.active_tournaments }}</strong>
-          <p>Số giải đang mở đăng ký hoặc đang diễn ra.</p>
+          <p>{{ $t('admin.activeTournamentsDesc') }}</p>
         </article>
         <article class="ops-report-card">
-          <span class="ops-label">Đơn chờ duyệt</span>
+          <span class="ops-label">{{ $t('admin.pendingApprovals') }}</span>
           <strong>{{ stats.pending_approvals }}</strong>
-          <p>Các đăng ký mới cần admin xử lý.</p>
+          <p>{{ $t('admin.pendingApprovalsDesc') }}</p>
         </article>
       </section>
     </template>
