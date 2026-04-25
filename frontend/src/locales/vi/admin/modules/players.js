@@ -1,0 +1,18 @@
+export default {
+  searchPlayersPlaceholder: 'Tìm tên, email...',
+  skillLevel: 'Trình độ',
+  active: 'Hoạt động',
+  locked: 'Đã khóa',
+  reset: 'Reset',
+  refresh: 'Làm mới',
+  player: 'VĐV',
+  phone: 'SĐT',
+  elo: 'Elo',
+  editPlayerProfile: 'Chỉnh sửa hồ sơ VĐV',
+  fullName: 'Họ và tên',
+  phoneNumber: 'Số điện thoại',
+  accountStatus: 'Trạng thái tài khoản',
+  updateSuccess: 'Cập nhật thành công',
+  loadPlayersError: 'Lỗi tải danh sách VĐV',
+  updateError: 'Lỗi cập nhật',
+}

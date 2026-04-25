@@ -2,14 +2,21 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { newsService } from '../../../services/newsService'
 import { Calendar, Timer, ArrowRight, Search, Collection, ArrowDown } from '@element-plus/icons-vue'
+import { currentLocale, t } from '../../../utils/locale'
 
 const newsList = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
-const selectedCategory = ref('Tất cả')
+const selectedCategory = ref(t('news.all'))
 const activeTab = ref('related')
 
-const categories = ['Tất cả', 'Thông báo', 'Highlight', 'Phân tích', 'Phỏng vấn']
+const categories = computed(() => [
+  t('news.all'),
+  t('news.typeAnnouncement'),
+  t('news.highlight'),
+  t('news.analysis'),
+  t('news.interview')
+])
 
 const fetchNews = async () => {
   loading.value = true
@@ -19,7 +26,7 @@ const fetchNews = async () => {
     }
     
     // Chỉ truyền category nếu khác 'Tất cả'
-    if (selectedCategory.value !== 'Tất cả') {
+    if (selectedCategory.value !== t('news.all')) {
       params.category = selectedCategory.value
     }
     
@@ -32,7 +39,7 @@ const fetchNews = async () => {
     let results = (data || []).filter(item => item.status === 'published')
     
     // FE Fallback Filter: Đảm bảo lọc đúng category ở FE nếu BE trả về dư thừa
-    if (selectedCategory.value !== 'Tất cả') {
+    if (selectedCategory.value !== t('news.all')) {
       results = results.filter(post => {
         // Kiểm tra field category (nếu có) hoặc post_type hoặc nội dung tiêu đề để "đoán"
         const catValue = (post.category || '').toLowerCase()
@@ -67,7 +74,7 @@ const featuredPost = computed(() => newsList.value[0])
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return new Date(dateStr).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 onMounted(fetchNews)
@@ -80,11 +87,11 @@ onMounted(fetchNews)
       <!-- TOP NAVIGATION BAR (LATEST | NEWS) -->
       <nav class="news-inner-nav">
         <div class="nav-brand">
-          <span class="l-label">LATEST</span>
+          <span class="l-label">{{ t('news.latest') }}</span>
           <span class="separator">|</span>
           <el-dropdown trigger="click">
             <span class="el-dropdown-link">
-              {{ selectedCategory === 'Tất cả' ? 'News' : selectedCategory }} <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              {{ selectedCategory === t('news.all') ? t('nav.news') : selectedCategory }} <el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
               <el-dropdown-menu>
@@ -94,7 +101,7 @@ onMounted(fetchNews)
           </el-dropdown>
         </div>
         <div class="nav-search">
-           <el-input v-model="searchQuery" placeholder="Search news..." :prefix-icon="Search" clearable class="minimal-search" />
+           <el-input v-model="searchQuery" :placeholder="t('news.searchPlaceholder')" :prefix-icon="Search" clearable class="minimal-search" />
         </div>
       </nav>
 
@@ -103,7 +110,7 @@ onMounted(fetchNews)
         <main class="main-content-area">
           <div v-if="featuredPost" class="featured-grand-entry" @click="$router.push('/news/' + featuredPost.slug)">
             <div class="entry-meta">
-              <el-tag size="small" effect="plain" class="cat-tag">{{ featuredPost.post_type === 'news' ? 'SGTN NEWS' : 'OFFICIAL' }}</el-tag>
+              <el-tag size="small" effect="plain" class="cat-tag">{{ featuredPost.post_type === 'news' ? 'SGTN NEWS' : t('news.official') }}</el-tag>
             </div>
             <h1 class="entry-title">{{ featuredPost.title }}</h1>
             <p class="entry-excerpt">{{ featuredPost.summary }}</p>
@@ -127,7 +134,7 @@ onMounted(fetchNews)
           </div>
           
           <div v-else class="empty-placeholder">
-            <el-empty description="Không có tin tức nào được tìm thấy" />
+            <el-empty :description="t('news.noNews')" />
           </div>
 
           <!-- Bottom Grid for remaining news on mobile/tablet -->
@@ -146,11 +153,11 @@ onMounted(fetchNews)
         <aside class="news-sidebar-modern">
           <div class="sidebar-box">
             <div class="sb-header">
-              <h2>NEWS</h2>
+              <h2>{{ t('nav.news') }}</h2>
             </div>
             
             <el-tabs v-model="activeTab" class="sidebar-tabs">
-              <el-tab-pane label="Related" name="related">
+              <el-tab-pane :label="t('news.related')" name="related">
                 <div class="sidebar-news-list">
                   <div v-for="post in newsList.slice(1, 6)" :key="post.id" class="sb-news-item" @click="$router.push('/news/' + post.slug)">
                     <div class="sb-item-thumb">
@@ -172,7 +179,7 @@ onMounted(fetchNews)
                 </div>
               </el-tab-pane>
 
-              <el-tab-pane label="Most Recent" name="recent">
+              <el-tab-pane :label="t('news.mostRecent')" name="recent">
                 <div class="sidebar-news-list">
                   <div v-for="post in newsList.slice(0, 5)" :key="post.id" class="sb-news-item" @click="$router.push('/news/' + post.slug)">
                     <div class="sb-item-thumb">

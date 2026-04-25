@@ -4,6 +4,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh, Check, Close } from '@element-plus/icons-vue'
 import { registrationService } from '../../services/registrationService'
 import { apiClient } from '../../services/apiClient'
+import { t } from '../../utils/locale'
+
 const search = ref('')
 const statusFilter = ref('')
 const registrations = ref([])
@@ -15,7 +17,7 @@ const loadRegistrations = async () => {
     const data = await registrationService.getAll()
     registrations.value = Array.isArray(data) ? data : (data.items || [])
   } catch (err) {
-    ElMessage.error('Lỗi tải danh sách đăng ký: ' + err.message)
+    ElMessage.error(t('admin.loadRegistrationsError') + ': ' + err.message)
   } finally {
     isLoading.value = false
   }
@@ -23,34 +25,36 @@ const loadRegistrations = async () => {
 
 const handleConfirm = (id) => {
   ElMessageBox.confirm(
-    'Xác nhận VĐV này đã hoàn tất thanh toán và cho phép tham gia giải?',
-    'Duyệt đăng ký',
+    t('admin.confirmRegTitle'),
+    t('admin.approveReg'),
     { 
-      confirmButtonText: 'Duyệt ngay',
-      cancelButtonText: 'Hủy',
+      confirmButtonText: t('admin.approveNow'),
+      cancelButtonText: t('admin.cancel'),
       type: 'success' 
     }
   ).then(async () => {
     try {
-      // Gọi API confirm mới thay vì confirm-payment cũ
       await apiClient.post(`/api/registrations/${id}/confirm`)
-      ElMessage.success('Đã duyệt vận động viên thành công!')
-      loadRegistrations() // Tải lại danh sách
+      ElMessage.success(t('admin.approveSuccess'))
+      loadRegistrations() 
     } catch (err) {
-      ElMessage.error('Lỗi khi duyệt: ' + (err.response?.data?.detail || err.message))
+      ElMessage.error(t('admin.updateError') + ': ' + (err.response?.data?.detail || err.message))
     }
   })
 }
 
 const handleCancel = (id) => {
-  ElMessageBox.confirm('Bạn có chắc muốn hủy đơn đăng ký này?', 'Cảnh báo', { type: 'warning' }).then(async () => {
+  ElMessageBox.confirm(t('admin.cancelRegConfirm'), t('admin.action'), { 
+    type: 'warning',
+    confirmButtonText: t('admin.confirm'),
+    cancelButtonText: t('admin.cancel'),
+  }).then(async () => {
     try {
-      // SỬA DÒNG NÀY: Dùng method DELETE của Admin thay vì gọi service của User
       await apiClient.delete(`/api/registrations/${id}`) 
-      ElMessage.success('Đã hủy đơn thành công')
+      ElMessage.success(t('admin.cancelSuccess'))
       loadRegistrations()
     } catch (err) {
-      ElMessage.error('Lỗi: ' + (err.response?.data?.detail || err.message))
+      ElMessage.error(t('admin.updateError') + ': ' + (err.response?.data?.detail || err.message))
     }
   })
 }
@@ -119,10 +123,10 @@ const handlePageChange = (val) => {
             LIVE
           </div>
         </div>
-        <p>Kiểm soát dòng đăng ký và phê duyệt thanh toán trực tiếp từ hệ thống.</p>
+        <p>{{ $t('admin.registrationFlow') }}</p>
       </div>
       <div class="hero-actions">
-        <el-button type="primary" plain round @click="loadRegistrations" :icon="Refresh">Làm mới dữ liệu</el-button>
+        <el-button type="primary" plain round @click="loadRegistrations" :icon="Refresh">{{ $t('admin.refreshData') }}</el-button>
       </div>
     </section>
 
@@ -130,7 +134,7 @@ const handlePageChange = (val) => {
       <div class="filter-row">
         <el-input 
           v-model="search" 
-          placeholder="Tìm tên VĐV hoặc Giải đấu..." 
+          :placeholder="$t('admin.searchRegistrationsPlaceholder')" 
           clearable 
           class="search-input"
           :prefix-icon="Search"
@@ -139,7 +143,7 @@ const handlePageChange = (val) => {
         
         <el-select 
           v-model="statusFilter" 
-          placeholder="Lọc theo Trạng thái" 
+          :placeholder="$t('admin.filterByStatus')" 
           clearable 
           class="status-select"
           @change="currentPage = 1"
@@ -152,13 +156,13 @@ const handlePageChange = (val) => {
           />
         </el-select>
 
-        <el-button @click="resetFilters" plain>Làm mới</el-button>
+        <el-button @click="resetFilters" plain>{{ $t('admin.refresh') }}</el-button>
       </div>
     </section>
 
     <section class="table-card shadow-sm">
       <el-table :data="paginatedRows" stripe v-loading="isLoading" table-layout="fixed">
-        <el-table-column label="Vận động viên" min-width="200">
+        <el-table-column :label="$t('admin.player')" min-width="200">
            <template #default="{ row }">
              <div class="player-cell">
                <span class="player-name">{{ row.player_name || 'N/A' }}</span>
@@ -167,7 +171,7 @@ const handlePageChange = (val) => {
            </template>
         </el-table-column>
         
-        <el-table-column label="Giải đấu" min-width="220">
+        <el-table-column :label="$t('admin.tournament')" min-width="220">
            <template #default="{ row }">
              <div class="tournament-cell">
                <span class="tour-name">{{ row.tournament_name }}</span>
@@ -176,7 +180,7 @@ const handlePageChange = (val) => {
            </template>
         </el-table-column>
 
-        <el-table-column label="Trạng thái" width="140" align="center">
+        <el-table-column :label="$t('admin.status')" width="140" align="center">
            <template #default="{ row }">
              <el-tag :type="getStatusType(row.status)" effect="light" class="status-tag">
                {{ row.status?.toUpperCase() }}
@@ -184,7 +188,7 @@ const handlePageChange = (val) => {
            </template>
         </el-table-column>
 
-        <el-table-column label="Thanh toán" width="140">
+        <el-table-column :label="$t('admin.payment')" width="140">
            <template #default="{ row }">
              <div class="payment-cell">
                 <el-tag :type="row.payment_status === 'paid' ? 'success' : 'info'" effect="dark">
@@ -195,10 +199,10 @@ const handlePageChange = (val) => {
            </template>
         </el-table-column>
 
-        <el-table-column label="Điều hành" width="120" fixed="right" align="center">
+        <el-table-column :label="$t('admin.action')" width="120" fixed="right" align="center">
           <template #default="{ row }">
             <div class="table-actions">
-              <el-tooltip v-if="row.status === 'pending' || row.payment_status !== 'paid'" content="Duyệt đăng ký" placement="top">
+              <el-tooltip v-if="row.status === 'pending' || row.payment_status !== 'paid'" :content="$t('admin.approveReg')" placement="top">
                 <el-button 
                   circle 
                   size="small" 
@@ -209,7 +213,7 @@ const handlePageChange = (val) => {
                 />
               </el-tooltip>
 
-              <el-tooltip v-if="row.status !== 'cancelled'" content="Hủy đăng ký" placement="top">
+              <el-tooltip v-if="row.status !== 'cancelled'" :content="$t('admin.cancel')" placement="top">
                 <el-button 
                   circle 
                   size="small" 

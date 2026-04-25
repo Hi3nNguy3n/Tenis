@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import { Trophy, Medal, Location, Connection } from '@element-plus/icons-vue'
+import { t } from '../../utils/locale'
 
 const rankings = ref([])
 const isLoading = ref(true)
@@ -18,8 +19,8 @@ const categoryOptions = ref([])
 
 const formatCategoryLabel = (value) => {
   if (!value) return ''
-  if (value === 'Singles') return 'Đơn (Singles)'
-  if (value === 'Doubles') return 'Đôi (Doubles)'
+  if (value === 'Singles') return t('common.singles')
+  if (value === 'Doubles') return t('common.doubles')
   return value
 }
 
@@ -62,7 +63,7 @@ const fetchRankings = async () => {
       buildFilterOptions(rankings.value)
     }
   } catch (error) {
-    ElMessage.error('Không thể tải Bảng xếp hạng')
+    ElMessage.error(t('common.errorLoading'))
   } finally {
     isLoading.value = false
   }
@@ -82,15 +83,15 @@ onMounted(fetchRankings)
   <div class="ranking-page">
     <div class="hero-banner">
       <el-icon class="bg-icon"><Trophy /></el-icon>
-      <h1>Bảng Xếp Hạng Global</h1>
-      <p>Nơi vinh danh những tay vợt xuất sắc nhất hệ thống Saigon Tennis Tour dựa trên điểm số Elo.</p>
+      <h1>{{ t('rankings.title') }}</h1>
+      <p>{{ t('rankings.description') }}</p>
     </div>
 
     <div class="ranking-container">
       <div class="filter-bar">
         <el-select
           v-model="filters.category"
-          placeholder="Tất cả nội dung"
+          :placeholder="t('rankings.searchPlaceholder')"
           clearable
           size="large"
           class="filter-item"
@@ -107,7 +108,7 @@ onMounted(fetchRankings)
 
         <el-select
           v-model="filters.province"
-          placeholder="Tất cả khu vực"
+          :placeholder="t('rankings.regionPlaceholder')"
           clearable
           filterable
           size="large"
@@ -126,17 +127,17 @@ onMounted(fetchRankings)
 
       <div class="leaderboard" v-loading="isLoading">
         <div v-if="rankings.length === 0" class="empty-state">
-          <el-empty description="Chưa có vận động viên nào phù hợp với bộ lọc." />
+          <el-empty :description="t('common.noData')" />
         </div>
 
         <div v-else>
           <div class="lb-header">
-            <div class="col-rank">Hạng</div>
-            <div class="col-player">Vận động viên</div>
-            <div class="col-stats hidden-mobile">Trình độ</div>
-            <div class="col-stats">Trận đấu</div>
-            <div class="col-stats">Tỷ lệ thắng</div>
-            <div class="col-points">Điểm Elo</div>
+            <div class="col-rank">{{ t('rankings.rank') }}</div>
+            <div class="col-player">{{ t('rankings.player') }}</div>
+            <div class="col-stats hidden-mobile">{{ t('rankings.level') }}</div>
+            <div class="col-stats">{{ t('rankings.matches') }}</div>
+            <div class="col-stats">{{ t('rankings.winRate') }}</div>
+            <div class="col-points">{{ t('rankings.elo') }}</div>
           </div>
 
           <div v-for="player in rankings" :key="player.player_id" class="lb-row" :class="getRankClass(player.rank)">
@@ -170,7 +171,7 @@ onMounted(fetchRankings)
               <div class="win-loss">
                 <span class="wins">{{ player.wins }}W</span> - <span class="losses">{{ player.losses }}L</span>
               </div>
-              <div class="matches-total">{{ player.matches_played }} trận</div>
+              <div class="matches-total">{{ player.matches_played }} {{ t('matches.match') }}</div>
             </div>
 
             <div class="col-stats">

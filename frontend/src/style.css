@@ -39,12 +39,12 @@ html, body {
 }
 
 html {
-  font-family: Arial, sans-serif;
+  font-family: var(--font-main);
   scrollbar-gutter: stable; /* Prevent content jumping when scrollbar appears */
 }
 
 body {
-  font-family: Arial, sans-serif !important;
+  font-family: var(--font-main) !important;
   background-color: var(--bg-soft);
   color: var(--text-dark);
   line-height: 1.6;
@@ -77,14 +77,14 @@ pre,
 blockquote,
 caption,
 figcaption {
-  font-family: Arial, sans-serif !important;
+  font-family: var(--font-main) !important;
 }
 
 #app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  font-family: Arial, sans-serif;
+  font-family: var(--font-main);
 }
 
 /* ============================================================
@@ -161,7 +161,7 @@ ul {
   align-items: center;
   justify-content: center;
   border: none;
-  font-family: Arial, sans-serif !important;
+  font-family: var(--font-main) !important;
   font-size: 0.85rem;
 }
 
@@ -199,7 +199,7 @@ ul {
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border-light);
-  font-family: Arial, sans-serif !important;
+  font-family: var(--font-main) !important;
 }
 
 .atp-table-wrapper :deep(.el-table th) {
@@ -209,11 +209,11 @@ ul {
   text-transform: uppercase;
   font-size: 0.75rem;
   letter-spacing: 0.05em;
-  font-family: Arial, sans-serif !important;
+  font-family: var(--font-main) !important;
 }
 
 .atp-table-wrapper :deep(.el-table td) {
-  font-family: Arial, sans-serif !important;
+  font-family: var(--font-main) !important;
 }
 
 /* Element Plus overrides: force font globally */

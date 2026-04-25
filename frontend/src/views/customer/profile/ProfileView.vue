@@ -1,5 +1,6 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
+import { currentLocale, t } from '../../../utils/locale'
 import { useAuthStore } from '../../../stores/auth'
 import { useTournamentStore } from '../../../stores/tournament' // Thêm import store giải đấu
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -59,14 +60,14 @@ const loadMyChallenges = async () => {
 // Xử lý Phản hồi (Chấp nhận/Từ chối)
 const handleRespond = async (challengeId, status) => {
   try {
-    const actionText = status === 'accepted' ? 'chấp nhận' : 'từ chối';
-    await ElMessageBox.confirm(`Bạn chắc chắn muốn ${actionText} lời mời này?`, 'Xác nhận');
+    const actionText = status === 'accepted' ? t('profile.accept') : t('profile.reject');
+    await ElMessageBox.confirm(t('profile.respondConfirm', { action: actionText }), t('common.confirm'));
     
     await apiClient.patch(`/api/challenges/${challengeId}/respond`, { status })
-    ElMessage.success(status === 'accepted' ? 'Đã chấp nhận lời mời!' : 'Đã từ chối lời mời.')
+    ElMessage.success(status === 'accepted' ? t('profile.acceptSuccess') : t('profile.rejectSuccess'))
     loadMyChallenges() 
   } catch (err) {
-    if (err !== 'cancel') ElMessage.error('Không thể thực hiện thao tác.')
+    if (err !== 'cancel') ElMessage.error(t('common.errorLoading'))
   }
 }
 
@@ -78,18 +79,18 @@ const handlePay = async (challengeId) => {
       window.location.href = res.payment_url 
     }
   } catch (err) {
-    ElMessage.error('Lỗi khởi tạo thanh toán.')
+    ElMessage.error(t('profile.paymentError'))
   }
 }
 
 // Helper hiển thị trạng thái
 const getChallengeStatus = (status) => {
   const map = {
-    'pending': { label: 'Đang chờ', type: 'warning' },
-    'waiting_payment': { label: 'Chờ thanh toán', type: 'danger' },
-    'paid': { label: 'Đã thanh toán', type: 'success' },
-    'scheduled': { label: 'Đã lên lịch', type: 'primary' },
-    'rejected': { label: 'Đã từ chối', type: 'info' }
+    'pending': { label: t('challenges.pending'), type: 'warning' },
+    'waiting_payment': { label: t('challenges.waiting_payment'), type: 'danger' },
+    'paid': { label: t('challenges.paid'), type: 'success' },
+    'scheduled': { label: t('challenges.scheduled'), type: 'primary' },
+    'rejected': { label: t('challenges.rejected'), type: 'info' }
   }
   return map[status] || { label: status, type: 'info' }
 }
@@ -133,9 +134,9 @@ const handleAvatarUpload = async (event) => {
   try {
     const data = await playerService.uploadAvatar(file)
     authStore.user.avatar_url = data.avatar_url
-    ElMessage.success('Cập nhật ảnh đại diện thành công!')
+    ElMessage.success(t('profile.avatarSuccess'))
   } catch (err) {
-    ElMessage.error(err.message || 'Lỗi khi upload ảnh.')
+    ElMessage.error(err.message || t('common.error'))
   } finally {
     isLoading.value = false
   }
@@ -147,9 +148,9 @@ const handleUpdate = async () => {
     const data = await playerService.updateMe(editForm.value)
     authStore.user = { ...authStore.user, ...editForm.value }
     isEditing.value = false
-    ElMessage.success('Cập nhật hồ sơ thành công!')
+    ElMessage.success(t('profile.updateSuccess'))
   } catch (error) {
-    ElMessage.error(error.message || 'Có lỗi xảy ra khi cập nhật.')
+    ElMessage.error(error.message || t('common.error'))
   } finally {
     isLoading.value = false
   }
@@ -164,17 +165,17 @@ const passwordForm = ref({
 
 const handlePasswordChange = async () => {
   if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
-    ElMessage.error('Mật khẩu xác nhận không khớp.')
+    ElMessage.error(t('profile.passwordMismatch'))
     return
   }
   isLoading.value = true
   try {
     const url = `/api/auth/change-password?old_password=${encodeURIComponent(passwordForm.value.old_password)}&new_password=${encodeURIComponent(passwordForm.value.new_password)}`
     await apiClient.post(url)
-    ElMessage.success('Đổi mật khẩu thành công!')
+    ElMessage.success(t('profile.changeSuccess'))
     passwordForm.value = { old_password: '', new_password: '', confirm_password: '' }
   } catch (err) {
-    ElMessage.error(err.message || 'Lỗi khi đổi mật khẩu.')
+    ElMessage.error(err.message || t('common.error'))
   } finally {
     isLoading.value = false
   }
@@ -216,25 +217,25 @@ const selectTab = (tab) => {
 
           <div class="hero-text-block">
             <span class="user-role-badge">
-              {{ authStore.isAdmin ? 'Ban quản trị' : 'Vận động viên' }}
+              {{ authStore.isAdmin ? t('profile.roleAdmin') : t('profile.roleAthlete') }}
             </span>
 
-            <h1>{{ authStore.user?.full_name || 'Người dùng' }}</h1>
+            <h1>{{ authStore.user?.full_name || t('chat.user') }}</h1>
 
             <div class="hero-quick-stats">
               <div class="stat-item">
                 <span class="stat-val">#{{ authStore.profile?.player_profile?.rank || '---' }}</span>
-                <span class="stat-lbl">Hạng</span>
+                <span class="stat-lbl">{{ t('profile.rank') }}</span>
               </div>
               <div class="stat-sep"></div>
               <div class="stat-item">
                 <span class="stat-val">{{ authStore.profile?.player_profile?.wins || 0 }}</span>
-                <span class="stat-lbl">Thắng</span>
+                <span class="stat-lbl">{{ t('profile.win') }}</span>
               </div>
               <div class="stat-sep"></div>
               <div class="stat-item">
                 <span class="stat-val">{{ authStore.profile?.player_profile?.losses || 0 }}</span>
-                <span class="stat-lbl">Bại</span>
+                <span class="stat-lbl">{{ t('profile.loss') }}</span>
               </div>
             </div>
           </div>
@@ -250,29 +251,29 @@ const selectTab = (tab) => {
             <div class="hamburger-box">
               <span class="hamburger-inner"></span>
             </div>
-            <span class="toggle-text">DANH MỤC HỒ SƠ</span>
+            <span class="toggle-text">{{ t('profile.categoryProfile') }}</span>
             <el-icon class="arrow-icon" :class="{ rotate: showMobileMenu }"><ArrowDown /></el-icon>
           </button>
 
           <nav class="sidebar-nav" :class="{ 'mobile-open': showMobileMenu }">
             <button class="nav-btn" :class="{ active: activeTab === 'info' }" @click="selectTab('info')">
-              <span>Hồ sơ & Lịch sử</span>
+              <span>{{ t('profile.sections.info') }}</span>
             </button>
 
             <button class="nav-btn btn-challenge-nav" :class="{ active: activeTab === 'challenges' }" @click="selectTab('challenges')">
               <el-icon class="mr-2"><Trophy /></el-icon>
-              <span>Kèo thách đấu</span>
+              <span>{{ t('profile.sections.challenges') }}</span>
               <el-badge v-if="challenges.filter(c => c.status === 'pending' && c.challenged_id === authStore.profile?.player_profile?.id).length > 0" 
                         :value="challenges.filter(c => c.status === 'pending' && c.challenged_id === authStore.profile?.player_profile?.id).length" 
                         class="ml-2" />
             </button>
 
             <button class="nav-btn" :class="{ active: activeTab === 'tournaments' }" @click="selectTab('tournaments')">
-              <span>Giải đấu của tôi</span>
+              <span>{{ t('profile.sections.tournaments') }}</span>
             </button>
 
             <button class="nav-btn" :class="{ active: activeTab === 'security' }" @click="selectTab('security')">
-              <span>Bảo mật</span>
+              <span>{{ t('profile.sections.security') }}</span>
             </button>
           </nav>
         </aside>
@@ -283,73 +284,73 @@ const selectTab = (tab) => {
             <article class="atp-card">
               <div class="card-header-flex">
                 <div class="section-title-wrap">
-                  <h2 class="atp-section-title">Thông tin cá nhân</h2>
+                  <h2 class="atp-section-title">{{ t('profile.personalInfo') }}</h2>
                   <div class="section-line"></div>
                 </div>
-                <button v-if="!isEditing" type="button" class="btn-atp-outline" @click="startEdit">Chỉnh sửa</button>
+                <button v-if="!isEditing" type="button" class="btn-atp-outline" @click="startEdit">{{ t('profile.edit') }}</button>
               </div>
 
               <div v-if="!isEditing" class="data-display-grid">
-                <div class="display-item"><label>Họ và tên</label><p>{{ authStore.user?.full_name || '---' }}</p></div>
-                <div class="display-item"><label>Email liên hệ</label><p class="text-break email-value">{{ authStore.user?.email || '---' }}</p></div>
-                <div class="display-item"><label>Số điện thoại</label><p>{{ authStore.user?.phone || 'Chưa cập nhật' }}</p></div>
-                <div class="display-item"><label>Giới tính</label><p>{{ authStore.user?.gender === 'male' ? 'Nam' : authStore.user?.gender === 'female' ? 'Nữ' : 'Khác' }}</p></div>
+                <div class="display-item"><label>{{ t('profile.fullName') }}</label><p>{{ authStore.user?.full_name || '---' }}</p></div>
+                <div class="display-item"><label>{{ t('profile.email') }}</label><p class="text-break email-value">{{ authStore.user?.email || '---' }}</p></div>
+                <div class="display-item"><label>{{ t('profile.phone') }}</label><p>{{ authStore.user?.phone || t('profile.notUpdated') }}</p></div>
+                <div class="display-item"><label>{{ t('profile.gender') }}</label><p>{{ authStore.user?.gender === 'male' ? t('profile.male') : authStore.user?.gender === 'female' ? t('profile.female') : t('profile.other') }}</p></div>
                 
-                <div class="display-item"><label>Ngày sinh</label><p>{{ authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth ? new Date(authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth).toLocaleDateString('vi-VN') : 'Chưa cập nhật' }}</p></div>
-                <div class="display-item"><label>Tỉnh / Thành phố</label><p>{{ authStore.user?.province || 'Chưa cập nhật' }}</p></div>
-                <div class="display-item"><label>Tay thuận</label><p>{{ authStore.profile?.player_profile?.play_hand === 'right' ? 'Phải' : authStore.profile?.player_profile?.play_hand === 'left' ? 'Trái' : authStore.profile?.player_profile?.play_hand === 'both' ? 'Cả hai' : 'Chưa cập nhật' }}</p></div>
+                <div class="display-item"><label>{{ t('profile.dob') }}</label><p>{{ authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth ? new Date(authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US') : t('profile.notUpdated') }}</p></div>
+                <div class="display-item"><label>{{ t('profile.province') }}</label><p>{{ authStore.user?.province || t('profile.notUpdated') }}</p></div>
+                <div class="display-item"><label>{{ t('profile.playHand') }}</label><p>{{ authStore.profile?.player_profile?.play_hand === 'right' ? t('profile.right') : authStore.profile?.player_profile?.play_hand === 'left' ? t('profile.left') : authStore.profile?.player_profile?.play_hand === 'both' ? t('profile.both') : t('profile.notUpdated') }}</p></div>
               </div>
 
               <el-form v-else :model="editForm" label-position="top" class="atp-form-modern">
                 <div class="form-grid">
-                  <el-form-item label="Họ và tên"><el-input v-model="editForm.full_name" /></el-form-item>
-                  <el-form-item label="Số điện thoại"><el-input v-model="editForm.phone" /></el-form-item>
-                  <el-form-item label="Giới tính">
+                  <el-form-item :label="t('profile.fullName')"><el-input v-model="editForm.full_name" /></el-form-item>
+                  <el-form-item :label="t('profile.phone')"><el-input v-model="editForm.phone" /></el-form-item>
+                  <el-form-item :label="t('profile.gender')">
                     <el-select v-model="editForm.gender" style="width: 100%">
-                      <el-option label="Nam" value="male" />
-                      <el-option label="Nữ" value="female" />
-                      <el-option label="Khác" value="other" />
+                      <el-option :label="t('profile.male')" value="male" />
+                      <el-option :label="t('profile.female')" value="female" />
+                      <el-option :label="t('profile.other')" value="other" />
                     </el-select>
                   </el-form-item>
                   
-                  <el-form-item label="Ngày sinh">
+                  <el-form-item :label="t('profile.dob')">
                     <el-input type="date" v-model="editForm.date_of_birth" />
                   </el-form-item>
-                  <el-form-item label="Tỉnh / Thành phố">
-                    <el-input v-model="editForm.province" placeholder="VD: TP. Hồ Chí Minh" />
+                  <el-form-item :label="t('profile.province')">
+                    <el-input v-model="editForm.province" :placeholder="t('profile.provincePlaceholder')" />
                   </el-form-item>
-                  <el-form-item label="Tay thuận">
+                  <el-form-item :label="t('profile.playHand')">
                     <el-select v-model="editForm.play_hand" style="width: 100%">
-                      <el-option label="Phải" value="right" />
-                      <el-option label="Trái" value="left" />
-                      <el-option label="Cả hai" value="both" />
+                      <el-option :label="t('profile.right')" value="right" />
+                      <el-option :label="t('profile.left')" value="left" />
+                      <el-option :label="t('profile.both')" value="both" />
                     </el-select>
                   </el-form-item>
                 </div>
                 
                 <div class="form-actions-row">
-                  <button type="button" class="btn-atp-text" @click="isEditing = false">Hủy bỏ</button>
-                  <button type="button" class="btn-atp-solid" :disabled="isLoading" @click="handleUpdate">{{ isLoading ? 'Đang lưu...' : 'Lưu thay đổi' }}</button>
+                  <button type="button" class="btn-atp-text" @click="isEditing = false">{{ t('profile.cancel') }}</button>
+                  <button type="button" class="btn-atp-solid" :disabled="isLoading" @click="handleUpdate">{{ isLoading ? t('profile.saving') : t('profile.save') }}</button>
                 </div>
               </el-form>
             </article>
 
             <article class="atp-card mt-3">
               <div class="section-title-wrap table-head">
-                <h2 class="atp-section-title">Lịch sử thi đấu gần đây</h2>
+                <h2 class="atp-section-title">{{ t('profile.matchHistory') }}</h2>
                 <div class="section-line"></div>
               </div>
               <!-- Desktop Table -->
               <div class="atp-table-wrapper hide-mobile">
-                <el-table :data="matchHistory" empty-text="Chưa có dữ liệu thi đấu" style="width: 100%">
+                <el-table :data="matchHistory" :empty-text="t('profile.noMatchData')" style="width: 100%">
                   <el-table-column prop="time" label="Thời gian" width="160" />
                   <el-table-column prop="tournament_name" label="Giải đấu" />
                   <el-table-column prop="opponent" label="Đối thủ" />
                   <el-table-column prop="round" label="Vòng" width="100" />
                   <el-table-column prop="status" label="Kết quả" width="100">
-                     <template #default="scope">
-                        <span :class="['result-tag', scope.row.status === 'THẮNG' ? 'win' : 'lose']">{{ scope.row.status }}</span>
-                     </template>
+                      <template #default="scope">
+                        <span :class="['result-tag', scope.row.status === 'THẮNG' ? 'win' : 'lose']">{{ scope.row.status === 'THẮNG' ? t('profile.winTag') : t('profile.loseTag') }}</span>
+                      </template>
                   </el-table-column>
                 </el-table>
               </div>
@@ -358,7 +359,7 @@ const selectTab = (tab) => {
               <div class="mobile-history-list hide-desktop">
                 <div v-for="(match, idx) in matchHistory" :key="idx" class="mobile-match-item">
                   <div class="m-match-header">
-                    <span :class="['result-tag', match.status === 'THẮNG' ? 'win' : 'lose']">{{ match.status }}</span>
+                    <span :class="['result-tag', match.status === 'THẮNG' ? 'win' : 'lose']">{{ match.status === 'THẮNG' ? t('profile.winTag') : t('profile.loseTag') }}</span>
                     <span class="m-match-time">{{ match.time }}</span>
                   </div>
                   <div class="m-match-body">
@@ -367,7 +368,7 @@ const selectTab = (tab) => {
                     <div class="m-match-row"><b>Vòng:</b> <span>{{ match.round }}</span></div>
                   </div>
                 </div>
-                <el-empty v-if="matchHistory.length === 0" description="Chưa có dữ liệu thi đấu" />
+                <el-empty v-if="matchHistory.length === 0" :description="t('profile.noMatchData')" />
               </div>
             </article>
           </div>
@@ -376,7 +377,7 @@ const selectTab = (tab) => {
             <article class="atp-card">
               <div class="card-header-flex">
                 <div class="section-title-wrap">
-                  <h2 class="atp-section-title">Kèo thách đấu 1vs1</h2>
+                  <h2 class="atp-section-title">{{ t('profile.challenge1v1') }}</h2>
                   <div class="section-line"></div>
                 </div>
                 <el-button :icon="Refresh" circle @click="loadMyChallenges" :loading="isProcessing" />
@@ -385,7 +386,7 @@ const selectTab = (tab) => {
               <!-- Desktop Table -->
               <div class="atp-table-wrapper hide-mobile" v-loading="isProcessing">
                 <el-table :data="challenges" stripe style="width: 100%">
-                  <el-table-column label="Đối thủ & Liên hệ" min-width="220">
+                  <el-table-column :label="t('profile.opponentContact')" min-width="220">
                     <template #default="{ row }">
                       <div class="opponent-cell">
                         <el-avatar :size="40" :src="row.opponent_avatar" class="mr-3" />
@@ -393,14 +394,14 @@ const selectTab = (tab) => {
                           <span class="role-hint">{{ row.challenger_id === authStore.profile?.player_profile?.id ? 'Bạn thách đấu:' : 'Thách đấu bạn:' }}</span>
                           <b class="opp-name">{{ row.opponent_name }}</b>
                           <div class="opp-contact">
-                            <el-icon><Iphone /></el-icon> {{ row.opponent_phone || 'Chưa có SĐT' }}
+                            <el-icon><Iphone /></el-icon> {{ row.opponent_phone || t('profile.noPhone') }}
                           </div>
                         </div>
                       </div>
                     </template>
                   </el-table-column>
 
-                  <el-table-column label="Ngày dự kiến" width="140">
+                  <el-table-column :label="t('profile.proposedDate')" width="140">
                     <template #default="{ row }">
                       <div class="date-cell">
                         <el-icon class="mr-1"><CalendarIcon /></el-icon>
@@ -409,7 +410,7 @@ const selectTab = (tab) => {
                     </template>
                   </el-table-column>
 
-                  <el-table-column label="Trạng thái" width="140">
+                  <el-table-column :label="t('profile.status')" width="140">
                     <template #default="{ row }">
                       <el-tag :type="getChallengeStatus(row.status).type" effect="dark" size="small" round>
                         {{ getChallengeStatus(row.status).label.toUpperCase() }}
@@ -417,7 +418,7 @@ const selectTab = (tab) => {
                     </template>
                   </el-table-column>
 
-                  <el-table-column label="Thao tác" width="220" align="right">
+                  <el-table-column :label="t('profile.actions')" width="220" align="right">
                     <template #default="{ row }">
                       <div v-if="row.status === 'pending' && row.challenged_id === authStore.profile?.player_profile?.id" class="action-flex">
                         <el-button type="success" size="small" :icon="Check" circle @click="handleRespond(row.id, 'accepted')" />
@@ -425,11 +426,11 @@ const selectTab = (tab) => {
                       </div>
 
                       <div v-if="row.status === 'waiting_payment'" class="action-flex">
-                        <el-button type="primary" size="small" :icon="CreditCard" @click="handlePay(row.id)">Thanh toán phí</el-button>
+                        <el-button type="primary" size="small" :icon="CreditCard" @click="handlePay(row.id)">{{ t('profile.payFee') }}</el-button>
                       </div>
 
-                      <span v-if="row.status === 'paid'" class="status-hint">Admin đang xếp sân...</span>
-                      <span v-if="row.status === 'pending' && row.challenger_id === authStore.profile?.player_profile?.id" class="status-hint">Đang chờ phản hồi...</span>
+                      <span v-if="row.status === 'paid'" class="status-hint">{{ t('profile.adminScheduling') }}</span>
+                      <span v-if="row.status === 'pending' && row.challenger_id === authStore.profile?.player_profile?.id" class="status-hint">{{ t('profile.waitingOpponent') }}</span>
                     </template>
                   </el-table-column>
                 </el-table>
@@ -449,20 +450,20 @@ const selectTab = (tab) => {
                     </el-tag>
                   </div>
                   <div class="m-ch-info">
-                    <div class="m-info-line"><el-icon><Iphone /></el-icon> {{ row.opponent_phone || 'Chưa cập nhật' }}</div>
+                    <div class="m-info-line"><el-icon><Iphone /></el-icon> {{ row.opponent_phone || t('profile.notUpdated') }}</div>
                     <div class="m-info-line"><el-icon><CalendarIcon /></el-icon> {{ new Date(row.proposed_date).toLocaleDateString('vi-VN') }}</div>
                   </div>
                   <div class="m-ch-actions">
                     <div v-if="row.status === 'pending' && row.challenged_id === authStore.profile?.player_profile?.id" class="m-action-flex">
-                      <el-button type="success" size="default" block @click="handleRespond(row.id, 'accepted')">Chấp nhận</el-button>
-                      <el-button type="danger" size="default" block @click="handleRespond(row.id, 'rejected')">Từ chối</el-button>
+                      <el-button type="success" size="default" block @click="handleRespond(row.id, 'accepted')">{{ t('profile.acceptBtn') }}</el-button>
+                      <el-button type="danger" size="default" block @click="handleRespond(row.id, 'rejected')">{{ t('profile.rejectBtn') }}</el-button>
                     </div>
-                    <el-button v-if="row.status === 'waiting_payment'" type="primary" block :icon="CreditCard" @click="handlePay(row.id)">Thanh toán ngay</el-button>
-                    <span v-if="row.status === 'paid'" class="m-status-hint">Admin đang xếp sân thi đấu...</span>
-                    <span v-if="row.status === 'pending' && row.challenger_id === authStore.profile?.player_profile?.id" class="m-status-hint">Đang chờ đối phương trả lời...</span>
+                    <el-button v-if="row.status === 'waiting_payment'" type="primary" block :icon="CreditCard" @click="handlePay(row.id)">{{ t('profile.payFee') }}</el-button>
+                    <span v-if="row.status === 'paid'" class="m-status-hint">{{ t('profile.adminScheduling') }}</span>
+                    <span v-if="row.status === 'pending' && row.challenger_id === authStore.profile?.player_profile?.id" class="m-status-hint">{{ t('profile.waitingOpponent') }}</span>
                   </div>
                 </div>
-                <el-empty v-if="challenges.length === 0" description="Bạn chưa có kèo thách đấu nào." />
+                <el-empty v-if="challenges.length === 0" :description="t('profile.noChallenges')" />
               </div>
             </article>
           </div>
@@ -495,35 +496,35 @@ const selectTab = (tab) => {
             </div>
             <div v-else class="atp-empty-state-card">
               <div class="empty-visual">🎾</div>
-              <h3>Bạn chưa tham gia giải nào</h3>
-              <p>Khám phá các giải đấu và đăng ký ngay!</p>
-              <RouterLink to="/tournaments" class="btn-atp-solid">Tìm giải đấu ngay</RouterLink>
+              <h3>{{ t('profile.noTournaments') }}</h3>
+              <p>{{ t('profile.exploreTournaments') }}</p>
+              <RouterLink to="/tournaments" class="btn-atp-solid">{{ t('profile.findTournamentBtn') }}</RouterLink>
             </div>
           </div>
 
           <div v-else-if="activeTab === 'security'" class="tab-fade-in">
             <article class="atp-card">
-              <h2 class="atp-section-title">Đổi mật khẩu</h2>
-              <p class="section-hint">Để đảm bảo an toàn, vui lòng không chia sẻ mật khẩu của bạn với người khác.</p>
+              <h2 class="atp-section-title">{{ t('profile.changePassword') }}</h2>
+              <p class="section-hint">{{ t('profile.securityHint') }}</p>
 
               <form @submit.prevent="handlePasswordChange" class="atp-form-modern">
                 <div class="form-stack-full">
                   <div class="atp-form-group">
-                    <label>Mật khẩu hiện tại</label>
-                    <el-input v-model="passwordForm.old_password" type="password" show-password placeholder="Nhập mật khẩu hiện tại" />
+                    <label>{{ t('profile.currentPassword') }}</label>
+                    <el-input v-model="passwordForm.old_password" type="password" show-password :placeholder="t('profile.currentPasswordPlaceholder')" />
                   </div>
                   <div class="atp-form-group mt-3">
-                    <label>Mật khẩu mới</label>
-                    <el-input v-model="passwordForm.new_password" type="password" show-password placeholder="Nhập mật khẩu mới" />
+                    <label>{{ t('profile.newPassword') }}</label>
+                    <el-input v-model="passwordForm.new_password" type="password" show-password :placeholder="t('profile.newPasswordPlaceholder')" />
                   </div>
                   <div class="atp-form-group mt-3">
-                    <label>Xác nhận mật khẩu mới</label>
-                    <el-input v-model="passwordForm.confirm_password" type="password" show-password placeholder="Xác nhận lại mật khẩu mới" />
+                    <label>{{ t('profile.confirmPassword') }}</label>
+                    <el-input v-model="passwordForm.confirm_password" type="password" show-password :placeholder="t('profile.confirmPasswordPlaceholder')" />
                   </div>
                 </div>
                 <div class="form-actions-row mt-4">
                   <button type="submit" class="btn-atp-solid" :disabled="isLoading">
-                    {{ isLoading ? 'Đang xử lý...' : 'Cập nhật mật khẩu' }}
+                    {{ isLoading ? t('profile.saving') : t('profile.updatePasswordBtn') }}
                   </button>
                 </div>
               </form>

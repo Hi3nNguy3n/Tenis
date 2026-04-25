@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { newsService } from '../../../services/newsService'
 import { Calendar, User, ArrowLeft, Share, ChatLineRound, Timer } from '@element-plus/icons-vue'
+import { currentLocale, t } from '../../../utils/locale'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,7 +41,7 @@ onUnmounted(() => {
 
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('vi-VN', { 
+  return new Date(dateStr).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { 
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
   })
 }
@@ -65,15 +66,15 @@ const formatDate = (dateStr) => {
 
         <main class="article-main">
           <nav class="breadcrumb-nav">
-            <span @click="router.push('/news')" class="crumb-link">Tin tức</span>
+            <span @click="router.push('/news')" class="crumb-link">{{ t('nav.news') }}</span>
             <span class="separator">/</span>
-            <span class="crumb-active">{{ post.post_type === 'news' ? 'Tin tức' : 'Thông báo' }}</span>
+            <span class="crumb-active">{{ post.post_type === 'news' ? t('news.typeNews') : t('news.typeAnnouncement') }}</span>
           </nav>
 
           <header class="article-header">
             <div class="article-cat">
               <span class="dot"></span>
-              {{ post.post_type === 'news' ? 'Tin tức' : 'Thông báo' }}
+              {{ post.post_type === 'news' ? t('news.typeNews') : t('news.typeAnnouncement') }}
             </div>
             <h1>{{ post.title }}</h1>
             
@@ -81,8 +82,8 @@ const formatDate = (dateStr) => {
                <div class="author-block">
                  <div class="avatar-pseudo"><el-icon><User /></el-icon></div>
                  <div class="author-info">
-                   <strong>Ban Quản Trị</strong>
-                   <span>Saigon Tennis Editorial</span>
+                   <strong>{{ t('news.admin') }}</strong>
+                   <span>{{ t('news.editorial') }}</span>
                  </div>
                </div>
                <div class="date-block">
@@ -119,7 +120,7 @@ const formatDate = (dateStr) => {
             </div>
             <div class="action-footer">
               <el-button type="success" size="large" round @click="router.push('/news')">
-                <el-icon><ArrowLeft /></el-icon> Quay lại trang tin
+                <el-icon><ArrowLeft /></el-icon> {{ t('news.backToNews') }}
               </el-button>
             </div>
           </footer>

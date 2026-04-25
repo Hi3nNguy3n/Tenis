@@ -4,6 +4,7 @@ import { tournamentService } from '../../services/tournamentService'
 import { useAuthStore } from '../../stores/auth' 
 import { ElMessage } from 'element-plus'
 import apiClient from '../../services/apiClient'
+import { t } from '../../utils/locale'
 
 const authStore = useAuthStore()
 const tournaments = ref([])
@@ -31,10 +32,9 @@ const openDrawDialog = () => isDrawDialogOpen.value = true
 const openPlayoffDialog = () => isPlayoffDialogOpen.value = true
 
 const currentUserName = computed(() => {
-  return authStore.profile?.full_name || authStore.user?.full_name || 'Nguyen Cuu Minh Phu'
+  return authStore.profile?.full_name || authStore.user?.full_name || 'Admin'
 })
 
-// Tự động phát hiện xem giải có đang đánh vòng bảng không
 const hasGroupStage = computed(() => {
   if (!matches.value) return false
   return matches.value.some(m => m.round_code && m.round_code.includes('G'))
@@ -44,7 +44,6 @@ const currentTournament = computed(() => {
   return tournaments.value.find(t => t.id === selectedTournamentId.value) || null
 })
 
-// Trạng thái cho phép bốc thăm mới 
 const canDraw = computed(() => {
   if (!currentTournament.value) return false
   return ['draft', 'open'].includes(currentTournament.value.status)
@@ -55,7 +54,7 @@ const fetchTournaments = async () => {
     const data = await tournamentService.getAll({ limit: 100 })
     tournaments.value = data
   } catch (err) {
-    ElMessage.error('Lỗi tải danh sách giải: ' + err.message)
+    ElMessage.error(t('admin.loadTournamentsError') + ': ' + err.message)
   }
 }
 
@@ -66,7 +65,7 @@ const fetchMatches = async () => {
     const data = await tournamentService.getMatches(selectedTournamentId.value)
     matches.value = data
   } catch (err) {
-    ElMessage.error('Lỗi tải nhánh đấu: ' + err.message)
+    ElMessage.error(t('admin.loadMatchesError') || 'Error loading brackets: ' + err.message)
     matches.value = []
   } finally {
     isLoading.value = false
@@ -81,11 +80,11 @@ const confirmGenerateDraw = async () => {
   try {
     const response = await apiClient.post(`/api/tournaments/${selectedTournamentId.value}/generate-draw`, drawForm.value)
     lastDrawSummary.value = { message: response.message } 
-    ElMessage.success(response.message || 'Tạo lịch thi đấu thành công!')
+    ElMessage.success(response.message || t('admin.drawSuccess'))
     await fetchMatches()
   } catch (err) {
     const errorMsg = err.response?.data?.detail || err.message
-    ElMessage.error('Lỗi bốc thăm: ' + errorMsg)
+    ElMessage.error(t('admin.drawError') + ': ' + errorMsg)
   } finally {
     generating.value = false
   }
@@ -98,11 +97,11 @@ const confirmGeneratePlayoff = async () => {
   
   try {
     const response = await apiClient.post(`/api/tournaments/${selectedTournamentId.value}/generate-playoffs`, playoffForm.value)
-    ElMessage.success(response.message || 'Đã chốt bảng và tạo vòng Playoff thành công!')
+    ElMessage.success(response.message || t('admin.playoffSuccess'))
     await fetchMatches() 
   } catch (err) {
     const errorMsg = err.response?.data?.detail || err.message
-    ElMessage.error('Lỗi tạo Playoff: ' + errorMsg)
+    ElMessage.error(t('admin.playoffError') + ': ' + errorMsg)
   } finally {
     generatingPlayoff.value = false
   }
@@ -115,7 +114,6 @@ const roundOrder = (roundCode) => {
   return orderMap[normalized] ?? 99
 }
 
-// Lọc dữ liệu thành 2 danh sách riêng biệt: Vòng bảng & Playoff
 const groupedMatches = computed(() => {
   const roundsMap = {}
   matches.value.forEach(m => {
@@ -144,21 +142,21 @@ onMounted(fetchTournaments)
           <span class="section-kicker">Drawing Matrix</span>
           <div class="live-indicator"><span class="dot"></span>ACTIVE</div>
         </div>
-        <p>Trung tâm quản lý, bốc thăm hạt giống và chốt sơ đồ Playoff.</p>
-        <p v-if="lastDrawSummary" class="draw-summary">Hệ thống: {{ lastDrawSummary.message }}</p>
+        <p>{{ $t('admin.drawingMatrix') }}</p>
+        <p v-if="lastDrawSummary" class="draw-summary">System: {{ lastDrawSummary.message }}</p>
       </div>
       <div class="hero-actions">
         <div class="control-group-v2">
-          <el-select v-model="selectedTournamentId" placeholder="-- Chọn giải đấu --" style="width: 240px" @change="fetchMatches" filterable round>
+          <el-select v-model="selectedTournamentId" :placeholder="$t('admin.selectTournamentPlaceholder')" style="width: 240px" @change="fetchMatches" filterable round>
             <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
           </el-select>
           
           <el-button v-if="hasGroupStage" type="danger" :disabled="!selectedTournamentId" :loading="generatingPlayoff" @click="openPlayoffDialog" round>
-            Chốt Bảng & Tạo Playoff
+            {{ $t('admin.finalizeGroups') }}
           </el-button>
 
           <el-button type="primary" :disabled="!canDraw" :loading="generating" @click="openDrawDialog" class="btn-generate-premium" round>
-            Bắt đầu Bốc thăm Mới
+            {{ $t('admin.startNewDraw') }}
           </el-button>
         </div>
       </div>
@@ -166,18 +164,18 @@ onMounted(fetchTournaments)
 
     <section class="draw-container" v-loading="isLoading">
       <div v-if="!selectedTournamentId" class="empty-state">
-        <p>Vui lòng chọn một giải đấu để xem hoặc tạo sơ đồ nhánh đấu.</p>
+        <p>{{ $t('admin.emptyDrawState') }}</p>
       </div>
       <div v-else-if="matches.length === 0" class="empty-state">
-        <p>Giải đấu này chưa có nhánh đấu. Nhấn "Bắt đầu Bốc thăm Mới" để hệ thống tự động thiết lập.</p>
+        <p>{{ $t('admin.noMatchesState') }}</p>
       </div>
       
       <div v-else class="stages-wrapper">
         
         <div v-if="groupRounds.length > 0" class="stage-section">
           <div class="stage-header">
-            <h3>Giai đoạn 1: Lịch Thi Đấu Vòng Bảng</h3>
-            <p>Tất cả VĐV sẽ thi đấu vòng tròn để tính điểm xếp hạng</p>
+            <h3>{{ $t('admin.stage1Title') }}</h3>
+            <p>{{ $t('admin.stage1Desc') }}</p>
           </div>
           <div class="group-board">
             <div v-for="round in groupRounds" :key="round.roundCode" class="group-column">
@@ -185,21 +183,21 @@ onMounted(fetchTournaments)
               <div class="matches-list">
                 <div v-for="m in round.items" :key="m.id" class="match-card-premium">
                   <div class="match-top">
-                    <span class="m-no">Trận #{{ m.match_no }}</span>
+                    <span class="m-no">{{ $t('admin.matchNo') }} #{{ m.match_no }}</span>
                     <span class="m-status" :class="m.status">{{ m.status?.toUpperCase() }}</span>
                   </div>
                   <div class="match-players">
                     <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a', 'is-me': m.p1_name === currentUserName }">
-                      <span class="p-name">{{ m.p1_name || 'Đang cập nhật...' }}</span>
+                      <span class="p-name">{{ m.p1_name || '...' }}</span>
                       <span v-if="m.score && m.winner_side" class="m-score-inline">{{ m.winner_side === 'side_a' ? 'WIN' : '' }}</span>
                     </div>
                     <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b', 'is-me': m.p2_name === currentUserName }">
-                      <span class="p-name">{{ m.p2_name || 'Đang chờ đối thủ...' }}</span>
+                      <span class="p-name">{{ m.p2_name || '...' }}</span>
                       <span v-if="m.score && m.winner_side" class="m-score-inline">{{ m.winner_side === 'side_b' ? 'WIN' : '' }}</span>
                     </div>
                   </div>
                   <div class="match-footer" v-if="m.result_note || m.score_summary">
-                    Tỷ số: <strong>{{ m.result_note || m.score_summary }}</strong>
+                    {{ $t('admin.score') }}: <strong>{{ m.result_note || m.score_summary }}</strong>
                   </div>
                 </div>
               </div>
@@ -211,8 +209,8 @@ onMounted(fetchTournaments)
 
         <div v-if="knockoutRounds.length > 0" class="stage-section">
           <div class="stage-header playoff-header">
-            <h3>Giai đoạn 2: Sơ Đồ Playoff (Loại Trực Tiếp)</h3>
-            <p>Những VĐV xuất sắc nhất sẽ tiến vào nhánh đấu định đoạt ngôi vương</p>
+            <h3>{{ $t('admin.stage2Title') }}</h3>
+            <p>{{ $t('admin.stage2Desc') }}</p>
           </div>
           
           <div class="bracket-board">
@@ -230,10 +228,10 @@ onMounted(fetchTournaments)
                     </div>
                     <div class="match-players">
                       <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a' }">
-                        <span class="p-name">{{ m.p1_name || 'Đang chờ...' }}</span>
+                        <span class="p-name">{{ m.p1_name || '...' }}</span>
                       </div>
                       <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b' }">
-                        <span class="p-name">{{ m.p2_name || 'Đang chờ...' }}</span>
+                        <span class="p-name">{{ m.p2_name || '...' }}</span>
                       </div>
                     </div>
                   </div>
@@ -249,37 +247,37 @@ onMounted(fetchTournaments)
     </section>
   </div>
 
-  <el-dialog v-model="isDrawDialogOpen" title="Tùy chọn Bốc thăm & Xếp lịch" width="450px" destroy-on-close>
+  <el-dialog v-model="isDrawDialogOpen" :title="$t('admin.drawOptionsTitle')" width="450px" destroy-on-close>
     <el-form :model="drawForm" label-position="top">
-      <el-form-item label="Thể thức thi đấu">
+      <el-form-item :label="$t('admin.formatType')">
         <el-radio-group v-model="drawForm.format_type">
-          <el-radio value="knockout">Loại trực tiếp (Knockout)</el-radio>
-          <el-radio value="round_robin">Vòng tròn (Chia bảng)</el-radio>
+          <el-radio value="knockout">{{ $t('admin.knockout') }}</el-radio>
+          <el-radio value="round_robin">{{ $t('admin.roundRobin') }}</el-radio>
         </el-radio-group>
       </el-form-item>
-      <el-form-item v-if="drawForm.format_type === 'round_robin'" label="Số lượng bảng đấu">
+      <el-form-item v-if="drawForm.format_type === 'round_robin'" :label="$t('admin.numGroups')">
         <el-input-number v-model="drawForm.num_groups" :min="1" :max="16" />
-        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Hệ thống sẽ tự động chia đều VĐV vào các bảng.</div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">{{ $t('admin.numGroupsDesc') }}</div>
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="isDrawDialogOpen = false">Hủy</el-button>
-      <el-button type="primary" @click="confirmGenerateDraw">Bốc thăm</el-button>
+      <el-button @click="isDrawDialogOpen = false">{{ $t('admin.cancel') }}</el-button>
+      <el-button type="primary" @click="confirmGenerateDraw">{{ $t('admin.confirm') }}</el-button>
     </template>
   </el-dialog>
 
-  <el-dialog v-model="isPlayoffDialogOpen" title="Chốt Bảng & Tạo vòng Knockout" width="450px" destroy-on-close>
+  <el-dialog v-model="isPlayoffDialogOpen" :title="$t('admin.finalizePlayoffTitle')" width="450px" destroy-on-close>
     <el-form :model="playoffForm" label-position="top">
       <div style="margin-bottom: 20px; color: #b91c1c; font-size: 0.9rem; background: #fef2f2; padding: 12px; border-radius: 8px;">
-        <strong>Lưu ý:</strong> Hành động này sẽ khóa dữ liệu vòng bảng, tự động quét Bảng xếp hạng và tạo các trận Playoff.
+        {{ $t('admin.finalizePlayoffNote') }}
       </div>
-      <el-form-item label="Số VĐV đi tiếp mỗi bảng">
+      <el-form-item :label="$t('admin.advancersPerGroup')">
         <el-input-number v-model="playoffForm.advancers_per_group" :min="1" :max="4" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="isPlayoffDialogOpen = false">Hủy</el-button>
-      <el-button type="danger" @click="confirmGeneratePlayoff">Tạo Sơ Đồ Playoff</el-button>
+      <el-button @click="isPlayoffDialogOpen = false">{{ $t('admin.cancel') }}</el-button>
+      <el-button type="danger" @click="confirmGeneratePlayoff">{{ $t('admin.generatePlayoffBtn') }}</el-button>
     </template>
   </el-dialog>
 </template>

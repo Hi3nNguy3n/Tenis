@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import {
@@ -23,10 +23,47 @@ import {
 } from '@element-plus/icons-vue'
 import { adminModules } from '../constants/adminNavigation'
 import { useAuthStore } from '../stores/auth'
+import { currentLocale, t, toggleLocale } from '../utils/locale'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+
+// Mapping logic for localized labels
+const getLocalizedLabel = (label) => {
+  const labelMap = {
+    'Bảng điều khiển': t('admin.dashboard'),
+    'Hồ sơ Admin': t('admin.adminProfile'),
+    'Vận động viên': t('admin.players'),
+    'Giải đấu': t('admin.tournaments'),
+    'Danh sách Đăng ký': t('admin.registrations'),
+    'Bốc thăm & Nhánh': t('admin.draws'),
+    'Quản lý Sân': t('admin.courts'),
+    'Trận đấu': t('admin.matches'),
+    'Lịch trình': t('admin.schedule'),
+    'BXH & Điểm số': t('admin.rankings'),
+    'Điểm danh QR': t('admin.checkIn'),
+    'Thanh toán': t('admin.payments'),
+    'Nhật ký hệ thống': t('admin.logs'),
+    'Lịch thi đấu ngày': t('admin.dailySchedule'),
+    'Lịch tổng quan': t('admin.calendar'),
+    'Tin tức': t('admin.news'),
+    'Gửi mail hàng loạt': t('admin.mailCampaign'),
+    'Tạo trận thủ công': t('admin.createMatch')
+  }
+  return labelMap[label] || label
+}
+
+const getLocalizedSection = (section) => {
+  const sectionMap = {
+    'Tổng quan': t('admin.overview'),
+    'Vận hành': t('admin.operation'),
+    'Giải đấu': t('admin.tournaments'),
+    'Điều phối': t('admin.coordination'),
+    'Hệ thống': t('admin.system')
+  }
+  return sectionMap[section] || section
+}
 
 const iconMap = {
   'Bảng điều khiển': DataBoard,
@@ -46,6 +83,7 @@ const iconMap = {
   'Lịch tổng quan': Calendar,
   'Tin tức': Files,
   'Gửi mail hàng loạt': Message,
+  'Tạo trận thủ công': Monitor
 }
 
 const activeGroups = ref(['Tổng quan', 'Giải đấu'])
@@ -65,30 +103,77 @@ const groupedNavigation = computed(() => {
   const groups = new Map()
 
   adminModules.forEach((item) => {
-    if (!groups.has(item.section)) {
-      groups.set(item.section, [])
+    const localizedSection = getLocalizedSection(item.section)
+    if (!groups.has(localizedSection)) {
+      groups.set(localizedSection, {
+        originalSection: item.section,
+        items: []
+      })
     }
 
-    groups.get(item.section).push({
+    groups.get(localizedSection).items.push({
       ...item,
+      localizedLabel: getLocalizedLabel(item.label),
       to: item.path ? `/admin/${item.path}` : '/admin',
       icon: iconMap[item.label] || Memo,
     })
   })
 
-  return Array.from(groups.entries()).map(([label, items]) => ({
+  return Array.from(groups.entries()).map(([label, data]) => ({
     label,
-    items,
+    originalLabel: data.originalSection,
+    items: data.items,
   }))
 })
 
-const pageTitle = computed(() => route.meta.adminTitle || 'Tổng quan Quản trị')
-const pageDescription = computed(
-  () =>
-    route.meta.adminDescription ||
-    'Hệ thống quản lý giải đấu Saigon Tennis - Admin Dashboard.',
-)
-const currentUserName = computed(() => authStore.user?.full_name || authStore.user?.email || 'Quản trị viên')
+const getLocalizedTitle = (title) => {
+  const titleMap = {
+    'Tổng quan Quản trị': t('admin.dashboard'),
+    'Quản lý Vận động viên': t('admin.players'),
+    'Quản lý Giải đấu': t('admin.tournaments'),
+    'Danh sách Đăng ký': t('admin.registrations'),
+    'Bốc thăm & Nhánh': t('admin.draws'),
+    'Quản lý Sân': t('admin.courts'),
+    'Điều phối Trận đấu': t('admin.matches'),
+    'Lịch trình': t('admin.schedule'),
+    'Bảng xếp hạng': t('admin.rankings'),
+    'Điểm danh QR': t('admin.checkIn'),
+    'Đối soát Thanh toán': t('admin.payments'),
+    'Nhật ký hệ thống': t('admin.logs'),
+    'Lịch thi đấu ngày': t('admin.dailySchedule'),
+    'Lịch tổng quan': t('admin.calendar'),
+    'Quản lý Tin tức': t('admin.news'),
+    'Mail Campaign': t('admin.mailCampaign'),
+    'Tạo trận giao hữu / 1vs1': t('admin.createMatch')
+  }
+  return titleMap[title] || title
+}
+
+const getLocalizedDescription = (desc) => {
+  const descMap = {
+    'Bảng điều khiển tổng quan cho toàn bộ hệ thống quản trị.': t('admin.dashboardDesc'),
+    'Quản lý hồ sơ vận động viên, kỹ năng, khu vực và thống kê thi đấu.': t('admin.playersDesc'),
+    'Danh sách giải đấu, bộ lọc, tạo mới và chỉnh sửa thông tin giải.': t('admin.tournamentsDesc'),
+    'Duyệt đăng ký thi đấu, theo dõi thanh toán và trạng thái vào main draw.': t('admin.registrationsDesc'),
+    'Thiết lập bracket, seed slots, bye slots và luồng nhánh thi đấu.': t('admin.drawsDesc'),
+    'Quản lý danh sách sân, mặt sân, địa điểm và tình trạng khả dụng.': t('admin.courtsDesc'),
+    'Điều hành trận đấu, cập nhật tỷ số, người thắng và referee assignment.': t('admin.matchesDesc'),
+    'Timeline lịch thi đấu theo ngày, sân và khung giờ.': t('admin.scheduleDesc'),
+    'Bảng xếp hạng và lịch sử biến động ELO theo nhiều bộ lọc.': t('admin.rankingsDesc'),
+    'Quét QR của vận động viên để xác nhận tham gia thi đấu tại sân.': t('admin.checkInDesc'),
+    'Đối soát các giao dịch thanh toán, kiểm tra trạng thái webhook và hoàn phí.': t('admin.paymentsDesc'),
+    'Truy vết các thay đổi dữ liệu và thao tác của quản trị viên trên toàn hệ thống.': t('admin.logsDesc'),
+    'Lịch trình chi tiết theo từng cụm sân và khung giờ hàng ngày.': t('admin.dailyScheduleDesc'),
+    'Giao diện lịch theo tháng giúp theo dõi mật độ các trận đấu.': t('admin.calendarDesc'),
+    'Viết bài, tải ảnh và đăng thông báo giải đấu.': t('admin.newsDesc'),
+    'Soạn template, chọn lịch gửi, ghi log và gửi thông báo hàng loạt đến VĐV.': t('admin.mailCampaignDesc')
+  }
+  return descMap[desc] || desc
+}
+
+const pageTitle = computed(() => getLocalizedTitle(route.meta.adminTitle || 'Tổng quan Quản trị'))
+const pageDescription = computed(() => getLocalizedDescription(route.meta.adminDescription || 'Hệ thống quản lý giải đấu Saigon Tennis - Admin Dashboard.'))
+const currentUserName = computed(() => authStore.user?.full_name || authStore.user?.email || t('admin.admin'))
 const isSidebarOpen = ref(false)
 
 onMounted(() => {
@@ -100,8 +185,10 @@ onUnmounted(() => {
 })
 
 const handleLogout = () => {
-  authStore.logout()
-  router.push({ name: 'login' })
+  if (confirm(t('auth.logoutConfirm'))) {
+    authStore.logout()
+    router.push({ name: 'login' })
+  }
 }
 
 const closeSidebar = () => {
@@ -124,33 +211,46 @@ const toggleSidebar = () => {
     <aside class="admin-sidebar" :class="{ 'is-open': isSidebarOpen }">
       <div class="sidebar-glow"></div>
 
-      <div class="brand-block">
-        <RouterLink to="/admin" class="brand-link">
-          <span class="brand-logo-wrap">
-            <img
-              src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png"
-              alt="Saigon Tennis"
-              class="brand-logo"
-            />
-          </span>
-          <span>Saigon Tennis</span>
-        </RouterLink>
-        <p>Trung tâm Điều hành</p>
-      </div>
+      <el-dropdown trigger="click" placement="bottom-start" class="brand-dropdown">
+        <div class="brand-block">
+          <div class="brand-link">
+            <span class="brand-logo-wrap">
+              <img
+                src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png"
+                alt="Saigon Tennis"
+                class="brand-logo"
+              />
+            </span>
+            <span>Saigon Tennis</span>
+            <el-icon style="margin-left: auto; color: rgba(225, 255, 236, 0.75);"><ArrowRight style="transform: rotate(90deg);" /></el-icon>
+          </div>
+          <p>{{ $t('admin.opsCenter') }}</p>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="router.push('/admin')">
+              {{ $t('admin.dashboard') }}
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="handleLogout" style="color: #dc2626; font-weight: bold;">
+              {{ $t('admin.logout') }}
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
 
       <div class="nav-groups">
         <section v-for="group in groupedNavigation" :key="group.label" class="nav-group">
           <div
             class="group-header"
-            :class="{ 'is-expanded': isGroupActive(group.label) }"
-            @click="toggleGroup(group.label)"
+            :class="{ 'is-expanded': isGroupActive(group.originalLabel) }"
+            @click="toggleGroup(group.originalLabel)"
           >
             <p class="group-label">{{ group.label }}</p>
             <el-icon class="arrow-icon"><ArrowRight /></el-icon>
           </div>
 
           <transition name="collapse">
-            <div v-show="isGroupActive(group.label)" class="group-body">
+            <div v-show="isGroupActive(group.originalLabel)" class="group-body">
               <nav class="admin-nav">
                 <RouterLink
                   v-for="item in group.items"
@@ -164,7 +264,7 @@ const toggleSidebar = () => {
                     <span class="nav-icon-shell">
                       <el-icon><component :is="item.icon" /></el-icon>
                     </span>
-                    <span class="nav-label">{{ item.label }}</span>
+                    <span class="nav-label">{{ item.localizedLabel }}</span>
                   </div>
                   <span class="nav-badge" v-if="item.badge">{{ item.badge }}</span>
                 </RouterLink>
@@ -172,14 +272,6 @@ const toggleSidebar = () => {
             </div>
           </transition>
         </section>
-      </div>
-
-      <div class="sidebar-footer">
-        <div class="admin-user-chip">
-          <span class="user-label">Đang đăng nhập</span>
-          <strong>{{ currentUserName }}</strong>
-        </div>
-        <el-button class="logout-button" text @click="handleLogout">Đăng xuất</el-button>
       </div>
     </aside>
 
@@ -192,14 +284,25 @@ const toggleSidebar = () => {
             <span></span>
           </button>
           <div class="topbar-copy">
-            <p class="page-kicker">Không gian Quản trị</p>
+            <p class="page-kicker">{{ $t('admin.adminSpace') }}</p>
             <h1>{{ pageTitle }}</h1>
             <p>{{ pageDescription }}</p>
           </div>
 
-          <div class="topbar-status">
-            <span class="status-dot"></span>
-            <span>Hệ thống đang hoạt động</span>
+          <div class="topbar-actions">
+            <!-- Globe Locale Toggle -->
+            <button 
+              class="lang-toggle-btn-admin" 
+              @click="toggleLocale" 
+            >
+              <span class="globe-icon">🌐</span>
+              <span class="lang-text">{{ currentLocale.toUpperCase() }}</span>
+            </button>
+
+            <div class="topbar-status">
+              <span class="status-dot"></span>
+              <span>{{ $t('admin.systemActive') }}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -296,6 +399,15 @@ const toggleSidebar = () => {
   pointer-events: none;
 }
 
+.brand-dropdown {
+  width: 100%;
+  display: block;
+}
+
+.brand-dropdown:focus-visible {
+  outline: none;
+}
+
 .brand-block {
   position: relative;
   z-index: 1;
@@ -303,6 +415,13 @@ const toggleSidebar = () => {
   gap: 8px;
   padding: 10px 12px 14px;
   margin-bottom: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-radius: 8px;
+}
+
+.brand-block:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .brand-link {
@@ -666,6 +785,40 @@ const toggleSidebar = () => {
   color: #0f172a;
   font-size: 0.88rem;
   white-space: nowrap;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.lang-toggle-btn-admin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  padding: 8px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+}
+
+.lang-toggle-btn-admin:hover {
+  background: #f0fdf4;
+  transform: translateY(-1px);
+}
+
+.lang-toggle-btn-admin .globe-icon {
+  font-size: 1.1rem;
+}
+
+.lang-toggle-btn-admin .lang-text {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #0f172a;
 }
 
 .status-dot {

@@ -1,0 +1,18 @@
+export default {
+  typeNews: 'News',
+  typeAnnouncement: 'Announcement',
+  admin: 'Administrator',
+  editorial: 'Saigon Tennis Editorial',
+  backToNews: 'Back to News',
+  latest: 'Latest',
+  readMore: 'Read More',
+  all: 'All',
+  highlight: 'Highlight',
+  analysis: 'Analysis',
+  interview: 'Interview',
+  searchPlaceholder: 'Search news...',
+  related: 'Related',
+  mostRecent: 'Most Recent',
+  noNews: 'No news found',
+  official: 'OFFICIAL',
+}

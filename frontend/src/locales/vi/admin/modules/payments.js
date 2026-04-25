@@ -1,0 +1,18 @@
+export default {
+  loadPaymentsError: 'Lỗi tải danh sách thanh toán: ',
+  noDataToExport: 'Không có dữ liệu để xuất',
+  exportSuccess: 'Đã xuất báo cáo CSV thành công',
+  exportError: 'Lỗi khi xuất báo cáo: ',
+  financialOversight: 'Tổng quan tài chính',
+  financialOversightDesc: 'Theo dõi các giao dịch từ cổng thanh toán và quản lý doanh thu thời gian thực.',
+  searchPaymentPlaceholder: 'Tìm tên VĐV hoặc Mã giao dịch...',
+  allTournaments: 'Tất cả giải đấu',
+  friendlyFee: '🌟 Phí Giao hữu (1vs1)',
+  exportCsvBtn: 'Xuất báo cáo CSV',
+  transactionCol: 'Giao dịch',
+  payerCol: 'Người nộp',
+  contentCol: 'Nội dung',
+  amountCol: 'Số tiền',
+  timeCol: 'Thời gian',
+  noPaymentData: 'Không có dữ liệu giao dịch',
+}

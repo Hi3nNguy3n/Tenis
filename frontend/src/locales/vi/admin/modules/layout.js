@@ -1,0 +1,72 @@
+export default {
+  // Sidebar
+  dashboard: 'Bảng điều khiển',
+  adminProfile: 'Hồ sơ Admin',
+  players: 'Vận động viên',
+  tournaments: 'Giải đấu',
+  registrations: 'Danh sách Đăng ký',
+  draws: 'Bốc thăm & Nhánh',
+  courts: 'Quản lý Sân',
+  matches: 'Trận đấu',
+  schedule: 'Lịch trình',
+  rankings: 'BXH & Điểm số',
+  checkIn: 'Điểm danh QR',
+  payments: 'Thanh toán',
+  logs: 'Nhật ký hệ thống',
+  dailySchedule: 'Lịch thi đấu ngày',
+  calendar: 'Lịch tổng quan',
+  news: 'Tin tức',
+  mailCampaign: 'Gửi mail hàng loạt',
+  createMatch: 'Tạo trận thủ công',
+
+  // Descriptions
+  dashboardDesc: 'Bảng điều khiển tổng quan cho toàn bộ hệ thống quản trị.',
+  playersDesc: 'Quản lý hồ sơ vận động viên, kỹ năng, khu vực và thống kê thi đấu.',
+  tournamentsDesc: 'Danh sách giải đấu, bộ lọc, tạo mới và chỉnh sửa thông tin giải.',
+  registrationsDesc: 'Duyệt đăng ký thi đấu, theo dõi thanh toán và trạng thái vào main draw.',
+  drawsDesc: 'Thiết lập bracket, seed slots, bye slots và luồng nhánh thi đấu.',
+  courtsDesc: 'Quản lý danh sách sân, mặt sân, địa điểm và tình trạng khả dụng.',
+  matchesDesc: 'Điều hành trận đấu, cập nhật tỷ số, người thắng và referee assignment.',
+  scheduleDesc: 'Timeline lịch thi đấu theo ngày, sân và khung giờ.',
+  rankingsDesc: 'Bảng xếp hạng và lịch sử biến động ELO theo nhiều bộ lọc.',
+  checkInDesc: 'Quét QR của vận động viên để xác nhận tham gia thi đấu tại sân.',
+  paymentsDesc: 'Đối soát các giao dịch thanh toán, kiểm tra trạng thái webhook và hoàn phí.',
+  logsDesc: 'Truy vết các thay đổi dữ liệu và thao tác của quản trị viên trên toàn hệ thống.',
+  dailyScheduleDesc: 'Lịch trình chi tiết theo từng cụm sân và khung giờ hàng ngày.',
+  calendarDesc: 'Giao diện lịch theo tháng giúp theo dõi mật độ các trận đấu.',
+  newsDesc: 'Viết bài, tải ảnh và đăng thông báo giải đấu.',
+  mailCampaignDesc: 'Soạn template, chọn lịch gửi, ghi log và gửi thông báo hàng loạt đến VĐV.',
+
+  // Sections
+  overview: 'Tổng quan',
+  operation: 'Vận hành',
+  coordination: 'Điều phối',
+  system: 'Hệ thống',
+
+  // Topbar
+  adminSpace: 'Không gian Quản trị',
+  opsCenter: 'Trung tâm Điều hành',
+  systemActive: 'Hệ thống đang hoạt động',
+  loggedInAs: 'Đang đăng nhập',
+  logout: 'Đăng xuất',
+  admin: 'Quản trị viên',
+
+  // Profile Page
+  adminAccount: 'Tài khoản Quản trị',
+  adminProfileDesc: 'Thông tin tài khoản hiện tại dựa trên API /api/players/me.',
+  loadProfileError: 'Không thể tải hồ sơ từ API /api/players/me.',
+  userID: 'Mã người dùng (User ID)',
+  roleID: 'Mã vai trò (Role ID)',
+
+  // Common UI
+  search: 'Tìm kiếm...',
+  filter: 'Bộ lọc',
+  add: 'Thêm mới',
+  edit: 'Chỉnh sửa',
+  delete: 'Xóa',
+  save: 'Lưu thay đổi',
+  cancel: 'Hủy',
+  confirm: 'Xác nhận',
+  status: 'Trạng thái',
+  action: 'Hành động',
+}

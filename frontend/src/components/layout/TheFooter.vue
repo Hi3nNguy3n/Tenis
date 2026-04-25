@@ -1,5 +1,6 @@
 <script setup>
 import { RouterLink } from 'vue-router'
+import { t } from '../../utils/locale'
 </script>
 
 <template>
@@ -13,16 +14,16 @@ import { RouterLink } from 'vue-router'
         <RouterLink to="/" @click="window.scrollTo(0,0)" class="logo-link">
           <img src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png" alt="Saigon Tennis" class="footer-logo" />
         </RouterLink>
-        <p class="brand-desc">Hệ thống quản lý giải đấu và cộng đồng quần vợt chuyên nghiệp hàng đầu. Kết nối đam mê, nâng tầm đẳng cấp.</p>
+        <p class="brand-desc">{{ t('auth.brandDesc') }}</p>
         
         <div class="contact-list">
           <div class="contact-item">
             <span class="c-icon">📍</span>
-            <span>173 Cao Thắng, Phường 12, Quận 10, TP.HCM</span>
+            <span>{{ t('footer.address') }}: 173 Cao Thắng, Phường 12, Quận 10, TP.HCM</span>
           </div>
           <div class="contact-item">
             <span class="c-icon">📞</span>
-            <span>0904.599.785</span>
+            <span>{{ t('footer.phone') }}: 0904.599.785</span>
           </div>
           <div class="contact-item">
             <span class="c-icon">✉️</span>
@@ -32,19 +33,19 @@ import { RouterLink } from 'vue-router'
       </div>
 
       <div class="footer-links">
-        <h4>Liên kết nhanh</h4>
+        <h4>{{ t('footer.menu') }}</h4>
         <ul>
-          <li><RouterLink to="/players"><span class="arrow">→</span> Vận động viên</RouterLink></li>
-          <li><RouterLink to="/tournaments"><span class="arrow">→</span> Giải đấu ATP</RouterLink></li>
-          <li><RouterLink to="/matches"><span class="arrow">→</span> Lịch thi đấu</RouterLink></li>
-          <li><RouterLink to="/rankings"><span class="arrow">→</span> Bảng xếp hạng</RouterLink></li>
-          <li><RouterLink to="/news"><span class="arrow">→</span> Tin tức & Sự kiện</RouterLink></li>
+          <li><RouterLink to="/players"><span class="arrow">→</span> {{ t('nav.players') }}</RouterLink></li>
+          <li><RouterLink to="/tournaments"><span class="arrow">→</span> {{ t('nav.tournaments') }}</RouterLink></li>
+          <li><RouterLink to="/matches"><span class="arrow">→</span> {{ t('nav.matches') }}</RouterLink></li>
+          <li><RouterLink to="/rankings"><span class="arrow">→</span> {{ t('nav.rankings') }}</RouterLink></li>
+          <li><RouterLink to="/news"><span class="arrow">→</span> {{ t('nav.news') }}</RouterLink></li>
         </ul>
       </div>
 
       <div class="footer-social">
-        <h4>Kết nối với chúng tôi</h4>
-        <p>Theo dõi Saigon Tennis trên các nền tảng mạng xã hội để không bỏ lỡ những trận cầu đỉnh cao.</p>
+        <h4>{{ t('footer.social') }}</h4>
+        <p>{{ t('footer.socialDesc') || 'Theo dõi Saigon Tennis trên các nền tảng mạng xã hội.' }}</p>
         
         <div class="social-icons">
           <a href="https://www.facebook.com/share/1N74PXKSQq/" target="_blank" class="social-btn fb" title="Facebook">
@@ -62,7 +63,7 @@ import { RouterLink } from 'vue-router'
 
     <div class="footer-bottom">
       <div class="container bottom-flex">
-        <p>© 2026 SAIGON TENNIS CENTER. All rights reserved.</p>
+        <p>{{ t('footer.rights') }}</p>
         <div class="legal-links">
           <a href="#">Điều khoản sử dụng</a>
           <span class="divider">•</span>

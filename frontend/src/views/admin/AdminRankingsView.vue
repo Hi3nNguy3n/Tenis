@@ -3,28 +3,28 @@ import { ref, onMounted, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import { Trophy, Top, Bottom, DataAnalysis, Filter, Search } from '@element-plus/icons-vue'
+import { t } from '../../utils/locale'
 
 const players = ref([])
 const isLoading = ref(false)
 const searchQuery = ref('')
 const selectedCategory = ref('ALL')
 
-const categories = [
-  { label: 'Tất cả trình độ', value: 'ALL' },
+const categories = computed(() => [
+  { label: t('admin.allSkillLevels'), value: 'ALL' },
   { label: 'Beginner', value: 'Beginner' },
   { label: 'Intermediate', value: 'Intermediate' },
   { label: 'Advanced', value: 'Advanced' },
   { label: 'Professional', value: 'Professional' }
-]
+])
 
 const fetchData = async () => {
   isLoading.value = true
   try {
-    // Luôn lấy toàn bộ danh sách Rankings về để FE xử lý lọc theo Skill Level (vì BE hiện tại chỉ hỗ trợ lọc theo Singles/Doubles)
     const data = await apiClient.get('/api/players/rankings')
     players.value = data
   } catch (err) {
-    ElMessage.error('Lỗi tải bảng xếp hạng: ' + err.message)
+    ElMessage.error(t('admin.loadRankingsError') + ': ' + err.message)
   } finally {
     isLoading.value = false
   }
@@ -37,13 +37,6 @@ const filteredPlayers = computed(() => {
     return matchSearch && matchSkill
   })
 })
-
-const getRankIcon = (rank) => {
-  if (rank === 0) return { icon: Trophy, color: '#f59e0b' } // Gold
-  if (rank === 1) return { icon: Trophy, color: '#94a3b8' } // Silver
-  if (rank === 2) return { icon: Trophy, color: '#b45309' } // Bronze
-  return null
-}
 
 const getEloTrendColor = (elo) => {
   if (elo >= 1500) return '#ef4444' // Grandmaster
@@ -67,13 +60,13 @@ onMounted(fetchData)
             LIVE
           </div>
         </div>
-        <p>Theo dõi điểm số ELO và biến động thứ hạng của toàn bộ Vận động viên.</p>
+        <p>{{ $t('admin.rankingsDesc') }}</p>
       </div>
 
       <div class="filter-actions-v2">
         <el-input
           v-model="searchQuery"
-          placeholder="Tìm tên VĐV..."
+          :placeholder="$t('admin.searchPlayerPlaceholder')"
           :prefix-icon="Search"
           style="width: 220px"
           round
@@ -82,7 +75,7 @@ onMounted(fetchData)
         <el-select v-model="selectedCategory" style="width: 170px" @change="fetchData" round>
           <el-option v-for="c in categories" :key="c.value" :label="c.label" :value="c.value" />
         </el-select>
-        <el-button :icon="DataAnalysis" type="primary" round @click="fetchData">Làm mới</el-button>
+        <el-button :icon="DataAnalysis" type="primary" round @click="fetchData">{{ $t('admin.refresh') }}</el-button>
       </div>
     </section>
 
@@ -91,28 +84,28 @@ onMounted(fetchData)
         <div class="si pro"><el-icon><Top /></el-icon></div>
         <div class="sd">
           <div class="val">{{ filteredPlayers.filter(p => p.elo_points >= 1200).length }}</div>
-          <div class="lab">Hạng Pro (1200+)</div>
+          <div class="lab">{{ $t('admin.proRank') }}</div>
         </div>
       </div>
       <div class="stat-card-glass">
         <div class="si avg"><el-icon><DataAnalysis /></el-icon></div>
         <div class="sd">
           <div class="val">{{ Math.round(filteredPlayers.reduce((acc, p) => acc + p.elo_points, 0) / (filteredPlayers.length || 1)) }}</div>
-          <div class="lab">ELO Trung bình</div>
+          <div class="lab">{{ $t('admin.avgElo') }}</div>
         </div>
       </div>
       <div class="stat-card-glass">
         <div class="si active"><el-icon><Filter /></el-icon></div>
         <div class="sd">
           <div class="val">{{ filteredPlayers.length }}</div>
-          <div class="lab">Tổng số VĐV</div>
+          <div class="lab">{{ $t('admin.totalPlayers') }}</div>
         </div>
       </div>
     </div>
 
     <div class="table-card-premium shadow-sm" v-loading="isLoading">
       <el-table :data="filteredPlayers" style="width: 100%" class="modern-rank-table">
-        <el-table-column label="Hạng" min-width="80" align="center">
+        <el-table-column :label="$t('admin.rank')" min-width="80" align="center">
           <template #default="scope">
             <div class="rank-badge-cell">
               <div v-if="scope.$index < 3" class="trophy-wrap" :class="'rank-' + (scope.$index + 1)">
@@ -124,7 +117,7 @@ onMounted(fetchData)
           </template>
         </el-table-column>
 
-        <el-table-column label="Vận động viên" min-width="280">
+        <el-table-column :label="$t('admin.player')" min-width="280">
           <template #default="scope">
             <div class="player-profile-cell">
               <el-avatar :size="40" :src="scope.row.avatar_url">
@@ -132,13 +125,13 @@ onMounted(fetchData)
               </el-avatar>
               <div class="p-info">
                 <span class="p-name">{{ scope.row.full_name }}</span>
-                <span class="p-email">{{ scope.row.email || 'Hội viên Saigon Tennis' }}</span>
+                <span class="p-email">{{ scope.row.email || 'Saigon Tennis Member' }}</span>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="ELO" min-width="120" sortable prop="elo_points" align="center">
+        <el-table-column :label="$t('admin.eloPoints')" min-width="120" sortable prop="elo_points" align="center">
           <template #default="scope">
             <div class="elo-pill" :style="{ background: getEloTrendColor(scope.row.elo_points) }">
               {{ scope.row.elo_points }}
@@ -146,13 +139,13 @@ onMounted(fetchData)
           </template>
         </el-table-column>
 
-        <el-table-column label="Trận" min-width="100" align="center">
+        <el-table-column :label="$t('admin.matchesPlayed')" min-width="100" align="center">
           <template #default="scope">
             <span class="m-played">{{ scope.row.matches_played }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="Tỷ lệ thắng" min-width="200">
+        <el-table-column :label="$t('admin.winRate')" min-width="200">
           <template #default="{ row }">
             <div class="win-rate-stack">
               <div class="wr-top">
@@ -170,7 +163,7 @@ onMounted(fetchData)
           </template>
         </el-table-column>
 
-        <el-table-column label="Trình độ" min-width="150" align="center">
+        <el-table-column :label="$t('admin.skillLevel')" min-width="150" align="center">
           <template #default="scope">
             <el-tag :type="scope.row.skill_level === 'Professional' ? 'danger' : 'info'" effect="light" class="level-pill">
               {{ scope.row.skill_level || 'UNRANKED' }}

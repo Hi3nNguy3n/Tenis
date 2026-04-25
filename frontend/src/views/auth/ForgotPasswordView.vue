@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiClient } from '../../services/apiClient'
+import { t } from '../../utils/locale'
 
 const router = useRouter()
 const email = ref('')
@@ -20,9 +21,9 @@ const handleSendOtp = async () => {
   try {
     await apiClient.post('/api/auth/forgot-password', { email: email.value })
     step.value = 2
-    successMessage.value = 'Mã xác thực đã được gửi về email của bạn.'
+    successMessage.value = t('auth.otpSentSuccess')
   } catch (err) {
-    errorMessage.value = err.message || 'Lỗi khi gửi yêu cầu. Email có thể không tồn tại.'
+    errorMessage.value = err.message || t('auth.forgotErrorGeneric')
   } finally {
     isLoading.value = false
   }
@@ -34,12 +35,12 @@ const handleResetPassword = async () => {
   errorMessage.value = ''
   try {
     await apiClient.post(`/api/auth/reset-password?email=${email.value}&otp=${otp.value}&new_password=${newPassword.value}`)
-    successMessage.value = 'Đổi mật khẩu thành công! Chuyển hướng về trang đăng nhập...'
+    successMessage.value = t('auth.resetSuccess')
     setTimeout(() => {
       router.push('/login')
     }, 2000)
   } catch (err) {
-    errorMessage.value = err.message || 'Mã OTP không đúng hoặc đã hết hạn.'
+    errorMessage.value = err.message || t('auth.resetErrorOtp')
   } finally {
     isLoading.value = false
   }
@@ -55,9 +56,9 @@ const handleResetPassword = async () => {
       <section class="auth-card">
         <header class="auth-header">
           <div class="brand-logotype">Saigon Tennis</div>
-          <h1>{{ step === 1 ? 'Khôi phục mật khẩu' : 'Đặt lại mật khẩu' }}</h1>
-          <p v-if="step === 1">Nhập email liên kết với tài khoản của bạn để nhận mã OTP khôi phục.</p>
-          <p v-else>Kiểm tra email và nhập mã xác thực 6 chữ số cùng mật khẩu mới của bạn.</p>
+          <h1>{{ step === 1 ? $t('auth.forgotTitle') : $t('auth.resetTitle') }}</h1>
+          <p v-if="step === 1">{{ $t('auth.forgotSubtitle') }}</p>
+          <p v-else>{{ $t('auth.resetSubtitle') }}</p>
         </header>
 
         <div v-if="errorMessage" class="feedback error">{{ errorMessage }}</div>
@@ -66,43 +67,43 @@ const handleResetPassword = async () => {
         <div class="form-body">
           <div v-if="step === 1" class="step-container">
             <div class="field-group">
-              <label>Địa chỉ Email</label>
+              <label>{{ $t('auth.email') }}</label>
               <div class="input-wrapper">
                 <input v-model="email" type="email" placeholder="email@example.com" @keyup.enter="handleSendOtp" />
               </div>
             </div>
 
             <button class="submit-btn" :disabled="isLoading" @click="handleSendOtp">
-              {{ isLoading ? 'Đang gửi mã...' : 'Gửi mã xác thực' }}
+              {{ isLoading ? $t('auth.sendingOtp') : $t('auth.sendOtp') }}
               <span class="btn-arrow">→</span>
             </button>
           </div>
 
           <div v-if="step === 2" class="step-container">
             <div class="field-group">
-              <label>Mã xác thực (OTP)</label>
+              <label>OTP</label>
               <div class="input-wrapper">
-                <input v-model="otp" type="text" placeholder="6 chữ số" maxlength="6" />
+                <input v-model="otp" type="text" placeholder="6 digits" maxlength="6" />
               </div>
             </div>
 
             <div class="field-group">
-              <label>Mật khẩu mới</label>
+              <label>{{ $t('auth.password') }}</label>
               <div class="input-wrapper">
-                <input v-model="newPassword" type="password" placeholder="Tối thiểu 6 ký tự" @keyup.enter="handleResetPassword" />
+                <input v-model="newPassword" type="password" :placeholder="$t('auth.passwordHint')" @keyup.enter="handleResetPassword" />
               </div>
             </div>
 
             <button class="submit-btn" :disabled="isLoading" @click="handleResetPassword">
-              {{ isLoading ? 'Đang xử lý...' : 'Cập nhật mật khẩu' }}
+              {{ isLoading ? $t('auth.updatingPassword') : $t('auth.updatePassword') }}
               <span class="btn-arrow">→</span>
             </button>
-            <button class="back-link-btn" @click="step = 1">Gửi lại mã khác</button>
+            <button class="back-link-btn" @click="step = 1">{{ $t('auth.resendOtp') }}</button>
           </div>
         </div>
 
         <footer class="auth-footer">
-          <router-link to="/login">Quay lại trang đăng nhập</router-link>
+          <router-link to="/login">{{ $t('auth.backToLogin') }}</router-link>
         </footer>
       </section>
     </main>

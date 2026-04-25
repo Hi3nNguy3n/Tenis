@@ -1,0 +1,23 @@
+export default {
+  inputPlaceholder: 'Type a message...',
+  globalInputPlaceholder: 'Chat with the community...',
+  send: 'Send',
+  topPlayers: 'Hall of Fame',
+  online: 'Online',
+  privateTab: 'Chats',
+  communityTab: 'Community',
+  you: 'You',
+  noChats: 'No conversations',
+  startChatHint: 'Select a player from the list above to start chatting.',
+  deleteConfirm: 'Are you sure you want to delete this conversation?',
+  deleteTitle: 'Confirm Delete',
+  deleteSuccess: 'Conversation deleted.',
+  typing: 'is typing...',
+  communityRoom: 'Community Room',
+  connected: 'Connected',
+  connecting: 'Connecting...',
+  newsTitle: 'Tennis News',
+  newsSubtitle: 'Latest updates',
+  noNews: 'No new news available.',
+  user: 'User'
+}

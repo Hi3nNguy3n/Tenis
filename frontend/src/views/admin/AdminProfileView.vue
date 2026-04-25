@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { t } from '../../utils/locale'
 
 const authStore = useAuthStore()
 const isLoading = ref(false)
@@ -12,7 +13,7 @@ const loadProfile = async () => {
   try {
     await authStore.fetchCurrentProfile()
   } catch {
-    errorMessage.value = 'Không thể tải hồ sơ từ API /api/players/me.'
+    errorMessage.value = t('admin.loadProfileError')
   } finally {
     isLoading.value = false
   }
@@ -27,8 +28,8 @@ onMounted(() => {
   <div class="profile-grid">
     <section class="profile-card">
       <header>
-        <h2>Admin Account</h2>
-        <p>Thông tin tài khoản hiện tại dựa trên API `/api/players/me`.</p>
+        <h2>{{ $t('admin.adminAccount') }}</h2>
+        <p>{{ $t('admin.adminProfileDesc') }}</p>
       </header>
 
       <el-skeleton :loading="isLoading" animated>
@@ -45,15 +46,15 @@ onMounted(() => {
               <strong>{{ authStore.profile?.user_info?.email || authStore.user?.email || 'N/A' }}</strong>
             </div>
             <div>
-              <span>Họ và tên</span>
+              <span>{{ $t('admin.fullName') }}</span>
               <strong>{{ authStore.profile?.user_info?.full_name || authStore.user?.full_name || 'N/A' }}</strong>
             </div>
             <div>
-              <span>User ID</span>
+              <span>{{ $t('admin.userID') }}</span>
               <strong>{{ authStore.profile?.user_info?.id || 'N/A' }}</strong>
             </div>
             <div>
-              <span>Role ID</span>
+              <span>{{ $t('admin.roleID') }}</span>
               <strong>{{ authStore.profile?.user_info?.role_id || authStore.roleId || 'N/A' }}</strong>
             </div>
           </div>

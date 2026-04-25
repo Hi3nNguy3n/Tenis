@@ -4,6 +4,7 @@ import { apiClient } from '../../services/apiClient'
 import { useAuthStore } from '../../stores/auth'
 import { ElMessage } from 'element-plus'
 import { Calendar, Location, Trophy, Check, Edit, Plus, Delete } from '@element-plus/icons-vue'
+import { t } from '../../utils/locale'
 
 const authStore = useAuthStore()
 const tournaments = ref([])
@@ -12,7 +13,6 @@ const matches = ref([])
 const isLoading = ref(false)
 const courts = ref([])
 
-// --- Quản lý Dialog ---
 const showScheduleDialog = ref(false)
 const showScoreDialog = ref(false)
 
@@ -22,16 +22,15 @@ const scheduleForm = ref({ court_id: null, start_time: '' })
 const scoringMatch = ref(null)
 const scoreForm = ref({ 
   winner_side: '',
-  sets: [{ side_a: 0, side_b: 0 }] // Danh sách các set đấu
+  sets: [{ side_a: 0, side_b: 0 }] 
 })
 
 const currentUserName = computed(() => authStore.profile?.full_name || '')
 
-// --- Logic gom nhóm trận đấu ---
 const groupedMatches = computed(() => {
   const groups = {}
   matches.value.forEach(m => {
-    const label = m.round_code || 'Khác'
+    const label = m.round_code || t('admin.others')
     if (!groups[label]) groups[label] = []
     groups[label].push(m)
   })
@@ -48,40 +47,36 @@ const groupedMatches = computed(() => {
   }))
 })
 
-// --- API Functions ---
 const fetchTournaments = async () => {
   try {
     const data = await apiClient.get('/api/tournaments?limit=100')
     tournaments.value = data
-  } catch (err) { ElMessage.error('Lỗi tải danh sách giải') }
+  } catch (err) { ElMessage.error(t('admin.loadTournamentsError')) }
 }
 
 const fetchCourts = async () => {
   try {
     const data = await apiClient.get('/api/courts/')
     courts.value = data
-  } catch (err) { ElMessage.error('Lỗi tải danh sách sân') }
+  } catch (err) { ElMessage.error(t('admin.loadCourtsError') || 'Error loading courts') }
 }
 
 const fetchMatches = async () => {
-  // Sửa logic check (Cho phép số 0 đi qua)
   if (selectedTournamentId.value === null || selectedTournamentId.value === '') return
   
   isLoading.value = true
   try {
-    // Sửa đường dẫn gọi API để ăn khớp với Backend mới nâng cấp
     const data = await apiClient.get('/api/matches/', {
       params: { tournament_id: selectedTournamentId.value }
     })
     matches.value = data
   } catch (err) { 
-    ElMessage.error('Lỗi tải trận đấu') 
+    ElMessage.error(t('admin.loadMatchesError')) 
   } finally { 
     isLoading.value = false 
   }
 }
 
-// --- Xử lý Xếp lịch ---
 const openScheduleDialog = (match) => {
   schedulingMatch.value = match
   scheduleForm.value.court_id = match.court_id
@@ -92,16 +87,15 @@ const openScheduleDialog = (match) => {
 const handleSchedule = async () => {
   try {
     await apiClient.post(`/api/tournaments/matches/${schedulingMatch.value.id}/schedule`, scheduleForm.value)
-    ElMessage.success('Đã cập nhật lịch thi đấu')
+    ElMessage.success(t('admin.scheduleUpdateSuccess'))
     showScheduleDialog.value = false
     fetchMatches()
   } catch (err) { 
     const errorMsg = err.response?.data?.detail || err.message
-    ElMessage.error('Lỗi xếp lịch: ' + errorMsg)
+    ElMessage.error(t('admin.scheduleError') + ': ' + errorMsg)
   }
 }
 
-// --- Xử lý Nhập tỷ số thông minh ---
 const openScoreDialog = (match) => {
   scoringMatch.value = match
   scoreForm.value.sets = [{ side_a: 0, side_b: 0 }]
@@ -121,7 +115,7 @@ const removeSet = (index) => {
 
 const handleUpdateScore = async () => {
   if (!scoreForm.value.winner_side) {
-    ElMessage.warning('Vui lòng chọn VĐV chiến thắng!')
+    ElMessage.warning(t('admin.selectWinnerWarning'))
     return
   }
 
@@ -134,10 +128,10 @@ const handleUpdateScore = async () => {
       score: formattedScore,
       winner_side: scoreForm.value.winner_side
     })
-    ElMessage.success('Cập nhật tỷ số thành công!')
+    ElMessage.success(t('admin.scoreUpdateSuccess'))
     showScoreDialog.value = false
     fetchMatches()
-  } catch (err) { ElMessage.error('Lỗi cập nhật tỷ số') }
+  } catch (err) { ElMessage.error(t('admin.scoreUpdateError')) }
 }
 
 const getStatusType = (status) => {
@@ -165,19 +159,14 @@ onMounted(() => {
     <header class="action-bar shadow-sm">
       <div class="action-info">
         <span class="badge-live">Match Control</span>
-        <p>Điều hành luồng thi đấu và cập nhật kết quả thời gian thực (Live Data).</p>
+        <p>{{ $t('admin.matchControlDesc') }}</p>
       </div>
       <div class="filter-area">
-        <el-select v-model="selectedTournamentId" placeholder="--- Chọn giải đấu vận hành ---" size="large" @change="fetchMatches" filterable style="width: 320px">
+        <el-select v-model="selectedTournamentId" :placeholder="$t('admin.selectTournamentOpsPlaceholder')" size="large" @change="fetchMatches" filterable style="width: 350px">
+          <el-option :label="$t('admin.friendlyMatchesLabel')" :value="0" />
           <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
         </el-select>
-
-        <el-select v-model="selectedTournamentId" placeholder="--- Chọn giải đấu vận hành ---" size="large" @change="fetchMatches" filterable style="width: 320px">
-          <el-option label="🌟 Các trận Giao hữu tự do (1vs1)" :value="0" />
-          
-          <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
-        </el-select>
-        <el-button :icon="Plus" plain @click="fetchMatches" style="margin-left: 12px">Làm mới</el-button>
+        <el-button :icon="Plus" plain @click="fetchMatches" style="margin-left: 12px">{{ $t('admin.refresh') }}</el-button>
       </div>
     </header>
 
@@ -186,15 +175,15 @@ onMounted(() => {
         <div class="empty-icon-wrap">
           <el-icon :size="80"><Trophy /></el-icon>
         </div>
-        <h3>Bắt đầu điều hành trận đấu</h3>
-        <p>Vui lòng chọn một giải đấu để hiển thị danh sách các trận đấu cần xử lý.</p>
+        <h3>{{ $t('admin.startMatchControlTitle') }}</h3>
+        <p>{{ $t('admin.startMatchControlDesc') }}</p>
       </div>
 
       <div v-else class="rounds-container">
         <div v-for="round in groupedMatches" :key="round.label" class="round-section">
           <div class="round-header">
             <h3 class="round-name">{{ round.label }}</h3>
-            <span class="match-count">{{ round.items.length }} Trận</span>
+            <span class="match-count">{{ round.items.length }} {{ $t('admin.matchCountLabel') }}</span>
           </div>
           
           <div class="match-grid">
@@ -209,7 +198,7 @@ onMounted(() => {
               <div class="teams-container">
                 <div class="team-slot" :class="{ 'is-winner': m.winner_side === 'side_a' }">
                   <div class="player-info">
-                    <span class="player-name">{{ m.p1_name || 'Chưa xác định' }}</span>
+                    <span class="player-name">{{ m.p1_name || '...' }}</span>
                   </div>
                   <el-icon v-if="m.winner_side === 'side_a'" class="win-icon"><Check /></el-icon>
                 </div>
@@ -218,7 +207,7 @@ onMounted(() => {
 
                 <div class="team-slot" :class="{ 'is-winner': m.winner_side === 'side_b' }">
                   <div class="player-info">
-                    <span class="player-name">{{ m.p2_name || 'Chưa xác định' }}</span>
+                    <span class="player-name">{{ m.p2_name || '...' }}</span>
                   </div>
                   <el-icon v-if="m.winner_side === 'side_b'" class="win-icon"><Check /></el-icon>
                 </div>
@@ -227,25 +216,25 @@ onMounted(() => {
               <div class="match-meta">
                 <div class="meta-item">
                   <el-icon><Calendar /></el-icon>
-                  <span>{{ m.start_time ? new Date(m.start_time).toLocaleString('vi-VN', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'}) : 'Chưa xếp lịch' }}</span>
+                  <span>{{ m.start_time ? new Date(m.start_time).toLocaleString() : $t('admin.notScheduled') }}</span>
                 </div>
                 <div class="meta-item">
                   <el-icon><Location /></el-icon>
-                  <span>{{ courts.find(c => c.id === m.court_id)?.court_name || 'Chưa gán sân' }}</span>
+                  <span>{{ courts.find(c => c.id === m.court_id)?.court_name || $t('admin.notAssignedCourt') }}</span>
                 </div>
               </div>
 
               <div class="card-footer">
                 <el-button-group class="w-full">
-                  <el-button @click="openScheduleDialog(m)" plain class="action-btn" :icon="Calendar">Xếp lịch</el-button>
+                  <el-button @click="openScheduleDialog(m)" plain class="action-btn" :icon="Calendar">{{ $t('admin.scheduleMatch') }}</el-button>
                   <el-button 
                     @click="openScoreDialog(m)" 
                     type="primary" 
                     class="action-btn" 
                     :icon="Edit"
-                    :disabled="m.status === 'completed' || m.p1_name === 'Chưa xác định' || m.p2_name === 'Chưa xác định'"
+                    :disabled="m.status === 'completed' || !m.p1_name || !m.p2_name"
                   >
-                    Tỷ số
+                    {{ $t('admin.updateScore') }}
                   </el-button>
                 </el-button-group>
               </div>
@@ -255,15 +244,14 @@ onMounted(() => {
       </div>
     </main>
 
-    <!-- Dialogs -->
-    <el-dialog v-model="showScheduleDialog" title="Xếp lịch thi đấu" width="400px">
+    <el-dialog v-model="showScheduleDialog" :title="$t('admin.scheduleMatch')" width="400px">
        <el-form label-position="top" v-if="schedulingMatch">
-         <el-form-item label="Chọn sân thi đấu">
+         <el-form-item :label="$t('admin.selectCourt')">
            <el-select v-model="scheduleForm.court_id" style="width: 100%">
              <el-option v-for="c in courts" :key="c.id" :label="c.court_name" :value="c.id" />
            </el-select>
          </el-form-item>
-         <el-form-item label="Giờ thi đấu dự kiến">
+         <el-form-item :label="$t('admin.expectedStartTime')">
            <el-date-picker 
             v-model="scheduleForm.start_time" 
             type="datetime" 
@@ -274,21 +262,21 @@ onMounted(() => {
          </el-form-item>
        </el-form>
        <template #footer>
-         <el-button @click="showScheduleDialog = false">Hủy</el-button>
-         <el-button type="primary" @click="handleSchedule">Xác nhận</el-button>
+         <el-button @click="showScheduleDialog = false">{{ $t('admin.cancel') }}</el-button>
+         <el-button type="primary" @click="handleSchedule">{{ $t('admin.confirm') }}</el-button>
        </template>
     </el-dialog>
 
-    <el-dialog v-model="showScoreDialog" title="Cập nhật kết quả trận đấu" width="500px">
+    <el-dialog v-model="showScoreDialog" :title="$t('admin.updateScore')" width="500px">
        <div v-if="scoringMatch" class="score-container">
           <div class="winner-selector">
-             <p class="label">Ai là người chiến thắng?</p>
+             <p class="label">{{ $t('admin.whoIsWinner') }}</p>
              <el-radio-group v-model="scoreForm.winner_side" class="winner-radios">
                 <el-radio value="side_a" border><strong>{{ scoringMatch.p1_name }}</strong></el-radio>
                 <el-radio value="side_b" border><strong>{{ scoringMatch.p2_name }}</strong></el-radio>
              </el-radio-group>
           </div>
-          <el-divider>Tỷ số các Set</el-divider>
+          <el-divider>{{ $t('admin.setScoreTitle') }}</el-divider>
           <div class="sets-list">
              <div v-for="(set, index) in scoreForm.sets" :key="index" class="set-row">
                 <div class="set-label">Set {{ index + 1 }}</div>
@@ -300,11 +288,11 @@ onMounted(() => {
                 <el-button v-if="scoreForm.sets.length > 1" type="danger" :icon="Delete" circle plain @click="removeSet(index)" />
              </div>
           </div>
-          <el-button type="primary" :icon="Plus" plain class="add-set-btn" @click="addSet">Thêm Set</el-button>
+          <el-button type="primary" :icon="Plus" plain class="add-set-btn" @click="addSet">{{ $t('admin.addSet') }}</el-button>
        </div>
        <template #footer>
-         <el-button @click="showScoreDialog = false">Hủy</el-button>
-         <el-button type="success" size="large" @click="handleUpdateScore">Xác nhận kết quả</el-button>
+         <el-button @click="showScoreDialog = false">{{ $t('admin.cancel') }}</el-button>
+         <el-button type="success" size="large" @click="handleUpdateScore">{{ $t('admin.confirmResult') }}</el-button>
        </template>
     </el-dialog>
   </div>

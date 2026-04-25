@@ -4,6 +4,7 @@ import { Search, Trophy, ChatDotRound, Microphone, Promotion, CircleCheck, Close
 import apiClient from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
 import { useAuthStore } from '../../stores/auth'
+import { currentLocale, t } from '../../utils/locale'
 import { ElMessageBox, ElMessage } from 'element-plus'
 
 const chatApiBase = import.meta.env.VITE_API_CHAT_URL || 'http://127.0.0.1:8001'
@@ -115,12 +116,14 @@ const loadPlayers = async () => {
     const enriched = await Promise.all(normalized.map(async (p) => {
       let chatUserId = Number(p.user_id || p.id)
       try {
-        const matches = await apiClient.get('/api/players/search', {
-          params: { keyword: p.full_name },
-        })
-        if (Array.isArray(matches) && matches.length) {
-          const exact = matches.find((m) => (m.full_name || '').trim().toLowerCase() === (p.full_name || '').trim().toLowerCase())
-          chatUserId = Number((exact || matches[0]).id || chatUserId)
+        if (p.full_name) {
+          const matches = await apiClient.get('/api/players/search', {
+            params: { keyword: p.full_name },
+          })
+          if (Array.isArray(matches) && matches.length) {
+            const exact = matches.find((m) => (m.full_name || '').trim().toLowerCase() === (p.full_name || '').trim().toLowerCase())
+            chatUserId = Number((exact || matches[0]).id || chatUserId)
+          }
         }
       } catch {
         // keep fallback id
@@ -155,11 +158,11 @@ const loadLatestNews = async () => {
   }
 }
 
-const formatTime = (v) => v ? new Date(v).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) : ''
+const formatTime = (v) => v ? new Date(v).toLocaleTimeString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : ''
 const formatRelativeTime = (v) => {
   if (!v) return ''
   const diff = Date.now() - new Date(v).getTime()
-  if (diff < 60000) return 'vừa xong'
+  if (diff < 60000) return t('chat.justNow')
   if (diff < 3600000) return `${Math.floor(diff/60000)}p`
   if (diff < 86400000) return `${Math.floor(diff/3600000)}h`
   return `${Math.floor(diff/86400000)}d`
@@ -356,10 +359,10 @@ const deleteThread = async () => {
   if (!selectedPrivatePlayer.value) return
   const id = Number(selectedPrivatePlayer.value.chat_user_id || selectedPrivatePlayer.value.id)
   try {
-    await ElMessageBox.confirm('Xóa lịch sử trò chuyện?', 'Xóa chat', { type: 'warning' })
+    await ElMessageBox.confirm(t('chat.deleteConfirm'), t('chat.deleteTitle'), { type: 'warning' })
     await apiClient.delete(`/api/chat/thread/${id}`, { useChatApi: true, params: { token: token.value } })
     privateMessages.value[id] = []; recentChatsArr.value = recentChatsArr.value.filter(c => Number(c.id) !== id)
-    selectedPrivatePlayer.value = null; ElMessage.success('Đã xóa.')
+    selectedPrivatePlayer.value = null; ElMessage.success(t('chat.deleted'))
   } catch { /* cancelled */ }
 }
 
@@ -374,7 +377,7 @@ watch(
 onMounted(async () => {
   await loadPlayers(); authStore.hydrate(); token.value = authStore.accessToken
   const user = authStore.user || {}
-  myProfile.value = { id: Number(user.user_id || user.id), full_name: user.full_name || 'User' }
+  myProfile.value = { id: Number(user.user_id || user.id), full_name: user.full_name || t('chat.user') }
   await loadInboxFromServer(); connectSockets()
   await loadGlobalHistory()
   await loadLatestNews()
@@ -394,7 +397,7 @@ onBeforeUnmount(() => {
   <div class="chat-app">
     <!-- Header: Hall of Fame -->
     <header class="top-honor">
-      <div class="honor-label"><el-icon><Trophy /></el-icon> TOP VĐV</div>
+      <div class="honor-label"><el-icon><Trophy /></el-icon> {{ t('players.topPlayers') }}</div>
       <div class="honor-list">
         <div v-for="(p, i) in recentWinners" :key="p.id" class="win-item" @click="openPrivateChat(p)">
           <span class="rank">#{{ i+1 }}</span>
@@ -402,7 +405,7 @@ onBeforeUnmount(() => {
           <div class="win-meta"><b>{{ p.full_name }}</b><p>{{ p.elo_points }} Elo</p></div>
         </div>
       </div>
-      <div class="search-wrap"><el-input v-model="searchQuery" placeholder="Tìm kiếm..." size="small" :prefix-icon="Search" /></div>
+      <div class="search-wrap"><el-input v-model="searchQuery" :placeholder="t('common.search')" size="small" :prefix-icon="Search" /></div>
     </header>
 
     <div class="main-body">
@@ -410,18 +413,18 @@ onBeforeUnmount(() => {
       <aside class="sidebar-v2">
         <div class="profile-card">
           <img :src="authStore.user?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(myProfile.full_name)}&background=146250&color=fff`" />
-          <div class="p-info"><b>{{ myProfile.full_name }}</b><p>Đang trực tuyến</p></div>
+          <div class="p-info"><b>{{ myProfile.full_name }}</b><p>{{ t('players.online') }}</p></div>
         </div>
 
         <div class="sidebar-tabs">
           <button :class="{ active: !isMainCommunityView }" @click="isMainCommunityView = false">
-            Nhắn tin
+            {{ t('players.message') }}
             <span v-if="recentChatsArr.some((chat) => Number(chat.unreadCount || 0) > 0)" class="tab-badge">
               {{ recentChatsArr.reduce((sum, chat) => sum + Number(chat.unreadCount || 0), 0) }}
             </span>
           </button>
           <button :class="{ active: isMainCommunityView }" @click="toggleCommunityView">
-            Cộng đồng
+            {{ t('players.community') }}
             <span v-if="communityUnreadCount > 0" class="tab-badge">{{ communityUnreadCount }}</span>
           </button>
         </div>
@@ -441,7 +444,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="u-msg-row">
                 <span class="u-msg">
-                  <span v-if="recentChatsArr.find(c => Number(c.id) === Number(p.chat_user_id || p.id))?.last_sender_id === myProfile.id" class="msg-prefix">Bạn: </span>
+                  <span v-if="recentChatsArr.find(c => Number(c.id) === Number(p.chat_user_id || p.id))?.last_sender_id === myProfile.id" class="msg-prefix">{{ t('chat.me') }}: </span>
                   {{ recentChatsArr.find(c => Number(c.id) === Number(p.chat_user_id || p.id))?.lastMsg }}
                 </span>
                 <div class="u-badge-dot" v-if="unreadCountById[p.chat_user_id || p.id] > 0">{{ unreadCountById[p.chat_user_id || p.id] }}</div>
@@ -450,9 +453,9 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-if="!recentChatPlayers.length" class="sidebar-empty-state">
-            <div class="sidebar-empty-title">Chưa có cuộc trò chuyện nào</div>
+            <div class="sidebar-empty-title">{{ t('players.noConversations') }}</div>
             <div class="sidebar-empty-text">
-              Bấm vào một vận động viên ở thanh trên hoặc dùng ô tìm kiếm để bắt đầu nhắn tin.
+              {{ t('players.startMessaging') }}
             </div>
           </div>
         </div>
@@ -463,7 +466,7 @@ onBeforeUnmount(() => {
         <!-- Private Mode -->
         <template v-if="selectedPrivatePlayer && !isMainCommunityView">
           <div class="chat-top">
-            <div class="top-u"><img :src="selectedPrivatePlayer.avatar_url" /> <div><b>{{ selectedPrivatePlayer.full_name }}</b><p>Trực tuyến</p></div></div>
+            <div class="top-u"><img :src="selectedPrivatePlayer.avatar_url" /> <div><b>{{ selectedPrivatePlayer.full_name }}</b><p>{{ t('players.online') }}</p></div></div>
             <div class="top-btns">
               <el-button :icon="Delete" circle size="small" type="danger" plain @click="deleteThread" />
               <el-button :icon="Close" circle size="small" @click="selectedPrivatePlayer = null" />
@@ -477,20 +480,20 @@ onBeforeUnmount(() => {
           <div class="chat-footer">
             <input
               v-model="currentDraft"
-              placeholder="Nhập tin nhắn..."
+              :placeholder="t('chat.inputPlaceholder')"
               @input="emitTypingState(true)"
               @blur="emitTypingState(false)"
               @keyup.enter="sendMessage('private')"
             />
             <button @click="sendMessage('private')"><el-icon><Promotion /></el-icon></button>
           </div>
-          <div v-if="isPrivateTyping" class="typing-indicator">Đang nhập...</div>
+          <div v-if="isPrivateTyping" class="typing-indicator">{{ t('chat.typing') }}...</div>
         </template>
 
         <!-- Community Mode -->
         <template v-else-if="isMainCommunityView">
           <div class="chat-top">
-            <div class="top-u"><el-icon class="comm-icon"><ChatDotRound /></el-icon> <div><b>Phòng Chat Cộng Đồng</b><p :class="{ ok: isConnected }">{{ isConnected ? 'Đã kết nối' : 'Đang kết nối...' }}</p></div></div>
+            <div class="top-u"><el-icon class="comm-icon"><ChatDotRound /></el-icon> <div><b>{{ t('chat.communityRoom') }}</b><p :class="{ ok: isConnected }">{{ isConnected ? t('chat.connected') : t('chat.connecting') + '...' }}</p></div></div>
             <button class="close-comm" @click="isMainCommunityView = false"><el-icon><Close /></el-icon></button>
           </div>
           <div class="chat-msgs comm-msgs" ref="globalMessagesBox">
@@ -500,7 +503,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="chat-footer">
-            <input v-model="globalNewMessage" placeholder="Nhắn tin chung cho mọi người..." @keyup.enter="sendMessage('global')" />
+            <input v-model="globalNewMessage" :placeholder="t('chat.globalPlaceholder')" @keyup.enter="sendMessage('global')" />
             <button @click="sendMessage('global')"><el-icon><Promotion /></el-icon></button>
           </div>
         </template>
@@ -512,10 +515,10 @@ onBeforeUnmount(() => {
           <div class="right-empty-card">
             <div class="right-empty-head">
               <div>
-                <h3>Tin tức & thông báo mới</h3>
-                <p>Cập nhật nhanh để bác không phải lướt sang trang khác.</p>
+                <h3>{{ t('players.newsAndAnnouncements') }}</h3>
+                <p>{{ t('players.updateQuickly') }}</p>
               </div>
-              <RouterLink to="/news" class="right-empty-link">Xem tất cả</RouterLink>
+              <RouterLink to="/news" class="right-empty-link">{{ t('players.viewAll') }}</RouterLink>
             </div>
 
             <div v-if="latestNews.length" class="news-mini-list">
@@ -537,13 +540,13 @@ onBeforeUnmount(() => {
               />
                 <div class="news-mini-content">
                   <div class="news-mini-title">{{ news.title }}</div>
-                  <div class="news-mini-summary">{{ news.summary || 'Bấm để xem chi tiết.' }}</div>
+                  <div class="news-mini-summary">{{ news.summary || t('players.clickToSeeDetails') }}</div>
                 </div>
               </RouterLink>
             </div>
 
             <div v-else class="right-empty-note">
-              Chưa có tin mới để hiển thị.
+              {{ t('common.noNews') }}
             </div>
           </div>
         </div>

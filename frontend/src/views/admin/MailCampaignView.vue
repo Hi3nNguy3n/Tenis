@@ -5,6 +5,7 @@ import { Bell, Clock, Promotion } from '@element-plus/icons-vue'
 import { tournamentService } from '../../services/tournamentService'
 import apiClient from '../../services/apiClient'
 import { useAuthStore } from '../../stores/auth'
+import { t } from '../../utils/locale'
 
 const authStore = useAuthStore()
 const STORAGE_KEY = 'saigon_tennis_mail_campaigns'
@@ -25,12 +26,12 @@ const scheduledQueue = ref([])
 import { useRoute } from 'vue-router'
 const route = useRoute()
 
-const templates = [
-  { key: 'announcement', label: 'Thông báo giải', subject: 'Thông báo quan trọng từ Ban tổ chức', message: 'Ban tổ chức xin gửi thông báo tới các vận động viên: vui lòng theo dõi lịch thi đấu, cập nhật trạng thái đăng ký và kiểm tra thông tin giải đấu thường xuyên.' },
-  { key: 'reminder', label: 'Nhắc lịch', subject: 'Nhắc lịch thi đấu sắp diễn ra', message: 'Giải đấu sắp diễn ra. Vui lòng kiểm tra lịch thi đấu, sân thi đấu và có mặt đúng giờ theo lịch đã công bố.' },
-  { key: 'result', label: 'Kết quả', subject: 'Cập nhật kết quả và lịch tiếp theo', message: 'Kết quả thi đấu đã được cập nhật. Vui lòng xem lại bracket, kết quả trận và lịch thi đấu tiếp theo trên hệ thống.' },
-  { key: 'registration', label: 'Mở đăng ký', subject: 'Thông báo mở đăng ký giải đấu', message: 'Hệ thống đã mở đăng ký cho giải đấu. Các vận động viên vui lòng hoàn tất đăng ký trước hạn chót để được xếp vào draw.' },
-]
+const templates = computed(() => [
+  { key: 'announcement', label: t('admin.announcementTemplateLabel', 'Thông báo giải'), subject: t('admin.announcementTemplateSubject', 'Thông báo quan trọng từ Ban tổ chức'), message: t('admin.announcementTemplateMessage', 'Ban tổ chức xin gửi thông báo tới các vận động viên: vui lòng theo dõi lịch thi đấu, cập nhật trạng thái đăng ký và kiểm tra thông tin giải đấu thường xuyên.') },
+  { key: 'reminder', label: t('admin.reminderTemplateLabel', 'Nhắc lịch'), subject: t('admin.reminderTemplateSubject', 'Nhắc lịch thi đấu sắp diễn ra'), message: t('admin.reminderTemplateMessage', 'Giải đấu sắp diễn ra. Vui lòng kiểm tra lịch thi đấu, sân thi đấu và có mặt đúng giờ theo lịch đã công bố.') },
+  { key: 'result', label: t('admin.resultTemplateLabel', 'Kết quả'), subject: t('admin.resultTemplateSubject', 'Cập nhật kết quả và lịch tiếp theo'), message: t('admin.resultTemplateMessage', 'Kết quả thi đấu đã được cập nhật. Vui lòng xem lại bracket, kết quả trận và lịch thi đấu tiếp theo trên hệ thống.') },
+  { key: 'registration', label: t('admin.registrationTemplateLabel', 'Mở đăng ký'), subject: t('admin.registrationTemplateSubject', 'Thông báo mở đăng ký giải đấu'), message: t('admin.registrationTemplateMessage', 'Hệ thống đã mở đăng ký cho giải đấu. Các vận động viên vui lòng hoàn tất đăng ký trước hạn chót để được xếp vào draw.') },
+])
 
 const selectedTournament = computed(() => tournaments.value.find((item) => String(item.id) === String(selectedTournamentId.value)) || null)
 const upcomingCampaigns = computed(() => [...scheduledQueue.value].sort((a, b) => new Date(a.sendAt).getTime() - new Date(b.sendAt).getTime()).slice(0, 5))
@@ -47,7 +48,7 @@ const persistStoredState = () => {
 
 const applyTemplate = (key) => {
   templateKey.value = key
-  const template = templates.find((item) => item.key === key)
+  const template = templates.value.find((item) => item.key === key)
   if (template) {
     subject.value = template.subject
     message.value = template.message
@@ -63,7 +64,7 @@ const loadTournaments = async () => {
       selectedTournamentId.value = String(tournaments.value[0].id)
     }
   } catch (error) {
-    ElMessage.error('Không tải được danh sách giải đấu.')
+    ElMessage.error(t('admin.loadTournamentsError'))
   } finally {
     loadingTournaments.value = false
   }
@@ -77,10 +78,10 @@ const appendLog = (entry) => {
 // 1. CHỈNH SỬA HÀM GỬI NGAY
 const sendNow = async () => {
   if (!selectedTournament.value || !subject.value.trim() || !message.value.trim()) {
-    return ElMessage.warning('Vui lòng chọn giải và nhập đủ nội dung.')
+    return ElMessage.warning(t('admin.fillInfoWarning'))
   }
 
-  const confirmed = await ElMessageBox.confirm(`Gửi mail ngay cho giải "${selectedTournament.value.name}"?`, 'Xác nhận', { type: 'warning' }).catch(() => false)
+  const confirmed = await ElMessageBox.confirm(t('admin.confirmSendNow', { tournament: selectedTournament.value.name }), t('admin.confirmTitle'), { type: 'warning' }).catch(() => false)
   if (!confirmed) return
 
   sending.value = true
@@ -98,9 +99,9 @@ const sendNow = async () => {
       sendAt: new Date().toISOString(), author: authStore.user?.full_name || 'Admin',
       resultMessage: result.message
     })
-    ElMessage.success('Đã gửi thông báo thành công.')
+    ElMessage.success(t('admin.sendSuccess'))
   } catch (error) {
-    ElMessage.error(error.message || 'Không gửi được thông báo.')
+    ElMessage.error(error.message || t('admin.sendError'))
   } finally {
     sending.value = false
   }
@@ -109,12 +110,12 @@ const sendNow = async () => {
 // 2. CHỈNH SỬA HÀM HẸN GIỜ (GIAO VIỆC CHO BACKEND)
 const scheduleCampaign = async () => {
   if (!selectedTournament.value || !subject.value.trim() || !message.value.trim() || !sendAt.value) {
-    return ElMessage.warning('Vui lòng nhập đủ thông tin và chọn thời gian.')
+    return ElMessage.warning(t('admin.fillAllAndScheduleWarning'))
   }
 
   const sendTime = new Date(sendAt.value).getTime()
   if (sendTime <= Date.now()) {
-    return ElMessage.warning('Thời gian hẹn phải lớn hơn hiện tại.')
+    return ElMessage.warning(t('admin.scheduleTimeInvalidWarning'))
   }
 
   scheduling.value = true
@@ -136,9 +137,9 @@ const scheduleCampaign = async () => {
     }, ...scheduledQueue.value]
     persistStoredState()
 
-    ElMessage.success('Đã giao lịch gửi mail cho Server thành công!')
+    ElMessage.success(t('admin.scheduleSuccess'))
   } catch (error) {
-    ElMessage.error(error.message || 'Không thể lên lịch gửi.')
+    ElMessage.error(error.message || t('admin.scheduleError'))
   } finally {
     scheduling.value = false
   }
@@ -152,7 +153,7 @@ const deleteLog = (id) => {
 const clearAllLogs = () => {
   campaignLogs.value = []
   persistStoredState()
-  ElMessage.success('Đã xóa log.')
+  ElMessage.success(t('admin.clearLogsSuccess'))
 }
 
 onMounted(async () => {
@@ -180,22 +181,22 @@ onMounted(async () => {
     <section class="hero-card">
       <div>
         <span class="eyebrow">Mail campaign</span>
-        <h2>Gửi mail hàng loạt</h2>
+        <h2>{{ $t('admin.mailCampaignTitle') }}</h2>
         <p>
-          Tạo template, hẹn giờ gửi và lưu log từng chiến dịch thông báo đến vận động viên của từng giải đấu.
+          {{ $t('admin.mailCampaignDesc') }}
         </p>
       </div>
       <div class="hero-stats">
         <div class="hero-stat">
-          <span>Template</span>
+          <span>{{ $t('admin.templateLabel') }}</span>
           <strong>{{ templates.length }}</strong>
         </div>
         <div class="hero-stat">
-          <span>Chờ gửi</span>
+          <span>{{ $t('admin.queuedLabel') }}</span>
           <strong>{{ scheduledQueue.length }}</strong>
         </div>
         <div class="hero-stat hero-stat-accent">
-          <span>Log gần nhất</span>
+          <span>{{ $t('admin.latestLogLabel') }}</span>
           <strong>{{ campaignLogs.length }}</strong>
         </div>
       </div>
@@ -205,15 +206,15 @@ onMounted(async () => {
       <article class="composer-card">
         <div class="section-head">
           <div>
-            <span class="section-kicker">Soạn mail</span>
-            <h3>Chiến dịch thông báo</h3>
+            <span class="section-kicker">{{ $t('admin.composeMailSection') }}</span>
+            <h3>{{ $t('admin.campaignSection') }}</h3>
           </div>
           <span class="section-badge" v-if="selectedTournament">{{ selectedTournament.name }}</span>
         </div>
 
         <div class="form-grid">
           <label class="field">
-            <span>Chọn giải đấu</span>
+            <span>{{ $t('admin.selectTournamentLabel') }}</span>
             <select v-model="selectedTournamentId" :disabled="loadingTournaments">
               <option v-for="item in tournaments" :key="item.id" :value="String(item.id)">
                 {{ item.name }}
@@ -235,34 +236,34 @@ onMounted(async () => {
           </div>
 
           <label class="field">
-            <span>Tiêu đề mail</span>
-            <input v-model="subject" type="text" placeholder="Tiêu đề chiến dịch" />
+            <span>{{ $t('admin.mailSubjectLabel') }}</span>
+            <input v-model="subject" type="text" :placeholder="$t('admin.mailSubjectPlaceholder')" />
           </label>
 
           <label class="field">
-            <span>Nội dung mail</span>
-            <textarea v-model="message" rows="10" placeholder="Nhập nội dung chiến dịch"></textarea>
+            <span>{{ $t('admin.mailContentLabel') }}</span>
+            <textarea v-model="message" rows="10" :placeholder="$t('admin.mailContentPlaceholder')"></textarea>
           </label>
 
           <div class="schedule-row">
             <label class="field">
-              <span>Hẹn giờ gửi</span>
+              <span>{{ $t('admin.scheduleTimeLabel') }}</span>
               <input v-model="sendAt" type="datetime-local" />
             </label>
             <div class="schedule-hint">
               <Bell />
-              <p>Hẹn giờ chạy bằng hàng đợi quản trị khi trang còn mở. Gửi ngay thì dùng nút bên dưới.</p>
+              <p>{{ $t('admin.scheduleHint') }}</p>
             </div>
           </div>
 
           <div class="action-row">
             <button type="button" class="btn ghost" @click="scheduleCampaign" :disabled="scheduling">
               <Clock />
-              <span>{{ scheduling ? 'Đang lưu lịch...' : 'Lưu lịch gửi' }}</span>
+              <span>{{ scheduling ? $t('admin.savingScheduleBtn') : $t('admin.saveScheduleBtn') }}</span>
             </button>
             <button type="button" class="btn primary" @click="sendNow" :disabled="sending">
               <Promotion />
-              <span>{{ sending ? 'Đang gửi...' : 'Gửi ngay' }}</span>
+              <span>{{ sending ? $t('admin.sendingBtn') : $t('admin.sendNowBtn') }}</span>
             </button>
           </div>
         </div>
@@ -272,8 +273,8 @@ onMounted(async () => {
         <article class="log-card">
           <div class="section-head">
             <div>
-              <span class="section-kicker">Lịch gửi</span>
-              <h3>Chiến dịch sắp tới</h3>
+              <span class="section-kicker">{{ $t('admin.sendScheduleSection') }}</span>
+              <h3>{{ $t('admin.upcomingCampaignsSection') }}</h3>
             </div>
             <span class="count-chip">{{ upcomingCampaigns.length }}</span>
           </div>
@@ -287,16 +288,16 @@ onMounted(async () => {
               <span>{{ new Date(item.sendAt).toLocaleString('vi-VN') }}</span>
             </div>
           </div>
-          <p v-else class="muted">Chưa có lịch gửi nào.</p>
+          <p v-else class="muted">{{ $t('admin.noUpcomingCampaigns') }}</p>
         </article>
 
         <article class="log-card">
           <div class="section-head">
             <div>
-              <span class="section-kicker">Log gửi</span>
-              <h3>Hoạt động gần nhất</h3>
+              <span class="section-kicker">{{ $t('admin.sendLogsSection') }}</span>
+              <h3>{{ $t('admin.recentActivitySection') }}</h3>
             </div>
-            <button class="mini-link" type="button" @click="clearAllLogs">Xóa log</button>
+            <button class="mini-link" type="button" @click="clearAllLogs">{{ $t('admin.clearLogBtn') }}</button>
           </div>
 
           <div v-if="campaignLogs.length" class="activity-list">
@@ -311,11 +312,11 @@ onMounted(async () => {
                 <span>{{ new Date(item.finishedAt || item.sendAt).toLocaleString('vi-VN') }}</span>
               </div>
               <div class="activity-actions">
-                <button type="button" class="text-btn" @click="deleteLog(item.id)">Xóa</button>
+                <button type="button" class="text-btn" @click="deleteLog(item.id)">{{ $t('admin.deleteBtn') }}</button>
               </div>
             </div>
           </div>
-          <p v-else class="muted">Chưa có log gửi nào.</p>
+          <p v-else class="muted">{{ $t('admin.noSendLogs') }}</p>
         </article>
       </aside>
     </section>
