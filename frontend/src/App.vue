@@ -4,6 +4,9 @@ import { RouterView, useRoute } from 'vue-router'
 import TheHeader from './components/layout/TheHeader.vue'
 import TheFooter from './components/layout/TheFooter.vue'
 
+// Import Widget Chat vừa tạo
+import ChatWidget from './views/customer/ChatRoom.vue' 
+
 const route = useRoute()
 
 const isAuthLayout = computed(() => Boolean(route.meta.authLayout))
@@ -28,11 +31,15 @@ const shouldShowPublicChrome = computed(() => !isAuthLayout.value && !isAdminLay
     </RouterView>
   </main>
 
+  <!-- CHÈN WIDGET CHAT VÀO ĐÂY -->
+  <!-- Thêm v-if để không hiện khung chat ở trang Login hoặc Admin nếu muốn -->
+  <ChatWidget v-if="shouldShowPublicChrome" />
+
   <TheFooter v-if="shouldShowPublicChrome" />
 </template>
 
 <style>
-/* Global Layout Styles */
+/* Global Layout Styles (Giữ nguyên như cũ) */
 .main-default {
   padding-top: 80px;
   min-height: calc(100vh - 220px);

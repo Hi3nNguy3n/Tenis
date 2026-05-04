@@ -1,96 +1,112 @@
 <template>
-  <div class="chat-app">
-    <div class="loading-screen" v-if="isLoading">
-      <div class="spinner"></div>
-      <p>Đang đồng bộ dữ liệu người dùng...</p>
-    </div>
+  <!-- Nếu chưa đăng nhập thì không hiển thị Widget Chat -->
+  <div v-if="isConnected" class="floating-chat-widget tech-chat-theme">
+    
+    <!-- NÚT TRIGGER (ICON GÓC MÀN HÌNH) -->
+    <button class="chat-trigger-btn" @click="toggleChat" :class="{ 'is-active': isOpen }">
+      <div class="btn-glow"></div>
+      <el-icon v-if="!isOpen" class="trigger-icon"><ChatDotRound /></el-icon>
+      <el-icon v-else class="trigger-icon"><Close /></el-icon>
+      <span class="unread-badge" v-if="totalUnread > 0 && !isOpen">{{ totalUnread }}</span>
+    </button>
 
-    <div class="error-screen" v-else-if="!isConnected">
-      <h2>Bạn chưa đăng nhập!</h2>
-      <p>Vui lòng đăng nhập hệ thống để sử dụng tính năng Chat.</p>
-    </div>
-
-    <div class="chat-layout" v-else>
-      <div class="sidebar">
-        <div class="my-profile">
-          <div class="avatar">😎</div>
-          <div class="info">
-            <b>{{ myProfile.full_name }}</b>
-            <span class="status">ID: {{ myProfile.id }}</span>
-          </div>
-          <button @click="disconnectAll" class="btn-logout">Ngắt</button>
-        </div>
-
-        <div 
-          :class="['chat-item', activeTab === 'global' ? 'active' : '']" 
-          @click="selectGlobalChat"
-        >
-          <div class="avatar bg-global">🌍</div>
-          <div class="info">
-            <b>Kênh Hệ Thống</b>
-            <span>Chat với mọi người</span>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <div class="search-section">
-          <div class="search-box">
-            <input v-model="searchKeyword" @keyup.enter="searchUsers" type="text" placeholder="Tìm tên đối thủ..." />
-            <button @click="searchUsers">Tìm</button>
-          </div>
-        </div>
-
-        <div class="friend-list">
-          <div v-if="searchResults.length > 0">
-            <div class="section-title">🔍 Kết quả tìm kiếm</div>
-            <div 
-              v-for="user in searchResults" :key="'search-' + user.id"
-              :class="['chat-item', activeTab === user.id ? 'active' : '']"
-              @click="openPrivateChat(user)"
-            >
-              <div class="avatar bg-private">👤</div>
-              <div class="info">
-                <b>{{ user.full_name }}</b>
-                <span>ID: {{ user.id }}</span>
-              </div>
+    <!-- CỬA SỔ CHAT KÍNH MỜ -->
+    <div class="chat-window glass-panel" :class="{ 'is-open': isOpen }">
+      
+      <!-- HEADER CHUNG -->
+      <div class="chat-header">
+        <div class="header-left">
+          <button v-if="currentView === 'chat'" @click="goBack" class="btn-back">
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
+          <div class="header-title">
+            <h3>{{ currentView === 'list' ? 'MESSAGES' : activeTabName }}</h3>
+            <div v-if="currentView === 'chat'" class="online-status">
+              <span class="status-dot"></span> Online
             </div>
-          </div>
-
-          <div class="section-title">📩 Tin nhắn gần đây</div>
-          <div v-if="recentChats.length === 0" class="no-result">Chưa có hội thoại nào.</div>
-          
-          <div 
-            v-for="chat in recentChats" :key="'recent-' + chat.id"
-            :class="['chat-item', activeTab === chat.id ? 'active' : '']"
-            @click="openPrivateChat(chat)"
-          >
-            <div class="avatar bg-recent">👤</div>
-            <div class="info">
-              <b :class="{'unread-text': chat.hasNew}">{{ chat.full_name }}</b>
-              <span :class="{'unread-text': chat.hasNew}">{{ chat.lastMsg || 'Nhấn để chat...' }}</span>
-            </div>
-            <div v-if="chat.hasNew" class="unread-dot"></div>
           </div>
         </div>
       </div>
 
-      <div class="main-chat">
-        <div class="chat-header">
-          <h3>{{ activeTabName }}</h3>
+      <!-- VIEW 1: DANH SÁCH & TÌM KIẾM -->
+      <div class="chat-body list-view" v-show="currentView === 'list'">
+        
+        <!-- Thanh tìm kiếm -->
+        <div class="search-wrap">
+          <el-input 
+            v-model="searchKeyword" 
+            placeholder="Tìm kiếm tài năng..." 
+            :prefix-icon="Search"
+            clearable
+            class="tech-search"
+          />
         </div>
 
-        <div class="messages-container" ref="messagesBox">
-          <div v-if="currentMessages.length === 0" class="empty-chat">
-            Chưa có tin nhắn nào. Hãy gửi lời chào!
+        <div class="scroll-container">
+          <!-- Kênh Hệ Thống -->
+          <div class="chat-list-item global-room" @click="selectGlobalChat">
+            <div class="avatar-box gradient-bg">🌍</div>
+            <div class="item-info">
+              <h4>Kênh Cộng Đồng</h4>
+              <p>Trò chuyện với mọi người</p>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Kết quả tìm kiếm -->
+          <div v-if="searchResults.length > 0" class="section-group">
+            <span class="section-label">TÌM KIẾM</span>
+            <div 
+              v-for="user in searchResults" :key="'search-' + user.id"
+              class="chat-list-item"
+              @click="openPrivateChat(user)"
+            >
+              <div class="avatar-box dark-bg"><el-icon><User /></el-icon></div>
+              <div class="item-info">
+                <h4>{{ user.full_name }}</h4>
+                <p>ID: {{ user.id }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tin nhắn gần đây (Inbox) -->
+          <div class="section-group">
+            <span class="section-label">GẦN ĐÂY</span>
+            <div v-if="recentChats.length === 0 && searchResults.length === 0" class="empty-state">
+              Chưa có cuộc trò chuyện nào.
+            </div>
+            
+            <div 
+              v-for="chat in recentChats" :key="'recent-' + chat.id"
+              class="chat-list-item"
+              @click="openPrivateChat(chat)"
+            >
+              <div class="avatar-box dark-bg"><el-icon><User /></el-icon></div>
+              <div class="item-info">
+                <h4 :class="{ 'is-unread': chat.hasNew }">{{ chat.full_name }}</h4>
+                <p :class="{ 'is-unread': chat.hasNew }">{{ chat.lastMsg || 'Nhấn để bắt đầu chat...' }}</p>
+              </div>
+              <div v-if="chat.hasNew" class="unread-dot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 2: KHUNG CHAT -->
+      <div class="chat-body chat-room-view" v-show="currentView === 'chat'">
+        <div class="messages-area" ref="messagesBox">
+          <div v-if="currentMessages.length === 0" class="empty-chat-room">
+            <el-icon class="empty-icon"><ChatLineRound /></el-icon>
+            <p>Khởi tạo kết nối bảo mật. Gửi lời chào!</p>
           </div>
           
           <div 
             v-for="(msg, index) in currentMessages" :key="index"
-            :class="['message-wrapper', msg.isMine ? 'mine' : 'theirs']"
+            :class="['msg-row', msg.isMine ? 'is-mine' : 'is-theirs']"
           >
             <span class="sender-name" v-if="!msg.isMine">{{ msg.senderName }}</span>
-            <div class="bubble">{{ msg.text }}</div>
+            <div class="msg-bubble">{{ msg.text }}</div>
           </div>
         </div>
 
@@ -100,17 +116,26 @@
             @keyup.enter="sendMessage"
             type="text" 
             placeholder="Nhập tin nhắn..." 
+            class="tech-input"
           />
-          <button @click="sendMessage" class="btn-send">Gửi 🚀</button>
+          <button @click="sendMessage" class="btn-send" :disabled="!newMessage.trim()">
+            <el-icon><Position /></el-icon>
+          </button>
         </div>
       </div>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch, onBeforeUnmount } from 'vue';
 import apiClient from '../../services/apiClient';
+import { ChatDotRound, Close, ArrowLeft, Search, User, Position, ChatLineRound } from '@element-plus/icons-vue';
+
+// --- TRẠNG THÁI GIAO DIỆN MỚI ---
+const isOpen = ref(false);
+const currentView = ref('list'); // 'list' hoặc 'chat'
 
 const isLoading = ref(true);
 const isConnected = ref(false);
@@ -119,7 +144,7 @@ const myProfile = ref({ id: null, full_name: '' });
 
 const searchKeyword = ref('');
 const searchResults = ref([]);
-const recentChats = ref([]); // Danh sách Hộp thư đến
+const recentChats = ref([]); 
 const activeTab = ref('global');
 const activeTabName = ref('🌍 Kênh Hệ Thống');
 const newMessage = ref('');
@@ -135,6 +160,41 @@ const currentMessages = computed(() => {
   return activeTab.value === 'global' ? globalMessages.value : (privateMessages.value[activeTab.value] || []);
 });
 
+const totalUnread = computed(() => {
+  return recentChats.value.filter(c => c.hasNew).length;
+});
+
+// --- TOGGLE GIAO DIỆN ---
+const toggleChat = () => {
+  isOpen.value = !isOpen.value;
+  if (isOpen.value && currentView.value === 'chat') {
+    scrollToBottom();
+  }
+};
+
+const goBack = () => {
+  currentView.value = 'list';
+};
+
+// --- LOGIC TÌM KIẾM TỰ ĐỘNG (DEBOUNCE) ---
+let searchTimer = null;
+watch(searchKeyword, (newVal) => {
+  clearTimeout(searchTimer);
+  if (!newVal.trim()) {
+    searchResults.value = [];
+    return;
+  }
+  // Chờ 0.5s sau khi người dùng ngừng gõ mới gọi API
+  searchTimer = setTimeout(async () => {
+    try {
+      const data = await apiClient.get(`/api/players/search?keyword=${encodeURIComponent(newVal.trim())}`);
+      searchResults.value = (Array.isArray(data) ? data : []).filter(u => Number(u.id) !== Number(myProfile.value.id));
+    } catch (error) {
+      console.error("Lỗi tìm kiếm:", error.message);
+    }
+  }, 500);
+});
+
 // --- KHỞI CHẠY ---
 onMounted(async () => {
   token.value = localStorage.getItem('saigon_tennis_access_token'); 
@@ -148,7 +208,7 @@ onMounted(async () => {
   try {
     const userObj = JSON.parse(userStr);
     myProfile.value = {
-        id: Number(userObj.user_id), // Lấy đúng user_id từ ảnh LocalStorage của Phú
+        id: Number(userObj.user_id), 
         full_name: userObj.full_name
     };
 
@@ -161,13 +221,19 @@ onMounted(async () => {
   }
 });
 
-// --- QUẢN LÝ INBOX (RECENT CHATS) ---
+onBeforeUnmount(() => {
+  disconnectAll();
+});
+
+// --- QUẢN LÝ INBOX ---
 const updateInbox = (senderId, senderName, message) => {
     const existing = recentChats.value.find(c => Number(c.id) === Number(senderId));
     if (existing) {
         existing.lastMsg = message;
-        if (activeTab.value !== senderId) existing.hasNew = true;
-        // Đẩy lên đầu danh sách
+        // Chỉ hiện chấm đỏ nếu đang không mở đúng tab đó
+        if (activeTab.value !== senderId || currentView.value !== 'chat' || !isOpen.value) {
+          existing.hasNew = true;
+        }
         recentChats.value = [existing, ...recentChats.value.filter(c => Number(c.id) !== Number(senderId))];
     } else {
         recentChats.value.unshift({
@@ -194,7 +260,9 @@ const connectAll = () => {
       senderName: data.sender_name,
       isMine: Number(data.sender_id) === Number(myId)
     });
-    scrollToBottom();
+    if (isOpen.value && currentView.value === 'chat' && activeTab.value === 'global') {
+      scrollToBottom();
+    }
   };
 
   wsPrivate = new WebSocket(`${baseWsUrl}/private?token=${token.value}&sender_name=${safeName}`);
@@ -204,7 +272,6 @@ const connectAll = () => {
 
     const fromId = Number(data.sender_id);
     
-    // Lưu tin nhắn vào tab riêng
     if (!privateMessages.value[fromId]) privateMessages.value[fromId] = [];
     privateMessages.value[fromId].push({
       text: data.message,
@@ -212,33 +279,26 @@ const connectAll = () => {
       isMine: false
     });
 
-    // Cập nhật vào danh sách "Tin nhắn gần đây"
     updateInbox(fromId, data.sender_name, data.message);
-    scrollToBottom();
+    if (isOpen.value && currentView.value === 'chat' && activeTab.value === fromId) {
+      scrollToBottom();
+    }
   };
 };
 
-// --- TÌM KIẾM ---
-const searchUsers = async () => {
-  try {
-    const data = await apiClient.get(`/api/players/search?keyword=${searchKeyword.value}`)
-    searchResults.value = data
-  } catch (error) {
-    console.error("Lỗi tìm kiếm:", error.message)
-  }
-};
 // --- CHUYỂN ĐỔI TAB CHAT ---
 const selectGlobalChat = () => {
     activeTab.value = 'global';
-    activeTabName.value = '🌍 Kênh Hệ Thống';
+    activeTabName.value = 'Cộng Đồng';
+    currentView.value = 'chat';
     scrollToBottom();
 };
 
 const openPrivateChat = async (user) => {
   activeTab.value = user.id;
-  activeTabName.value = `👤 Chat với: ${user.full_name}`;
+  activeTabName.value = user.full_name;
+  currentView.value = 'chat';
   
-  // Xóa báo tin nhắn mới nếu có
   const chat = recentChats.value.find(c => Number(c.id) === Number(user.id));
   if (chat) chat.hasNew = false;
   else {
@@ -247,7 +307,6 @@ const openPrivateChat = async (user) => {
 
   if (!privateMessages.value[user.id]) privateMessages.value[user.id] = [];
   
-  // Tải lịch sử chat riêng
   try {
       const res = await fetch(`http://localhost:8001/api/chat/history/private/${user.id}?token=${token.value}`);
       if (res.ok) {
@@ -264,9 +323,7 @@ const openPrivateChat = async (user) => {
 
 const loadGlobalHistory = async () => {
   try {
-    const history = await apiClient.get('/api/chat/history/global', { 
-        useChatApi: true 
-    })
+    const history = await apiClient.get('/api/chat/history/global', { useChatApi: true })
     globalMessages.value = history.map(msg => ({
         text: msg.message,
         senderName: msg.sender_name,
@@ -297,7 +354,6 @@ const sendMessage = () => {
       isMine: true
     });
     
-    // Cập nhật tin nhắn cuối trong inbox của chính mình
     const chat = recentChats.value.find(c => Number(c.id) === Number(activeTab.value));
     if (chat) chat.lastMsg = newMessage.value;
   }
@@ -307,7 +363,9 @@ const sendMessage = () => {
 
 const scrollToBottom = () => {
   nextTick(() => {
-    if (messagesBox.value) messagesBox.value.scrollTop = messagesBox.value.scrollHeight;
+    if (messagesBox.value) {
+      messagesBox.value.scrollTop = messagesBox.value.scrollHeight;
+    }
   });
 };
 
@@ -319,53 +377,305 @@ const disconnectAll = () => {
 </script>
 
 <style scoped>
-* { box-sizing: border-box; }
-.chat-app { height: 100vh; display: flex; justify-content: center; align-items: center; background: #e9eaee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-.loading-screen, .error-screen { width: 100%; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #f5f6fa; }
-.spinner { width: 40px; height: 40px; border: 4px solid #ccc; border-top-color: #0084ff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
-@keyframes spin { to { transform: rotate(360deg); } }
+/* =======================================================
+   TECH THEME VARIABLES
+   ======================================================= */
+.tech-chat-theme {
+  --bg-base: #09090b; 
+  --glass-bg: rgba(24, 24, 27, 0.85); /* Đen mờ */
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-hover: rgba(255, 255, 255, 0.08);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent-cyan: #06b6d4;
+  --accent-purple: #a855f7;
+  --gradient-main: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  
+  font-family: 'Inter', -apple-system, sans-serif;
+}
 
-.chat-layout { display: flex; width: 1000px; height: 80vh; background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); overflow: hidden; }
-.sidebar { width: 320px; background: #f5f6fa; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-.my-profile { padding: 20px; display: flex; align-items: center; gap: 10px; background: white; border-bottom: 1px solid #ddd; }
-.my-profile .info { flex: 1; display: flex; flex-direction: column; }
-.status { font-size: 12px; color: #4CAF50; }
-.btn-logout { background: #ffebee; color: #f44336; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+/* =======================================================
+   FLOATING WIDGET CONTAINER
+   ======================================================= */
+.floating-chat-widget {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 9999;
+}
 
-.chat-item { display: flex; align-items: center; gap: 12px; padding: 15px 20px; cursor: pointer; transition: background 0.2s; border-bottom: 1px solid #eee; }
-.chat-item:hover { background: #e0e4eb; }
-.chat-item.active { background: #e3f2fd; border-left: 4px solid #0084ff; }
-.avatar { width: 45px; height: 45px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; background: #ddd; }
-.bg-global { background: #e8f5e9; }
-.bg-private { background: #fff3e0; }
-.chat-item .info { display: flex; flex-direction: column; }
-.chat-item .info span { font-size: 12px; color: #888; }
+/* =======================================================
+   TRIGGER BUTTON (NÚT BẤM GÓC)
+   ======================================================= */
+.chat-trigger-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--bg-base);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
 
-.divider { height: 1px; background: #ddd; margin: 10px 0; }
-.search-section { padding: 0 20px; margin-bottom: 10px; }
-.search-box { display: flex; margin-top: 5px; }
-.search-box input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px 0 0 5px; outline: none; }
-.search-box button { padding: 8px 15px; background: #0084ff; color: white; border: none; border-radius: 0 5px 5px 0; cursor: pointer; }
+.btn-glow {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: var(--gradient-main);
+  z-index: -1;
+  opacity: 0.8;
+  filter: blur(8px);
+  transition: opacity 0.3s ease;
+}
 
-.friend-list { flex: 1; overflow-y: auto; }
-.main-chat { flex: 1; display: flex; flex-direction: column; background: white; }
-.chat-header { padding: 20px; border-bottom: 1px solid #ddd; background: white; }
-.chat-header h3 { margin: 0; color: #333; }
+.chat-trigger-btn:hover {
+  transform: translateY(-4px) scale(1.05);
+}
+.chat-trigger-btn:hover .btn-glow { opacity: 1; filter: blur(12px); }
 
-.messages-container { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #f0f2f5; }
-.empty-chat { text-align: center; color: #888; margin-top: 50px; font-style: italic; }
+.trigger-icon { z-index: 2; }
 
-.message-wrapper { max-width: 60%; display: flex; flex-direction: column; }
-.message-wrapper.mine { align-self: flex-end; align-items: flex-end; }
-.message-wrapper.theirs { align-self: flex-start; align-items: flex-start; }
-.sender-name { font-size: 11px; color: #888; margin-bottom: 3px; padding: 0 5px; }
-.bubble { padding: 12px 16px; border-radius: 18px; font-size: 15px; line-height: 1.4; word-wrap: break-word; }
-.mine .bubble { background: #0084ff; color: white; border-bottom-right-radius: 4px; }
-.theirs .bubble { background: white; color: black; border-bottom-left-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.chat-trigger-btn.is-active {
+  transform: rotate(90deg);
+  background: var(--glass-bg);
+}
+.chat-trigger-btn.is-active .btn-glow { opacity: 0; }
 
-.input-area { padding: 20px; background: white; border-top: 1px solid #ddd; display: flex; gap: 10px; }
-.input-area input { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 25px; font-size: 15px; outline: none; background: #f0f2f5; }
-.input-area input:focus { border-color: #0084ff; background: white; }
-.btn-send { padding: 0 25px; background: #0084ff; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-.btn-send:hover { background: #0073e6; }
+.unread-badge {
+  position: absolute;
+  top: -4px; right: -4px;
+  background: var(--accent-cyan);
+  color: #000;
+  font-size: 0.75rem; font-weight: 800;
+  min-width: 22px; height: 22px;
+  border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 12px var(--accent-cyan);
+  z-index: 5;
+}
+
+/* =======================================================
+   CHAT WINDOW (GLASS PANEL)
+   ======================================================= */
+.chat-window {
+  position: absolute;
+  bottom: 85px;
+  right: 0;
+  width: 380px;
+  height: 600px;
+  max-height: calc(100vh - 140px);
+  border-radius: 24px;
+  display: flex; flex-direction: column; overflow: hidden;
+  
+  /* Kính mờ phong cách Tech */
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.1);
+  
+  /* Animation */
+  transform-origin: bottom right;
+  transform: scale(0.9);
+  opacity: 0; pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.chat-window.is-open {
+  transform: scale(1);
+  opacity: 1; pointer-events: auto;
+}
+
+/* --- HEADER --- */
+.chat-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex; align-items: center; flex-shrink: 0;
+  background: rgba(0,0,0,0.2);
+}
+
+.header-left { display: flex; align-items: center; gap: 12px; }
+
+.btn-back {
+  background: transparent; border: none;
+  color: var(--text-muted); font-size: 1.2rem; cursor: pointer;
+  padding: 0; display: flex; align-items: center; transition: 0.2s;
+}
+.btn-back:hover { color: var(--text-main); transform: translateX(-2px); }
+
+.header-title h3 {
+  margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-main);
+  letter-spacing: 0.05em;
+}
+
+.online-status {
+  font-size: 0.75rem; color: var(--text-muted); font-weight: 500;
+  display: flex; align-items: center; gap: 6px; margin-top: 4px;
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+/* --- BODY CHUNG --- */
+.chat-body {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* =======================================================
+   VIEW 1: LIST VIEW 
+   ======================================================= */
+.search-wrap {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+:deep(.tech-search .el-input__wrapper) {
+  border-radius: 12px;
+  background: rgba(0,0,0,0.3);
+  box-shadow: none; padding: 8px 16px;
+  border: 1px solid var(--glass-border);
+}
+:deep(.tech-search .el-input__wrapper.is-focus) {
+  border-color: var(--accent-cyan);
+}
+:deep(.tech-search .el-input__inner) { color: var(--text-main); font-size: 0.95rem; }
+:deep(.tech-search .el-input__inner::placeholder) { color: var(--text-muted); }
+
+.scroll-container { flex: 1; overflow-y: auto; padding-bottom: 20px; }
+.scroll-container::-webkit-scrollbar { width: 6px; }
+.scroll-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+.section-group { margin-top: 20px; }
+.section-label {
+  display: block; padding: 0 20px 10px; font-size: 0.7rem;
+  font-weight: 800; color: var(--text-muted); letter-spacing: 0.1em;
+}
+
+.chat-list-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 20px; cursor: pointer; transition: background 0.2s;
+}
+.chat-list-item:hover { background: var(--glass-hover); }
+
+.avatar-box {
+  width: 46px; height: 46px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; color: white; flex-shrink: 0;
+}
+.gradient-bg { background: var(--gradient-main); }
+.dark-bg { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--text-muted); }
+
+.item-info { flex: 1; min-width: 0; }
+.item-info h4 {
+  margin: 0 0 6px 0; font-size: 0.95rem; font-weight: 700;
+  color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.item-info p {
+  margin: 0; font-size: 0.85rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.is-unread { font-weight: 800 !important; color: white !important; }
+.unread-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent-cyan); flex-shrink: 0;
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+.divider { height: 1px; background: var(--glass-border); margin: 0 20px; }
+.empty-state { padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.85rem; font-style: italic; }
+
+/* =======================================================
+   VIEW 2: CHAT ROOM VIEW
+   ======================================================= */
+.messages-area {
+  flex: 1; padding: 24px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.messages-area::-webkit-scrollbar { width: 6px; }
+.messages-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+
+.empty-chat-room {
+  margin: auto; display: flex; flex-direction: column; align-items: center; color: var(--text-muted);
+}
+.empty-icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.5;}
+
+.msg-row { max-width: 85%; display: flex; flex-direction: column; }
+.msg-row.is-mine { align-self: flex-end; align-items: flex-end; }
+.msg-row.is-theirs { align-self: flex-start; align-items: flex-start; }
+
+.sender-name { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; letter-spacing: 0.05em;}
+
+.msg-bubble {
+  padding: 12px 16px; border-radius: 16px;
+  font-size: 0.95rem; line-height: 1.5; word-wrap: break-word;
+}
+
+.is-mine .msg-bubble {
+  background: var(--gradient-main);
+  color: white; border-bottom-right-radius: 4px;
+}
+
+.is-theirs .msg-bubble {
+  background: rgba(255,255,255,0.05);
+  color: var(--text-main);
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--glass-border);
+}
+
+/* INPUT AREA */
+.input-area {
+  padding: 16px 20px;
+  border-top: 1px solid var(--glass-border);
+  display: flex; gap: 12px; align-items: center;
+  background: rgba(0,0,0,0.3);
+}
+
+.tech-input {
+  flex: 1; padding: 12px 16px;
+  border: 1px solid var(--glass-border); border-radius: 12px;
+  font-size: 0.95rem; outline: none;
+  background: rgba(255,255,255,0.05); color: var(--text-main);
+  transition: 0.2s;
+}
+.tech-input::placeholder { color: var(--text-muted); }
+.tech-input:focus { border-color: var(--accent-cyan); background: rgba(255,255,255,0.08);}
+
+.btn-send {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: var(--accent-cyan); color: #000; border: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; cursor: pointer; transition: 0.2s;
+}
+.btn-send:hover:not(:disabled) {
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+  transform: scale(1.05);
+}
+.btn-send:disabled {
+  background: rgba(255,255,255,0.1); color: var(--text-muted); cursor: not-allowed;
+}
+
+/* =======================================================
+   RESPONSIVE MOBILE
+   ======================================================= */
+@media (max-width: 480px) {
+  .chat-window {
+    position: fixed; bottom: 0; right: 0; width: 100%; height: 100%; max-height: 100%;
+    border-radius: 0; z-index: 10000; border: none;
+  }
+  
+  .chat-trigger-btn { bottom: 20px; right: 20px; z-index: 10001; }
+  .chat-trigger-btn.is-active { display: none; }
+  .chat-header { justify-content: space-between; padding-top: calc(env(safe-area-inset-top) + 20px);}
+  .header-title { flex: 1; }
+}
 </style>

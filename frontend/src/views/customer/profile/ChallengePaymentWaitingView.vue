@@ -28,8 +28,10 @@ const fetchStatus = async () => {
     if (current) {
       challenge.value = current
       
-      if (current.status === 'paid') {
-        router.push({ name: 'profile' }) // Hoặc trang thành công
+      // SỬA TẠI ĐÂY: Kiểm tra trạng thái 'accepted' thay vì 'paid'
+      if (current.status === 'accepted' || current.status === 'scheduled') {
+        ElMessage.success('Kèo thách đấu đã được xác nhận thành công!')
+        router.push({ name: 'profile' })
       } else if (current.status === 'rejected') {
         router.push({ name: 'payment-failure' })
       }

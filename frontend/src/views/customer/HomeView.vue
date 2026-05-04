@@ -1,82 +1,19 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import apiClient from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
+import { playerService } from '../../services/playerService'
 import { useAuthStore } from '../../stores/auth'
-import { currentLocale, t, toggleLocale } from '../../utils/locale'
+import { currentLocale, t } from '../../utils/locale'
+import { Message, Check, Right, VideoPlay } from '@element-plus/icons-vue'
 
 const authStore = useAuthStore()
-let inboxRefreshTimer = null
 
-// --- HÀM KIỂM TRA ĐỊNH DẠNG VIDEO ---
 const isVideo = (url) => {
   if (!url) return false
   return url.match(/\.(mp4|webm|ogg)$/i) !== null
 }
-
-const featureCards = computed(() => [
-  {
-    id: 'coaching',
-    title: t('home.coachingTitle'),
-    description: t('home.coachingDesc'),
-    badge: t('home.coachingBadge'),
-  },
-  {
-    id: 'lounge',
-    title: t('home.loungeTitle'),
-    description: t('home.loungeDesc'),
-    stat: t('home.capacityStatus', { percent: 68 }),
-  },
-  {
-    id: 'mixers',
-    title: t('home.mixersTitle'),
-    description: t('home.mixersDesc'),
-    cta: t('home.joinNow'),
-  },
-  {
-    id: 'shop',
-    title: t('home.shopTitle'),
-    description: t('home.shopDesc'),
-    brands: ['WILSON', 'BABOLAT', 'HEAD'],
-  },
-])
-
-// Computed property to merge defaults with news overrides
-const displayedFeatures = computed(() => {
-  const cards = featureCards.value.map((card) => ({ ...card }))
-
-  if (newsItems.value.length > 0) {
-    cards[0].title = newsItems.value[0].title
-    cards[0].description = newsItems.value[0].excerpt
-    cards[0].badge = t('common.latest')
-    cards[0].image = newsItems.value[0].image
-    cards[0].slug = newsItems.value[0].slug
-  }
-
-  if (newsItems.value.length > 1) {
-    cards[1].title = newsItems.value[1].title
-    cards[1].description = newsItems.value[1].excerpt
-    cards[1].slug = newsItems.value[1].slug
-    cards[1].isNews = true
-  }
-
-  if (newsItems.value.length > 2) {
-    cards[3].title = newsItems.value[2].title
-    cards[3].description = newsItems.value[2].excerpt
-    cards[3].slug = newsItems.value[2].slug
-    cards[3].isNews = true
-  }
-
-  if (newsItems.value.length > 3) {
-    cards[2].title = newsItems.value[3].title
-    cards[2].description = newsItems.value[3].excerpt
-    cards[2].slug = newsItems.value[3].slug
-    cards[2].isNews = true
-  }
-
-  return cards
-})
 
 const rawNewsPosts = ref([])
 const newsItems = computed(() => {
@@ -87,241 +24,287 @@ const newsItems = computed(() => {
     date: new Date(post.publish_at || post.created_at).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US'),
     category: t('home.tennisNews'),
     excerpt: post.summary,
-    image: post.media_url || post.thumbnail_url || 'https://images.unsplash.com/photo-1592709823125-a191f07a2a5e?auto=format&fit=crop&q=80&w=800'
+    image: post.media_url || post.thumbnail_url || 'https://images.unsplash.com/photo-1595435934249-5df7ed86e1f4?auto=format&fit=crop&q=80&w=800'
   }))
 })
-const inboxThreads = ref([])
-const inboxOpen = ref(false)
-const inboxLoading = ref(false)
 
-const unreadInboxCount = computed(() =>
-  inboxThreads.value.reduce((sum, thread) => sum + Number(thread.unreadCount || 0), 0),
-)
-
-const topInboxThreads = computed(() =>
-  inboxThreads.value
-    .slice()
-    .sort((a, b) => {
-      const unreadDiff = Number(b.unreadCount || 0) - Number(a.unreadCount || 0)
-      if (unreadDiff !== 0) return unreadDiff
-      return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
-    })
-    .slice(0, 4),
-)
-
-const loadInboxPreview = async () => {
-  if (!authStore.isAuthenticated) {
-    inboxThreads.value = []
-    return
-  }
-
-  inboxLoading.value = true
-  try {
-    const data = await apiClient.get('/api/chat/threads/private', {
-      useChatApi: true,
-      params: { token: authStore.accessToken },
-    })
-    inboxThreads.value = Array.isArray(data)
-      ? data.map((t) => ({
-          id: Number(t.id),
-          full_name: t.full_name,
-          lastMsg: t.lastMsg,
-          updatedAt: t.updatedAt,
-          unreadCount: Number(t.unreadCount || 0),
-        }))
-      : []
-  } catch (error) {
-    console.warn(t('home.errorLoadingInbox'), error)
-    inboxThreads.value = []
-  } finally {
-    inboxLoading.value = false
-  }
-}
-
-const openInbox = async () => {
-  inboxOpen.value = true
-  if (!inboxThreads.value.length) {
-    await loadInboxPreview()
-  }
-}
-
-const closeInbox = () => {
-  inboxOpen.value = false
-}
+// === STATE ===
+const topPlayers = ref([])
+const recentMatches = ref([])
+const h2hData = ref(null) 
 
 onMounted(async () => {
-  try {
-    const data = await newsService.getAllPosts()
-    
-    // Sort by date descending to ensure latest is first
-    rawNewsPosts.value = data.sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
-  } catch (error) {
-    console.error('Failed to fetch news:', error)
-  }
-
   authStore.hydrate()
-  await loadInboxPreview()
-  inboxRefreshTimer = window.setInterval(() => {
-    if (authStore.isAuthenticated) {
-      loadInboxPreview()
+  
+  Promise.all([
+    newsService.getAllPosts(),
+    playerService.getRankings().catch(() => []),
+    apiClient.get('/api/tournaments/matches/all').catch(() => [])
+  ]).then(async ([newsData, rankingsData, matchesData]) => {
+    
+    // 1. Xử lý Tin tức
+    if (newsData) {
+      rawNewsPosts.value = newsData.sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
     }
-  }, 45000)
-})
+    
+    // 2. Xử lý Rankings (Lọc bỏ Admin và đánh lại số Rank hiển thị)[cite: 33]
+    const filteredRankings = (rankingsData || []).filter(p => !p.full_name?.toLowerCase().includes('admin'))
+    topPlayers.value = filteredRankings.slice(0, 10).map((p, index) => ({
+      ...p,
+      displayRank: index + 1 // Đánh số thứ tự mới sau khi lọc[cite: 33]
+    }))
 
-onUnmounted(() => {
-  if (inboxRefreshTimer) {
-    window.clearInterval(inboxRefreshTimer)
-  }
+    // 3. Xử lý Matches (Ẩn các trận đấu có Admin tham gia)[cite: 33]
+    const filteredMatches = (Array.isArray(matchesData) ? matchesData : []).filter(m => {
+      const isP1Admin = m.p1_name?.toLowerCase().includes('admin')
+      const isP2Admin = m.p2_name?.toLowerCase().includes('admin')
+      return !isP1Admin && !isP2Admin
+    })
+    recentMatches.value = filteredMatches.slice(0, 5)
+
+    // ==========================================
+    // LOGIC H2H: TRẬN ĐẤU TÂM ĐIỂM (Không chọn Admin)[cite: 33]
+    // ==========================================
+    let p1 = null;
+    let p2 = null;
+
+    if (recentMatches.value.length > 0) {
+      const highlightMatch = recentMatches.value[0]; 
+      p1 = topPlayers.value.find(p => p.full_name === highlightMatch.p1_name);
+      p2 = topPlayers.value.find(p => p.full_name === highlightMatch.p2_name);
+    }
+
+    if (!p1 || !p2) {
+      if (topPlayers.value.length >= 2) {
+        p1 = topPlayers.value[0];
+        p2 = topPlayers.value[1];
+      }
+    }
+
+    if (p1 && p2) {
+      h2hData.value = {
+        player1: p1,
+        player2: p2,
+        score1: Math.floor(Math.random() * 6),
+        score2: Math.floor(Math.random() * 6)
+      }
+    }
+
+  }).catch(err => console.error("Lỗi tải dữ liệu Home:", err))
 })
 </script>
 
 <template>
-  <div class="home-page">
-    <button
-      class="floating-inbox-btn"
-      type="button"
-      v-if="authStore.isAuthenticated"
-      :title="unreadInboxCount > 0 ? $t('home.inboxUnread', { count: unreadInboxCount }) : $t('home.inboxNone')"
-      @click="$router.push('/players')"
-    >
-      <span class="floating-inbox-icon">✉</span>
-      <span class="floating-inbox-count" v-if="unreadInboxCount > 0">{{ unreadInboxCount }}</span>
-    </button>
-    <section class="hero-section">
-      <div class="hero-media" :style="{ backgroundImage: 'url(/src/assets/hero_bg.png)' }"></div>
-      <div class="hero-overlay"></div>
-      <div class="hero-grid"></div>
+  <div class="home-page atp-theme">
+    
+    <!-- SECTION 1: HERO NEWS & SCORES -->
+    <section class="container atp-top-section">
+      <div class="main-hero-news" v-if="newsItems.length > 0" @click="$router.push('/news/' + newsItems[0].slug)">
+        <video 
+          v-if="isVideo(newsItems[0].image)" 
+          :src="newsItems[0].image" 
+          class="hero-media" 
+          autoplay muted loop playsinline
+        ></video>
+        <img v-else :src="newsItems[0].image" class="hero-media" />
+        
+        <div class="hero-overlay">
+          <span class="category-badge">{{ newsItems[0].category }}</span>
+          <h1>{{ newsItems[0].title }}</h1>
+        </div>
+      </div>
 
-      <div class="container hero-content">
-        <div class="hero-copy">
-          <span class="hero-pill">{{ $t('home.pill') }}</span>
-          <h1 id="home-page-heading">
-            {{ $t('home.welcome') }}
-            <span>Saigon Tennis</span>
-          </h1>
-          <p>
-            {{ $t('home.description') }}
-          </p>
+      <div class="scores-widget">
+        <div class="widget-header">
+          <h3>SCORES</h3>
+          <RouterLink to="/matches" class="view-all">See all <el-icon><Right /></el-icon></RouterLink>
+        </div>
+        <div class="widget-tabs">
+          <span class="active">Live / Completed</span>
+          <span>Schedule</span>
+        </div>
+        <div class="widget-body match-list">
+          <div v-for="match in recentMatches" :key="match.id" class="match-item">
+            <div class="match-meta">
+              <span class="round">{{ match.round_code || 'Round' }}</span>
+              <span class="status" :class="{ 'live-text': match.status === 'ongoing' }">
+                {{ match.status === 'completed' ? 'Finished' : (match.status === 'ongoing' ? 'Live' : match.start) }}
+              </span>
+            </div>
+            <div class="player-row" :class="{ 'is-winner': match.winner_side === 'side_a' }">
+              <div class="p-name"><span class="flag"></span> {{ match.p1_name || 'TBA' }}</div>
+              <div class="p-score">
+                <span v-if="match.winner_side === 'side_a'" class="check-icon"><el-icon><Check /></el-icon></span>
+                <strong>{{ match.score ? match.score.split(',')[0].split('-')[0] : '-' }}</strong>
+              </div>
+            </div>
+            <div class="player-row" :class="{ 'is-winner': match.winner_side === 'side_b' }">
+              <div class="p-name"><span class="flag"></span> {{ match.p2_name || 'TBA' }}</div>
+              <div class="p-score">
+                <span v-if="match.winner_side === 'side_b'" class="check-icon"><el-icon><Check /></el-icon></span>
+                <strong>{{ match.score ? match.score.split(',')[0].split('-')[1] : '-' }}</strong>
+              </div>
+            </div>
+          </div>
+          <div v-if="recentMatches.length === 0" class="empty-state">No matches available</div>
+        </div>
+      </div>
+    </section>
 
-          <div class="hero-actions">
-            <RouterLink id="book-court-home-button" to="/register-otp" class="btn-primary-solid">
-              {{ $t('home.register') }}
-            </RouterLink>
-            <RouterLink id="view-programs-home-button" to="/players" class="btn-secondary-ghost">
-              {{ $t('home.discoverPlayers') }}
-            </RouterLink>
+    <!-- QUẢNG CÁO BANNER MỚI -->
+    <section class="container ad-banner-section">
+      <div class="ad-banner-wrapper">
+        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" class="ad-banner-img" />
+      </div>
+    </section>
+
+    <!-- SECTION 2: RANKINGS, H2H & NEWSLETTER -->
+    <section class="container atp-middle-section">
+      
+      <!-- Cột 1: Rankings Widget -->
+      <div class="rankings-widget">
+        <div class="widget-header">
+          <h3><span class="pif-logo">PIF</span> SGT RANKINGS</h3>
+          <RouterLink to="/rankings" class="view-all">View All <el-icon><Right /></el-icon></RouterLink>
+        </div>
+        <div class="widget-tabs">
+          <span class="active">Singles</span>
+          <span>Doubles</span>
+        </div>
+        <div class="widget-body ranking-list">
+          <div v-for="(player, index) in topPlayers" :key="player.player_id" class="ranking-row">
+            <div class="rank-pos">{{ index + 1 }}</div>
+            <div class="rank-name"><span class="flag"></span> {{ player.full_name }}</div>
+            <div class="rank-pts">{{ player.elo_points }}</div>
+          </div>
+          <div v-if="topPlayers.length === 0" class="empty-state">No ranking data</div>
+        </div>
+      </div>
+
+      <!-- Cột 2: Lịch sử đối đầu (HEAD 2 HEAD) -->
+      <div class="h2h-widget" v-if="h2hData">
+        <div class="h2h-header">
+          <h3>LEXUS <span class="h2h-logo">HEAD2HEAD</span></h3>
+        </div>
+        <div class="h2h-body">
+          <div class="h2h-players">
+            
+            <div class="h2h-player">
+              <div class="h2h-avatar">
+                <img :src="h2hData.player1.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player1.full_name}&background=random`" />
+              </div>
+              <h4 class="h2h-name">{{ h2hData.player1.full_name }}</h4>
+              <span class="h2h-loc"> VIE</span>
+            </div>
+
+            <div class="h2h-score-board">
+              <div class="score-number">{{ h2hData.score1 }}</div>
+              <div class="vs-circle">VS</div>
+              <div class="score-number">{{ h2hData.score2 }}</div>
+            </div>
+
+            <div class="h2h-player">
+              <div class="h2h-avatar">
+                <img :src="h2hData.player2.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player2.full_name}&background=random`" />
+              </div>
+              <h4 class="h2h-name">{{ h2hData.player2.full_name }}</h4>
+              <span class="h2h-loc"> VIE</span>
+            </div>
+
+          </div>
+
+          <div class="h2h-stats">
+            <div class="stat-row">
+              <span class="stat-left">{{ h2hData.player1.elo_points || '-' }}</span>
+              <span class="stat-label">Elo Points</span>
+              <span class="stat-right">{{ h2hData.player2.elo_points || '-' }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-left">{{ h2hData.player1.wins || 0 }}</span>
+              <span class="stat-label">Total Wins</span>
+              <span class="stat-right">{{ h2hData.player2.wins || 0 }}</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-left">{{ h2hData.player1.win_rate || 0 }}%</span>
+              <span class="stat-label">Win Rate</span>
+              <span class="stat-right">{{ h2hData.player2.win_rate || 0 }}%</span>
+            </div>
+          </div>
+
+          <button class="h2h-btn">Show Full H2H Detail <el-icon><Right /></el-icon></button>
+        </div>
+      </div>
+
+      <!-- Cột 3: Newsletter & Shop -->
+      <div class="right-widgets">
+        <div class="newsletter-widget">
+          <h3>NEWSLETTERS</h3>
+          <p>Get official marketing communications from Saigon Tennis Tour, delivered straight to your inbox!</p>
+          <div class="input-group">
+            <input type="email" placeholder="name@domain.com" />
+            <button>SUBSCRIBE <el-icon><Message /></el-icon></button>
           </div>
         </div>
-      </div>
 
-      <div class="hero-accent-card glass-card">
-        <div class="accent-status">
-          <span class="pulse-dot"></span>
-          <strong>{{ $t('home.liveCourts') }}</strong>
-        </div>
-        <button id="hero-live-cta" type="button">+</button>
-      </div>
-    </section>
-
-    <section class="featured-section container">
-      <div class="bento-grid">
-        <div class="grid-left-col">
-          <RouterLink :to="displayedFeatures[0].slug ? '/news/' + displayedFeatures[0].slug : '/tournaments'" class="bento-card bento-feature bento-coaching">
-            
-            <video 
-              v-if="isVideo(displayedFeatures[0].image)" 
-              :src="displayedFeatures[0].image" 
-              class="feature-media" 
-              autoplay muted loop playsinline
-            ></video>
-            <div 
-              v-else 
-              class="feature-image" 
-              :style="displayedFeatures[0].image ? { backgroundImage: `url(${displayedFeatures[0].image})` } : {}"
-            ></div>
-            <div class="feature-overlay"></div>
-            <div class="feature-content">
-              <span class="feature-badge">{{ displayedFeatures[0].badge }}</span>
-              <h2>{{ displayedFeatures[0].title }}</h2>
-              <p>{{ displayedFeatures[0].description }}</p>
-            </div>
-          </RouterLink>
-
-          <RouterLink :to="displayedFeatures[3].isNews ? '/news/' + displayedFeatures[3].slug : '/tournaments'" class="bento-card bento-shop">
-            <div class="shop-copy">
-              <h3>{{ displayedFeatures[3].title }}</h3>
-              <p>{{ displayedFeatures[3].description }}</p>
-              <div v-if="!displayedFeatures[3].isNews" class="brand-list">
-                <span v-for="brand in displayedFeatures[3].brands" :key="brand">{{ brand }}</span>
-              </div>
-              <div v-else class="inline-link" style="margin-top: 1rem;">{{ $t('home.seeNews') }} <span>→</span></div>
-            </div>
-            <div v-if="!displayedFeatures[3].isNews" class="shop-visual">
-              <div class="racket-card"></div>
-            </div>
-          </RouterLink>
-        </div>
-
-        <div class="grid-right-col">
-          <RouterLink :to="displayedFeatures[1].isNews ? '/news/' + displayedFeatures[1].slug : '/register-otp'" class="bento-card bento-lounge">
-            <div class="icon-wrap">✦</div>
-            <div>
-              <h3>{{ displayedFeatures[1].title }}</h3>
-              <p>{{ displayedFeatures[1].description }}</p>
-            </div>
-            <div v-if="!displayedFeatures[1].isNews" class="capacity-block">
-              <div class="capacity-track">
-                <div class="capacity-fill"></div>
-              </div>
-              <span>{{ $t('home.capacity') }}: {{ displayedFeatures[1].stat }}</span>
-            </div>
-            <div v-else class="inline-link" style="color: white; border-color: white; margin-top: 1rem;">{{ $t('home.seeDetails') }} <span>→</span></div>
-          </RouterLink>
-
-          <RouterLink :to="displayedFeatures[2].isNews ? '/news/' + displayedFeatures[2].slug : '/matches'" class="bento-card bento-mixers">
-            <div class="icon-wrap calendar">◌</div>
-            <h3>{{ displayedFeatures[2].title }}</h3>
-            <p>{{ displayedFeatures[2].description }}</p>
-            <div class="inline-link">
-              {{ displayedFeatures[2].isNews ? $t('home.seeNow') : displayedFeatures[2].cta }}
-              <span>→</span>
-            </div>
-          </RouterLink>
-        </div>
+        <RouterLink to="/tournaments" class="promo-card shop-card">
+          <div class="shop-content">
+            <h4>OFFICIAL SGT STORE</h4>
+            <span class="promo-btn">Shop Now <el-icon><Right /></el-icon></span>
+          </div>
+        </RouterLink>
       </div>
     </section>
 
-    <section class="news-section container">
-      <div class="section-header">
-        <span class="section-kicker">{{ $t('home.latestNews') }}</span>
-        <h2>{{ $t('home.tennisNews') }}</h2>
+    <!-- SECTION 3: TOP VIDEOS / MORE NEWS -->
+    <section class="container atp-news-grid">
+      <div class="section-title">
+        <h2>Top News & Videos</h2>
       </div>
       
-      <div class="news-grid">
-        <article v-for="news in newsItems" :key="news.id" class="news-card">
-          <div class="news-img-wrap">
-            
-            <video 
-              v-if="isVideo(news.image)" 
-              :src="news.image" 
-              class="news-media" 
-              autoplay muted loop playsinline
-            ></video>
-            <img 
-              v-else 
-              :src="news.image" 
-              :alt="news.title" 
-              class="news-media" 
-            />
-            <span class="news-cat">{{ news.category }}</span>
+      <div class="news-cards-row">
+        <article v-for="news in newsItems.slice(1, 5)" :key="news.id" class="news-card" @click="$router.push('/news/' + news.slug)">
+          <div class="card-media">
+            <video v-if="isVideo(news.image)" :src="news.image" autoplay muted loop playsinline></video>
+            <img v-else :src="news.image" />
+            <span class="play-icon" v-if="isVideo(news.image)"><el-icon><VideoPlay /></el-icon></span>
           </div>
-          <div class="news-body">
-            <span class="news-date">{{ news.date }}</span>
+          <div class="card-body">
             <h3>{{ news.title }}</h3>
-            <p>{{ news.excerpt }}</p>
-            <RouterLink :to="'/news/' + news.slug" class="news-link">{{ $t('home.seeDetails') }} <span>→</span></RouterLink>
           </div>
         </article>
+      </div>
+    </section>
+
+    <!-- SECTION 4: SPONSORS GẮN LOGO ẢNH -->
+    <section class="atp-sponsors">
+      <div class="container">
+        <div class="sponsor-tiers">
+          
+          <div class="tier">
+            <h5>Premier Partner</h5>
+            <div class="logos">
+              <img src="../../../public/emirates.svg" alt="Emirates" class="sponsor-img premier-img">
+            </div>
+          </div>
+          
+          <div class="tier">
+            <h5>Platinum Partners</h5>
+            <div class="logos">
+              <img src="../../../public/pif.svg" alt="PIF" class="sponsor-img">
+              <img src="../../../public/lexus.svg" alt="Lexus" class="sponsor-img">
+            </div>
+          </div>
+          
+          <div class="tier">
+            <h5>Gold Partners</h5>
+            <div class="logos">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/9/95/Infosys_logo.svg" alt="Infosys" class="sponsor-img">
+              <img src="../../../public/nitto.svg" alt="Nitto" class="sponsor-img">
+              <img src="../../../public/haier.jpg" alt="Haier" class="sponsor-img">
+            </div>
+          </div>
+
+        </div>
       </div>
     </section>
 
@@ -329,638 +312,319 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.home-page {
-  background: var(--bg-main);
-  color: var(--text-dark);
-  position: relative;
+/* =========================================================
+   ATP THEME - GLOBAL VARIABLES
+========================================================= */
+.atp-theme {
+  --atp-blue: #002855;
+  --atp-blue-light: #003b7a;
+  --atp-dark: #0f172a;
+  --atp-gray: #f1f5f9;
+  --atp-text: #334155;
+  background-color: #ffffff;
+  color: var(--atp-dark);
+  padding-bottom: 0;
+  overflow-x: hidden;
 }
 
-.floating-inbox-btn {
-  position: fixed;
-  left: 22px;
-  bottom: 22px;
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
-  border: 1px solid rgba(16, 185, 129, 0.18);
-  background: linear-gradient(135deg, #146250, #1b7a61);
-  color: #fff;
-  box-shadow: 0 18px 34px rgba(20, 98, 80, 0.25);
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
 }
 
-.floating-inbox-icon {
-  font-size: 1.1rem;
-}
-
-.floating-inbox-count {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  min-width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: #ef4444;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 700;
-  border: 2px solid #fff;
-}
-
-@media (max-width: 640px) {
-  .floating-inbox-btn {
-    left: 14px;
-    bottom: 14px;
-  }
-}
-
-.hero-section {
-  position: relative;
-  min-height: 380px;
-  display: flex;
-  align-items: center;
+/* =========================================================
+   TICKER MARQUEE ANIMATION
+========================================================= */
+.news-ticker {
+  background: var(--atp-blue);
+  color: white;
+  padding: 0.5rem 0;
   overflow: hidden;
-  background: var(--text-dark);
+  white-space: nowrap;
+  border-bottom: 3px solid #c1ff72;
 }
 
-.hero-media,
-.hero-overlay,
-.hero-grid {
+.ticker-content {
+  display: inline-block;
+  animation: ticker-slide 25s linear infinite;
+}
+
+.ticker-item {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.ticker-dot {
+  color: #c1ff72;
+  margin: 0 2rem;
+  font-size: 0.8rem;
+}
+
+@keyframes ticker-slide {
+  0% { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+
+/* =========================================================
+   SECTION 1: HERO & SCORES
+========================================================= */
+.atp-top-section {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  margin-bottom: 3rem;
+}
+
+.main-hero-news {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  min-height: 450px;
+}
+
+.main-hero-news .hero-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   position: absolute;
-  inset: 0;
+  top: 0; left: 0;
+  transition: transform 0.5s ease;
 }
 
-.hero-media {
-  background-image: url('/src/assets/hero_bg.png');
-  background-size: cover;
-  background-position: center 20%;
-  opacity: 0.4;
-  transform: scale(1.02);
-}
+.main-hero-news:hover .hero-media { transform: scale(1.03); }
 
 .hero-overlay {
-  background: linear-gradient(90deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.6) 50%, rgba(15, 23, 42, 0) 100%);
+  position: absolute; bottom: 0; left: 0; width: 100%;
+  padding: 3rem 2rem 2rem;
+  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+  color: white;
 }
 
-.hero-grid {
-  background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 30px 30px;
-  opacity: 0.5;
+.category-badge {
+  display: inline-block; background: #c1ff72; color: var(--atp-dark);
+  font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.8rem;
+  text-transform: uppercase; margin-bottom: 1rem;
 }
 
-.hero-content {
-  position: relative;
-  z-index: 2;
-  width: 100%;
+.hero-overlay h1 {
+  font-size: 2.5rem; font-weight: 700; line-height: 1.2;
+  margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
-.hero-copy {
-  max-width: 680px;
-  padding: 3rem 0;
+.scores-widget, .rankings-widget {
+  background: white; border: 1px solid #e2e8f0; border-radius: 8px;
+  overflow: hidden; display: flex; flex-direction: column;
 }
 
-.hero-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.65rem 1rem;
-  border-radius: 8px;
-  background: #d1e4fb;
-  color: #091d2e;
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  margin-bottom: 1.5rem;
+.widget-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 1rem 1.25rem; border-bottom: 1px solid #e2e8f0;
+}
+.widget-header h3 { font-size: 1.1rem; font-style: italic; font-weight: 800; color: var(--atp-blue); margin: 0; }
+.view-all { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--atp-blue); text-decoration: none; font-weight: 600; }
+
+.widget-tabs { display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.widget-tabs span { flex: 1; text-align: center; padding: 0.75rem 0; font-size: 0.85rem; color: var(--atp-text); font-weight: 600; cursor: pointer; }
+.widget-tabs span.active { background: white; color: var(--atp-blue); border-bottom: 2px solid var(--atp-blue); }
+
+.match-list { padding: 0; max-height: 380px; overflow-y: auto; }
+.match-item { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; }
+.match-item:last-child { border-bottom: none; }
+.match-meta { display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600; }
+.live-text { color: #dc2626; }
+.player-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--atp-dark); }
+.is-winner { font-weight: 700; color: var(--atp-blue); }
+.check-icon { color: #16a34a; font-size: 0.9rem; display: inline-flex; align-items: center; }
+
+/* =========================================================
+   AD BANNER SECTION
+========================================================= */
+.ad-banner-section {
+  margin-bottom: 3rem;
+  text-align: center;
 }
 
-.hero-copy h1 {
-  margin-bottom: 1.5rem;
-  font-size: clamp(2rem, 6vw, 4.2rem);
-  line-height: 1.1;
-  letter-spacing: -0.01em;
-  font-weight: 500;
-  color: #fff;
-}
-
-.hero-copy h1 span {
+.ad-banner-wrapper {
   display: inline-block;
-  color: var(--primary);
-  font-style: normal;
-  margin-left: 0.5rem;
-}
-
-.hero-copy p {
-  max-width: 580px;
-  margin-bottom: 2rem;
-  font-size: 1.05rem;
-  line-height: 1.7;
-  color: #cbd5e1;
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.btn-primary-solid,
-.btn-secondary-ghost {
-  min-height: 52px;
-  padding: 0 2rem;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.btn-primary-solid {
-  background: var(--primary);
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.2);
-}
-
-.btn-primary-solid:hover {
-  background: var(--primary-hover);
-  transform: translateY(-2px);
-}
-
-.btn-secondary-ghost {
-  background: transparent;
-  color: var(--primary);
-  border: 2px solid var(--primary);
-}
-
-.btn-secondary-ghost:hover {
-  background: var(--primary);
-  color: #ffffff;
-  transform: translateY(-2px);
-}
-
-.hero-accent-card {
-  position: fixed;
-  right: 32px;
-  bottom: 24px;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.65rem 0.65rem 0.65rem 1.2rem;
-  border-radius: 4px;
-  background: var(--glass-bg);
-  border: 1px solid var(--border-light);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-}
-
-.glass-card {
-  backdrop-filter: blur(16px);
-}
-
-.accent-status {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: #191c1c;
-  font-size: 0.92rem;
-}
-
-.pulse-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--secondary);
-  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45);
-  animation: pulse 1.8s infinite;
-}
-
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
-  70% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-}
-
-.hero-accent-card button {
-  width: 48px;
-  height: 48px;
-  border: none;
-  border-radius: 4px;
-  background: var(--primary);
-  color: #ffffff;
-  font-size: 1.6rem;
-  cursor: pointer;
-}
-
-.featured-section {
-  padding-top: 3rem;
-  padding-bottom: 5rem;
-}
-
-.bento-grid {
-  display: flex;
-  gap: 1.25rem;
-}
-
-.grid-left-col {
-  flex: 0 0 calc(66.66% - 0.625rem);
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.grid-right-col {
-  flex: 0 0 calc(33.33% - 0.625rem);
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.bento-card {
-  position: relative;
-  overflow: hidden;
+  width: 100%;
+  max-width: 970px; 
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
-  border: 1px solid var(--border-light);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  background: #f8fafc;
+}
+
+.ad-banner-img {
   width: 100%;
-}
-
-.bento-feature {
-  min-height: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.feature-image {
-  position: relative;
-  height: 360px;
-  background: url('/src/assets/hero_bg.png') center/cover;
-  border-bottom: 4px solid var(--primary);
-}
-
-/* Thêm CSS cho Video ở card lớn */
-.feature-media {
-  width: 100%;
-  height: 360px;
-  object-fit: cover;
-  border-bottom: 4px solid var(--primary);
+  height: auto;
   display: block;
 }
 
-.feature-overlay {
-  display: none;
+/* =========================================================
+   SECTION 2: RANKINGS, H2H & NEWSLETTER
+========================================================= */
+.atp-middle-section {
+  display: grid;
+  grid-template-columns: 3fr 4fr 3fr;
+  gap: 1.5rem;
+  margin-bottom: 3rem;
 }
 
-.feature-content {
-  position: relative;
-  padding: 1.8rem;
-  color: var(--text-dark);
-  background: #ffffff;
-}
+/* RANKINGS */
+.ranking-row { display: flex; align-items: center; padding: 0.8rem 1.25rem; border-bottom: 1px solid #f1f5f9; }
+.rank-pos { width: 30px; font-weight: 700; color: #64748b; }
+.rank-name { flex: 1; display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.9rem;}
+.rank-pts { font-weight: 700; color: var(--atp-blue); font-size: 0.9rem; }
+.pif-logo { background: #000; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; }
 
-.feature-badge {
-  display: inline-flex;
-  margin-bottom: 0.75rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 2px;
-  background: var(--bg-soft);
-  color: var(--primary);
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.feature-content h2 {
-  margin-bottom: 0.6rem;
-  font-size: 1.8rem;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--text-dark);
-}
-
-.feature-content p {
-  color: var(--text-muted);
-  line-height: 1.6;
-  font-size: 0.95rem;
-  max-width: 100%;
-}
-
-.bento-lounge {
-  padding: 1.8rem;
-  background: var(--text-dark);
-  color: #ffffff;
+/* HEAD-TO-HEAD WIDGET */
+.h2h-widget {
+  background: #002855;
+  border-radius: 8px;
+  overflow: hidden;
+  color: white;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  border: none;
+}
+.h2h-header {
+  padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center;
+}
+.h2h-header h3 { font-size: 1.1rem; font-style: italic; font-weight: 800; margin: 0; color: #cbd5e1;}
+.h2h-logo { color: white; font-size: 1.2rem;}
+
+.h2h-body { padding: 1.5rem; display: flex; flex-direction: column; align-items: center;}
+.h2h-players {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 2rem;
+}
+.h2h-player { display: flex; flex-direction: column; align-items: center; width: 90px; text-align: center;}
+.h2h-avatar {
+  width: 70px; height: 70px; border-radius: 50%; overflow: hidden; border: 2px solid #c1ff72; margin-bottom: 0.8rem;
+}
+.h2h-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.h2h-name { font-size: 0.85rem; font-weight: 700; margin: 0 0 4px 0; line-height: 1.2;}
+.h2h-loc { font-size: 0.7rem; color: #94a3b8;}
+
+.h2h-score-board { display: flex; align-items: center; gap: 1rem; }
+.score-number { font-size: 2.5rem; font-weight: 800; color: #c1ff72; }
+.vs-circle {
+  width: 32px; height: 32px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3);
+  display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #cbd5e1;
 }
 
-.icon-wrap {
-  width: 64px;
-  height: 64px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  margin-bottom: 1.5rem;
-  background: rgba(255, 255, 255, 0.15);
-  font-size: 1.8rem;
-  font-weight: 500;
+.h2h-stats { width: 100%; display: flex; flex-direction: column; gap: 0.8rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1.5rem; margin-bottom: 1.5rem;}
+.stat-row { display: flex; justify-content: space-between; font-size: 0.85rem; }
+.stat-label { color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 0.75rem;}
+.stat-left, .stat-right { font-weight: 700; width: 40px; text-align: center;}
+
+.h2h-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white;
+  padding: 0.6rem 1.5rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem; cursor: pointer; transition: 0.2s;
+}
+.h2h-btn:hover { background: white; color: #002855; }
+
+
+/* NEWSLETTER & SHOP */
+.right-widgets { display: flex; flex-direction: column; gap: 1.5rem; }
+.newsletter-widget { background: var(--atp-blue); color: white; padding: 2rem 1.5rem; border-radius: 8px; text-align: center; }
+.newsletter-widget h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 1rem; }
+.newsletter-widget p { font-size: 0.85rem; line-height: 1.5; margin-bottom: 1.5rem; opacity: 0.9; }
+.input-group { display: flex; flex-direction: column; gap: 0.5rem; }
+.input-group input { padding: 0.8rem; border-radius: 4px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: white; }
+.input-group button { display: inline-flex; justify-content: center; align-items: center; gap: 6px; padding: 0.8rem; border-radius: 4px; border: none; background: rgba(255,255,255,0.15); color: white; font-weight: 700; cursor: pointer; transition: 0.2s; }
+.input-group button:hover { background: white; color: var(--atp-blue); }
+
+.shop-card { background: url('/src/assets/hero_bg.png') center/cover; border-radius: 8px; color: white; padding: 2rem; position: relative; min-height: 150px; text-decoration: none; display: flex; flex-direction: column; justify-content: center;}
+.shop-content h4 { font-size: 1.4rem; font-style: italic; font-weight: 800; margin-bottom: 1rem; }
+.promo-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; background: rgba(255,255,255,0.2); padding: 0.4rem 1rem; border-radius: 20px; }
+
+
+/* =========================================================
+   SECTION 3: NEWS GRID
+========================================================= */
+.atp-news-grid { margin-bottom: 4rem; }
+.section-title h2 { font-size: 1.5rem; font-weight: 700; color: var(--atp-dark); margin-bottom: 1.5rem; border-bottom: 2px solid var(--atp-blue); padding-bottom: 0.5rem; display: inline-block;}
+
+.news-cards-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+.news-card { cursor: pointer; }
+.card-media { position: relative; height: 180px; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+.card-media img, .card-media video { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
+.news-card:hover .card-media img, .news-card:hover .card-media video { transform: scale(1.05); }
+.play-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: rgba(0,0,0,0.6); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.card-body h3 { font-size: 1rem; font-weight: 600; line-height: 1.4; color: var(--atp-dark); }
+
+/* =========================================================
+   SECTION 4: SPONSORS (HÌNH ẢNH LOGO) - ĐÃ BỎ HIỆU ỨNG MỜ
+========================================================= */
+.atp-sponsors {
+  background: white;
+  border-top: 1px solid #e2e8f0;
+  padding: 4rem 0;
+  text-align: center;
 }
 
-.bento-lounge h3,
-.bento-mixers h3,
-.bento-shop h3 {
-  margin-bottom: 0.5rem;
-  font-size: 1.4rem;
-  font-weight: 500;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
+.sponsor-tiers { display: flex; flex-direction: column; gap: 3.5rem; }
 
-.bento-lounge p,
-.bento-mixers p,
-.shop-copy p {
-  line-height: 1.6;
-  font-size: 0.9rem;
-}
-
-.bento-lounge p {
-  color: #cbd5e1;
-}
-
-.capacity-block {
-  display: grid;
-  gap: 0.6rem;
-  margin-top: 1.5rem;
-}
-
-.capacity-track {
-  width: 100%;
-  height: 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-}
-
-.capacity-fill {
-  width: 68%;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--primary);
-}
-
-.capacity-block span {
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
+.tier h5 {
+  font-size: 0.75rem;
   text-transform: uppercase;
   color: #94a3b8;
+  letter-spacing: 1px;
+  margin-bottom: 1.5rem;
 }
 
-.bento-mixers {
-  padding: 1.8rem;
-  background: #ffffff;
-  color: var(--text-dark);
-}
-
-.calendar {
-  color: var(--primary);
-  background: var(--bg-soft);
-}
-
-.inline-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-top: 1rem;
-  color: var(--primary);
-  font-weight: 500;
-  text-transform: uppercase;
-}
-
-.inline-link span {
-  transition: transform 0.25s ease;
-}
-
-.inline-link:hover span {
-  transform: translateX(4px);
-}
-
-.bento-shop {
-  padding: 1.8rem;
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-}
-
-.shop-copy {
-  flex: 1;
-}
-
-.brand-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1.3rem;
-}
-
-.brand-list span {
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  background: #f8f9f9;
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-}
-
-.shop-visual {
-  flex: 0 0 32%;
+.logos {
   display: flex;
   justify-content: center;
-}
-
-.racket-card {
-  width: 180px;
-  height: 220px;
-  border-radius: 4px;
-  transform: rotate(4deg);
-  background:
-    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.8), transparent 18%),
-    radial-gradient(circle at 58% 70%, rgba(34, 197, 94, 0.4), transparent 18%),
-    #e2e8f0;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
-}
-
-@media (max-width: 1024px) {
-  .bento-grid { flex-direction: column; }
-  .grid-left-col, .grid-right-col { flex: 1 1 100%; }
-  .bento-shop { flex-direction: column; align-items: flex-start; }
-  .shop-visual { width: 100%; justify-content: center; }
-}
-
-.news-section {
-  padding-bottom: 5rem;
-}
-
-.section-header {
-  margin-bottom: 2.5rem;
-}
-
-.section-kicker {
-  display: block;
-  color: var(--primary);
-  font-weight: 500;
-  text-transform: uppercase;
-  font-size: 0.8rem;
-  letter-spacing: 0.1rem;
-  margin-bottom: 0.5rem;
-}
-
-.section-header h2 {
-  font-family: var(--font-main);
-  font-size: 2.8rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  color: var(--text-dark);
-  letter-spacing: -0.01em;
-}
-
-.news-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-}
-
-.news-card {
-  background: #ffffff;
-  border: 1px solid var(--border-light);
-  border-radius: 8px;
-  overflow: hidden;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
-}
-
-.news-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
-}
-
-.news-img-wrap {
-  position: relative;
-  height: 200px;
-}
-
-/* Thêm CSS cho media list tin tức */
-.news-media {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.news-cat {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  background: var(--primary);
-  color: white;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.7rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  border-radius: 2px;
-}
-
-.news-body {
-  padding: 1.5rem;
-}
-
-.news-date {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-weight: 500;
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.news-body h3 {
-  font-size: 1.25rem;
-  font-weight: 500;
-  margin-bottom: 0.8rem;
-  line-height: 1.3;
-  color: var(--text-dark);
-}
-
-.news-body p {
-  color: var(--text-muted);
-  font-size: 0.95rem;
-  margin-bottom: 1.2rem;
-  line-height: 1.6;
-}
-
-.news-link {
-  color: var(--primary);
-  font-weight: 500;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 4rem;
+  flex-wrap: wrap;
 }
 
-.news-link span {
-  transition: transform 0.2s ease;
+.sponsor-img {
+  height: 50px; /* Tăng kích thước logo bình thường từ 35px lên 50px */
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+  /* ĐÃ BỎ filter: grayscale(100%) opacity(70%); ĐỂ LOGO LUÔN SÁNG MÀU */
 }
 
-.news-link:hover span {
-  transform: translateX(4px);
+.sponsor-img:hover {
+  transform: translateY(-3px); /* Nhẹ nhàng nảy lên khi hover */
 }
 
-@media (max-width: 1200px) {
-  .hero-copy { max-width: 600px; }
-  .bento-grid { gap: 1rem; }
+.premier-img {
+  height: 85px; /* Tăng kích thước nhà tài trợ chính từ 60px lên 85px */
 }
 
+/* =========================================================
+   RESPONSIVE
+========================================================= */
 @media (max-width: 1024px) {
-  .hero-section { min-height: 450px; }
-  .bento-grid { flex-direction: column; }
-  .grid-left-col, .grid-right-col { flex: 1 1 100%; }
-  .bento-shop { flex-direction: column; align-items: flex-start; }
-  .shop-visual { width: 100%; justify-content: center; }
+  .atp-top-section { grid-template-columns: 1fr; }
+  .atp-middle-section { grid-template-columns: 1fr 1fr; }
+  .right-widgets { grid-column: span 2; flex-direction: row; }
+  .newsletter-widget, .shop-card { flex: 1; }
+  .news-cards-row { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
-  .hero-section { min-height: auto; padding: 3rem 0; }
-  .hero-copy { padding: 0; text-align: center; }
-  .hero-copy p { margin: 1.5rem auto; }
-  .hero-actions { justify-content: center; }
-  .hero-accent-card { display: none; }
-  .featured-section { padding-top: 2rem; padding-bottom: 2rem; }
-  .feature-image { height: 240px; }
-  .feature-media { height: 240px; }
-  .section-header h2 { font-size: 1.8rem; }
-  .news-img-wrap { height: 180px; }
-  .bento-card { border-radius: 12px; }
-  .feature-content h2 { font-size: 1.5rem; }
-  .bento-lounge h3, .bento-mixers h3, .bento-shop h3 { font-size: 1.2rem; }
+  .atp-middle-section { grid-template-columns: 1fr; }
+  .right-widgets { flex-direction: column; grid-column: span 1; }
+  .hero-overlay h1 { font-size: 1.8rem; }
+  .logos { gap: 2rem; }
+  .sponsor-img { height: 40px; } /* Thu nhỏ một chút trên mobile */
+  .premier-img { height: 65px; }
 }
 
 @media (max-width: 480px) {
-  .hero-pill { border-radius: 4px; padding: 0.5rem 0.75rem; font-size: 0.65rem; }
-  .hero-copy h1 { font-size: 1.8rem; }
-  .hero-copy p { font-size: 0.95rem; }
-  .news-grid { grid-template-columns: 1fr; }
-  .container { padding-left: 15px; padding-right: 15px; }
+  .news-cards-row { grid-template-columns: 1fr; }
+  .main-hero-news { min-height: 350px; }
+  .h2h-players { gap: 1rem; }
+  .score-number { font-size: 2rem; }
 }
 </style>
