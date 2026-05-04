@@ -2,7 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { currentLocale, t } from '../../../utils/locale'
 import { useAuthStore } from '../../../stores/auth'
-import { useTournamentStore } from '../../../stores/tournament' // Thêm import store giải đấu
+import { useTournamentStore } from '../../../stores/tournament'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   CameraFilled, 
@@ -16,14 +16,15 @@ import {
   Calendar as CalendarIcon,
   Timer,
   Menu,
-  ArrowDown
+  ArrowDown,
+  Setting
 } from '@element-plus/icons-vue'
 
 import { playerService } from '../../../services/playerService'
-import { apiClient } from '../../../services/apiClient' // Đảm bảo import apiClient
+import { apiClient } from '../../../services/apiClient'
 
 const authStore = useAuthStore()
-const tournamentStore = useTournamentStore() // Thêm store giải đấu
+const tournamentStore = useTournamentStore()
 const isEditing = ref(false)
 const isLoading = ref(false)
 const matchHistory = ref([])
@@ -35,7 +36,7 @@ const editForm = ref({
   phone: '',
   gender: '',
   date_of_birth: '',
-  province: '', // Thêm tỉnh thành
+  province: '',
   play_hand: ''
 })
 
@@ -44,7 +45,6 @@ const challenges = ref([])
 const activeTab = ref('info') // info, challenges, tournaments, security
 const isProcessing = ref(false)
 
-// Load danh sách kèo thách đấu
 const loadMyChallenges = async () => {
   isProcessing.value = true
   try {
@@ -57,7 +57,6 @@ const loadMyChallenges = async () => {
   }
 }
 
-// Xử lý Phản hồi (Chấp nhận/Từ chối)
 const handleRespond = async (challengeId, status) => {
   try {
     const actionText = status === 'accepted' ? t('profile.accept') : t('profile.reject');
@@ -71,7 +70,6 @@ const handleRespond = async (challengeId, status) => {
   }
 }
 
-// Xử lý Thanh toán
 const handlePay = async (challengeId) => {
   try {
     const res = await apiClient.post(`/api/payments/challenge/${challengeId}/create-url`)
@@ -83,14 +81,13 @@ const handlePay = async (challengeId) => {
   }
 }
 
-// Helper hiển thị trạng thái
 const getChallengeStatus = (status) => {
   const map = {
-    'pending': { label: t('challenges.pending'), type: 'warning' },
-    'waiting_payment': { label: t('challenges.waiting_payment'), type: 'danger' },
-    'paid': { label: t('challenges.paid'), type: 'success' },
-    'scheduled': { label: t('challenges.scheduled'), type: 'primary' },
-    'rejected': { label: t('challenges.rejected'), type: 'info' }
+    'pending': { label: t('challenges.pending') || 'Chờ duyệt', type: 'warning' },
+    'waiting_payment': { label: t('challenges.waiting_payment') || 'Chờ thanh toán', type: 'danger' },
+    'paid': { label: t('challenges.paid') || 'Đã thanh toán', type: 'success' },
+    'scheduled': { label: t('challenges.scheduled') || 'Đã lên lịch', type: 'primary' },
+    'rejected': { label: t('challenges.rejected') || 'Đã từ chối', type: 'info' }
   }
   return map[status] || { label: status, type: 'info' }
 }
@@ -113,7 +110,6 @@ onMounted(async () => {
     const history = await playerService.getMatchHistory()
     matchHistory.value = history || []
     
-    // Tải đồng thời thách đấu và giải đấu
     loadMyChallenges() 
     await tournamentStore.fetchMyRegistrations() 
   } catch (error) {
@@ -191,6 +187,7 @@ const selectTab = (tab) => {
 
 <template>
   <div class="profile-page-wrapper">
+    <!-- KHU VỰC HERO BANNER -->
     <section class="profile-hero-banner">
       <div class="banner-bg"></div>
       <div class="banner-overlay"></div>
@@ -243,43 +240,51 @@ const selectTab = (tab) => {
       </div>
     </section>
 
+    <!-- KHU VỰC MAIN LAYOUT CÓ SIDEBAR -->
     <div class="container main-layout-container">
       <div class="layout-grid">
+        
+        <!-- SIDEBAR ĐIỀU HƯỚNG BÊN TRÁI -->
         <aside class="compact-sidebar">
-          <!-- Mobile Toggle Button (Matches Header Style) -->
+          
           <button :class="['mobile-menu-toggle', { 'is-active': showMobileMenu }]" @click="showMobileMenu = !showMobileMenu">
             <div class="hamburger-box">
               <span class="hamburger-inner"></span>
             </div>
-            <span class="toggle-text">{{ t('profile.categoryProfile') }}</span>
+            <span class="toggle-text">{{ t('profile.categoryProfile') || 'Danh mục' }}</span>
             <el-icon class="arrow-icon" :class="{ rotate: showMobileMenu }"><ArrowDown /></el-icon>
           </button>
 
           <nav class="sidebar-nav" :class="{ 'mobile-open': showMobileMenu }">
             <button class="nav-btn" :class="{ active: activeTab === 'info' }" @click="selectTab('info')">
-              <span>{{ t('profile.sections.info') }}</span>
+              <el-icon class="nav-icon"><User /></el-icon>
+              <span>{{ t('profile.sections.info') || 'Thông tin chung' }}</span>
             </button>
 
             <button class="nav-btn btn-challenge-nav" :class="{ active: activeTab === 'challenges' }" @click="selectTab('challenges')">
-              <el-icon class="mr-2"><Trophy /></el-icon>
-              <span>{{ t('profile.sections.challenges') }}</span>
+              <el-icon class="nav-icon"><Trophy /></el-icon>
+              <span>{{ t('profile.sections.challenges') || 'Thách đấu' }}</span>
               <el-badge v-if="challenges.filter(c => c.status === 'pending' && c.challenged_id === authStore.profile?.player_profile?.id).length > 0" 
                         :value="challenges.filter(c => c.status === 'pending' && c.challenged_id === authStore.profile?.player_profile?.id).length" 
-                        class="ml-2" />
+                        class="nav-badge" />
             </button>
 
             <button class="nav-btn" :class="{ active: activeTab === 'tournaments' }" @click="selectTab('tournaments')">
-              <span>{{ t('profile.sections.tournaments') }}</span>
+              <el-icon class="nav-icon"><CalendarIcon /></el-icon>
+              <span>{{ t('profile.sections.tournaments') || 'Giải đấu' }}</span>
             </button>
 
             <button class="nav-btn" :class="{ active: activeTab === 'security' }" @click="selectTab('security')">
-              <span>{{ t('profile.sections.security') }}</span>
+              <el-icon class="nav-icon"><Setting /></el-icon>
+              <span>{{ t('profile.sections.security') || 'Bảo mật' }}</span>
             </button>
           </nav>
         </aside>
 
+        <!-- NỘI DUNG CHÍNH BÊN PHẢI -->
         <main class="content-primary">
           
+          <!-- TAB 1: THÔNG TIN CÁ NHÂN -->
           <div v-if="activeTab === 'info'" class="tab-fade-in">
             <article class="atp-card">
               <div class="card-header-flex">
@@ -290,6 +295,7 @@ const selectTab = (tab) => {
                 <button v-if="!isEditing" type="button" class="btn-atp-outline" @click="startEdit">{{ t('profile.edit') }}</button>
               </div>
 
+              <!-- View Mode -->
               <div v-if="!isEditing" class="data-display-grid">
                 <div class="display-item"><label>{{ t('profile.fullName') }}</label><p>{{ authStore.user?.full_name || '---' }}</p></div>
                 <div class="display-item"><label>{{ t('profile.email') }}</label><p class="text-break email-value">{{ authStore.user?.email || '---' }}</p></div>
@@ -301,6 +307,7 @@ const selectTab = (tab) => {
                 <div class="display-item"><label>{{ t('profile.playHand') }}</label><p>{{ authStore.profile?.player_profile?.play_hand === 'right' ? t('profile.right') : authStore.profile?.player_profile?.play_hand === 'left' ? t('profile.left') : authStore.profile?.player_profile?.play_hand === 'both' ? t('profile.both') : t('profile.notUpdated') }}</p></div>
               </div>
 
+              <!-- Edit Mode -->
               <el-form v-else :model="editForm" label-position="top" class="atp-form-modern">
                 <div class="form-grid">
                   <el-form-item :label="t('profile.fullName')"><el-input v-model="editForm.full_name" /></el-form-item>
@@ -335,11 +342,13 @@ const selectTab = (tab) => {
               </el-form>
             </article>
 
+            <!-- LỊCH SỬ THI ĐẤU (Nằm trong Tab Info) -->
             <article class="atp-card mt-3">
               <div class="section-title-wrap table-head">
                 <h2 class="atp-section-title">{{ t('profile.matchHistory') }}</h2>
                 <div class="section-line"></div>
               </div>
+              
               <!-- Desktop Table -->
               <div class="atp-table-wrapper hide-mobile">
                 <el-table :data="matchHistory" :empty-text="t('profile.noMatchData')" style="width: 100%">
@@ -373,6 +382,7 @@ const selectTab = (tab) => {
             </article>
           </div>
 
+          <!-- TAB 2: DANH SÁCH THÁCH ĐẤU -->
           <div v-else-if="activeTab === 'challenges'" class="tab-fade-in">
             <article class="atp-card">
               <div class="card-header-flex">
@@ -420,17 +430,19 @@ const selectTab = (tab) => {
 
                   <el-table-column :label="t('profile.actions')" width="220" align="right">
                     <template #default="{ row }">
+                      <!-- Trạng thái: Mình được mời và chờ phản hồi -->
                       <div v-if="row.status === 'pending' && row.challenged_id === authStore.profile?.player_profile?.id" class="action-flex">
-                        <el-button type="success" size="small" :icon="Check" circle @click="handleRespond(row.id, 'accepted')" />
-                        <el-button type="danger" size="small" :icon="Close" circle @click="handleRespond(row.id, 'rejected')" />
+                        <el-button type="success" size="small" :icon="Check" circle @click="handleRespond(row.id, 'accepted')" title="Chấp nhận" />
+                        <el-button type="danger" size="small" :icon="Close" circle @click="handleRespond(row.id, 'rejected')" title="Từ chối" />
                       </div>
 
+                      <!-- Trạng thái: Chờ thanh toán lệ phí -->
                       <div v-if="row.status === 'waiting_payment'" class="action-flex">
-                        <el-button type="primary" size="small" :icon="CreditCard" @click="handlePay(row.id)">{{ t('profile.payFee') }}</el-button>
+                        <el-button type="primary" size="small" :icon="CreditCard" @click="handlePay(row.id)">{{ t('profile.payFee') || 'Thanh toán ngay' }}</el-button>
                       </div>
 
-                      <span v-if="row.status === 'paid'" class="status-hint">{{ t('profile.adminScheduling') }}</span>
-                      <span v-if="row.status === 'pending' && row.challenger_id === authStore.profile?.player_profile?.id" class="status-hint">{{ t('profile.waitingOpponent') }}</span>
+                      <span v-if="row.status === 'paid'" class="status-hint">{{ t('profile.adminScheduling') || 'Chờ BTC xếp lịch' }}</span>
+                      <span v-if="row.status === 'pending' && row.challenger_id === authStore.profile?.player_profile?.id" class="status-hint">{{ t('profile.waitingOpponent') || 'Chờ đối thủ phản hồi' }}</span>
                     </template>
                   </el-table-column>
                 </el-table>
@@ -455,8 +467,8 @@ const selectTab = (tab) => {
                   </div>
                   <div class="m-ch-actions">
                     <div v-if="row.status === 'pending' && row.challenged_id === authStore.profile?.player_profile?.id" class="m-action-flex">
-                      <el-button type="success" size="default" block @click="handleRespond(row.id, 'accepted')">{{ t('profile.acceptBtn') }}</el-button>
-                      <el-button type="danger" size="default" block @click="handleRespond(row.id, 'rejected')">{{ t('profile.rejectBtn') }}</el-button>
+                      <el-button type="success" size="default" block @click="handleRespond(row.id, 'accepted')">{{ t('profile.acceptBtn') || 'Đồng ý' }}</el-button>
+                      <el-button type="danger" size="default" block @click="handleRespond(row.id, 'rejected')">{{ t('profile.rejectBtn') || 'Từ chối' }}</el-button>
                     </div>
                     <el-button v-if="row.status === 'waiting_payment'" type="primary" block :icon="CreditCard" @click="handlePay(row.id)">{{ t('profile.payFee') }}</el-button>
                     <span v-if="row.status === 'paid'" class="m-status-hint">{{ t('profile.adminScheduling') }}</span>
@@ -468,12 +480,13 @@ const selectTab = (tab) => {
             </article>
           </div>
 
+          <!-- TAB 3: GIẢI ĐẤU ĐÃ ĐĂNG KÝ -->
           <div v-else-if="activeTab === 'tournaments'" class="tab-fade-in">
             <div v-if="tournamentStore.myRegistrations?.length" class="tournaments-stack">
               <article v-for="reg in tournamentStore.myRegistrations" :key="reg.id" class="atp-tour-card">
                 <div class="tour-main-info">
                   <div class="tour-header-row">
-                    <span class="tour-category">saigon tennis tour</span>
+                    <span class="tour-category">SAIGON TENNIS TOUR</span>
                     <span :class="['atp-status-pill', reg.payment_status]">
                       {{ reg.payment_status === 'confirmed' ? 'Đã xác nhận' : 'Đang xử lý' }}
                     </span>
@@ -487,7 +500,7 @@ const selectTab = (tab) => {
                 </div>
                 <div class="atp-ticket-stub">
                   <div class="stub-qr-box">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=SAIGONTENNIS" alt="QR" />
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=SAIGONTENNIS" alt="QR Code" />
                   </div>
                   <span class="stub-label">Mã đăng ký</span>
                   <code>#{{ reg.id.toString().slice(-8).toUpperCase() }}</code>
@@ -496,16 +509,20 @@ const selectTab = (tab) => {
             </div>
             <div v-else class="atp-empty-state-card">
               <div class="empty-visual">🎾</div>
-              <h3>{{ t('profile.noTournaments') }}</h3>
-              <p>{{ t('profile.exploreTournaments') }}</p>
-              <RouterLink to="/tournaments" class="btn-atp-solid">{{ t('profile.findTournamentBtn') }}</RouterLink>
+              <h3>{{ t('profile.noTournaments') || 'Bạn chưa đăng ký giải đấu nào' }}</h3>
+              <p>{{ t('profile.exploreTournaments') || 'Hãy tham gia các giải đấu hấp dẫn đang diễn ra' }}</p>
+              <RouterLink to="/tournaments" class="btn-atp-solid">{{ t('profile.findTournamentBtn') || 'Tìm Giải Đấu' }}</RouterLink>
             </div>
           </div>
 
+          <!-- TAB 4: BẢO MẬT & ĐỔI MẬT KHẨU -->
           <div v-else-if="activeTab === 'security'" class="tab-fade-in">
             <article class="atp-card">
-              <h2 class="atp-section-title">{{ t('profile.changePassword') }}</h2>
-              <p class="section-hint">{{ t('profile.securityHint') }}</p>
+              <div class="section-title-wrap">
+                <h2 class="atp-section-title">{{ t('profile.changePassword') }}</h2>
+                <div class="section-line"></div>
+              </div>
+              <p class="section-hint mb-4" style="color: #64748b;">{{ t('profile.securityHint') || 'Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu cho bất kỳ ai.' }}</p>
 
               <form @submit.prevent="handlePasswordChange" class="atp-form-modern">
                 <div class="form-stack-full">
@@ -524,7 +541,7 @@ const selectTab = (tab) => {
                 </div>
                 <div class="form-actions-row mt-4">
                   <button type="submit" class="btn-atp-solid" :disabled="isLoading">
-                    {{ isLoading ? t('profile.saving') : t('profile.updatePasswordBtn') }}
+                    {{ isLoading ? t('profile.saving') : t('profile.updatePasswordBtn') || 'Cập nhật Mật khẩu' }}
                   </button>
                 </div>
               </form>
@@ -537,267 +554,281 @@ const selectTab = (tab) => {
 </template>
 
 <style scoped>
-/* --- PHẦN STYLE ĐÃ ĐƯỢC TỐI ƯU TOÀN DIỆN --- */
-
+/* =======================================================
+   BASE THEME
+   ======================================================= */
 .profile-page-wrapper {
-  --profile-primary: #15803d;
-  --profile-primary-dark: #166534;
-  --profile-secondary: #bef264;
-  --profile-soft-bg: #f1f5f9;
-  --profile-border: #dbe4ee;
+  --profile-primary: #002855; /* Navy Blue ATP */
+  --profile-primary-dark: #001f44;
+  --profile-secondary: #c1ff72; /* Dạ quang */
+  --profile-soft-bg: #f8fafc;
+  --profile-border: #e2e8f0;
   --profile-text: #0f172a;
   --profile-muted: #64748b;
-  --profile-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.05);
-  font-family: Arial, sans-serif !important;
+  --profile-shadow: 0 4px 15px rgba(0,0,0,0.03);
+  
+  font-family: 'Inter', Arial, sans-serif !important;
   background: var(--profile-soft-bg);
   min-height: 100vh;
-  padding-bottom: 2rem;
+  padding-bottom: 3rem;
 }
 
-/* Tab Animation */
-.tab-fade-in {
-  animation: fadeIn 0.4s ease-out;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Hero Banner */
+/* =======================================================
+   HERO BANNER
+   ======================================================= */
 .profile-hero-banner { 
   position: relative; 
-  min-height: 310px; 
-  background: linear-gradient(135deg, #064e3b 0%, #047857 100%); 
+  min-height: 280px; 
+  background: var(--profile-primary); 
   display: flex;
   align-items: center;
   overflow: hidden;
 }
 
-.banner-bg { position: absolute; inset: 0; background-image: url('https://images.unsplash.com/photo-1595435063098-95843b0d2358?q=80&w=2070&auto=format&fit=crop'); background-size: cover; background-position: center; opacity: 0.2; }
-.banner-overlay { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(2, 44, 34, 0.9) 0%, rgba(4, 78, 59, 0.78) 50%, rgba(6, 95, 70, 0.7) 100%); }
-
-.hero-content-shell { position: relative; z-index: 2; width: 100%; max-width: 1200px; margin: 0 auto; }
-.hero-flex { 
-  display: flex; 
-  align-items: center; 
-  gap: 2rem; 
-  padding: 2rem 1rem;
+.banner-bg { 
+  position: absolute; inset: 0; 
+  background-image: url('/src/assets/hero_bg.png'); 
+  background-size: cover; background-position: center; opacity: 0.15; 
+}
+.banner-overlay { 
+  position: absolute; inset: 0; 
+  background: linear-gradient(90deg, rgba(0, 40, 85, 0.95) 0%, rgba(0, 40, 85, 0.7) 100%); 
 }
 
+.hero-content-shell { position: relative; z-index: 2; width: 100%; max-width: 1280px; margin: 0 auto; }
+.hero-flex { 
+  display: flex; align-items: center; gap: 2.5rem; padding: 2.5rem 1.5rem;
+}
+
+/* Avatar Frame */
 .avatar-frame { 
   position: relative; 
-  width: 150px; 
-  height: 150px; 
-  background: #fff; 
-  border-radius: 50%; /* Chuyển sang dạng tròn cho hiện đại */
-  padding: 5px; 
-  box-shadow: 0 12px 35px rgba(0,0,0,0.25);
+  width: 140px; height: 140px; 
+  background: #fff; border-radius: 50%; 
+  padding: 4px; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
   flex-shrink: 0;
-  border: 4px solid rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: visible;
+  display: flex; align-items: center; justify-content: center;
 }
 .avatar-frame img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .avatar-placeholder { font-size: 3.5rem; }
-.avatar-upload-overlay { position: absolute; right: 5px; bottom: 5px; width: 38px; height: 38px; background: var(--profile-primary); color: #fff; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; border: 3px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: 0.2s; }
-.avatar-upload-overlay:hover { transform: scale(1.1); background: var(--profile-primary-dark); }
 
-.hero-text-block { color: #fff; flex: 1; min-width: 0; }
-.user-role-badge { padding: 0.4rem 0.9rem; border-radius: 999px; background: var(--profile-secondary); color: #14532d; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.75rem; display: inline-block; }
-.hero-text-block h1 { margin: 0 0 1rem; font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 500; text-transform: uppercase; color: #fff; }
-
-/* Stats Box - Glassmorphism */
-.hero-quick-stats { 
-  display: inline-flex; 
-  gap: 1rem; 
-  padding: 0.8rem 1.2rem; 
-  border-radius: 16px; 
-  background: rgba(255, 255, 255, 0.1); 
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+.avatar-upload-overlay { 
+  position: absolute; right: 0px; bottom: 5px; 
+  width: 36px; height: 36px; 
+  background: var(--profile-secondary); color: var(--profile-primary); 
+  display: flex; align-items: center; justify-content: center; 
+  border-radius: 50%; cursor: pointer; border: 3px solid #fff; 
+  transition: 0.2s; font-size: 1.1rem;
 }
-.stat-item { min-width: 60px; text-align: center; }
-.stat-val { display: block; color: var(--profile-secondary); font-size: 1.4rem; font-weight: 700; }
-.stat-lbl { display: block; color: rgba(255, 255, 255, 0.8); font-size: 0.65rem; text-transform: uppercase; font-weight: 600; }
+.avatar-upload-overlay:hover { transform: scale(1.1); }
+
+/* Text Block */
+.hero-text-block { color: #fff; flex: 1; min-width: 0; }
+.user-role-badge { 
+  padding: 0.3rem 0.8rem; border-radius: 4px; 
+  background: var(--profile-secondary); color: var(--profile-primary); 
+  font-size: 0.7rem; font-weight: 800; text-transform: uppercase; 
+  margin-bottom: 0.75rem; display: inline-block; 
+}
+.hero-text-block h1 { margin: 0 0 1rem; font-size: 2.5rem; font-weight: 800; letter-spacing: -0.02em; color: #fff; }
+
+.hero-quick-stats { 
+  display: inline-flex; gap: 1.5rem; padding: 0.8rem 1.5rem; 
+  border-radius: 8px; background: rgba(255, 255, 255, 0.1); 
+  backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.stat-item { text-align: center; }
+.stat-val { display: block; color: var(--profile-secondary); font-size: 1.4rem; font-weight: 800; }
+.stat-lbl { display: block; color: #e2e8f0; font-size: 0.65rem; text-transform: uppercase; font-weight: 600; letter-spacing: 1px;}
 .stat-sep { width: 1px; background: rgba(255, 255, 255, 0.2); }
 
-/* Layout Grid */
-.main-layout-container { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
-.layout-grid { display: grid; grid-template-columns: 260px 1fr; gap: 2rem; margin-top: -2.5rem; position: relative; z-index: 5; }
+/* =======================================================
+   MAIN LAYOUT & SIDEBAR
+   ======================================================= */
+.main-layout-container { max-width: 1280px; margin: 0 auto; padding: 0 1.5rem; }
+.layout-grid { display: grid; grid-template-columns: 240px 1fr; gap: 2.5rem; margin-top: -2.5rem; position: relative; z-index: 5; }
 
-.sidebar-nav { position: sticky; top: 100px; display: flex; flex-direction: column; gap: 0.75rem; }
-.nav-btn { display: flex; align-items: center; padding: 1rem 1.5rem; border-radius: 12px; background: #fff; color: var(--profile-muted); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; transition: 0.3s; text-decoration: none; border: 1px solid var(--profile-border); box-shadow: var(--profile-shadow-sm); width: 100%; cursor: pointer; }
+.sidebar-nav { position: sticky; top: 100px; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.nav-btn { 
+  display: flex; align-items: center; padding: 1rem 1.25rem; 
+  border-radius: 8px; background: #fff; color: var(--profile-muted); 
+  font-size: 0.85rem; font-weight: 700; text-transform: uppercase; 
+  transition: 0.2s; border: 1px solid var(--profile-border); 
+  box-shadow: var(--profile-shadow); cursor: pointer;
+  letter-spacing: 0.05em;
+}
+.nav-icon { margin-right: 12px; font-size: 1.2rem; }
 .nav-btn.active { background: var(--profile-primary); color: #fff; border-color: var(--profile-primary); }
+.nav-btn:hover:not(.active) { border-color: var(--profile-primary); color: var(--profile-primary); }
 
-/* Tournament Cards (Added from MyTournaments) */
+.nav-badge { margin-left: auto; }
+
+/* =======================================================
+   CARDS & FORMS
+   ======================================================= */
+.atp-card { 
+  background: #fff; border: 1px solid var(--profile-border); 
+  border-radius: 12px; padding: 2rem 2.5rem; 
+  box-shadow: var(--profile-shadow); margin-bottom: 2rem; 
+}
+.card-header-flex { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; }
+.atp-section-title { margin: 0; font-size: 1.4rem; font-weight: 800; text-transform: uppercase; color: var(--profile-primary); }
+.section-line { width: 40px; height: 3px; background: var(--profile-secondary); margin-top: 0.8rem; }
+
+.data-display-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.display-item label { font-size: 0.7rem; color: var(--profile-muted); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 0.5rem; letter-spacing: 0.05em;}
+.display-item p { font-size: 1rem; font-weight: 600; color: var(--profile-text); margin: 0; word-break: break-all; }
+
+/* Nút Bấm */
+.btn-atp-outline {
+  background: transparent; border: 2px solid var(--profile-primary);
+  color: var(--profile-primary); padding: 0.5rem 1.5rem;
+  border-radius: 4px; font-weight: 700; text-transform: uppercase;
+  font-size: 0.8rem; cursor: pointer; transition: 0.2s;
+}
+.btn-atp-outline:hover { background: var(--profile-primary); color: #fff; }
+
+.btn-atp-solid {
+  background: var(--profile-primary); border: none;
+  color: #fff; padding: 0.6rem 2rem; border-radius: 4px; 
+  font-weight: 700; text-transform: uppercase; font-size: 0.85rem; 
+  cursor: pointer; transition: 0.2s;
+}
+.btn-atp-solid:hover { background: var(--profile-primary-dark); }
+.btn-atp-text { background: none; border: none; color: var(--profile-muted); font-weight: 600; cursor: pointer;}
+
+.form-actions-row { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;}
+
+/* Table (Lịch sử, Thách đấu) */
+.atp-table-wrapper { border: 1px solid var(--profile-border); border-radius: 8px; overflow: hidden; }
+:deep(.el-table th) { background: #f8fafc !important; color: var(--profile-primary); font-weight: 800; text-transform: uppercase; font-size: 0.75rem;}
+.result-tag { font-size: 0.7rem; font-weight: 700; padding: 4px 10px; border-radius: 4px; text-transform: uppercase;}
+.result-tag.win { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;}
+.result-tag.lose { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;}
+
+.opponent-cell { display: flex; align-items: center; }
+.opp-info { display: flex; flex-direction: column; line-height: 1.4; margin-left: 12px;}
+.role-hint { font-size: 0.65rem; color: var(--profile-muted); text-transform: uppercase; font-weight: 600;}
+.opp-name { font-size: 0.95rem; font-weight: 700; color: var(--profile-text); }
+.opp-contact { font-size: 0.8rem; color: var(--profile-muted); display: flex; align-items: center; gap: 4px; }
+.status-hint { font-size: 0.8rem; color: var(--profile-muted); font-style: italic; display: block; text-align: right;}
+
+/* =======================================================
+   GIẢI ĐẤU CARDS
+   ======================================================= */
 .tournaments-stack { display: flex; flex-direction: column; gap: 1.5rem; }
-.atp-tour-card { display: flex; background: #fff; border: 1px solid var(--profile-border); border-radius: 16px; overflow: hidden; box-shadow: var(--profile-shadow-sm); transition: 0.3s; }
-.atp-tour-card:hover { transform: translateY(-4px); }
+.atp-tour-card { 
+  display: flex; background: #fff; border: 1px solid var(--profile-border); 
+  border-radius: 12px; overflow: hidden; box-shadow: var(--profile-shadow); 
+  transition: transform 0.2s; 
+}
+.atp-tour-card:hover { transform: translateY(-3px); border-color: var(--profile-primary);}
 
 .tour-main-info { flex: 1; padding: 2rem; }
 .tour-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.tour-category { font-size: 0.65rem; font-weight: 600; color: var(--profile-primary); text-transform: uppercase; letter-spacing: 0.1em; }
-.atp-status-pill { padding: 4px 10px; border-radius: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
-.confirmed { background: #dcfce7; color: #166534; }
-.pending { background: #fef9c3; color: #854d0e; }
+.tour-category { font-size: 0.7rem; font-weight: 800; color: var(--profile-primary); text-transform: uppercase; letter-spacing: 0.1em; }
+.atp-status-pill { padding: 4px 12px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+.confirmed { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;}
+.pending { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a;}
 
-.atp-tour-name { font-size: 1.4rem; font-weight: 600; color: var(--profile-text); margin: 0 0 1.5rem; text-transform: uppercase; line-height: 1.2; }
+.atp-tour-name { font-size: 1.5rem; font-weight: 800; color: var(--profile-text); margin: 0 0 1.5rem; text-transform: uppercase; line-height: 1.2; }
 .tour-meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
-.m-label { display: block; font-size: 0.6rem; font-weight: 600; color: var(--profile-muted); text-transform: uppercase; margin-bottom: 4px; }
-.m-val { font-size: 0.9rem; font-weight: 500; color: var(--profile-text); text-transform: uppercase; }
+.m-label { display: block; font-size: 0.65rem; font-weight: 700; color: var(--profile-muted); text-transform: uppercase; margin-bottom: 4px; }
+.m-val { font-size: 0.95rem; font-weight: 600; color: var(--profile-text); }
 
-.atp-ticket-stub { width: 180px; background: #f8fafc; border-left: 2px dashed var(--profile-border); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; text-align: center; }
-.stub-qr-box { width: 90px; height: 90px; background: #fff; padding: 6px; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid var(--profile-border); }
+.atp-ticket-stub { 
+  width: 200px; background: #f8fafc; border-left: 2px dashed #cbd5e1; 
+  display: flex; flex-direction: column; align-items: center; justify-content: center; 
+  padding: 1.5rem; text-align: center; 
+}
+.stub-qr-box { width: 100px; height: 100px; background: #fff; padding: 6px; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--profile-border); }
 .stub-qr-box img { width: 100%; height: 100%; }
-.stub-label { font-size: 0.6rem; font-weight: 700; color: var(--profile-muted); text-transform: uppercase; margin-bottom: 4px; }
-.atp-ticket-stub code { background: #0f172a; color: #fff; padding: 4px 8px; border-radius: 4px; font-weight: 700; font-size: 0.8rem; margin-bottom: 0.5rem; }
-.stub-hint { font-size: 0.6rem; color: var(--profile-muted); margin: 0; }
+.stub-label { font-size: 0.65rem; font-weight: 700; color: var(--profile-muted); text-transform: uppercase; margin-bottom: 6px; }
+.atp-ticket-stub code { background: #0f172a; color: #fff; padding: 6px 12px; border-radius: 4px; font-weight: 700; font-size: 0.9rem; letter-spacing: 1px;}
 
-.atp-empty-state-card { background: #fff; border-radius: 16px; padding: 4rem 2rem; text-align: center; border: 1px solid var(--profile-border); }
-.empty-visual { font-size: 3.5rem; margin-bottom: 1rem; opacity: 0.2; }
+.atp-empty-state-card { background: #fff; border-radius: 12px; padding: 4rem 2rem; text-align: center; border: 1px solid var(--profile-border); }
+.empty-visual { font-size: 4rem; margin-bottom: 1rem; }
+.atp-empty-state-card h3 { font-size: 1.2rem; color: var(--profile-text); margin-bottom: 0.5rem;}
+.atp-empty-state-card p { color: var(--profile-muted); margin-bottom: 2rem;}
 
-.atp-card { background: #fff; border: 1px solid var(--profile-border); border-radius: 20px; padding: 2rem; box-shadow: var(--profile-shadow-sm); margin-bottom: 2rem; width: 100%; box-sizing: border-box; overflow: hidden; }
-.card-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-.atp-section-title { margin: 0; font-size: 1.4rem; font-weight: 600; text-transform: uppercase; }
-.section-line { width: 60px; height: 4px; background: var(--profile-primary); margin-top: 0.5rem; border-radius: 99px; }
-
-.data-display-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-.display-item label { font-size: 0.65rem; color: var(--profile-muted); text-transform: uppercase; font-weight: 600; display: block; margin-bottom: 0.4rem; }
-.display-item p { font-size: 1rem; font-weight: 500; color: var(--profile-text); margin: 0; word-break: break-all; }
-
-.atp-table-wrapper { border-radius: 12px; overflow-x: auto; border: 1px solid #f1f5f9; width: 100%; -webkit-overflow-scrolling: touch; }
-.atp-table-wrapper :deep(.el-table) { min-width: 600px; }
+/* =======================================================
+   RESPONSIVE MOBILE
+   ======================================================= */
 .hide-mobile { display: block; }
 .hide-desktop { display: none; }
 
-.result-tag { font-size: 0.7rem; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
-.result-tag.win { background: #dcfce7; color: #166534; }
-.result-tag.lose { background: #fee2e2; color: #991b1b; }
-
-.opponent-cell { display: flex; align-items: center; padding: 0.5rem 0; }
-.opp-info { display: flex; flex-direction: column; line-height: 1.3; }
-.role-hint { font-size: 0.65rem; color: var(--profile-muted); text-transform: uppercase; }
-.opp-name { font-size: 0.95rem; font-weight: 700; color: var(--profile-text); }
-.opp-contact { font-size: 0.8rem; color: var(--profile-muted); display: flex; align-items: center; gap: 4px; }
-
-/* Responsive Queries */
 @media (max-width: 1024px) {
   .layout-grid { grid-template-columns: 1fr; margin-top: 1.5rem; }
   
   .mobile-menu-toggle {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 1rem 1.25rem;
-    background: #fff; /* Chuyển sang trắng cho giống style người dùng */
-    color: #1e293b;
-    border: 1px solid var(--profile-border);
-    border-radius: 12px;
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    margin-bottom: 1.5rem;
-    box-shadow: var(--profile-shadow-sm);
-    position: sticky;
-    top: 10px;
-    z-index: 100;
+    display: flex; align-items: center; width: 100%; padding: 1rem 1.25rem;
+    background: #fff; color: #0f172a; border: 1px solid var(--profile-border);
+    border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer;
+    margin-bottom: 1.5rem; box-shadow: var(--profile-shadow); position: sticky; top: 70px; z-index: 100;
   }
-
   .hamburger-box { width: 24px; height: 14px; position: relative; margin-right: 12px; }
-  .hamburger-inner, .hamburger-inner::before, .hamburger-inner::after { width: 24px; height: 2px; background-color: #15803d; border-radius: 4px; position: absolute; transition: all 0.3s ease; }
+  .hamburger-inner, .hamburger-inner::before, .hamburger-inner::after { width: 24px; height: 2px; background-color: var(--profile-primary); border-radius: 4px; position: absolute; transition: 0.3s; }
   .hamburger-inner { top: 50%; transform: translateY(-50%); }
   .hamburger-inner::before { content: ''; top: -6px; left: 0; }
   .hamburger-inner::after { content: ''; bottom: -6px; left: 0; }
-  
   .mobile-menu-toggle.is-active .hamburger-inner { background-color: transparent; }
   .mobile-menu-toggle.is-active .hamburger-inner::before { top: 0; transform: rotate(45deg); }
   .mobile-menu-toggle.is-active .hamburger-inner::after { top: 0; transform: rotate(-45deg); }
-
-  .toggle-text { flex: 1; text-align: left; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b; }
-  .arrow-icon { font-size: 1rem; color: #64748b; transition: 0.3s; }
+  .toggle-text { flex: 1; text-align: left; text-transform: uppercase; letter-spacing: 0.05em; }
+  .arrow-icon { font-size: 1rem; color: var(--profile-muted); transition: 0.3s; }
   .arrow-icon.rotate { transform: rotate(180deg); }
 
   .sidebar-nav { 
-    display: none;
-    flex-direction: column; 
-    gap: 0.4rem;
-    background: #fff;
-    border: 1px solid var(--profile-border);
-    border-radius: 12px;
-    padding: 0.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: var(--profile-shadow-sm);
+    display: none; flex-direction: column; gap: 0.4rem; background: #fff;
+    border: 1px solid var(--profile-border); border-radius: 8px; padding: 0.5rem; margin-bottom: 1.5rem;
   }
-  .sidebar-nav.mobile-open { display: flex; animation: slideDown 0.3s ease-out; }
-
-  .nav-btn { 
-    width: 100%; 
-    border: none;
-    box-shadow: none;
-    background: transparent;
-    border-radius: 8px;
-    padding: 0.8rem 1rem;
-    font-size: 0.8rem;
-    justify-content: flex-start;
-  }
-  .nav-btn.active { background: rgba(21, 128, 61, 0.1); color: var(--profile-primary); }
+  .sidebar-nav.mobile-open { display: flex; animation: fadeIn 0.3s ease; }
+  .nav-btn { width: 100%; border: none; box-shadow: none; border-radius: 6px; padding: 0.8rem 1rem; justify-content: flex-start; }
 
   .hide-mobile { display: none !important; }
   .hide-desktop { display: flex !important; }
 
-  /* Mobile Card Lists */
+  /* Mobile Card Lists (Match History & Challenges) */
   .mobile-history-list, .mobile-challenge-list { display: flex; flex-direction: column; gap: 1rem; }
-  .mobile-match-item, .mobile-challenge-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; }
-  .m-match-header, .m-ch-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; padding-bottom: 0.6rem; border-bottom: 1px solid #edf2f7; }
-  .m-match-time { font-size: 0.8rem; color: var(--profile-muted); }
-  .m-match-row { font-size: 0.85rem; margin-bottom: 0.4rem; display: flex; justify-content: space-between; }
+  .mobile-match-item, .mobile-challenge-card { background: #fff; border: 1px solid var(--profile-border); border-radius: 8px; padding: 1.2rem; }
+  .m-match-header, .m-ch-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.8rem; border-bottom: 1px solid #f1f5f9; }
+  .m-match-time { font-size: 0.85rem; color: var(--profile-muted); font-weight: 500;}
+  .m-match-row { font-size: 0.9rem; margin-bottom: 0.6rem; display: flex; justify-content: space-between; }
   .m-match-row b { color: var(--profile-muted); font-weight: 600; }
 
-  .m-ch-names { flex: 1; margin-left: 10px; display: flex; flex-direction: column; }
-  .m-opp-name { font-size: 1rem; color: var(--profile-text); }
-  .m-info-line { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--profile-muted); margin-bottom: 0.4rem; }
-  .m-ch-actions { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px dashed #e2e8f0; }
-  .m-action-flex { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-  .m-status-hint { font-size: 0.8rem; color: var(--profile-primary); font-style: italic; }
-
-  .atp-card { padding: 1.25rem; border-radius: 16px; margin-bottom: 1.5rem; }
-  .atp-section-title { font-size: 1.1rem; }
-  .data-display-grid { grid-template-columns: 1fr; gap: 1.2rem; }
-  .display-item p { font-size: 0.95rem; }
+  .m-ch-names { flex: 1; margin-left: 12px; display: flex; flex-direction: column; }
+  .m-opp-name { font-size: 1.05rem; color: var(--profile-text); }
+  .m-info-line { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--profile-muted); margin-bottom: 0.5rem; font-weight: 500;}
+  .m-ch-actions { margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--profile-border); }
+  .m-action-flex { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  
+  .atp-card { padding: 1.5rem; }
+  .data-display-grid { grid-template-columns: 1fr; gap: 1.5rem; }
   
   /* Tournament Mobile Fix */
   .atp-tour-card { flex-direction: column; }
-  .tour-main-info { padding: 1.25rem; }
-  .atp-tour-name { font-size: 1.2rem; margin-bottom: 1rem; }
+  .tour-main-info { padding: 1.5rem; }
+  .atp-tour-name { font-size: 1.3rem; margin-bottom: 1.2rem; }
   .tour-meta-grid { grid-template-columns: 1fr; gap: 1rem; }
   .atp-ticket-stub { width: 100%; border-left: none; border-top: 2px dashed var(--profile-border); padding: 1.5rem; flex-direction: row; gap: 1.5rem; text-align: left; }
-  .stub-qr-box { margin-bottom: 0; width: 80px; height: 80px; }
-  .stub-qr-box img { width: 100%; height: 100%; }
+  .stub-qr-box { margin-bottom: 0; width: 80px; height: 80px; flex-shrink: 0;}
 }
 
 @media (max-width: 768px) {
-  .profile-hero-banner { min-height: 250px; }
-  .hero-flex { flex-direction: column; text-align: center; padding: 2.5rem 1rem; gap: 1.2rem; }
-  .avatar-frame { width: 110px; height: 110px; margin: 0 auto; }
-  .hero-text-block h1 { font-size: 1.8rem; margin-bottom: 0.8rem; }
-  .hero-quick-stats { width: 100%; justify-content: space-between; padding: 0.6rem 1rem; }
+  .hero-flex { flex-direction: column; text-align: center; padding: 2rem 1rem; gap: 1.5rem; }
+  .avatar-frame { width: 120px; height: 120px; margin: 0 auto; }
+  .hero-text-block h1 { font-size: 2rem; margin-bottom: 1rem; }
+  .hero-quick-stats { width: 100%; justify-content: space-between; padding: 1rem; }
   .stat-val { font-size: 1.2rem; }
-  .stat-lbl { font-size: 0.6rem; }
 }
 
 @media (max-width: 480px) {
-  .hero-quick-stats { flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
-  .stat-item { flex: 1; min-width: 70px; }
+  .hero-quick-stats { flex-wrap: wrap; justify-content: center; gap: 1rem; }
+  .stat-item { flex: 1; min-width: 80px; }
   .stat-sep { display: none; }
   .atp-ticket-stub { flex-direction: column; text-align: center; gap: 1rem; }
   .stub-qr-box { margin: 0 auto; }
-}
-
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (min-width: 1025px) {

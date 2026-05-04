@@ -42,15 +42,15 @@ def respond_challenge(
     data: ChallengeUpdateStatus,
     db: Session = Depends(deps.get_db)
 ):
-    # Nếu chấp nhận thì chuyển sang chờ thanh toán
-    new_status = "waiting_payment" if data.status == "accepted" else "rejected"
+    # SỬA TẠI ĐÂY: Bỏ 'waiting_payment', chuyển thẳng sang 'accepted'
+    new_status = "accepted" if data.status == "accepted" else "rejected"
     return crud_challenge.update_challenge_status(db, challenge_id, new_status)
 
 @router.get("/admin/pending-approvals")
 def get_paid_challenges(db: Session = Depends(get_db)):
     # Lấy các kèo trạng thái 'paid' kèm thông tin VĐV để Admin gán sân
     # Hàm này tôi bốc tên ra luôn để Frontend hiển thị cho dễ
-    challenges = db.query(MatchChallenge).filter(MatchChallenge.status == "paid").all()
+    challenges = db.query(MatchChallenge).filter(MatchChallenge.status == "accepted").all()
     
     results = []
     for c in challenges:

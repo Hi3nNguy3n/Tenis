@@ -30,6 +30,15 @@ const formatCategoryLabel = (type) => type === 'Singles' ? 'Đơn (Singles)' : '
 onMounted(async () => {
   if (tournamentId) {
     await tournamentStore.fetchTournamentById(tournamentId)
+    // --- THÊM CHỐT CHẶN NGÀY GIỜ VÀ TRẠNG THÁI ---
+    if (tournament.value) {
+      const closeDate = new Date(tournament.value.registration_close_at);
+      if (tournament.value.status !== 'open' || new Date() > closeDate) {
+        ElMessage.error('Giải đấu này đã đóng đăng ký hoặc đã kết thúc!');
+        router.push(`/tournaments/${tournamentId}`);
+        return; // Dừng việc thực thi tiếp
+      }
+    }
     if (tournament.value?.format_type === 'Doubles') {
       partners.value = [{ name: '', phone: '', email: '', account_code: '' }]
     }
@@ -87,481 +96,430 @@ const submitRegistration = async () => {
 </script>
 
 <template>
-  <div class="registration-page">
-    <div class="page-header">
-      <div class="container header-content">
-        <div class="header-text">
-          <span class="tagline">Ghi danh giải đấu</span>
-          <h1>{{ tournament?.name || 'Đang tải thông tin...' }}</h1>
+  <div class="neo-registration-page">
+    
+    <!-- IMMERSIVE HERO HEADER -->
+    <header class="neo-hero">
+      <div class="hero-glow"></div>
+      <div class="container hero-inner">
+        <div class="hero-text">
+          <span class="tour-badge"><el-icon><Ticket /></el-icon> OFFICIAL REGISTRATION</span>
+          <h1 class="tour-title">{{ tournament?.name || 'Đang tải thông tin...' }}</h1>
         </div>
         
-        <div class="stepper" v-if="!isAlreadyRegistered">
-          <div :class="['step-item', { active: step >= 1, completed: step > 1 }]">
-            <div class="step-circle">1</div>
-            <span class="step-label">Thông tin</span>
+        <!-- MODERN STEPPER -->
+        <div class="neo-stepper" v-if="!isAlreadyRegistered">
+          <div class="step" :class="{ 'active': step >= 1, 'completed': step > 1 }">
+            <div class="step-icon"><el-icon v-if="step > 1"><Check /></el-icon><span v-else>1</span></div>
+            <span class="step-text">Thông tin</span>
           </div>
-          <div class="step-divider"></div>
-          <div :class="['step-item', { active: step >= 2, completed: step > 2 }]">
-            <div class="step-circle">2</div>
-            <span class="step-label">Xác thực OTP</span>
+          <div class="step-line" :class="{ 'active': step >= 2 }"></div>
+          
+          <div class="step" :class="{ 'active': step >= 2, 'completed': step > 2 }">
+            <div class="step-icon"><el-icon v-if="step > 2"><Check /></el-icon><span v-else>2</span></div>
+            <span class="step-text">Xác thực</span>
           </div>
-          <div class="step-divider"></div>
-          <div :class="['step-item', { active: step === 3 }]">
-            <div class="step-circle">3</div>
-            <span class="step-label">Hoàn tất</span>
+          <div class="step-line" :class="{ 'active': step === 3 }"></div>
+          
+          <div class="step" :class="{ 'active': step === 3 }">
+            <div class="step-icon">3</div>
+            <span class="step-text">Hoàn tất</span>
           </div>
         </div>
       </div>
-    </div>
+    </header>
 
-    <div class="container content-grid">
+    <!-- BỐ CỤC CHÍNH (GRID) -->
+    <div class="container neo-grid">
       
-      <div class="main-column">
-        <div v-if="isAlreadyRegistered" class="status-card alert-card fade-in">
-          <div class="icon-wrapper warning">
-            <el-icon><WarningFilled /></el-icon>
-          </div>
-          <h2>Bạn đã đăng ký giải đấu này!</h2>
-          <p>Hồ sơ của bạn đã được hệ thống ghi nhận. Vui lòng theo dõi trạng thái tại trang cá nhân.</p>
-          <button class="btn-primary mt-4" @click="router.push('/profile/my-tournaments')">
-            Về trang Hồ sơ <el-icon class="ml-2"><ArrowRight /></el-icon>
+      <!-- CỘT TRÁI (FORM NỘI DUNG) -->
+      <main class="main-column">
+        
+        <!-- TRẠNG THÁI: ĐÃ ĐĂNG KÝ -->
+        <div v-if="isAlreadyRegistered" class="neo-card alert-card fade-in">
+          <div class="card-icon warning"><el-icon><WarningFilled /></el-icon></div>
+          <h2>Bạn đã ghi danh giải đấu này!</h2>
+          <p>Hệ thống đã ghi nhận hồ sơ của bạn. Vui lòng kiểm tra mã QR Check-in hoặc xem lại thông tin chi tiết tại trang quản lý cá nhân.</p>
+          <button class="neo-btn-primary mt-4" @click="router.push('/profile/my-tournaments')">
+            Đến trang Hồ sơ <el-icon class="ml-2"><ArrowRight /></el-icon>
           </button>
         </div>
 
         <template v-else>
-          <div v-if="step === 1" class="data-card fade-in">
+          <!-- BƯỚC 1: ĐIỀN THÔNG TIN -->
+          <div v-if="step === 1" class="neo-card fade-in">
             <div class="card-header">
-              <el-icon class="header-icon"><UserFilled /></el-icon>
-              <h3>Thông tin vận động viên</h3>
+              <div class="ch-title">
+                <el-icon class="ch-icon"><UserFilled /></el-icon>
+                <h3>Thông tin vận động viên</h3>
+              </div>
+              <p class="ch-desc">Vui lòng điền đầy đủ và chính xác thông tin để BTC sắp xếp lịch thi đấu.</p>
             </div>
             
             <div class="card-body">
-              <div v-if="tournament?.format_type === 'Doubles'" class="partner-section">
-                <div class="section-title">Thông tin đồng đội</div>
-                <div class="form-grid">
-                  <div class="form-item">
+              <!-- Nhập thông tin đồng đội (Đôi) -->
+              <div v-if="tournament?.format_type === 'Doubles'" class="partner-box">
+                <div class="pb-header">Thông tin đồng đội (Đánh đôi)</div>
+                <div class="neo-form-grid">
+                  <div class="neo-form-item">
                     <label>Họ và tên đồng đội <span class="required">*</span></label>
-                    <el-input v-model="partners[0].name" placeholder="Nhập họ và tên" />
+                    <el-input v-model="partners[0].name" placeholder="Nhập họ và tên..." />
                   </div>
-                  <div class="form-item">
-                    <label>Số điện thoại <span class="required">*</span></label>
-                    <el-input v-model="partners[0].phone" placeholder="Nhập số điện thoại" />
+                  <div class="neo-form-item">
+                    <label>Số điện thoại liên hệ <span class="required">*</span></label>
+                    <el-input v-model="partners[0].phone" placeholder="Ví dụ: 0901234567..." />
                   </div>
                 </div>
               </div>
 
-              <div class="form-item mt-4">
-                <label>Ghi chú cho Ban tổ chức (Tùy chọn)</label>
-                <el-input v-model="form.notes" type="textarea" :rows="4" placeholder="Nhập size áo, yêu cầu đặc biệt..." />
+              <div class="neo-form-item mt-4">
+                <label>Ghi chú gửi Ban Tổ Chức (Tùy chọn)</label>
+                <el-input v-model="form.notes" type="textarea" :rows="4" placeholder="Nhập size áo đấu, hoặc các yêu cầu đặc biệt khác..." />
               </div>
             </div>
 
             <div class="card-footer">
-              <button class="btn-text" @click="router.back()">Hủy bỏ</button>
-              <button class="btn-primary" @click="goToOTP" :disabled="isSubmitting">
-                {{ isSubmitting ? 'Đang xử lý...' : 'Tiếp tục nhận OTP' }}
+              <button class="neo-btn-ghost" @click="router.back()">Trở về</button>
+              <button class="neo-btn-primary" @click="goToOTP" :disabled="isSubmitting">
+                {{ isSubmitting ? 'Đang xử lý...' : 'Tiếp tục nhận mã OTP' }}
               </button>
             </div>
           </div>
 
-          <div v-else-if="step === 2" class="data-card fade-in">
-            <div class="card-header">
-              <el-icon class="header-icon"><Message /></el-icon>
+          <!-- BƯỚC 2: XÁC THỰC OTP -->
+          <div v-else-if="step === 2" class="neo-card fade-in">
+            <div class="card-header text-center">
+              <div class="ch-icon mx-auto"><el-icon><Message /></el-icon></div>
               <h3>Xác thực danh tính</h3>
+              <p class="ch-desc">Để bảo mật, vui lòng nhập mã xác thực OTP gồm 6 chữ số vừa được gửi đến hòm thư của bạn.</p>
             </div>
-            <div class="card-body otp-body">
-              <div class="otp-instruction">
-                Mã bảo mật gồm 6 chữ số đã được gửi đến email:<br>
-                <strong>{{ userEmail }}</strong>
+            
+            <div class="card-body text-center">
+              <div class="email-badge">{{ userEmail }}</div>
+              
+              <div class="otp-container">
+                <el-input v-model="otpCode" maxlength="6" placeholder="• • • • • •" class="neo-otp-input" />
               </div>
-              <el-input v-model="otpCode" maxlength="6" placeholder="• • • • • •" class="otp-input" />
-              <div class="resend-text">Không nhận được mã? <a href="#" @click.prevent="goToOTP">Gửi lại</a></div>
+              
+              <div class="resend-block">
+                <span>Chưa nhận được mã?</span>
+                <a href="#" @click.prevent="goToOTP" :class="{'disabled': isSubmitting}">Gửi lại OTP</a>
+              </div>
             </div>
-            <div class="card-footer">
-              <button class="btn-text" @click="step = 1">Quay lại</button>
-              <button class="btn-primary" @click="submitRegistration" :disabled="isSubmitting || otpCode.length < 6">
-                {{ isSubmitting ? 'Đang xử lý...' : 'Xác nhận đăng ký' }}
+            
+            <div class="card-footer space-between">
+              <button class="neo-btn-ghost" @click="step = 1">Quay lại sửa</button>
+              <button class="neo-btn-primary" @click="submitRegistration" :disabled="isSubmitting || otpCode.length < 6">
+                <el-icon class="mr-2" v-if="isSubmitting"><Loading /></el-icon>
+                {{ isSubmitting ? 'Đang xác thực...' : 'Xác nhận Đăng ký' }}
               </button>
             </div>
           </div>
 
-          <div v-else-if="step === 3" class="status-card success-card scale-up">
-            <div class="icon-wrapper success">
-              <el-icon><Check /></el-icon>
-            </div>
+          <!-- BƯỚC 3: THÀNH CÔNG -->
+          <div v-else-if="step === 3" class="neo-card success-card scale-up">
+            <div class="card-icon success"><el-icon><Check /></el-icon></div>
             <h2>Ghi danh thành công!</h2>
-            <p>Hồ sơ của bạn đã được hệ thống <strong>Xác nhận</strong>.<br>Vui lòng thanh toán lệ phí trực tiếp cho Ban Tổ Chức tại sân vào ngày thi đấu.</p>
-            <button class="btn-primary mt-4" @click="router.push('/profile/my-tournaments')">
-              Xem mã QR Check-in
-            </button>
+            <p>Tuyệt vời! Hồ sơ tham dự giải đấu của bạn đã được lưu vào hệ thống.<br>Vui lòng đến bàn Check-in tại sân để hoàn tất thanh toán lệ phí (nếu có).</p>
+            
+            <div class="success-actions">
+              <button class="neo-btn-primary" @click="router.push('/profile/my-tournaments')">
+                Xem Vé điện tử (QR Code)
+              </button>
+            </div>
           </div>
         </template>
-      </div>
+      </main>
 
-      <div class="sidebar-column">
-        <div class="summary-card sticky">
-          <div class="summary-hero">
-            <div class="hero-pattern"></div>
-            <div class="hero-content">
-              <div class="category-badge">{{ formatCategoryLabel(tournament?.format_type) }}</div>
-              <h3 class="tour-name-side">{{ tournament?.name || 'Đang tải...' }}</h3>
+      <!-- CỘT PHẢI (TICKET SUMMARY) -->
+      <aside class="sidebar-column">
+        <div class="ticket-widget sticky">
+          
+          <!-- Phần trên của vé -->
+          <div class="ticket-top">
+            <div class="ticket-brand">SAIGON TENNIS TOUR</div>
+            <h3 class="ticket-tour-name">{{ tournament?.name || 'Đang tải...' }}</h3>
+            <div class="ticket-info-grid">
+              <div class="t-info-item">
+                <span>Ngày khởi tranh</span>
+                <strong>{{ tournament?.start_date ? new Date(tournament.start_date).toLocaleDateString('vi-VN') : 'TBA' }}</strong>
+              </div>
+              <div class="t-info-item text-right">
+                <span>Địa điểm</span>
+                <strong>{{ tournament?.location || 'Saigon Center' }}</strong>
+              </div>
             </div>
           </div>
           
-          <div class="summary-details">
-            <div class="detail-row">
-              <el-icon class="detail-icon"><Trophy /></el-icon>
-              <div>
-                <div class="detail-label">Thể thức thi đấu</div>
-                <div class="detail-value">{{ formatCategoryLabel(tournament?.format_type) }}</div>
-              </div>
+          <!-- Rãnh xé vé -->
+          <div class="ticket-divider">
+            <div class="notch left"></div>
+            <div class="line"></div>
+            <div class="notch right"></div>
+          </div>
+          
+          <!-- Phần dưới của vé -->
+          <div class="ticket-bottom">
+            <div class="t-summary-row">
+              <div class="ts-lbl"><el-icon><Trophy /></el-icon> Thể thức thi đấu</div>
+              <div class="ts-val">{{ formatCategoryLabel(tournament?.format_type) }}</div>
             </div>
-            <div class="detail-row">
-              <el-icon class="detail-icon"><Ticket /></el-icon>
-              <div>
-                <div class="detail-label">Lệ phí tham dự</div>
-                <div class="detail-value price">
-                  {{ tournament?.entry_fee ? new Intl.NumberFormat('vi-VN').format(tournament.entry_fee) + ' VNĐ' : 'Miễn phí' }}
-                </div>
+            <div class="t-summary-row">
+              <div class="ts-lbl"><el-icon><Ticket /></el-icon> Lệ phí giải</div>
+              <div class="ts-val price">
+                {{ tournament?.entry_fee ? new Intl.NumberFormat('vi-VN').format(tournament.entry_fee) + 'đ' : 'Miễn phí' }}
               </div>
             </div>
           </div>
+          
         </div>
-      </div>
+      </aside>
 
     </div>
   </div>
 </template>
 
 <style scoped>
-/* Reset & Base Variables cho trang này */
-.registration-page {
-  --primary-color: #15803d;
-  --primary-hover: #166534;
-  --bg-color: #f8fafc;
-  --card-bg: #ffffff;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
+/* =========================================================
+   NEO-MODERN VARIABLES
+========================================================= */
+.neo-registration-page {
+  --navy: #002855;
+  --navy-light: #004080;
+  --blue-accent: #0066cc;
+  --bg-main: #f1f5f9;
+  --surface: #ffffff;
   --border-color: #e2e8f0;
-  
-  background-color: var(--bg-color);
+  --text-dark: #0f172a;
+  --text-body: #334155;
+  --text-muted: #64748b;
+  --success: #16a34a;
+  --warning: #ca8a04;
+
+  background-color: var(--bg-main);
   min-height: 100vh;
-  padding-bottom: 4rem;
-  font-family: 'Inter', Arial, sans-serif;
+  padding-bottom: 5rem;
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--text-body);
 }
 
-/* Ép font cho Element Plus cục bộ trang này để không bị lỗi font */
-:deep(.el-input__inner),
-:deep(.el-textarea__inner),
-:deep(.el-button) {
-  font-family: 'Inter', Arial, sans-serif !important;
-}
-
-/* Typography Utilities */
-h1, h2, h3 { margin: 0; color: var(--text-main); font-weight: 700; }
+.container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+.text-center { text-align: center; }
+.mx-auto { margin-left: auto; margin-right: auto; }
 .mt-4 { margin-top: 1.5rem; }
-.ml-2 { margin-left: 0.5rem; }
+.ml-2 { margin-left: 8px; }
+.mr-2 { margin-right: 8px; }
 
-/* -------------------------------------
-   Header Banner
--------------------------------------- */
-.page-header {
-  background: linear-gradient(135deg, #001242 0%, #04246b 100%);
+/* Force font for Element Plus inputs */
+:deep(.el-input__inner), :deep(.el-textarea__inner) { font-family: 'Inter', sans-serif !important; }
+
+/* =========================================================
+   HERO HEADER & STEPPER
+========================================================= */
+.neo-hero {
+  background: var(--navy);
   color: white;
-  padding: 3rem 0;
-  margin-bottom: -4rem; /* Kéo nội dung main lên trên một chút */
+  padding: 4rem 0 7rem;
   position: relative;
-}
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 2rem;
-  flex-wrap: wrap;
-}
-.tagline {
-  color: #c1ff72;
-  font-size: 0.875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
-  display: block;
-}
-.header-text h1 {
-  color: white;
-  font-size: 2rem;
-  line-height: 1.2;
-}
-
-/* -------------------------------------
-   Stepper (Quy trình)
--------------------------------------- */
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 1rem 1.5rem;
-  border-radius: 50px;
-  backdrop-filter: blur(10px);
-}
-.step-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  opacity: 0.5;
-  transition: 0.3s;
-}
-.step-item.active, .step-item.completed { opacity: 1; }
-.step-circle {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  display: grid;
-  place-items: center;
-  font-size: 0.875rem;
-  font-weight: 700;
-}
-.step-item.active .step-circle { background: #c1ff72; color: #001242; }
-.step-item.completed .step-circle { background: #15803d; color: white; }
-.step-label { font-size: 0.875rem; font-weight: 600; display: none; }
-.step-item.active .step-label { display: block; }
-.step-divider { width: 30px; height: 2px; background: rgba(255, 255, 255, 0.2); }
-
-@media (min-width: 768px) {
-  .step-label { display: block; }
-}
-
-/* -------------------------------------
-   Grid Layout
--------------------------------------- */
-.content-grid {
-  display: grid;
-  grid-template-columns: 1fr 380px;
-  gap: 2rem;
-  position: relative;
-  z-index: 10;
-}
-@media (max-width: 992px) {
-  .content-grid { grid-template-columns: 1fr; }
-  .sidebar-column { order: -1; } /* Đưa sidebar lên trên ở mobile */
-  .page-header { margin-bottom: 2rem; padding: 2rem 0; }
-}
-
-/* -------------------------------------
-   Cards (Thẻ chứa nội dung chính)
--------------------------------------- */
-.data-card {
-  background: var(--card-bg);
-  border-radius: 16px;
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
-  border: 1px solid var(--border-color);
   overflow: hidden;
-  margin-top: 2rem;
+  margin-bottom: -5rem; /* Kéo Main đè lên */
 }
 
-.card-header {
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.hero-glow {
+  position: absolute; top: -50%; right: 10%;
+  width: 500px; height: 500px; background: #0066cc;
+  border-radius: 50%; filter: blur(120px); opacity: 0.4;
+  pointer-events: none;
 }
-.header-icon { font-size: 1.5rem; color: var(--primary-color); }
+
+.hero-inner {
+  display: flex; justify-content: space-between; align-items: center;
+  position: relative; z-index: 2; flex-wrap: wrap; gap: 2rem;
+}
+
+.tour-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);
+  padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 700;
+  letter-spacing: 0.05em; margin-bottom: 1rem; backdrop-filter: blur(4px);
+}
+.tour-title { font-size: 2.2rem; font-weight: 800; margin: 0; line-height: 1.2; letter-spacing: -0.02em;}
+
+/* Stepper */
+.neo-stepper { display: flex; align-items: center; gap: 12px; }
+.step { display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0.5; transition: 0.3s; }
+.step.active, .step.completed { opacity: 1; }
+
+.step-icon {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem; font-weight: 700; transition: 0.3s;
+}
+.step.active .step-icon { background: var(--blue-accent); border-color: var(--blue-accent); color: white;}
+.step.completed .step-icon { background: #34d399; border-color: #34d399; color: var(--navy);}
+
+.step-text { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
+
+.step-line { width: 40px; height: 2px; background: rgba(255,255,255,0.2); margin-top: -24px;}
+.step-line.active { background: var(--blue-accent); }
+
+@media (max-width: 900px) {
+  .hero-inner { flex-direction: column; align-items: flex-start; }
+  .neo-stepper { width: 100%; justify-content: space-between; }
+  .step-line { flex: 1; margin-top: -20px;}
+  .step-text { display: none; } /* Ẩn text bước ở mobile */
+}
+
+/* =========================================================
+   GRID LAYOUT
+========================================================= */
+.neo-grid {
+  display: grid; grid-template-columns: 1fr 340px; gap: 2rem; position: relative; z-index: 10;
+}
+@media (max-width: 900px) {
+  .neo-grid { grid-template-columns: 1fr; }
+  .sidebar-column { order: -1; }
+  .neo-hero { padding-bottom: 5rem; margin-bottom: -3rem;}
+}
+
+/* =========================================================
+   CARDS (MAIN FORMS)
+========================================================= */
+.neo-card {
+  background: var(--surface); border-radius: 16px; border: 1px solid var(--border-color);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.04); overflow: hidden;
+}
+
+.card-header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); }
+.ch-title { display: flex; align-items: center; gap: 10px; margin-bottom: 6px;}
+.ch-icon { font-size: 1.4rem; color: var(--blue-accent); }
+.ch-title h3 { margin: 0; font-size: 1.2rem; font-weight: 800; color: var(--text-dark);}
+.ch-desc { margin: 0; font-size: 0.85rem; color: var(--text-muted); line-height: 1.5;}
+
 .card-body { padding: 2rem; }
+
 .card-footer {
-  padding: 1.5rem 2rem;
-  background: #f8fafc;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
+  padding: 1.25rem 2rem; background: #f8fafc; border-top: 1px solid var(--border-color);
+  display: flex; justify-content: flex-end; gap: 12px;
 }
+.card-footer.space-between { justify-content: space-between; }
 
-/* -------------------------------------
-   Forms & Inputs
--------------------------------------- */
-.form-item label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-main);
-  margin-bottom: 0.5rem;
-}
-.required { color: #ef4444; }
 
-.partner-section {
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
-  padding: 1.5rem;
-}
-.section-title {
-  font-weight: 700;
-  color: var(--primary-color);
-  margin-bottom: 1rem;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-}
-@media (max-width: 640px) {
-  .form-grid { grid-template-columns: 1fr; }
-}
+/* =========================================================
+   FORM INPUTS
+========================================================= */
+.neo-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+@media (max-width: 600px) { .neo-form-grid { grid-template-columns: 1fr; gap: 1rem;} }
 
+.neo-form-item label {
+  display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-dark); margin-bottom: 6px;
+}
+.required { color: #ef4444; margin-left: 2px;}
+
+/* Ghi đè input Element */
 :deep(.el-input__wrapper), :deep(.el-textarea__wrapper) {
-  box-shadow: 0 0 0 1px var(--border-color) inset !important;
-  border-radius: 8px;
-  padding: 8px 12px;
+  background: #f8fafc !important; box-shadow: 0 0 0 1px var(--border-color) inset !important; border-radius: 8px; padding: 8px 12px;
 }
 :deep(.el-input__wrapper.is-focus), :deep(.el-textarea__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px var(--primary-color) inset !important;
+  background: white !important; box-shadow: 0 0 0 2px var(--blue-accent) inset !important;
 }
 
-/* -------------------------------------
-   OTP Section
--------------------------------------- */
-.otp-body { text-align: center; }
-.otp-instruction { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 2rem; }
-.otp-instruction strong { color: var(--text-main); }
-.otp-input { max-width: 300px; margin: 0 auto; }
-:deep(.otp-input .el-input__inner) {
-  text-align: center;
-  font-size: 2rem;
-  letter-spacing: 0.5em;
-  font-weight: 800;
-  color: var(--primary-color);
-  height: 60px;
+.partner-box {
+  background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;
 }
-.resend-text { margin-top: 1.5rem; font-size: 0.875rem; color: var(--text-muted); }
-.resend-text a { color: var(--primary-color); font-weight: 600; text-decoration: none; }
+.pb-header { font-size: 0.9rem; font-weight: 800; color: var(--navy); margin-bottom: 1rem; text-transform: uppercase;}
 
-/* -------------------------------------
-   Buttons
--------------------------------------- */
-.btn-primary, .btn-text {
-  font-family: 'Inter', Arial, sans-serif;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* =========================================================
+   OTP SECTION
+========================================================= */
+.email-badge {
+  display: inline-block; background: #e0f2fe; color: #0369a1; padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 0.9rem; margin-bottom: 2rem;
 }
-.btn-primary {
-  background: var(--primary-color);
-  color: white;
-  border: none;
+.otp-container { max-width: 320px; margin: 0 auto; }
+:deep(.neo-otp-input .el-input__inner) {
+  text-align: center; font-size: 2.2rem; letter-spacing: 0.4em; font-weight: 800; color: var(--navy); height: 70px;
 }
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.25);
-}
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-text {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-}
-.btn-text:hover { background: #f1f5f9; color: var(--text-main); }
+.resend-block { margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted); }
+.resend-block a { color: var(--blue-accent); font-weight: 700; text-decoration: none; margin-left: 6px; transition: 0.2s;}
+.resend-block a:hover { color: var(--navy); text-decoration: underline;}
+.resend-block a.disabled { color: var(--border-color); pointer-events: none;}
 
-/* -------------------------------------
-   Status Cards (Alert & Success)
--------------------------------------- */
-.status-card {
-  background: var(--card-bg);
-  border-radius: 16px;
-  padding: 4rem 2rem;
-  text-align: center;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
-  margin-top: 2rem;
+/* =========================================================
+   BUTTONS
+========================================================= */
+.neo-btn-primary {
+  background: var(--blue-accent); color: white; border: none;
+  padding: 0.8rem 1.5rem; border-radius: 8px; font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; transition: 0.2s;
 }
-.icon-wrapper {
-  width: 80px; height: 80px;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  font-size: 2.5rem;
-  margin: 0 auto 1.5rem;
-}
-.icon-wrapper.success { background: #dcfce7; color: #16a34a; }
-.icon-wrapper.warning { background: #fef9c3; color: #ca8a04; }
-.status-card h2 { margin-bottom: 1rem; }
-.status-card p { color: var(--text-muted); line-height: 1.6; }
+.neo-btn-primary:hover:not(:disabled) { background: #0055a4; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0, 102, 204, 0.2);}
+.neo-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* -------------------------------------
-   Sidebar Summary (No Image Design)
--------------------------------------- */
-.sticky { position: sticky; top: 100px; }
-.summary-card {
-  background: var(--card-bg);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
-  overflow: hidden;
-  margin-top: 2rem;
+.neo-btn-ghost {
+  background: transparent; border: 1px solid var(--border-color); color: var(--text-body);
+  padding: 0.8rem 1.5rem; border-radius: 8px; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: 0.2s;
 }
-.summary-hero {
-  background: linear-gradient(135deg, #15803d 0%, #166534 100%);
-  position: relative;
-  padding: 2.5rem 1.5rem;
-  color: white;
-  overflow: hidden;
-}
-.hero-pattern {
-  position: absolute;
-  top: -50px; right: -50px;
-  width: 150px; height: 150px;
-  background: radial-gradient(circle, rgba(255,255,255,0.1) 10%, transparent 10%),
-              radial-gradient(circle, rgba(255,255,255,0.1) 10%, transparent 10%);
-  background-size: 20px 20px;
-  background-position: 0 0, 10px 10px;
-  opacity: 0.5;
-  border-radius: 50%;
-}
-.hero-content { position: relative; z-index: 1; }
-.category-badge {
-  display: inline-block;
-  background: #c1ff72;
-  color: #001242;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-}
-.tour-name-side { font-size: 1.25rem; line-height: 1.4; color: white; }
+.neo-btn-ghost:hover { background: #f8fafc; color: var(--text-dark); border-color: var(--text-dark);}
 
-.summary-details { padding: 1.5rem; }
-.detail-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--border-color);
+/* =========================================================
+   STATUS CARDS (Thành công / Cảnh báo)
+========================================================= */
+.alert-card, .success-card { padding: 4rem 2rem; text-align: center; display: flex; flex-direction: column; align-items: center;}
+.card-icon {
+  width: 70px; height: 70px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 2.5rem; margin-bottom: 1.5rem;
 }
-.detail-row:last-child { border-bottom: none; padding-bottom: 0; }
-.detail-icon {
-  font-size: 1.5rem;
-  color: var(--primary-color);
-  background: #dcfce7;
-  padding: 8px;
-  border-radius: 8px;
+.card-icon.warning { background: #fef9c3; color: var(--warning); }
+.card-icon.success { background: #dcfce7; color: var(--success); }
+.alert-card h2, .success-card h2 { margin: 0 0 1rem; color: var(--text-dark); font-weight: 800;}
+.alert-card p, .success-card p { margin: 0; color: var(--text-muted); line-height: 1.6;}
+.success-actions { margin-top: 2rem; }
+
+/* =========================================================
+   SIDEBAR (TICKET WIDGET)
+========================================================= */
+.sticky { position: sticky; top: 24px; }
+.ticket-widget {
+  background: var(--surface); border-radius: 16px; border: 1px solid var(--border-color);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.06); overflow: hidden;
 }
-.detail-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 0.25rem; }
-.detail-value { font-weight: 600; color: var(--text-main); }
-.detail-value.price { font-size: 1.25rem; color: var(--primary-color); }
+
+.ticket-top { padding: 1.5rem; background: var(--navy); color: white;}
+.ticket-brand { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; color: #cbd5e1; margin-bottom: 1rem; text-transform: uppercase;}
+.ticket-tour-name { font-size: 1.25rem; font-weight: 800; margin: 0 0 1.5rem; line-height: 1.3;}
+.ticket-info-grid { display: flex; justify-content: space-between; }
+.t-info-item { display: flex; flex-direction: column; gap: 4px; }
+.t-info-item span { font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: 600;}
+.t-info-item strong { font-size: 0.9rem; color: white; font-weight: 700;}
+
+/* Rãnh xé vé */
+.ticket-divider {
+  height: 24px; position: relative; background: var(--surface); display: flex; align-items: center;
+}
+.notch {
+  width: 24px; height: 24px; background: var(--bg-main); border-radius: 50%;
+  position: absolute; border: 1px solid var(--border-color);
+}
+.notch.left { left: -13px; border-right-color: transparent; border-top-color: transparent; transform: rotate(45deg);}
+.notch.right { right: -13px; border-left-color: transparent; border-bottom-color: transparent; transform: rotate(45deg);}
+.ticket-divider .line {
+  flex: 1; height: 1px; border-top: 2px dashed var(--border-color); margin: 0 20px;
+}
+
+.ticket-bottom { padding: 1.5rem; background: var(--surface);}
+.t-summary-row {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;
+}
+.t-summary-row:last-child { margin-bottom: 0; }
+.ts-lbl { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; display: flex; align-items: center; gap: 8px;}
+.ts-lbl .el-icon { color: var(--navy); }
+.ts-val { font-size: 0.95rem; font-weight: 700; color: var(--text-dark);}
+.ts-val.price { font-size: 1.2rem; color: var(--blue-accent); font-weight: 800;}
 
 /* Animations */
 .fade-in { animation: fadeIn 0.4s ease forwards; }
 .scale-up { animation: scaleUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes scaleUp { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes scaleUp { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 </style>

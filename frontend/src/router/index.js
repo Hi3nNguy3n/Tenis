@@ -186,12 +186,6 @@ const router = createRouter({
       name: 'matches',
       component: MatchesView,
     },
-    {
-      path: '/chat',
-      name: 'ChatRoom',
-      component: ChatTest,
-      meta: { requiresAuth: true } // Nếu hệ thống của bạn có check đăng nhập
-    }
   ],
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {

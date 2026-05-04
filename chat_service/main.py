@@ -10,7 +10,8 @@ app = FastAPI(title="Saigon Tennis - Chat Microservice")
 
 origins = [
     "http://localhost:5173",
-    "https://saigon-tennis-frontend-deploy.vercel.app", # Link Vercel của Phú
+    "https://saigon-tennis-frontend-deploy.vercel.app", # Link Vercel của 
+    "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(

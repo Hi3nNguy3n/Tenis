@@ -283,68 +283,90 @@ def get_all_matches_detail(db: Session):
         })
     return results
 
-
 def calculate_elo_and_update_match(db: Session, match_id: int, payload):
+    # 1. Tìm trận đấu và kiểm tra trạng thái
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match or match.status == "completed":
         raise HTTPException(status_code=400, detail="Trận đấu không tồn tại hoặc đã kết thúc.")
 
-    if payload.winner_side == "side_a":
-        win_reg_id = match.side_a_registration_id
-        lose_reg_id = match.side_b_registration_id
-    else:
-        win_reg_id = match.side_b_registration_id
-        lose_reg_id = match.side_a_registration_id
+    # 2. LOGIC MỚI: Xác định Player ID linh hoạt dựa trên loại trận đấu
+    p1_id = None
+    p2_id = None
 
-    if not win_reg_id or not lose_reg_id:
+    if match.tournament_id:
+        # Trường hợp trận đấu GIẢI: Lấy Player ID thông qua bảng Registration
+        reg_a = db.query(Registration).filter(Registration.id == match.side_a_registration_id).first()
+        reg_b = db.query(Registration).filter(Registration.id == match.side_b_registration_id).first()
+        if reg_a: p1_id = reg_a.player_id
+        if reg_b: p2_id = reg_b.player_id
+    else:
+        # Trường hợp trận GIAO HỮU: Lấy trực tiếp từ player_a_id và player_b_id
+        p1_id = match.player_a_id
+        p2_id = match.player_b_id
+
+    # 3. Kiểm tra tính đầy đủ của 2 vận động viên[cite: 33]
+    if not p1_id or not p2_id:
         raise HTTPException(status_code=400, detail="Trận đấu phải có đủ 2 VĐV mới tính được điểm Elo.")
 
-    def get_player_by_reg(reg_id):
-        reg = db.query(Registration).filter(Registration.id == reg_id).first()
-        return db.query(Player).filter(Player.id == reg.player_id).first()
+    # 4. Xác định ai thắng ai thua dựa trên payload gửi lên
+    win_p_id = p1_id if payload.winner_side == "side_a" else p2_id
+    lose_p_id = p2_id if payload.winner_side == "side_a" else p1_id
+    
+    # Xác định registration_id của người thắng (chỉ dùng cho logic tiến vào vòng sau của Giải)
+    win_reg_id = match.side_a_registration_id if payload.winner_side == "side_a" else match.side_b_registration_id
 
-    winner_p = get_player_by_reg(win_reg_id)
-    loser_p = get_player_by_reg(lose_reg_id)
+    winner_p = db.query(Player).filter(Player.id == win_p_id).first()
+    loser_p = db.query(Player).filter(Player.id == lose_p_id).first()
 
-    # THUẬT TOÁN ELO
+    if not winner_p or not loser_p:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ vận động viên.")
+
+    # 5. THUẬT TOÁN ELO[cite: 33]
     K = 32
     Ra = winner_p.elo_points
     Rb = loser_p.elo_points
     E_winner = 1 / (1 + 10 ** ((Rb - Ra) / 400))
     elo_gain = round(K * (1 - E_winner))
     
+    # Cập nhật chỉ số cho người thắng
     winner_p.elo_points += elo_gain
     winner_p.wins += 1
     winner_p.matches_played += 1
     
+    # Cập nhật chỉ số cho người thua
     loser_p.elo_points -= elo_gain
     loser_p.losses += 1
     loser_p.matches_played += 1
 
+    # 6. Cập nhật thông tin trận đấu
     match.status = "completed"
     match.winner_side = payload.winner_side
-    match.winner_registration_id = win_reg_id
+    match.winner_registration_id = win_reg_id # Lưu reg_id nếu có
     match.result_note = payload.score
 
+    # 7. Xử lý logic thăng hạng nếu là trận đấu giải[cite: 33]
     message_suffix = ""
-    if match.round_code == "FINAL":
-        tournament = db.query(Tournament).filter(Tournament.id == match.tournament_id).first()
-        if tournament:
-            tournament.status = "finished"
-            if hasattr(tournament, 'winner_player_id'):
-                tournament.winner_player_id = winner_p.id
-            message_suffix = f" Chúc mừng nhà vô địch {winner_p.id}!"
-    else:
-        if match.next_match_id:
-            next_m = db.query(Match).filter(Match.id == match.next_match_id).first()
-            if next_m:
-                if match.match_no % 2 != 0:
-                    next_m.side_a_registration_id = win_reg_id
-                else:
-                    next_m.side_b_registration_id = win_reg_id
+    if match.tournament_id:
+        if match.round_code == "FINAL":
+            tournament = db.query(Tournament).filter(Tournament.id == match.tournament_id).first()
+            if tournament:
+                tournament.status = "finished"
+                # Cập nhật ID của nhà vô địch vào giải đấu
+                if hasattr(tournament, 'winner_player_id'):
+                    tournament.winner_player_id = winner_p.id
+                message_suffix = f" Chúc mừng nhà vô địch {winner_p.full_name if hasattr(winner_p, 'full_name') else winner_p.id}!"
+        else:
+            # Tự động đẩy người thắng vào trận đấu tiếp theo trong sơ đồ[cite: 33]
+            if match.next_match_id:
+                next_m = db.query(Match).filter(Match.id == match.next_match_id).first()
+                if next_m:
+                    if match.match_no % 2 != 0:
+                        next_m.side_a_registration_id = win_reg_id
+                    else:
+                        next_m.side_b_registration_id = win_reg_id
 
     db.commit()
-    return {"message": f"Thành công! {message_suffix}"}
+    return {"message": f"Cập nhật kết quả thành công! {message_suffix}"}
 
 def get_public_bracket_detail(db: Session, tournament_id: int):
     matches = db.query(Match).filter(Match.tournament_id == tournament_id).all()

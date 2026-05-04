@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { VideoPlay, PieChart, ArrowLeft as ArrowLeftIcon, ArrowRight as ArrowRightIcon } from '@element-plus/icons-vue'
+import { VideoPlay, PieChart, ArrowRight, ArrowDown, Search } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../utils/locale'
 import { apiClient } from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
@@ -25,7 +25,7 @@ const matchDays = ref(new Set())
 const today = new Date()
 const todayKey = formatDateKey(today)
 const activeDate = ref(todayKey)
-const stripRef = ref(null)   // ref to the scrollable strip element
+const stripRef = ref(null)
 
 // ── Helpers ──────────────────────────────────────────────────────
 function formatDateKey(date) {
@@ -58,12 +58,11 @@ const dateStrip = computed(() => {
   return days
 })
 
-// Group strip days by month for headers
 const groupedStrip = computed(() => {
   const groups = []
   let currentMonth = null
   dateStrip.value.forEach(item => {
-    const monthKey = item.key.slice(0, 7) // "YYYY-MM"
+    const monthKey = item.key.slice(0, 7)
     if (monthKey !== currentMonth) {
       currentMonth = monthKey
       const label = new Date(item.key + 'T12:00:00').toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { month: 'long', year: 'numeric' })
@@ -74,7 +73,6 @@ const groupedStrip = computed(() => {
   return groups
 })
 
-// Scroll the active date button into view
 function scrollToActive() {
   nextTick(() => {
     if (!stripRef.value) return
@@ -89,7 +87,6 @@ function selectDate(key) {
 }
 
 // ── Data fetching ─────────────────────────────────────────────────
-// silent=true: chạy ngầm (auto-refresh) - không làm giật UI, không show lỗi
 const fetchAllMatchesData = async (silent = false) => {
   if (!silent) loading.value = true
   try {
@@ -112,6 +109,7 @@ const fetchAllMatchesData = async (silent = false) => {
           name: matchItem.tournament || matchItem.tournament_name || t('nav.tournaments'),
           location: matchItem.location || 'Vietnam',
           matches: [],
+          isOpen: true // Trạng thái đóng/mở group
         }
       }
 
@@ -145,22 +143,16 @@ const fetchAllMatchesData = async (silent = false) => {
     matchDays.value = days
     tournamentsWithMatches.value = Object.values(buckets).filter(t => t.matches.length > 0)
 
-    // Chọn ngày thông minh: luôn nhảy đến ngày có trận
     if (days.size > 0) {
       const sorted = [...days].sort()
-      // Đếm số trận thực tế trên ngày đang active
       const countOnActive = Object.values(buckets).reduce(
         (sum, t) => sum + t.matches.filter(m => m.matchDate === activeDate.value).length, 0
       )
       if (countOnActive === 0) {
-        // Ngày hiện tại không có trận → nhảy đến ngày phù hợp nhất
-        // 1. Ưu tiên ngày hôm nay nếu có trận
         if (days.has(todayKey)) {
           activeDate.value = todayKey
         } else {
-          // 2. Tìm ngày gần nhất trong tương lai có trận
           const future = sorted.find(d => d >= todayKey)
-          // 3. Nếu không có tương lai thì lấy ngày gần nhất trong quá khứ
           const past   = [...sorted].reverse().find(d => d < todayKey)
           activeDate.value = future || past || sorted[0]
         }
@@ -169,13 +161,12 @@ const fetchAllMatchesData = async (silent = false) => {
 
     scrollToActive()
 
-
     const [news, rankings] = await Promise.all([
-      newsService.getAllPosts({ limit: 2 }),
+      newsService.getAllPosts({ limit: 3 }),
       playerService.getRankings(),
     ])
     latestNews.value = news || []
-    topPlayers.value = (rankings || []).slice(0, 3)
+    topPlayers.value = (rankings || []).slice(0, 5)
 
   } catch (err) {
     console.error('Loi khi tai du lieu tran dau:', err)
@@ -194,18 +185,17 @@ const filteredTournaments = computed(() =>
 const activeDateLabel = computed(() => {
   if (!activeDate.value) return ''
   const d = new Date(`${activeDate.value}T12:00:00`)
-  if (activeDate.value === todayKey)
-    return t('matches.today') + ' — ' + d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
-  return d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
+  return d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { month: 'long', year: 'numeric' })
 })
 
-const matchCountForDay = (key) =>
-  tournamentsWithMatches.value.reduce((sum, t) => sum + t.matches.filter(m => m.matchDate === key).length, 0)
-
-// Weekday abbrev (T2…CN)
 function weekdayLabel(date) {
   const d = new Date(date + 'T12:00:00')
   return d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { weekday: 'short' }).replace('.', '').toUpperCase()
+}
+
+const toggleGroup = (tId) => {
+  const group = tournamentsWithMatches.value.find(t => t.id === tId)
+  if (group) group.isOpen = !group.isOpen
 }
 
 const openTournamentDetail = (id) => router.push(`/tournaments/${id}`)
@@ -222,7 +212,6 @@ onMounted(async () => {
   authStore.hydrate()
   await fetchAllMatchesData()
 
-  // Tự động cập nhật mỗi 30 giây — khi admin thêm trận, bên khách hiện liền
   pollingTimer = setInterval(async () => {
     await fetchAllMatchesData(true)
   }, 30_000)
@@ -234,37 +223,30 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="matches-page">
-
-    <!-- ── Sticky date nav bar ───────────────────────────────── -->
-    <div class="date-nav-bar">
-      <div class="date-nav-inner">
-
-        <!-- Today button -->
-        <button class="today-pill" @click="selectDate(todayKey)">{{ t('matches.today') }}</button>
-
-        <!-- Scrollable strip grouped by month -->
-        <div class="strip-scroll-wrap" ref="stripRef">
-          <div class="strip-track">
+  <div class="atp-matches-page">
+    
+    <!-- THANH ĐIỀU HƯỚNG NGÀY (SÁNG SỦA, GỌN GÀNG) -->
+    <div class="clean-date-nav">
+      <div class="container nav-inner">
+        <button class="btn-today" @click="selectDate(todayKey)">{{ t('matches.today') }}</button>
+        <div class="date-strip-wrapper" ref="stripRef">
+          <div class="date-strip-track">
             <template v-for="group in groupedStrip" :key="group.monthKey">
-              <!-- Month divider -->
-              <span class="month-divider">{{ group.label }}</span>
-              <!-- Day buttons -->
+              <span class="month-label">{{ group.label }}</span>
               <button
                 v-for="item in group.days"
                 :key="item.key"
-                :id="'dbtn-' + item.key"
                 :class="[
-                  'date-btn',
+                  'date-item',
                   { 'is-today': item.key === todayKey },
-                  { 'has-matches': matchDays.has(item.key) },
-                  { 'is-active': item.key === activeDate },
+                  { 'has-data': matchDays.has(item.key) },
+                  { 'active': item.key === activeDate },
                 ]"
                 @click="selectDate(item.key)"
               >
-                <span class="btn-wd">{{ weekdayLabel(item.key) }}</span>
-                <span class="btn-day">{{ item.d.getDate() }}</span>
-                <span v-if="matchDays.has(item.key)" class="btn-dot"></span>
+                <span class="d-week">{{ weekdayLabel(item.key) }}</span>
+                <span class="d-num">{{ item.d.getDate() }}</span>
+                <span class="d-dot" v-if="matchDays.has(item.key)"></span>
               </button>
             </template>
           </div>
@@ -272,597 +254,451 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- ── Page content ──────────────────────────────────────── -->
-    <div class="container main-layout">
-
-      <!-- LEFT: Matches col -->
-      <main class="main-col">
-
-        <!-- Date label + count -->
-        <div class="date-heading">
-          <h2>{{ activeDateLabel }}</h2>
-          <span v-if="filteredTournaments.length > 0" class="match-count-badge">
-            {{ filteredTournaments.reduce((s, t) => s + t.matches.length, 0) }} {{ t('matches.match') }}
-          </span>
+    <!-- BỐ CỤC CHÍNH (MAIN + SIDEBAR) -->
+    <div class="container atp-layout">
+      
+      <!-- CỘT TRÁI: DANH SÁCH LIST -->
+      <main class="main-column" v-loading="loading">
+        
+        <!-- HEADER CỦA LIST (Như hình: Search & Title) -->
+        <div class="list-header-controls">
+          <div class="search-box">
+            <el-icon><Search /></el-icon>
+            <input type="text" placeholder="Search matches..." readonly />
+          </div>
+          <div class="header-actions">
+            <button class="btn-action-solid">All Matches</button>
+            <button class="btn-action-solid"><el-icon><Calendar style="margin-right:4px;"/></el-icon> Calendar</button>
+          </div>
         </div>
 
-        <!-- Match list for active date -->
-        <div v-loading="loading">
-          <div v-for="tournament in filteredTournaments" :key="tournament.id" class="tournament-group">
-            <header class="tournament-header">
-              <div class="t-title">
-                <span class="location">{{ tournament.location }}</span>
-                <h3>{{ tournament.name }}</h3>
-              </div>
-              <el-button link @click="openTournamentDetail(tournament.id)">{{ t('common.details') }} →</el-button>
-            </header>
+        <div class="group-heading-row">
+          <h2 class="active-month-title">
+            {{ activeDateLabel }} <span>({{ filteredTournaments.reduce((s, t) => s + t.matches.length, 0) }} matches)</span>
+          </h2>
+          <el-icon class="collapse-icon"><ArrowDown /></el-icon>
+        </div>
 
-            <div class="match-list">
-              <article v-for="match in tournament.matches" :key="match.id" class="match-card">
-                <div class="match-info-strip">
-                  <span class="round-badge">{{ match.round }}</span>
-                  <span :class="['match-status', match.status.toLowerCase()]">
-                    <span v-if="match.status === 'Live'" class="pulse"></span>
-                    {{ match.status === 'Live' ? t('common.live') : match.status === 'Finished' ? t('matches.final') : match.time }}
+        <!-- DANH SÁCH TRẬN ĐẤU DẠNG ROW (HORIZONTAL) -->
+        <div class="tournaments-wrapper">
+          
+          <div v-for="tournament in filteredTournaments" :key="tournament.id" class="atp-tournament-group">
+            
+            <!-- Tiêu đề Giải Đấu -->
+            <div class="group-banner" @click="toggleGroup(tournament.id)">
+              <div class="group-banner-left">
+                <img src="../../../public/pif.svg" alt="Tour Logo" class="tour-logo" />
+                <div class="tour-name-info">
+                  <h3>{{ tournament.name }}</h3>
+                  <span class="tour-loc">{{ tournament.location }} | {{ new Date(activeDate).toLocaleDateString('en-GB') }}</span>
+                </div>
+              </div>
+              <div class="group-banner-right">
+                <el-icon :class="{'rotated': !tournament.isOpen}"><ArrowDown /></el-icon>
+              </div>
+            </div>
+
+            <!-- Các Dòng Trận Đấu (Rows) -->
+            <div v-show="tournament.isOpen" class="match-rows-container">
+              
+              <div v-for="match in tournament.matches" :key="match.id" class="atp-match-row">
+                
+                <!-- Cột 1: Meta (Round, Time) -->
+                <div class="row-col col-meta">
+                  <span class="m-round">{{ match.round }}</span>
+                  <span :class="['m-status', match.status.toLowerCase()]">
+                    <span v-if="match.status === 'Live'" class="live-dot"></span>
+                    {{ match.status === 'Live' ? 'LIVE' : match.status === 'Finished' ? 'FT' : match.time }}
                   </span>
                 </div>
 
-                <div class="match-players">
-                  <div
-                    v-for="player in match.players"
-                    :key="player.name"
-                    class="player-row"
-                    :class="{ winner: player.winner }"
-                  >
-                    <div class="player-identity">
-                      <span class="winner-icon" v-if="player.winner">🏆</span>
-                      <span class="player-name">{{ player.name }}</span>
+                <!-- Cột 2: Players & Score -->
+                <div class="row-col col-players">
+                  <div class="p-line" :class="{ 'is-winner': match.players[0].winner }">
+                    <div class="p-identity">
+                      <span class="flag-mini"></span>
+                      <span class="p-name">{{ match.players[0].name }}</span>
                     </div>
-                    <div class="player-scores">
-                      <span
-                        v-for="(set, idx) in player.sets"
-                        :key="idx"
-                        class="set-score"
-                        :class="{ active: idx === player.sets.length - 1 && match.status === 'Live' }"
-                      >{{ set }}</span>
+                    <div class="p-score-wrap">
+                      <span v-for="(s, i) in match.players[0].sets" :key="i" class="p-score">{{ s }}</span>
+                      <el-icon v-if="match.players[0].winner" class="winner-tick"><Check /></el-icon>
+                    </div>
+                  </div>
+                  <div class="p-line" :class="{ 'is-winner': match.players[1].winner }">
+                    <div class="p-identity">
+                      <span class="flag-mini"></span>
+                      <span class="p-name">{{ match.players[1].name }}</span>
+                    </div>
+                    <div class="p-score-wrap">
+                      <span v-for="(s, i) in match.players[1].sets" :key="i" class="p-score">{{ s }}</span>
+                      <el-icon v-if="match.players[1].winner" class="winner-tick"><Check /></el-icon>
                     </div>
                   </div>
                 </div>
 
-                <div class="match-actions">
-                  <button class="m-btn highlight" @click="openReplay(tournament.id, match)">
-                    <el-icon><VideoPlay /></el-icon> {{ t('matches.replay') }}
-                  </button>
-                  <button class="m-btn" @click="openStats">
-                    <el-icon><PieChart /></el-icon> {{ t('matches.stats') }}
-                  </button>
+                <!-- Cột 3: Buttons (Tickets / Results) -->
+                <div class="row-col col-actions">
+                  <button class="btn-atp-outline" @click="openStats">Thống kê</button>
+                  <button class="btn-atp-solid" @click="openReplay(tournament.id, match)">Video <el-icon><ArrowRight /></el-icon></button>
                 </div>
-              </article>
+              </div>
+
             </div>
           </div>
 
-          <!-- Empty state -->
-          <div v-if="!loading && filteredTournaments.length === 0" class="empty-state">
-            <div class="empty-icon">📅</div>
-            <p class="empty-title">{{ t('matches.noMatches') }}</p>
-            <p class="empty-sub">
-              {{ matchDays.size === 0
-                  ? t('matches.noScheduleYet')
-                  : t('matches.selectDayHint') }}
-            </p>
-            <div v-if="matchDays.size > 0" class="quick-days">
-              <p>{{ t('matches.nearestDays') }}:</p>
-              <button
-                v-for="day in [...matchDays].sort().slice(0, 6)"
-                :key="day"
-                class="quick-day-btn"
-                @click="selectDate(day)"
-              >
-                {{ new Date(day + 'T12:00:00').toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit' }) }}
-              </button>
-            </div>
+          <!-- Trạng thái trống -->
+          <div v-if="!loading && filteredTournaments.length === 0" class="empty-list-state">
+            <el-empty description="Không có trận đấu nào trong ngày này." />
           </div>
+
         </div>
       </main>
 
-      <!-- RIGHT: Sidebar -->
-      <aside class="sidebar-col">
-        <!-- Tin tức -->
-        <div class="widget">
-          <div class="widget-header"><h4>{{ t('matches.tournamentNews') }}</h4></div>
-          <div class="widget-body">
-            <div
-              v-for="post in latestNews"
-              :key="post.id"
-              class="news-item-mini"
-              @click="openNewsDetail(post.slug)"
-            >
-              <video 
-                v-if="isVideo(post.media_url || post.thumbnail_url)" 
-                :src="post.media_url || post.thumbnail_url" 
-                autoplay muted loop playsinline
-              ></video>
-              <img 
-                v-else 
-                :src="post.thumbnail_url || post.media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150'" 
-              />
-              <p>{{ post.title }}</p>
+      <!-- CỘT PHẢI: WIDGETS -->
+      <aside class="sidebar-column">
+        
+        <!-- WIDGET NEWS (Giống ảnh) -->
+        <div class="atp-widget">
+          <div class="w-header">
+            <h3>NEWS</h3>
+            <a href="/news" class="w-link">View All <el-icon><ArrowRight /></el-icon></a>
+          </div>
+          <div class="w-body p-0">
+            <!-- Tin lớn đầu tiên -->
+            <div class="news-featured" v-if="latestNews.length > 0" @click="openNewsDetail(latestNews[0].slug)">
+              <div class="nf-img">
+                <img :src="latestNews[0].thumbnail_url || latestNews[0].media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=400'" />
+              </div>
+              <h4 class="nf-title">{{ latestNews[0].title }}</h4>
             </div>
-            <p v-if="latestNews.length === 0" class="empty-widget">{{ t('common.noNews') }}</p>
+            <!-- Các tin nhỏ tiếp theo -->
+            <div class="news-list">
+              <div v-for="post in latestNews.slice(1)" :key="post.id" class="news-list-item" @click="openNewsDetail(post.slug)">
+                <div class="nl-thumb">
+                  <img :src="post.thumbnail_url || post.media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150'" />
+                </div>
+                <p class="nl-title">{{ post.title }}</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Xếp hạng -->
-        <div class="widget">
-          <div class="widget-header"><h4>{{ t('matches.eloRankings') }}</h4></div>
-          <div class="widget-body">
-            <div v-for="(player, i) in topPlayers" :key="player.player_id" class="rank-row">
-              <span class="rank-no" :class="`rank-${i+1}`">{{ i + 1 }}</span>
-              <span class="rank-name">{{ player.full_name }}</span>
-              <strong class="rank-elo">{{ player.elo_points }}</strong>
-            </div>
-            <p v-if="topPlayers.length === 0" class="empty-widget">{{ t('common.noData') }}</p>
+        <!-- WIDGET STATS (Giống ảnh) -->
+        <div class="atp-widget">
+          <div class="w-header">
+            <h3><span class="brand-text">Infosys</span> SGT STATS</h3>
+            <a href="/rankings" class="w-link">See all <el-icon><ArrowRight /></el-icon></a>
+          </div>
+          <div class="w-subtabs">
+            <span class="active">Points</span>
+            <span>Win Rate</span>
+            <span>Matches</span>
+          </div>
+          <div class="w-body p-0">
+            <table class="stats-table">
+              <tr v-for="(player, i) in topPlayers" :key="player.player_id">
+                <td class="st-rank">{{ i + 1 }}</td>
+                <td class="st-flag"></td>
+                <td class="st-name">{{ player.full_name }}</td>
+                <td class="st-val">{{ player.elo_points }}</td>
+              </tr>
+            </table>
           </div>
         </div>
 
-        <!-- Các ngày có trận -->
-        <div class="widget" v-if="matchDays.size > 0">
-          <div class="widget-header"><h4>{{ t('matches.matchDays') }}</h4></div>
-          <div class="widget-body all-match-days">
-            <button
-              v-for="day in [...matchDays].sort()"
-              :key="day"
-              :class="['match-day-pill', { active: day === activeDate }]"
-              @click="selectDate(day)"
-            >
-              {{ new Date(day + 'T12:00:00').toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric' }) }}
-              <span class="pill-count">{{ matchCountForDay(day) }}</span>
-            </button>
-          </div>
-        </div>
       </aside>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* ── Base ──────────────────────────────────────────────────────── */
-.matches-page {
-  background: #f4f6f9;
+/* =========================================================
+   ATP CALENDAR THEME VARIABLES
+========================================================= */
+.atp-matches-page {
+  --atp-navy: #002855;
+  --atp-blue: #0066cc; /* Màu xanh nước biển cho nút */
+  --bg-light: #ffffff;
+  --bg-gray: #f8fafc;
+  --border-color: #e2e8f0;
+  
+  --text-dark: #0f172a;
+  --text-muted: #64748b;
+  --text-blue: #0055a4;
+
+  background: var(--bg-light);
   min-height: 100vh;
+  font-family: 'Inter', Arial, sans-serif;
 }
 
-/* ── Layout ─────────────────────────────────────────────────────── */
 .container {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 2rem;
-}
-.main-layout {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 2.5rem;
-  padding-top: 2.5rem;
-  padding-bottom: 6rem;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   DATE NAV BAR  (sticky, spans full width, dark like ATP/ESPN)
-   ═══════════════════════════════════════════════════════════════ */
-.date-nav-bar {
-  position: sticky;
-  top: 80px;          /* below site header */
-  z-index: 200;
-  background: #0f172a;
-  border-bottom: 3px solid #c1ff72;
-  box-shadow: 0 4px 18px rgba(0,0,0,.35);
-}
-
-.date-nav-inner {
-  max-width: 1280px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: 0 1.5rem;
-  display: flex;
-  align-items: stretch;
-  gap: 1rem;
-  height: 76px;
 }
 
-/* "Hôm nay" button on left */
-.today-pill {
-  flex-shrink: 0;
-  align-self: center;
-  padding: 0.4rem 1.1rem;
-  border: 2px solid #c1ff72;
-  border-radius: 20px;
-  background: transparent;
-  color: #c1ff72;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s;
+/* =========================================================
+   DATE NAV (SÁNG SỦA & GỌN GÀNG)
+========================================================= */
+.clean-date-nav {
+  position: sticky;
+  top: 75px;
+  z-index: 100;
+  background: var(--bg-light);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
 }
-.today-pill:hover { background: #c1ff72; color: #0f172a; }
 
-/* Scrollable strip container */
-.strip-scroll-wrap {
-  flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;   /* Firefox */
-}
-.strip-scroll-wrap::-webkit-scrollbar { display: none; }
-
-/* Inner track – flex row, no wrapping */
-.strip-track {
+.nav-inner {
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 100%;
-  padding: 0 0.25rem;
-  white-space: nowrap;
+  height: 70px;
+  gap: 1.5rem;
 }
 
-/* Month separator label */
-.month-divider {
+.btn-today {
   flex-shrink: 0;
-  font-size: 0.65rem;
+  padding: 0.4rem 1rem;
+  background: var(--bg-gray);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.8rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: rgba(255,255,255,.35);
-  padding: 0 0.75rem 0 1rem;
-  border-left: 1px solid rgba(255,255,255,.12);
-  margin: 0 0.25rem;
+  color: var(--text-dark);
+  cursor: pointer;
 }
-.strip-track > .month-divider:first-child { border-left: none; padding-left: 0; }
+.btn-today:hover { background: #e2e8f0; }
 
-/* Individual day button */
-.date-btn {
-  flex-shrink: 0;
+.date-strip-wrapper {
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.date-strip-wrapper::-webkit-scrollbar { display: none; }
+
+.date-strip-track {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.month-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0.8rem 0 0.5rem;
+  padding-left: 0.8rem;
+  border-left: 1px solid var(--border-color);
+}
+.date-strip-track > .month-label:first-child { border-left: none; padding-left: 0; }
+
+.date-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  width: 54px;
+  width: 50px;
   height: 56px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
-  color: rgba(255,255,255,.55);
-  transition: background 0.15s, color 0.15s;
+  transition: 0.2s;
   position: relative;
 }
-.date-btn:hover {
-  background: rgba(255,255,255,.08);
-  color: #fff;
-}
+.date-item:hover { background: var(--bg-gray); color: var(--text-dark); }
 
-.btn-wd {
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  line-height: 1;
-}
-.btn-day {
-  font-size: 1.05rem;
-  font-weight: 600;
-  line-height: 1;
-}
-.btn-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #c1ff72;
-  margin-top: 1px;
-}
+.d-week { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; margin-bottom: 2px;}
+.d-num { font-size: 1.1rem; font-weight: 800; }
+.d-dot { width: 4px; height: 4px; border-radius: 50%; background: #cbd5e1; margin-top: 2px; }
 
-/* Today */
-.date-btn.is-today .btn-day {
-  background: rgba(193,255,114,.15);
-  border-radius: 4px;
-  padding: 2px 6px;
-  color: #c1ff72;
-}
-.date-btn.is-today .btn-wd { color: #c1ff72; }
+.date-item.has-data .d-num { color: var(--text-dark); }
+.date-item.has-data .d-dot { background: var(--atp-blue); }
 
-/* Has matches */
-.date-btn.has-matches .btn-day { color: rgba(255,255,255,.9); }
+.date-item.active { background: var(--atp-navy); color: white !important; }
+.date-item.active .d-num, .date-item.active .d-week { color: white; }
+.date-item.active .d-dot { background: white; }
 
-/* Active / selected */
-.date-btn.is-active {
-  background: #c1ff72 !important;
-  border-radius: 8px;
-}
-.date-btn.is-active .btn-wd,
-.date-btn.is-active .btn-day { color: #0f172a !important; font-weight: 700; }
-.date-btn.is-active .btn-dot { background: #0f172a; }
 
-/* ── Date heading ───────────────────────────────────────────────── */
-.date-heading {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-.date-heading h2 {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #0f172a;
-  text-transform: capitalize;
-}
-.match-count-badge {
-  background: #146250;
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.2rem 0.7rem;
-  border-radius: 20px;
-}
-
-/* ── Tournament group ───────────────────────────────────────────── */
-.tournament-group {
-  margin-bottom: 3rem;
-}
-.tournament-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  padding: 1rem 1.25rem;
-  background: #fff;
-  border-radius: 10px 10px 0 0;
-  border-bottom: 3px solid #146250;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
-}
-.t-title .location {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: #94a3b8;
-  letter-spacing: 1px;
-  display: block;
-}
-.t-title h3 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0.2rem 0 0;
-}
-
-/* ── Match list ─────────────────────────────────────────────────── */
-.match-list {
+/* =========================================================
+   MAIN LAYOUT (2 CỘT)
+========================================================= */
+.atp-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 1rem;
-  padding: 1rem 0;
-}
-.match-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.2s;
-  box-shadow: 0 1px 4px rgba(0,0,0,.04);
-}
-.match-card:hover {
-  border-color: #146250;
-  box-shadow: 0 4px 16px rgba(20,98,80,.12);
-  transform: translateY(-2px);
+  grid-template-columns: 1fr 320px;
+  gap: 2rem;
+  padding-top: 2rem;
+  padding-bottom: 4rem;
 }
 
-.match-info-strip {
-  background: #f8fafc;
-  padding: 0.6rem 1rem;
+/* ── CỘT TRÁI: ROW LIST ────────────────────────────────────────── */
+.list-header-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 2rem;
 }
-.round-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #475569;
-  letter-spacing: 1px;
-  background: #e2e8f0;
-  padding: 0.2rem 0.6rem;
-  border-radius: 4px;
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border-color);
+  padding: 8px 16px; border-radius: 6px;
+  width: 300px; background: var(--bg-light);
 }
-.match-status {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #64748b;
-}
-.match-status.live { color: #dc2626; display: flex; align-items: center; gap: 0.4rem; }
-.match-status.finished { color: #146250; }
-.pulse {
-  width: 8px; height: 8px;
-  background: #dc2626;
-  border-radius: 50%;
-  animation: pulse-anim 1.5s infinite;
-}
-@keyframes pulse-anim {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(2.5); opacity: 0; }
+.search-box input { border: none; outline: none; width: 100%; font-size: 0.85rem; color: var(--text-dark); }
+.search-box .el-icon { color: var(--text-muted); }
+
+.header-actions { display: flex; gap: 8px; }
+.btn-action-solid {
+  background: var(--atp-blue); color: white; border: none;
+  padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center;
 }
 
-.match-players { padding: 1.25rem 1rem; display: flex; flex-direction: column; gap: 0.85rem; flex: 1; }
-.player-row { display: flex; justify-content: space-between; align-items: center; }
-.player-identity { display: flex; align-items: center; gap: 0.5rem; }
-.winner-icon { font-size: 0.85rem; }
-.player-name { font-size: 1rem; font-weight: 500; color: #334155; }
-.player-row.winner .player-name { color: #146250; font-weight: 700; }
-
-.player-scores { display: flex; gap: 0.4rem; }
-.set-score {
-  width: 30px; height: 30px;
-  background: #f1f5f9;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 600; font-size: 0.85rem;
-  color: #475569; border-radius: 4px;
+.group-heading-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1rem; color: var(--atp-navy);
 }
-.set-score.active { background: #0f172a; color: #c1ff72; }
-.player-row.winner .set-score { background: #dcfce7; color: #166534; }
+.active-month-title { font-size: 1.1rem; font-weight: 800; margin: 0; }
+.active-month-title span { font-weight: 500; font-size: 0.9rem; color: var(--text-muted); }
+.collapse-icon { color: var(--atp-blue); font-size: 1.2rem; font-weight: bold;}
 
-.match-actions { display: flex; border-top: 1px solid #f1f5f9; }
-.m-btn {
-  flex: 1; padding: 0.85rem;
-  background: none; border: none;
-  border-right: 1px solid #f1f5f9;
-  font-size: 0.72rem; font-weight: 600;
-  text-transform: uppercase; letter-spacing: 0.5px;
-  color: #475569; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
-  transition: background 0.18s, color 0.18s;
+/* Tournament Group */
+.atp-tournament-group { margin-bottom: 1rem; }
+.group-banner {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--bg-gray); padding: 12px 16px;
+  border: 1px solid var(--border-color); border-radius: 8px 8px 0 0;
+  cursor: pointer;
 }
-.m-btn:last-child { border-right: none; }
-.m-btn:hover { background: #f8fafc; color: #146250; }
-.m-btn.highlight { color: #dc2626; }
-.m-btn.highlight:hover { background: #fff5f5; }
+.group-banner-left { display: flex; align-items: center; gap: 12px; }
+.tour-logo { width: 40px; height: auto; object-fit: contain;}
+.tour-name-info h3 { margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-dark); }
+.tour-loc { font-size: 0.75rem; color: var(--text-muted); }
+.rotated { transform: rotate(-90deg); transition: 0.3s; }
 
-/* ── Empty state ────────────────────────────────────────────────── */
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+/* Match Rows */
+.match-rows-container {
+  border: 1px solid var(--border-color);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  background: var(--bg-light);
 }
-.empty-icon { font-size: 3rem; margin-bottom: 1rem; }
-.empty-title { font-size: 1.2rem; font-weight: 700; color: #334155; margin: 0 0 0.5rem; }
-.empty-sub { font-size: 0.9rem; color: #94a3b8; margin: 0 0 1.5rem; }
-.quick-days { margin-top: 1rem; }
-.quick-days p { font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem; }
-.quick-day-btn {
-  display: inline-block; margin: 0.25rem;
-  padding: 0.4rem 1rem; border: 2px solid #146250;
-  border-radius: 20px; background: transparent;
-  color: #146250; font-weight: 600; font-size: 0.82rem;
-  cursor: pointer; transition: all 0.2s;
-}
-.quick-day-btn:hover { background: #146250; color: #fff; }
 
-/* ── Media Queries ────────────────────────────────────────────── */
-@media (max-width: 1080px) {
-  .main-layout { grid-template-columns: 1fr; gap: 2rem; padding: 1.5rem 1rem; }
-  .sidebar-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
-  .widget { margin-bottom: 0; }
+.atp-match-row {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s;
+}
+.atp-match-row:last-child { border-bottom: none; }
+.atp-match-row:hover { background: #f8fafc; }
+
+.row-col { display: flex; flex-direction: column; }
+
+/* Cột 1: Meta */
+.col-meta { width: 120px; border-right: 1px solid var(--border-color); padding-right: 1rem; gap: 6px; }
+.m-round { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;}
+.m-status { font-size: 0.85rem; font-weight: 700; color: var(--text-dark); }
+.m-status.live { color: #dc2626; display: flex; align-items: center; gap: 6px; }
+.live-dot { width: 6px; height: 6px; background: #dc2626; border-radius: 50%; }
+
+/* Cột 2: Players */
+.col-players { flex: 1; padding: 0 1.5rem; gap: 8px; }
+.p-line { display: flex; justify-content: space-between; align-items: center; }
+.p-identity { display: flex; align-items: center; gap: 8px; }
+.flag-mini { font-size: 0.9rem; }
+.p-name { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); }
+.is-winner .p-name { color: var(--text-dark); font-weight: 800; }
+
+.p-score-wrap { display: flex; align-items: center; gap: 6px; min-width: 60px; justify-content: flex-end;}
+.p-score { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); width: 16px; text-align: center;}
+.is-winner .p-score { color: var(--text-dark); font-weight: 800; }
+.winner-tick { color: #16a34a; font-weight: bold; margin-left: 4px; font-size: 1.1rem;}
+
+/* Cột 3: Actions */
+.col-actions { width: 130px; gap: 8px; border-left: 1px solid var(--border-color); padding-left: 1rem;}
+.btn-atp-outline {
+  border: 1px solid var(--atp-blue); color: var(--atp-blue); background: transparent;
+  padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+}
+.btn-atp-outline:hover { background: var(--bg-gray); }
+
+.btn-atp-solid {
+  border: none; background: var(--atp-blue); color: white;
+  padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 4px; transition: 0.2s;
+}
+.btn-atp-solid:hover { background: #0055a4; }
+
+
+/* ── CỘT PHẢI: WIDGETS ─────────────────────────────────────────── */
+.atp-widget {
+  border: 1px solid var(--border-color);
+  background: var(--bg-light);
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+.w-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 1rem; border-bottom: 1px solid var(--border-color);
+}
+.w-header h3 { margin: 0; font-size: 1rem; font-weight: 800; color: var(--atp-navy); }
+.brand-text { font-style: italic; color: #00b0f0; }
+.w-link { font-size: 0.75rem; color: var(--atp-blue); font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 2px;}
+
+.w-subtabs {
+  display: flex; border-bottom: 1px solid var(--border-color);
+}
+.w-subtabs span {
+  flex: 1; text-align: center; padding: 10px 0; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); cursor: pointer;
+}
+.w-subtabs span.active { color: var(--atp-blue); border-bottom: 2px solid var(--atp-blue); }
+
+.p-0 { padding: 0 !important; }
+
+/* News Layout */
+.news-featured { cursor: pointer; border-bottom: 1px solid var(--border-color); }
+.nf-img { width: 100%; height: 160px; }
+.nf-img img { width: 100%; height: 100%; object-fit: cover;}
+.nf-title { padding: 1rem; margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-dark); line-height: 1.4;}
+
+.news-list-item {
+  display: flex; gap: 12px; padding: 1rem;
+  border-bottom: 1px solid var(--border-color); cursor: pointer;
+}
+.news-list-item:last-child { border-bottom: none; }
+.nl-thumb { width: 60px; height: 60px; border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+.nl-thumb img { width: 100%; height: 100%; object-fit: cover;}
+.nl-title { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-body); line-height: 1.3;}
+
+/* Stats Table */
+.stats-table { width: 100%; border-collapse: collapse; }
+.stats-table td { padding: 12px 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; }
+.st-rank { width: 30px; font-weight: 700; color: var(--text-muted); }
+.st-flag { width: 30px; }
+.st-name { font-weight: 600; color: var(--text-dark); }
+.st-val { text-align: right; font-weight: 800; color: var(--atp-navy); }
+
+
+/* ── RESPONSIVE ────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .atp-layout { grid-template-columns: 1fr; }
+  .sidebar-column { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 }
 
 @media (max-width: 768px) {
-  .date-nav-bar { top: 56px; } /* Phù hợp với header mobile nhỏ hơn */
-  .date-nav-inner { padding: 0 0.75rem; height: 68px; gap: 0.5rem; }
-  .today-pill { padding: 0.3rem 0.8rem; font-size: 0.72rem; border-width: 1.5px; }
+  .sidebar-column { grid-template-columns: 1fr; }
+  .list-header-controls { flex-direction: column; gap: 1rem; align-items: flex-start; }
+  .search-box { width: 100%; }
   
-  .date-heading h2 { font-size: 1rem; }
-  .match-count-badge { font-size: 0.65rem; padding: 0.1rem 0.5rem; }
-
-  .tournament-header { flex-direction: column; align-items: flex-start; gap: 0.75rem; padding: 1rem; }
-  .tournament-header .el-button { padding: 0; }
-
-  .match-list { grid-template-columns: 1fr; }
-  .match-card { border-radius: 12px; }
-  .match-players { padding: 1rem; gap: 0.75rem; }
-  .player-name { font-size: 0.9rem; }
-  .set-score { width: 26px; height: 26px; font-size: 0.75rem; }
-  
-  .m-btn { padding: 0.75rem; font-size: 0.68rem; }
+  .atp-match-row { flex-direction: column; align-items: stretch; gap: 12px;}
+  .col-meta { width: 100%; border-right: none; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; flex-direction: row; justify-content: space-between;}
+  .col-players { padding: 0; }
+  .col-actions { width: 100%; border-left: none; border-top: 1px solid var(--border-color); padding-left: 0; padding-top: 12px; flex-direction: row; }
+  .btn-atp-outline, .btn-atp-solid { flex: 1; }
 }
-
-@media (max-width: 480px) {
-  .date-nav-inner { gap: 0.25rem; }
-  .today-pill { display: none; } /* Ẩn nút hôm nay trên màn hình quá nhỏ để dành chỗ cho lịch */
-  
-  .sidebar-col { grid-template-columns: 1fr; }
-  .t-title h3 { font-size: 1rem; }
-  .match-info-strip { padding: 0.5rem 0.75rem; }
-  .round-badge { font-size: 0.6rem; padding: 0.15rem 0.4rem; }
-}
-
-/* ── Sidebar widgets ────────────────────────────────────────────── */
-.widget {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 6px rgba(0,0,0,.06);
-  margin-bottom: 1.5rem;
-  overflow: hidden;
-}
-.widget-header {
-  padding: 1rem 1.25rem;
-  background: #f8fafc;
-  border-bottom: 2px solid #146250;
-}
-.widget-header h4 {
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #0f172a;
-  margin: 0;
-}
-.widget-body { padding: 0.75rem 0; }
-
-.news-item-mini {
-  display: flex; gap: 0.75rem;
-  padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid #f1f5f9;
-  cursor: pointer; transition: background 0.15s;
-}
-.news-item-mini:last-child { border-bottom: none; }
-.news-item-mini:hover { background: #f8fafc; }
-.news-item-mini img,
-.news-item-mini video { 
-  width: 80px !important; 
-  height: 80px !important; 
-  border-radius: 8px; 
-  object-fit: cover; 
-  flex-shrink: 0; 
-  display: block;
-  background: #000;
-}
-.news-item-mini p { font-size: 0.82rem; font-weight: 500; color: #334155; line-height: 1.4; margin: 0; }
-
-.rank-row {
-  display: flex; align-items: center;
-  padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid #f8fafc;
-  gap: 0.75rem;
-}
-.rank-row:last-child { border-bottom: none; }
-.rank-no {
-  width: 24px; height: 24px; border-radius: 50%;
-  background: #e2e8f0; color: #475569;
-  font-size: 0.75rem; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.rank-1 { background: #fef9c3; color: #854d0e; }
-.rank-2 { background: #f1f5f9; color: #475569; }
-.rank-3 { background: #ffedd5; color: #9a3412; }
-.rank-name { flex: 1; font-size: 0.85rem; font-weight: 600; color: #1e293b; }
-.rank-elo { font-size: 0.85rem; color: #146250; font-weight: 800; }
-
-.all-match-days { padding: 0.5rem 1rem 1rem; }
-.match-day-pill {
-  display: flex; justify-content: space-between; align-items: center;
-  width: 100%; padding: 0.6rem 1rem; margin-bottom: 0.4rem;
-  border: 1px solid #f1f5f9; border-radius: 8px;
-  background: #fff; font-size: 0.8rem; font-weight: 600;
-  color: #475569; cursor: pointer; transition: all 0.2s;
-}
-.match-day-pill:hover, .match-day-pill.active {
-  background: #146250; color: #fff; border-color: #146250;
-}
-.pill-count {
-  font-size: 0.7rem; background: #e2e8f0; color: #475569;
-  padding: 2px 6px; border-radius: 10px;
-}
-.match-day-pill.active .pill-count { background: #c1ff72; color: #0f172a; }
 </style>

@@ -1,15 +1,14 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 import { t } from '../../utils/locale'
+import { Location, Phone, Message, Right } from '@element-plus/icons-vue'
 </script>
 
 <template>
   <footer class="site-footer">
-    <div class="footer-pattern"></div>
-    <div class="footer-pattern-left"></div>
-
     <div class="container footer-shell">
       
+      <!-- CỘT 1: THƯƠNG HIỆU & LIÊN HỆ -->
       <div class="footer-brand">
         <RouterLink to="/" @click="window.scrollTo(0,0)" class="logo-link">
           <img src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png" alt="Saigon Tennis" class="footer-logo" />
@@ -18,34 +17,56 @@ import { t } from '../../utils/locale'
         
         <div class="contact-list">
           <div class="contact-item">
-            <span class="c-icon">📍</span>
+            <el-icon class="c-icon"><Location /></el-icon>
             <span>{{ t('footer.address') }}: 173 Cao Thắng, Phường 12, Quận 10, TP.HCM</span>
           </div>
           <div class="contact-item">
-            <span class="c-icon">📞</span>
+            <el-icon class="c-icon"><Phone /></el-icon>
             <span>{{ t('footer.phone') }}: 0904.599.785</span>
           </div>
           <div class="contact-item">
-            <span class="c-icon">✉️</span>
+            <el-icon class="c-icon"><Message /></el-icon>
             <span>contact@saigontennis.com</span>
           </div>
         </div>
       </div>
 
+      <!-- CỘT 2: MENU ĐIỀU HƯỚNG -->
       <div class="footer-links">
         <h4>{{ t('footer.menu') }}</h4>
         <ul>
-          <li><RouterLink to="/players"><span class="arrow">→</span> {{ t('nav.players') }}</RouterLink></li>
-          <li><RouterLink to="/tournaments"><span class="arrow">→</span> {{ t('nav.tournaments') }}</RouterLink></li>
-          <li><RouterLink to="/matches"><span class="arrow">→</span> {{ t('nav.matches') }}</RouterLink></li>
-          <li><RouterLink to="/rankings"><span class="arrow">→</span> {{ t('nav.rankings') }}</RouterLink></li>
-          <li><RouterLink to="/news"><span class="arrow">→</span> {{ t('nav.news') }}</RouterLink></li>
+          <li>
+            <RouterLink to="/players">
+              <el-icon class="arrow"><Right /></el-icon> {{ t('nav.players') }}
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink to="/tournaments">
+              <el-icon class="arrow"><Right /></el-icon> {{ t('nav.tournaments') }}
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink to="/matches">
+              <el-icon class="arrow"><Right /></el-icon> {{ t('nav.matches') }}
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink to="/rankings">
+              <el-icon class="arrow"><Right /></el-icon> {{ t('nav.rankings') }}
+            </RouterLink>
+          </li>
+          <li>
+            <RouterLink to="/news">
+              <el-icon class="arrow"><Right /></el-icon> {{ t('nav.news') }}
+            </RouterLink>
+          </li>
         </ul>
       </div>
 
+      <!-- CỘT 3: MẠNG XÃ HỘI -->
       <div class="footer-social">
         <h4>{{ t('footer.social') }}</h4>
-        <p>{{ t('footer.socialDesc') || 'Theo dõi Saigon Tennis trên các nền tảng mạng xã hội.' }}</p>
+        <p>{{ t('footer.socialDesc') || 'Theo dõi Saigon Tennis trên các nền tảng mạng xã hội để cập nhật tin tức nhanh nhất.' }}</p>
         
         <div class="social-icons">
           <a href="https://www.facebook.com/share/1N74PXKSQq/" target="_blank" class="social-btn fb" title="Facebook">
@@ -61,6 +82,7 @@ import { t } from '../../utils/locale'
       </div>
     </div>
 
+    <!-- BOTTOM BAR -->
     <div class="footer-bottom">
       <div class="container bottom-flex">
         <p>{{ t('footer.rights') }}</p>
@@ -75,168 +97,187 @@ import { t } from '../../utils/locale'
 </template>
 
 <style scoped>
+/* =========================================================
+   TỔNG QUAN FOOTER
+========================================================= */
 .site-footer {
-  position: relative;
-  background: #093f1d; /* Xanh Navy Đậm */
-  color: #f8fafc;
+  background: #f8fafc; /* Nền Slate cực nhạt */
+  color: #1e293b; 
   padding: 5rem 0 0;
-  overflow: hidden;
-  font-family: inherit;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  border-top: 1px solid #e2e8f0; 
+  -webkit-font-smoothing: antialiased; 
 }
 
-/* Hiệu ứng bóng mờ (Glow) */
-.footer-pattern {
-  position: absolute;
-  top: -150px;
-  right: -100px;
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(204, 255, 0, 0.06) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-}
-.footer-pattern-left {
-  position: absolute;
-  bottom: 0;
-  left: -150px;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
 }
 
 .footer-shell {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr;
+  grid-template-columns: 2.5fr 1fr 1.5fr;
   gap: 4rem;
   padding-bottom: 4rem;
-  position: relative;
-  z-index: 1;
 }
 
-/* === CỘT 1: THƯƠNG HIỆU === */
+/* =========================================================
+   CỘT 1: THƯƠNG HIỆU & LIÊN HỆ
+========================================================= */
 .footer-logo { 
-  height: 65px; 
+  height: 80px; /* Logo to và rõ ràng hơn */
   object-fit: contain; 
   margin-bottom: 1.5rem; 
-  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); 
+  transition: transform 0.3s ease;
+  /* Đã bỏ filter grayscale để giữ nguyên màu gốc */
 }
+
+.logo-link:hover .footer-logo {
+  transform: translateY(-2px); 
+}
+
 .brand-desc { 
-  color: #94a3b8; 
+  color: #475569; /* Xám Slate 600 */
   font-size: 0.95rem; 
-  line-height: 1.6; 
-  margin-bottom: 1.5rem; 
-  max-width: 380px; 
+  line-height: 1.7; 
+  margin-bottom: 2rem; 
+  max-width: 400px; 
+  font-weight: 500; 
 }
+
 .contact-list { 
   display: flex; 
   flex-direction: column; 
-  gap: 0.8rem; 
-}
-.contact-item { 
-  display: flex; 
-  align-items: flex-start; 
-  gap: 12px; 
-  color: #cbd5e1; 
-  font-size: 0.9rem; 
-}
-.c-icon { 
-  font-size: 1.1rem; 
+  gap: 1rem; 
 }
 
-/* === CỘT 2 & 3: TIÊU ĐỀ === */
+.contact-item { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  color: #0f172a; 
+  font-size: 0.95rem; 
+  font-weight: 600; 
+}
+
+.c-icon { 
+  font-size: 1.2rem; 
+  color: #002855; /* Điểm nhấn màu xanh Navy ATP */
+}
+
+/* =========================================================
+   CỘT 2 & 3: TIÊU ĐỀ
+========================================================= */
 .footer-links h4, .footer-social h4 {
-  color: #ccff00; /* Vàng chanh Tennis */
+  color: #002855; /* Màu Navy Blue chuẩn thể thao */
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 800; 
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 1.5rem;
 }
 
-/* === CỘT 2: LINKS === */
+/* =========================================================
+   CỘT 2: LINKS
+========================================================= */
 .footer-links ul { 
   list-style: none; 
   padding: 0; 
   margin: 0;
   display: flex; 
   flex-direction: column; 
-  gap: 1rem; 
+  gap: 1.2rem; 
 }
+
 .footer-links a {
-  color: #cbd5e1;
+  color: #475569; 
   text-decoration: none;
   font-size: 0.95rem;
-  font-weight: 500;
+  font-weight: 600; 
   transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
+
 .arrow { 
-  color: #10b981; 
-  transition: transform 0.2s ease; 
-  font-family: Arial, sans-serif; /* Fix mũi tên */
-}
-.footer-links a:hover { 
-  color: #fff; 
-}
-.footer-links a:hover .arrow { 
-  transform: translateX(4px); 
-  color: #ccff00; 
+  color: #94a3b8; 
+  font-size: 1.1rem;
+  transition: transform 0.2s ease, color 0.2s ease; 
 }
 
-/* === CỘT 3: SOCIAL === */
+.footer-links a:hover { 
+  color: #002855; 
+}
+
+.footer-links a:hover .arrow { 
+  transform: translateX(5px); 
+  color: #002855; 
+}
+
+/* =========================================================
+   CỘT 3: MẠNG XÃ HỘI
+========================================================= */
 .footer-social p { 
-  color: #94a3b8; 
+  color: #475569; 
   font-size: 0.95rem; 
   line-height: 1.6; 
   margin-bottom: 1.5rem; 
+  font-weight: 500;
 }
+
 .social-icons { 
   display: flex; 
   gap: 1rem; 
 }
+
 .social-btn {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #fff;
+  border-radius: 8px; 
+  background: #ffffff;
+  border: 1px solid #cbd5e1; 
+  color: #0f172a; 
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
+
 .social-btn svg { 
   width: 20px; 
   height: 20px; 
   fill: currentColor; 
 }
+
 .social-btn:hover { 
-  background: #ccff00; 
-  color: #b1b4bc; 
-  border-color: #ccff00; 
-  transform: translateY(-4px); 
-  box-shadow: 0 10px 20px -5px rgba(204, 255, 0, 0.4); 
+  background: #002855; 
+  color: #ffffff;      
+  border-color: #002855; 
+  transform: translateY(-3px); 
+  box-shadow: 0 4px 12px rgba(0, 40, 85, 0.15); 
 }
 
-/* === BOTTOM BAR === */
+/* =========================================================
+   BOTTOM BAR (BẢN QUYỀN)
+========================================================= */
 .footer-bottom {
-  background: rgba(0, 0, 0, 0.3);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
   padding: 1.5rem 0;
 }
+
 .bottom-flex {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #64748b;
+  color: #475569; 
   font-size: 0.85rem;
-  font-weight: 500;
+  font-weight: 600; 
 }
+
 .bottom-flex p { margin: 0; }
 
 .legal-links { 
@@ -244,15 +285,19 @@ import { t } from '../../utils/locale'
   gap: 1rem; 
   align-items: center; 
 }
+
 .legal-links a { 
-  color: #64748b; 
+  color: #475569; 
   text-decoration: none; 
   transition: color 0.2s; 
 }
-.legal-links a:hover { color: #cbd5e1; }
-.divider { color: #334155; }
 
-/* === RESPONSIVE === */
+.legal-links a:hover { color: #002855; }
+.divider { color: #cbd5e1; }
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
 @media (max-width: 960px) {
   .footer-shell { 
     grid-template-columns: 1fr 1fr; 
@@ -275,6 +320,9 @@ import { t } from '../../utils/locale'
   }
   .footer-brand { 
     grid-column: span 1; 
+  }
+  .footer-logo {
+    height: 60px;
   }
   .bottom-flex { 
     flex-direction: column; 

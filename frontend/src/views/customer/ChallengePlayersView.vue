@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { Trophy, DataAnalysis, Calendar, Message, Aim } from '@element-plus/icons-vue'
+import { Search, Aim, DataAnalysis, Calendar, CircleCheck, Close, Trophy, InfoFilled, ArrowRight } from '@element-plus/icons-vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../../stores/auth'
@@ -10,6 +10,7 @@ const authStore = useAuthStore()
 const players = ref([])
 const isLoading = ref(false)
 const selectedOpponent = ref(null)
+const searchQuery = ref('')
 
 const showChallengeDialog = ref(false)
 const challengeForm = ref({ date: '', notes: '' })
@@ -19,30 +20,36 @@ const h2hHistory = ref([])
 
 const filteredPlayers = computed(() => {
   if (!players.value || !Array.isArray(players.value)) return []
-  return players.value.filter(p => {
-    // 1. Kiểm tra xem có phải chính mình không (dựa vào tên)
+  
+  let result = players.value.filter(p => {
     const isMe = p.full_name === authStore.user?.full_name
-    
-    // 2. Kiểm tra xem có phải tài khoản Admin không (dựa vào chữ 'admin' trong tên)
     const isAdmin = p.full_name?.toLowerCase().includes('admin')
-    
-    // Chỉ giữ lại những người KHÔNG PHẢI mình và KHÔNG PHẢI admin
     return !isMe && !isAdmin
   })
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(p => p.full_name.toLowerCase().includes(query))
+  }
+
+  return result
 })
 
 const loadPlayers = async () => {
   isLoading.value = true
   try {
     const data = await apiClient.get('/api/players/rankings')
-    console.log("🛠️ Dữ liệu VĐV từ API:", data) // <--- Xem dòng này trong Console F12
-    // Đảm bảo gán đúng mảng
-    players.value = Array.isArray(data) ? data : (data.data || [])
+    // Đánh lại số thứ tự rank sau khi lấy về (giống trang Rankings)
+    const normalized = Array.isArray(data) ? data : (data.data || [])
+    players.value = normalized.map((player, index) => ({
+      ...player,
+      displayRank: index + 1
+    }))
   } catch (err) { 
     ElMessage.error('Lỗi tải danh sách VĐV') 
-    console.error(err)
+  } finally { 
+    isLoading.value = false 
   }
-  finally { isLoading.value = false }
 }
 
 const openChallenge = (p) => {
@@ -60,8 +67,8 @@ const sendChallengeRequest = async () => {
     })
     ElMessage.success('Đã gửi lời mời thách đấu! Vui lòng chờ đối thủ xác nhận.')
     showChallengeDialog.value = false
+    challengeForm.value = { date: '', notes: '' }
   } catch (err) { 
-    // Bắt lỗi 400 từ Backend và hiển thị lên cho người dùng
     const errorMsg = err.response?.data?.detail || 'Lỗi gửi lời mời'
     ElMessage.error(errorMsg) 
   }
@@ -70,9 +77,10 @@ const sendChallengeRequest = async () => {
 const viewH2H = async (p) => {
   selectedOpponent.value = p
   showH2HDialog.value = true
+  // Mock data
   h2hHistory.value = [
-    { date: '2026-03-15', score: '6-4, 6-2', winner: 'Bạn' },
-    { date: '2026-02-10', score: '3-6, 4-6', winner: p.full_name }
+    { date: '2026-03-15', score: '6-4, 6-2', winner: 'Bạn', type: 'win' },
+    { date: '2026-02-10', score: '3-6, 4-6', winner: p.full_name, type: 'loss' }
   ]
 }
 
@@ -80,90 +88,501 @@ onMounted(loadPlayers)
 </script>
 
 <template>
-  <div class="challenge-page container">
-    <div class="page-header">
-      <h1 class="title">{{ t('challenges.title') }}</h1>
-      <p class="subtitle">{{ t('challenges.subtitle') }}</p>
+  <div class="atp-challenge-page">
+    
+    <!-- QUẢNG CÁO TOP BANNER (ĐỒNG BỘ ATP STYLE) -->
+    <div class="top-ad-banner">
+      <div class="ad-placeholder">
+        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" />
+      </div>
     </div>
 
-    <el-empty v-if="!isLoading && filteredPlayers.length === 0" :description="t('common.noData')" />
-
-    <div class="players-grid" v-loading="isLoading" v-else>
-      <div v-for="p in filteredPlayers" :key="p.player_id" class="player-card">
-        <div class="card-top">
-          <el-avatar :size="80" :src="p.avatar_url" />
-          <div class="rank-badge">#{{ p.rank }}</div>
-        </div>
+    <div class="container layout-grid">
+      
+      <!-- CỘT TRÁI: DANH SÁCH ĐỐI THỦ -->
+      <main class="main-content">
         
-        <h3 class="name">{{ p.full_name }}</h3>
-        <div class="elo-tag">{{ p.elo_points || 1000 }} ELO</div>
+        <!-- HEADER & BỘ LỌC DẠNG FLAT -->
+        <div class="ranking-header-section">
+          <div class="title-row">
+            <h1 class="page-title"><el-icon class="pif-icon"><Aim /></el-icon> SGT <span>CHALLENGES</span></h1>
+          </div>
 
-        <div class="stats-mini">
-          <div class="stat"><span class="val">{{ p.wins || 0 }}</span><span class="lbl">{{ t('challenges.win') }}</span></div>
-          <div class="stat"><span class="val">{{ p.losses || 0 }}</span><span class="lbl">{{ t('challenges.loss') }}</span></div>
+          <div class="inline-filters">
+            <div class="filter-tabs">
+              <span class="f-tab active">All Players</span>
+              <span class="f-tab">Suggested</span>
+            </div>
+
+            <div class="filter-dropdowns">
+              <!-- Flat Search Box -->
+              <div class="flat-search">
+                <el-icon><Search /></el-icon>
+                <input 
+                  v-model="searchQuery" 
+                  type="text" 
+                  placeholder="Search opponent..." 
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="card-actions">
-          <el-button type="primary" :icon="Aim" class="btn-challenge" @click="openChallenge(p)">{{ t('challenges.challengeBtn') }}</el-button>
-          <el-button plain :icon="DataAnalysis" @click="viewH2H(p)">{{ t('challenges.h2h') }}</el-button>
+        <!-- BẢNG DANH SÁCH KHÔNG VIỀN (FLAT TABLE) -->
+        <div class="ranking-list-container" v-loading="isLoading">
+          <div v-if="filteredPlayers.length === 0" class="empty-state">
+            <el-empty :description="t('common.noData') || 'Không tìm thấy đối thủ phù hợp'" />
+          </div>
+
+          <table v-else class="atp-flat-table">
+            <thead>
+              <tr>
+                <th class="col-rank">Rank</th>
+                <th class="col-player">Player</th>
+                <th class="col-pts text-center">Points</th>
+                <th class="col-winrate hidden-mobile text-center">Win Rate</th>
+                <th class="col-actions text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in filteredPlayers" :key="p.player_id">
+                <td class="col-rank">
+                  <span class="rank-num">{{ p.displayRank || p.rank }}</span>
+                </td>
+                <td class="col-player">
+                  <div class="player-info-cell">
+                    <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}`" class="player-ava" />
+                    <span class="flag-mini">🇻🇳</span>
+                    <strong class="player-name">{{ p.full_name }}</strong>
+                  </div>
+                </td>
+                <td class="col-pts text-center">
+                  <strong class="points-val">{{ p.elo_points || 1000 }}</strong>
+                </td>
+                <td class="col-winrate hidden-mobile text-center">
+                  {{ p.win_rate || 0 }}%
+                </td>
+                <td class="col-actions text-right">
+                  <div class="action-buttons">
+                    <button class="btn-atp-outline" @click="viewH2H(p)">H2H</button>
+                    <button class="btn-atp-solid" @click="openChallenge(p)">Challenge</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
+      </main>
+
+      <!-- CỘT PHẢI: WIDGET THÔNG TIN -->
+      <aside class="sidebar">
+        
+        <!-- WIDGET THÔNG TIN CỦA BẠN -->
+        <div class="atp-widget">
+          <div class="ws-header">
+            <h3>YOUR STATUS</h3>
+            <a href="/profile" class="ws-link">Profile <el-icon><ArrowRight /></el-icon></a>
+          </div>
+          
+          <div class="ws-body profile-widget">
+            <div class="my-profile-header">
+              <img :src="authStore.user?.avatar_url || 'https://ui-avatars.com/api/?name=Me'" class="my-ava" />
+              <div class="my-info">
+                <h4>{{ authStore.user?.full_name || 'Vận động viên' }}</h4>
+                <span><span class="flag-mini">🇻🇳</span> Vietnam</span>
+              </div>
+            </div>
+            
+            <div class="my-stats-grid">
+              <div class="my-stat">
+                <span class="ms-lbl">Rank</span>
+                <span class="ms-val">{{ authStore.profile?.player_profile?.rank || '--' }}</span>
+              </div>
+              <div class="my-stat">
+                <span class="ms-lbl">Points</span>
+                <span class="ms-val text-blue">{{ authStore.profile?.player_profile?.elo_points || 1000 }}</span>
+              </div>
+              <div class="my-stat">
+                <span class="ms-lbl">W-L</span>
+                <span class="ms-val">{{ authStore.profile?.player_profile?.wins || 0 }} - {{ authStore.profile?.player_profile?.losses || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WIDGET HƯỚNG DẪN / LUẬT -->
+        <div class="atp-widget">
+          <div class="ws-header">
+            <h3>HOW IT WORKS</h3>
+          </div>
+          <div class="ws-body rules-widget">
+            <ul class="rules-list">
+              <li>
+                <el-icon class="rule-icon"><Aim /></el-icon>
+                <div class="rule-text">
+                  <strong>1. Tìm đối thủ</strong>
+                  <p>Chọn đối thủ phù hợp với trình độ của bạn trên bảng xếp hạng.</p>
+                </div>
+              </li>
+              <li>
+                <el-icon class="rule-icon"><Calendar /></el-icon>
+                <div class="rule-text">
+                  <strong>2. Gửi lời mời</strong>
+                  <p>Đề xuất ngày giờ thi đấu. Đối thủ sẽ nhận được thông báo để xác nhận.</p>
+                </div>
+              </li>
+              <li>
+                <el-icon class="rule-icon"><Trophy /></el-icon>
+                <div class="rule-text">
+                  <strong>3. Thi đấu & Cập nhật ELO</strong>
+                  <!-- SỬA TẠI ĐÂY: Xóa thông tin về phí 200.000 VNĐ -->
+                  <p>Điểm ELO sẽ được hệ thống tính toán và cập nhật ngay sau khi kết quả trận đấu được xác nhận.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+      </aside>
     </div>
 
-    <el-dialog v-model="showChallengeDialog" title="Gửi lời mời thách đấu" width="400px">
-      <div class="opponent-preview" v-if="selectedOpponent">
-        Thách đấu với: <strong>{{ selectedOpponent.full_name }}</strong>
+    <!-- ==============================================
+         MODALS (ĐỒNG BỘ PHONG CÁCH CLEAN) 
+         ============================================== -->
+         
+    <!-- MODAL THÁCH ĐẤU -->
+    <el-dialog v-model="showChallengeDialog" :show-close="false" width="450px" class="atp-modal">
+      <template #header>
+        <div class="modal-custom-header">
+          <h3>CHALLENGE REQUEST</h3>
+          <button class="close-btn" @click="showChallengeDialog = false"><el-icon><Close /></el-icon></button>
+        </div>
+      </template>
+
+      <div class="modal-body">
+        <div class="challenge-target">
+          <img :src="selectedOpponent?.avatar_url" alt="" class="target-avatar" />
+          <div class="target-info">
+            <span>Opponent</span>
+            <strong>{{ selectedOpponent?.full_name }}</strong>
+          </div>
+        </div>
+
+        <el-form label-position="top" class="atp-form">
+          <el-form-item label="Proposed Date">
+            <el-date-picker 
+              v-model="challengeForm.date" 
+              type="date" 
+              placeholder="Select date..."
+              value-format="YYYY-MM-DD" 
+              style="width: 100%" 
+            />
+          </el-form-item>
+          <el-form-item label="Message (Optional)">
+            <el-input 
+              v-model="challengeForm.notes" 
+              type="textarea" 
+              :rows="3"
+              placeholder="e.g. Let's play 2 sets..." 
+            />
+          </el-form-item>
+        </el-form>
+
+        <div class="atp-notice-box">
+          <el-icon class="notice-icon"><InfoFilled /></el-icon>
+          <p>Your request will be sent to the opponent. Venue fees will apply once accepted.</p>
+        </div>
       </div>
-      <el-form label-position="top">
-        <el-form-item label="Ngày thi đấu dự kiến" required>
-          <el-date-picker v-model="challengeForm.date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="Lời nhắn">
-          <el-input v-model="challengeForm.notes" type="textarea" placeholder="Ví dụ: Giao lưu 2 set cafe bác nhé..." />
-        </el-form-item>
-        <div class="fee-notice">Phí duy trì hệ thống & sân bãi: 200.000 VNĐ</div>
-      </el-form>
+
       <template #footer>
-        <el-button @click="showChallengeDialog = false">Hủy</el-button>
-        <el-button type="primary" @click="sendChallengeRequest">Xác nhận gửi</el-button>
+        <div class="modal-footer-flex">
+          <button class="btn-cancel" @click="showChallengeDialog = false">Cancel</button>
+          <button class="btn-atp-solid" @click="sendChallengeRequest">Send Request</button>
+        </div>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showH2HDialog" title="Lịch sử đối đầu (H2H)" width="500px">
-      <div v-if="selectedOpponent" class="h2h-summary">
-        Bạn vs {{ selectedOpponent.full_name }}
+    <!-- MODAL LỊCH SỬ ĐỐI ĐẦU (H2H) -->
+    <el-dialog v-model="showH2HDialog" :show-close="false" width="550px" class="atp-modal">
+      <template #header>
+        <div class="modal-custom-header">
+          <h3>HEAD 2 HEAD</h3>
+          <button class="close-btn" @click="showH2HDialog = false"><el-icon><Close /></el-icon></button>
+        </div>
+      </template>
+
+      <div class="h2h-modal-body">
+        <div class="h2h-versus-header">
+          <div class="v-player">
+            <div class="v-avatar"><img :src="authStore.user?.avatar_url || 'https://ui-avatars.com/api/?name=Me'" /></div>
+            <span>YOU</span>
+          </div>
+          <div class="v-divider">VS</div>
+          <div class="v-player">
+            <div class="v-avatar"><img :src="selectedOpponent?.avatar_url" /></div>
+            <span>{{ selectedOpponent?.full_name }}</span>
+          </div>
+        </div>
+
+        <div class="h2h-list">
+          <div v-for="(item, idx) in h2hHistory" :key="idx" class="h2h-item">
+            <div class="h2h-date">{{ item.date }}</div>
+            <div class="h2h-score">{{ item.score }}</div>
+            <div class="h2h-result">
+              <span v-if="item.type === 'win'" class="res-badge win"><el-icon><CircleCheck /></el-icon> WIN</span>
+              <span v-else class="res-badge lose">LOSS</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <el-table :data="h2hHistory" stripe>
-        <el-table-column prop="date" label="Ngày" />
-        <el-table-column prop="score" label="Tỷ số" />
-        <el-table-column prop="winner" label="Người thắng">
-          <template #default="{ row }">
-            <el-tag :type="row.winner === 'Bạn' ? 'success' : 'danger'">{{ row.winner }}</el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
     </el-dialog>
+
   </div>
 </template>
 
 <style scoped>
-/* Copy CSS cũ vào đây, hoặc giữ nguyên phần style của ông */
-.challenge-page { padding: 40px 0; }
-.page-header { text-align: center; margin-bottom: 40px; }
-.title { font-size: 2.2rem; color: #1e293b; font-weight: 600; }
-.subtitle { color: #64748b; }
-.players-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
-.player-card { background: white; border-radius: 20px; padding: 24px; border: 1px solid #e2e8f0; text-align: center; transition: 0.3s; }
-.player-card:hover { transform: translateY(-8px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); }
-.card-top { position: relative; display: inline-block; margin-bottom: 15px; }
-.rank-badge { position: absolute; bottom: 0; right: 0; background: #fbbf24; color: #92400e; font-weight: 600; font-size: 0.75rem; padding: 4px 8px; border-radius: 10px; border: 3px solid white; }
-.name { margin: 10px 0 5px; color: #0f172a; }
-.elo-tag { background: #f1f5f9; color: #475569; font-weight: 500; font-size: 0.8rem; padding: 4px 12px; border-radius: 20px; display: inline-block; }
-.stats-mini { display: flex; justify-content: center; gap: 30px; margin: 20px 0; }
-.stat { display: flex; flex-direction: column; }
-.stat .val { font-weight: 600; color: #1e293b; }
-.stat .lbl { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
-.card-actions { display: flex; flex-direction: column; gap: 10px; }
-.btn-challenge { background: linear-gradient(135deg, #15803d, #166534); border: none; font-weight: 600; }
-.fee-notice { background: #fffbeb; color: #b45309; padding: 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 500; margin-top: 15px; text-align: center; }
+/* =========================================================
+   TỔNG QUAN THEME (TRẮNG & NAVY)
+========================================================= */
+.atp-challenge-page {
+  background: #ffffff;
+  min-height: 100vh;
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: #002855;
+  padding-bottom: 5rem;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Quảng cáo Top */
+.top-ad-banner {
+  background: #f8fafc;
+  padding: 1.5rem 0;
+  display: flex;
+  justify-content: center;
+  border-bottom: 1px solid #e2e8f0;
+}
+.ad-placeholder img { max-width: 100%; height: auto; max-height: 90px; }
+
+/* =========================================================
+   BỐ CỤC 2 CỘT
+========================================================= */
+.layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 2rem;
+  margin-top: 2rem;
+  align-items: start;
+}
+
+/* =========================================================
+   HEADER BẢNG DANH SÁCH & BỘ LỌC
+========================================================= */
+.ranking-header-section { margin-bottom: 1rem; }
+
+.title-row { margin-bottom: 1.5rem; }
+
+.page-title {
+  font-size: 1.8rem; font-weight: 800; font-style: italic; margin: 0; color: #002855;
+  display: flex; align-items: center; gap: 10px;
+}
+.pif-icon {
+  background: #002855; color: white; padding: 6px; border-radius: 50%; font-size: 1.2rem;
+}
+
+.inline-filters {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;
+}
+
+.filter-tabs { display: flex; gap: 1.5rem; }
+.f-tab {
+  font-size: 0.9rem; font-weight: 700; color: #64748b; cursor: pointer;
+  padding-bottom: 10px; position: relative;
+}
+.f-tab.active { color: #00b0f0; }
+.f-tab.active::after {
+  content: ''; position: absolute; bottom: -11px; left: 0; width: 100%; height: 3px; background: #00b0f0;
+}
+
+/* Flat Search Box */
+.flat-search {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px 12px; width: 250px;
+}
+.flat-search:focus-within { border-color: #002855; }
+.flat-search .el-icon { color: #64748b; }
+.flat-search input {
+  border: none; outline: none; width: 100%; font-size: 0.85rem; color: #0f172a; font-weight: 600;
+}
+.flat-search input::placeholder { color: #94a3b8; font-weight: 500;}
+
+/* =========================================================
+   TABLE FLAT (DANH SÁCH ĐỐI THỦ)
+========================================================= */
+.ranking-list-container { width: 100%; }
+
+.atp-flat-table { width: 100%; border-collapse: collapse; }
+.atp-flat-table th {
+  text-align: left; font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 600;
+  padding: 1rem 0.5rem; border-bottom: 1px solid #cbd5e1;
+}
+
+.atp-flat-table td {
+  padding: 1rem 0.5rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle;
+}
+
+.text-center { text-align: center !important; }
+.text-right { text-align: right !important; }
+
+.col-rank { width: 60px; font-weight: 800; font-size: 1.1rem;}
+.rank-num { color: #002855; }
+
+.col-player { min-width: 250px; }
+.player-info-cell { display: flex; align-items: center; gap: 12px; }
+.player-ava { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 1px solid #e2e8f0;}
+.flag-mini { font-size: 0.9rem; }
+.player-name { font-size: 1.05rem; color: #002855; font-weight: 700; }
+
+.col-pts { width: 100px; }
+.points-val { font-size: 1.15rem; font-weight: 800; color: #002855; }
+
+.col-winrate { font-size: 0.9rem; color: #475569; font-weight: 600;}
+
+.col-actions { width: 180px; }
+.action-buttons { display: flex; gap: 8px; justify-content: flex-end;}
+
+/* Nút Action ATP Style */
+.btn-atp-outline {
+  background: transparent; border: 1px solid #cbd5e1; color: #002855;
+  padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+}
+.btn-atp-outline:hover { border-color: #002855; }
+
+.btn-atp-solid {
+  background: #0066cc; border: none; color: white;
+  padding: 6px 16px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+}
+.btn-atp-solid:hover { background: #004080; }
+
+.empty-state { padding: 4rem 0; }
+
+/* =========================================================
+   SIDEBAR WIDGETS
+========================================================= */
+.atp-widget {
+  border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 2rem; overflow: hidden;
+}
+.ws-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 1rem 1.25rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc;
+}
+.ws-header h3 { margin: 0; font-size: 0.95rem; font-weight: 800; color: #002855; }
+.ws-link { font-size: 0.75rem; color: #00b0f0; text-decoration: none; font-weight: 700; display: flex; align-items: center; gap: 4px;}
+
+/* Profile Widget */
+.profile-widget { padding: 1.25rem; }
+.my-profile-header { display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem; }
+.my-ava { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #e2e8f0; object-fit: cover;}
+.my-info h4 { margin: 0 0 4px; font-size: 1.05rem; font-weight: 800; color: #002855;}
+.my-info span { font-size: 0.8rem; color: #64748b; display: flex; align-items: center; gap: 4px;}
+
+.my-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #f1f5f9; padding: 12px; border-radius: 8px;}
+.my-stat { display: flex; flex-direction: column; align-items: center; gap: 4px;}
+.ms-lbl { font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase;}
+.ms-val { font-size: 1rem; font-weight: 800; color: #0f172a;}
+.text-blue { color: #00b0f0; }
+
+/* Rules Widget */
+.rules-widget { padding: 1.25rem; }
+.rules-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1rem;}
+.rules-list li { display: flex; gap: 12px; align-items: flex-start;}
+.rule-icon { color: #00b0f0; font-size: 1.2rem; margin-top: 2px;}
+.rule-text strong { font-size: 0.85rem; color: #002855; display: block; margin-bottom: 4px;}
+.rule-text p { margin: 0; font-size: 0.75rem; color: #64748b; line-height: 1.4;}
+
+/* =======================================================
+   MODALS (HỘP THOẠI)
+======================================================= */
+:deep(.atp-modal .el-dialog) { border-radius: 12px; overflow: hidden; padding: 0; }
+:deep(.atp-modal .el-dialog__header) { padding: 0; border: none; }
+:deep(.atp-modal .el-dialog__body) { padding: 0; }
+
+.modal-custom-header {
+  background: #002855; padding: 1.2rem 1.5rem; display: flex; justify-content: space-between; align-items: center; color: white;
+}
+.modal-custom-header h3 { margin: 0; font-size: 1rem; font-weight: 800; font-style: italic;}
+.close-btn { background: transparent; border: none; color: white; font-size: 1.2rem; cursor: pointer; opacity: 0.8;}
+.close-btn:hover { opacity: 1; }
+
+.modal-body { padding: 1.5rem; }
+.challenge-target {
+  display: flex; align-items: center; gap: 1rem; padding: 1rem;
+  background: #f8fafc; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;
+}
+.target-avatar { width: 50px; height: 50px; border-radius: 50%; object-fit: cover;}
+.target-info { display: flex; flex-direction: column; }
+.target-info span { font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;}
+.target-info strong { font-size: 1.05rem; color: #002855; font-weight: 800;}
+
+:deep(.atp-form .el-form-item__label) { font-size: 0.75rem; font-weight: 700; color: #64748b; padding-bottom: 4px; text-transform: uppercase; }
+:deep(.atp-form .el-input__wrapper), :deep(.atp-form .el-textarea__inner) { box-shadow: 0 0 0 1px #cbd5e1 inset; border-radius: 4px; }
+:deep(.atp-form .el-input__wrapper.is-focus), :deep(.atp-form .el-textarea__inner:focus) { box-shadow: 0 0 0 1px #002855 inset; }
+
+.atp-notice-box {
+  display: flex; gap: 10px; background: #f1f5f9; padding: 12px; border-radius: 6px; margin-top: 1.5rem; align-items: flex-start;
+}
+.notice-icon { color: #64748b; font-size: 1.2rem; margin-top: 2px;}
+.atp-notice-box p { margin: 0; font-size: 0.75rem; color: #475569; line-height: 1.4;}
+
+.modal-footer-flex {
+  padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; background: #f8fafc;
+}
+.btn-cancel {
+  background: white; border: 1px solid #cbd5e1; color: #0f172a;
+  padding: 0.6rem 1.2rem; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.8rem;
+}
+
+/* H2H Modal Specifics */
+.h2h-modal-body { padding: 1.5rem; }
+.h2h-versus-header {
+  display: flex; align-items: center; justify-content: center; gap: 2rem;
+  margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid #e2e8f0;
+}
+.v-player { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100px; text-align: center;}
+.v-avatar { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #002855; overflow: hidden;}
+.v-avatar img { width: 100%; height: 100%; object-fit: cover;}
+.v-player span { font-size: 0.85rem; font-weight: 800; color: #002855;}
+.v-divider { font-size: 1.2rem; font-weight: 800; color: #cbd5e1; }
+
+.h2h-list { display: flex; flex-direction: column; gap: 0.5rem;}
+.h2h-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+}
+.h2h-date { font-size: 0.85rem; color: #64748b; width: 90px; font-weight: 500;}
+.h2h-score { font-size: 1.1rem; font-weight: 800; color: #002855; flex: 1; text-align: center;}
+.h2h-result { width: 90px; text-align: right;}
+.res-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
+.res-badge.win { background: #dcfce7; color: #16a34a;}
+.res-badge.lose { background: #fee2e2; color: #dc2626;}
+
+/* =======================================================
+   RESPONSIVE
+======================================================= */
+@media (max-width: 1024px) {
+  .layout-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .inline-filters { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .flat-search { width: 100%; }
+  .hidden-mobile { display: none; }
+  .action-buttons { flex-direction: column; }
+  .btn-atp-outline, .btn-atp-solid { width: 100%; }
+}
 </style>
