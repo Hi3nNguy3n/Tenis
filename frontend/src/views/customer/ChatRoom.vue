@@ -1,7 +1,6 @@
 <template>
   <!-- Nếu chưa đăng nhập thì không hiển thị Widget Chat -->
-  <div v-if="isConnected" class="floating-chat-widget tech-chat-theme">
-    
+  <div v-if="isLoggedIn" class="floating-chat-widget tech-chat-theme">
     <!-- NÚT TRIGGER (ICON GÓC MÀN HÌNH) -->
     <button class="chat-trigger-btn" @click="toggleChat" :class="{ 'is-active': isOpen }">
       <div class="btn-glow"></div>
@@ -13,117 +12,125 @@
     <!-- CỬA SỔ CHAT KÍNH MỜ -->
     <div class="chat-window glass-panel" :class="{ 'is-open': isOpen }">
       
-      <!-- HEADER CHUNG -->
-      <div class="chat-header">
-        <div class="header-left">
-          <button v-if="currentView === 'chat'" @click="goBack" class="btn-back">
-            <el-icon><ArrowLeft /></el-icon>
-          </button>
-          <div class="header-title">
-            <h3>{{ currentView === 'list' ? 'MESSAGES' : activeTabName }}</h3>
-            <div v-if="currentView === 'chat'" class="online-status">
-              <span class="status-dot"></span> Online
-            </div>
-          </div>
-        </div>
+      <!-- SỬA: THÊM TRẠNG THÁI LỖI KẾT NỐI -->
+      <div v-if="!isConnected" class="chat-disconnected-state">
+         <el-icon class="disconnected-icon"><WarningFilled /></el-icon>
+         <h3>Kết nối thất bại</h3>
+         <p>Hệ thống trò chuyện hiện đang bảo trì hoặc mất kết nối mạng. Vui lòng thử lại sau.</p>
+         <button @click="connectAll" class="btn-retry">Thử kết nối lại</button>
       </div>
-
-      <!-- VIEW 1: DANH SÁCH & TÌM KIẾM -->
-      <div class="chat-body list-view" v-show="currentView === 'list'">
-        
-        <!-- Thanh tìm kiếm -->
-        <div class="search-wrap">
-          <el-input 
-            v-model="searchKeyword" 
-            placeholder="Tìm kiếm tài năng..." 
-            :prefix-icon="Search"
-            clearable
-            class="tech-search"
-          />
-        </div>
-
-        <div class="scroll-container">
-          <!-- Kênh Hệ Thống -->
-          <div class="chat-list-item global-room" @click="selectGlobalChat">
-            <div class="avatar-box gradient-bg">🌍</div>
-            <div class="item-info">
-              <h4>Kênh Cộng Đồng</h4>
-              <p>Trò chuyện với mọi người</p>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <!-- Kết quả tìm kiếm -->
-          <div v-if="searchResults.length > 0" class="section-group">
-            <span class="section-label">TÌM KIẾM</span>
-            <div 
-              v-for="user in searchResults" :key="'search-' + user.id"
-              class="chat-list-item"
-              @click="openPrivateChat(user)"
-            >
-              <div class="avatar-box dark-bg"><el-icon><User /></el-icon></div>
-              <div class="item-info">
-                <h4>{{ user.full_name }}</h4>
-                <p>ID: {{ user.id }}</p>
+      <template v-else>
+        <!-- HEADER CHUNG -->
+        <div class="chat-header">
+          <div class="header-left">
+            <button v-if="currentView === 'chat'" @click="goBack" class="btn-back">
+              <el-icon><ArrowLeft /></el-icon>
+            </button>
+            <div class="header-title">
+              <h3>{{ currentView === 'list' ? 'MESSAGES' : activeTabName }}</h3>
+              <div v-if="currentView === 'chat'" class="online-status">
+                <span class="status-dot"></span> Online
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Tin nhắn gần đây (Inbox) -->
-          <div class="section-group">
-            <span class="section-label">GẦN ĐÂY</span>
-            <div v-if="recentChats.length === 0 && searchResults.length === 0" class="empty-state">
-              Chưa có cuộc trò chuyện nào.
+        <!-- VIEW 1: DANH SÁCH & TÌM KIẾM -->
+        <div class="chat-body list-view" v-show="currentView === 'list'">
+          
+          <!-- Thanh tìm kiếm -->
+          <div class="search-wrap">
+            <el-input 
+              v-model="searchKeyword" 
+              placeholder="Tìm kiếm tài năng..." 
+              :prefix-icon="Search"
+              clearable
+              class="tech-search"
+            />
+          </div>
+
+          <div class="scroll-container">
+            <!-- Kênh Hệ Thống -->
+            <div class="chat-list-item global-room" @click="selectGlobalChat">
+              <div class="avatar-box gradient-bg">🌍</div>
+              <div class="item-info">
+                <h4>Kênh Cộng Đồng</h4>
+                <p>Trò chuyện với mọi người</p>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Kết quả tìm kiếm -->
+            <div v-if="searchResults.length > 0" class="section-group">
+              <span class="section-label">TÌM KIẾM</span>
+              <div 
+                v-for="user in searchResults" :key="'search-' + user.id"
+                class="chat-list-item"
+                @click="openPrivateChat(user)"
+              >
+                <div class="avatar-box dark-bg"><el-icon><User /></el-icon></div>
+                <div class="item-info">
+                  <h4>{{ user.full_name }}</h4>
+                  <p>ID: {{ user.id }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tin nhắn gần đây (Inbox) -->
+            <div class="section-group">
+              <span class="section-label">GẦN ĐÂY</span>
+              <div v-if="recentChats.length === 0 && searchResults.length === 0" class="empty-state">
+                Chưa có cuộc trò chuyện nào.
+              </div>
+              
+              <div 
+                v-for="chat in recentChats" :key="'recent-' + chat.id"
+                class="chat-list-item"
+                @click="openPrivateChat(chat)"
+              >
+                <div class="avatar-box dark-bg"><el-icon><User /></el-icon></div>
+                <div class="item-info">
+                  <h4 :class="{ 'is-unread': chat.hasNew }">{{ chat.full_name }}</h4>
+                  <p :class="{ 'is-unread': chat.hasNew }">{{ chat.lastMsg || 'Nhấn để bắt đầu chat...' }}</p>
+                </div>
+                <div v-if="chat.hasNew" class="unread-dot"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 2: KHUNG CHAT -->
+        <div class="chat-body chat-room-view" v-show="currentView === 'chat'">
+          <div class="messages-area" ref="messagesBox">
+            <div v-if="currentMessages.length === 0" class="empty-chat-room">
+              <el-icon class="empty-icon"><ChatLineRound /></el-icon>
+              <p>Khởi tạo kết nối bảo mật. Gửi lời chào!</p>
             </div>
             
             <div 
-              v-for="chat in recentChats" :key="'recent-' + chat.id"
-              class="chat-list-item"
-              @click="openPrivateChat(chat)"
+              v-for="(msg, index) in currentMessages" :key="index"
+              :class="['msg-row', msg.isMine ? 'is-mine' : 'is-theirs']"
             >
-              <div class="avatar-box dark-bg"><el-icon><User /></el-icon></div>
-              <div class="item-info">
-                <h4 :class="{ 'is-unread': chat.hasNew }">{{ chat.full_name }}</h4>
-                <p :class="{ 'is-unread': chat.hasNew }">{{ chat.lastMsg || 'Nhấn để bắt đầu chat...' }}</p>
-              </div>
-              <div v-if="chat.hasNew" class="unread-dot"></div>
+              <span class="sender-name" v-if="!msg.isMine">{{ msg.senderName }}</span>
+              <div class="msg-bubble">{{ msg.text }}</div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- VIEW 2: KHUNG CHAT -->
-      <div class="chat-body chat-room-view" v-show="currentView === 'chat'">
-        <div class="messages-area" ref="messagesBox">
-          <div v-if="currentMessages.length === 0" class="empty-chat-room">
-            <el-icon class="empty-icon"><ChatLineRound /></el-icon>
-            <p>Khởi tạo kết nối bảo mật. Gửi lời chào!</p>
-          </div>
-          
-          <div 
-            v-for="(msg, index) in currentMessages" :key="index"
-            :class="['msg-row', msg.isMine ? 'is-mine' : 'is-theirs']"
-          >
-            <span class="sender-name" v-if="!msg.isMine">{{ msg.senderName }}</span>
-            <div class="msg-bubble">{{ msg.text }}</div>
+          <div class="input-area">
+            <input 
+              v-model="newMessage" 
+              @keyup.enter="sendMessage"
+              type="text" 
+              placeholder="Nhập tin nhắn..." 
+              class="tech-input"
+            />
+            <button @click="sendMessage" class="btn-send" :disabled="!newMessage.trim()">
+              <el-icon><Position /></el-icon>
+            </button>
           </div>
         </div>
-
-        <div class="input-area">
-          <input 
-            v-model="newMessage" 
-            @keyup.enter="sendMessage"
-            type="text" 
-            placeholder="Nhập tin nhắn..." 
-            class="tech-input"
-          />
-          <button @click="sendMessage" class="btn-send" :disabled="!newMessage.trim()">
-            <el-icon><Position /></el-icon>
-          </button>
-        </div>
-      </div>
-
+      </template>
     </div>
   </div>
 </template>
@@ -131,7 +138,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, onBeforeUnmount } from 'vue';
 import apiClient from '../../services/apiClient';
-import { ChatDotRound, Close, ArrowLeft, Search, User, Position, ChatLineRound } from '@element-plus/icons-vue';
+import { ChatDotRound, Close, ArrowLeft, Search, User, Position, ChatLineRound , WarningFilled} from '@element-plus/icons-vue';
 
 // --- TRẠNG THÁI GIAO DIỆN MỚI ---
 const isOpen = ref(false);
@@ -149,7 +156,7 @@ const activeTab = ref('global');
 const activeTabName = ref('🌍 Kênh Hệ Thống');
 const newMessage = ref('');
 const messagesBox = ref(null);
-
+const isLoggedIn = ref(false);
 const globalMessages = ref([]);
 const privateMessages = ref({});
 
@@ -201,9 +208,12 @@ onMounted(async () => {
   const userStr = localStorage.getItem('saigon_tennis_user');
   
   if (!token.value || !userStr) {
+    isLoggedIn.value = false;
     isLoading.value = false;
     return;
   }
+
+  isLoggedIn.value = true;
 
   try {
     const userObj = JSON.parse(userStr);
@@ -247,12 +257,19 @@ const updateInbox = (senderId, senderName, message) => {
 
 // --- KẾT NỐI WEBSOCKET ---
 const connectAll = () => {
-  const baseWsUrl = `ws://localhost:8001/api/chat/ws`;
+  const baseWsUrl = `${import.meta.env.VITE_WS_CHAT_URL}/api/chat/ws`;
   const safeName = encodeURIComponent(myProfile.value.full_name);
   const myId = myProfile.value.id; 
 
   wsGlobal = new WebSocket(`${baseWsUrl}/global?token=${token.value}&sender_name=${safeName}`);
   wsGlobal.onopen = () => { isConnected.value = true; };
+  wsGlobal.onerror = (error) => {
+    console.error("WebSocket Error:", error);
+    isConnected.value = false;
+  };
+  wsGlobal.onclose = () => {
+    isConnected.value = false;
+  };
   wsGlobal.onmessage = (event) => {
     const data = JSON.parse(event.data);
     globalMessages.value.push({
@@ -308,7 +325,7 @@ const openPrivateChat = async (user) => {
   if (!privateMessages.value[user.id]) privateMessages.value[user.id] = [];
   
   try {
-      const res = await fetch(`http://localhost:8001/api/chat/history/private/${user.id}?token=${token.value}`);
+      const res = await fetch(`${import.meta.env.VITE_API_CHAT_URL}/api/chat/history/private/${user.id}?token=${token.value}`);
       if (res.ok) {
           const history = await res.json();
           privateMessages.value[user.id] = history.map(msg => ({
@@ -677,5 +694,53 @@ const disconnectAll = () => {
   .chat-trigger-btn.is-active { display: none; }
   .chat-header { justify-content: space-between; padding-top: calc(env(safe-area-inset-top) + 20px);}
   .header-title { flex: 1; }
+}
+/* THÊM CSS NÀY VÀO CUỐI FILE */
+.chat-disconnected-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-main);
+}
+
+.disconnected-icon {
+  font-size: 4rem;
+  color: #ef4444; /* Đỏ cảnh báo */
+  margin-bottom: 1rem;
+  filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.5));
+}
+
+.chat-disconnected-state h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.chat-disconnected-state p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+.btn-retry {
+  background: transparent;
+  border: 1px solid var(--accent-cyan);
+  color: var(--accent-cyan);
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.btn-retry:hover {
+  background: var(--accent-cyan);
+  color: var(--bg-base);
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
 }
 </style>
