@@ -11,4 +11,22 @@ export default {
   updateQuickly: "Quick updates so you don't have to scroll to another page.",
   viewAll: 'View all',
   clickToSeeDetails: 'Click to see details.',
+
+  // CÁC KEY MỚI CHO GIAO DIỆN HIỆN TẠI
+  list: 'List of',
+  players: 'Players',
+  systemData: 'Data system storing information, rankings, and match history of players.',
+  featuredPlayers: 'FEATURED PLAYERS',
+  points: 'Points',
+  rank: 'RANK',
+  elo: 'ELO',
+  winRate: 'WIN RATE',
+  matchesCount: 'MATCHES',
+  viewProfile: 'View profile',
+  noMatch: 'No players found matching',
+  latestNews: 'LATEST NEWS',
+  updatingPosts: 'Updating posts...',
+  upcomingTournament: 'Upcoming Tournaments',
+  tournamentDesc: 'The professional tournament system is open for registration. Register now to compete and improve your Elo.',
+  viewSchedule: 'VIEW SCHEDULE'
 }

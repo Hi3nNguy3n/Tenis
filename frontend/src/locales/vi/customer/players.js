@@ -11,4 +11,21 @@ export default {
   updateQuickly: 'Cập nhật nhanh để bạn không phải lướt sang trang khác.',
   viewAll: 'Xem tất cả',
   clickToSeeDetails: 'Bấm để xem chi tiết.',
+  // CÁC KEY MỚI CHO GIAO DIỆN HIỆN TẠI
+  list: 'Danh Sách',
+  players: 'Vận Động Viên',
+  systemData: 'Hệ thống dữ liệu lưu trữ thông tin, thứ hạng và lịch sử thi đấu của các tay vợt.',
+  featuredPlayers: 'VẬN ĐỘNG VIÊN NỔI BẬT',
+  points: 'Điểm',
+  rank: 'HẠNG',
+  elo: 'ELO',
+  winRate: 'TỈ LỆ THẮNG',
+  matchesCount: 'SỐ TRẬN',
+  viewProfile: 'Hồ sơ chi tiết',
+  noMatch: 'Không tìm thấy vận động viên nào trùng khớp với',
+  latestNews: 'TIN TỨC MỚI NHẤT',
+  updatingPosts: 'Đang cập nhật bài viết...',
+  upcomingTournament: 'Giải đấu sắp tới',
+  tournamentDesc: 'Hệ thống giải đấu chuyên nghiệp đang mở đăng ký. Đăng ký ngay để cọ xát và cải thiện điểm Elo.',
+  viewSchedule: 'XEM LỊCH THI ĐẤU'
 }

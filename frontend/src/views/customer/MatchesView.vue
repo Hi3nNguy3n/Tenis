@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { VideoPlay, PieChart, ArrowRight, ArrowDown, Search } from '@element-plus/icons-vue'
+import { VideoPlay, PieChart, ArrowRight, ArrowDown, Search, Calendar, Check, Trophy } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../utils/locale'
 import { apiClient } from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
@@ -76,7 +76,7 @@ const groupedStrip = computed(() => {
 function scrollToActive() {
   nextTick(() => {
     if (!stripRef.value) return
-    const el = stripRef.value.querySelector('.date-btn.is-active')
+    const el = stripRef.value.querySelector('.date-item.active')
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
   })
 }
@@ -169,7 +169,7 @@ const fetchAllMatchesData = async (silent = false) => {
     topPlayers.value = (rankings || []).slice(0, 5)
 
   } catch (err) {
-    console.error('Loi khi tai du lieu tran dau:', err)
+    console.error('Lỗi khi tải dữ liệu trận đấu:', err)
     if (!silent) ElMessage.error(t('common.errorLoading'))
   } finally {
     if (!silent) loading.value = false
@@ -223,16 +223,19 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="atp-matches-page">
+  <div class="modern-matches-page">
     
-    <!-- THANH ĐIỀU HƯỚNG NGÀY (SÁNG SỦA, GỌN GÀNG) -->
-    <div class="clean-date-nav">
+    <div class="neo-date-nav">
       <div class="container nav-inner">
-        <button class="btn-today" @click="selectDate(todayKey)">{{ t('matches.today') }}</button>
+        <button class="neo-btn-today" @click="selectDate(todayKey)">
+          <el-icon><Calendar /></el-icon> {{ t('matches.today') }}
+        </button>
         <div class="date-strip-wrapper" ref="stripRef">
           <div class="date-strip-track">
             <template v-for="group in groupedStrip" :key="group.monthKey">
-              <span class="month-label">{{ group.label }}</span>
+              <div class="month-divider">
+                <span class="month-label">{{ group.label }}</span>
+              </div>
               <button
                 v-for="item in group.days"
                 :key="item.key"
@@ -254,124 +257,115 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- BỐ CỤC CHÍNH (MAIN + SIDEBAR) -->
-    <div class="container atp-layout">
+    <div class="container neo-layout">
       
-      <!-- CỘT TRÁI: DANH SÁCH LIST -->
       <main class="main-column" v-loading="loading">
         
-        <!-- HEADER CỦA LIST (Như hình: Search & Title) -->
         <div class="list-header-controls">
-          <div class="search-box">
+          <div class="neo-search-box">
             <el-icon><Search /></el-icon>
-            <input type="text" placeholder="Search matches..." readonly />
-          </div>
-          <div class="header-actions">
-            <button class="btn-action-solid">All Matches</button>
-            <button class="btn-action-solid"><el-icon><Calendar style="margin-right:4px;"/></el-icon> Calendar</button>
+            <input type="text" :placeholder="t('matches.searchMatches')" />
           </div>
         </div>
 
         <div class="group-heading-row">
           <h2 class="active-month-title">
-            {{ activeDateLabel }} <span>({{ filteredTournaments.reduce((s, t) => s + t.matches.length, 0) }} matches)</span>
+            {{ activeDateLabel }} 
+            <span class="badge-count">{{ filteredTournaments.reduce((s, t) => s + t.matches.length, 0) }} {{ t('matches.matchesCount') }}</span>
           </h2>
-          <el-icon class="collapse-icon"><ArrowDown /></el-icon>
         </div>
 
-        <!-- DANH SÁCH TRẬN ĐẤU DẠNG ROW (HORIZONTAL) -->
         <div class="tournaments-wrapper">
           
-          <div v-for="tournament in filteredTournaments" :key="tournament.id" class="atp-tournament-group">
+          <div v-for="tournament in filteredTournaments" :key="tournament.id" class="neo-tournament-card">
             
-            <!-- Tiêu đề Giải Đấu -->
-            <div class="group-banner" @click="toggleGroup(tournament.id)">
-              <div class="group-banner-left">
-                <img src="../../../public/pif.svg" alt="Tour Logo" class="tour-logo" />
+            <div class="tour-banner" @click="toggleGroup(tournament.id)">
+              <div class="tb-left">
+                <div class="tour-icon-box">
+                  <el-icon><Trophy /></el-icon>
+                </div>
                 <div class="tour-name-info">
                   <h3>{{ tournament.name }}</h3>
-                  <span class="tour-loc">{{ tournament.location }} | {{ new Date(activeDate).toLocaleDateString('en-GB') }}</span>
+                  <span class="tour-loc">{{ tournament.location }} &bull; {{ new Date(activeDate).toLocaleDateString('en-GB') }}</span>
                 </div>
               </div>
-              <div class="group-banner-right">
+              <div class="tb-right">
                 <el-icon :class="{'rotated': !tournament.isOpen}"><ArrowDown /></el-icon>
               </div>
             </div>
 
-            <!-- Các Dòng Trận Đấu (Rows) -->
-            <div v-show="tournament.isOpen" class="match-rows-container">
+            <div v-show="tournament.isOpen" class="match-list">
               
-              <div v-for="match in tournament.matches" :key="match.id" class="atp-match-row">
+              <div v-for="match in tournament.matches" :key="match.id" class="neo-match-row">
                 
-                <!-- Cột 1: Meta (Round, Time) -->
-                <div class="row-col col-meta">
+                <div class="col-meta">
                   <span class="m-round">{{ match.round }}</span>
-                  <span :class="['m-status', match.status.toLowerCase()]">
-                    <span v-if="match.status === 'Live'" class="live-dot"></span>
+                  <div class="m-status-badge" :class="match.status.toLowerCase()">
+                    <span v-if="match.status === 'Live'" class="live-pulse"></span>
                     {{ match.status === 'Live' ? 'LIVE' : match.status === 'Finished' ? 'FT' : match.time }}
-                  </span>
+                  </div>
                 </div>
 
-                <!-- Cột 2: Players & Score -->
-                <div class="row-col col-players">
+                <div class="col-players">
                   <div class="p-line" :class="{ 'is-winner': match.players[0].winner }">
                     <div class="p-identity">
-                      <span class="flag-mini"></span>
+                      <span class="flag-mini">🇻🇳</span>
                       <span class="p-name">{{ match.players[0].name }}</span>
+                      <el-icon v-if="match.players[0].winner" class="winner-tick"><Check /></el-icon>
                     </div>
                     <div class="p-score-wrap">
                       <span v-for="(s, i) in match.players[0].sets" :key="i" class="p-score">{{ s }}</span>
-                      <el-icon v-if="match.players[0].winner" class="winner-tick"><Check /></el-icon>
                     </div>
                   </div>
+                  
                   <div class="p-line" :class="{ 'is-winner': match.players[1].winner }">
                     <div class="p-identity">
-                      <span class="flag-mini"></span>
+                      <span class="flag-mini">🇻🇳</span>
                       <span class="p-name">{{ match.players[1].name }}</span>
+                      <el-icon v-if="match.players[1].winner" class="winner-tick"><Check /></el-icon>
                     </div>
                     <div class="p-score-wrap">
                       <span v-for="(s, i) in match.players[1].sets" :key="i" class="p-score">{{ s }}</span>
-                      <el-icon v-if="match.players[1].winner" class="winner-tick"><Check /></el-icon>
                     </div>
                   </div>
                 </div>
 
-                <!-- Cột 3: Buttons (Tickets / Results) -->
-                <div class="row-col col-actions">
-                  <button class="btn-atp-outline" @click="openStats">Thống kê</button>
-                  <button class="btn-atp-solid" @click="openReplay(tournament.id, match)">Video <el-icon><ArrowRight /></el-icon></button>
+                <div class="col-actions">
+                  <button class="btn-neo-ghost" @click="openStats">
+                     {{ t('matches.statsBtn') }}
+                  </button>
+                  <button class="btn-neo-solid" @click="openReplay(tournament.id, match)">
+                    <el-icon><VideoPlay /></el-icon> {{ t('matches.video') }}
+                  </button>
                 </div>
               </div>
 
             </div>
           </div>
 
-          <!-- Trạng thái trống -->
-          <div v-if="!loading && filteredTournaments.length === 0" class="empty-list-state">
-            <el-empty description="Không có trận đấu nào trong ngày này." />
+          <div v-if="!loading && filteredTournaments.length === 0" class="neo-empty-state">
+            <el-empty :description="t('matches.noMatches')" />
           </div>
 
         </div>
       </main>
 
-      <!-- CỘT PHẢI: WIDGETS -->
       <aside class="sidebar-column">
         
-        <!-- WIDGET NEWS (Giống ảnh) -->
-        <div class="atp-widget">
+        <div class="neo-widget">
           <div class="w-header">
-            <h3>NEWS</h3>
-            <a href="/news" class="w-link">View All <el-icon><ArrowRight /></el-icon></a>
+            <h3>{{ t('matches.news') }}</h3>
+            <a href="/news" class="w-link">{{ t('matches.viewAll') }} <el-icon><ArrowRight /></el-icon></a>
           </div>
           <div class="w-body p-0">
-            <!-- Tin lớn đầu tiên -->
             <div class="news-featured" v-if="latestNews.length > 0" @click="openNewsDetail(latestNews[0].slug)">
               <div class="nf-img">
                 <img :src="latestNews[0].thumbnail_url || latestNews[0].media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=400'" />
               </div>
-              <h4 class="nf-title">{{ latestNews[0].title }}</h4>
+              <div class="nf-content">
+                <h4 class="nf-title">{{ latestNews[0].title }}</h4>
+              </div>
             </div>
-            <!-- Các tin nhỏ tiếp theo -->
             <div class="news-list">
               <div v-for="post in latestNews.slice(1)" :key="post.id" class="news-list-item" @click="openNewsDetail(post.slug)">
                 <div class="nl-thumb">
@@ -383,22 +377,19 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- WIDGET STATS (Giống ảnh) -->
-        <div class="atp-widget">
+        <div class="neo-widget">
           <div class="w-header">
-            <h3><span class="brand-text">Infosys</span> SGT STATS</h3>
-            <a href="/rankings" class="w-link">See all <el-icon><ArrowRight /></el-icon></a>
+            <h3>{{ t('matches.sgtStats') }}</h3>
+            <a href="/rankings" class="w-link">{{ t('matches.seeAll') }} <el-icon><ArrowRight /></el-icon></a>
           </div>
           <div class="w-subtabs">
-            <span class="active">Points</span>
-            <span>Win Rate</span>
-            <span>Matches</span>
+            <span class="active">{{ t('matches.points') }}</span>
+            <span>{{ t('matches.winRate') }}</span>
           </div>
           <div class="w-body p-0">
-            <table class="stats-table">
+            <table class="neo-stats-table">
               <tr v-for="(player, i) in topPlayers" :key="player.player_id">
-                <td class="st-rank">{{ i + 1 }}</td>
-                <td class="st-flag"></td>
+                <td class="st-rank">#{{ i + 1 }}</td>
                 <td class="st-name">{{ player.full_name }}</td>
                 <td class="st-val">{{ player.elo_points }}</td>
               </tr>
@@ -413,22 +404,26 @@ onUnmounted(() => {
 
 <style scoped>
 /* =========================================================
-   ATP CALENDAR THEME VARIABLES
+   MODERN CLEAN THEME VARIABLES
 ========================================================= */
-.atp-matches-page {
-  --atp-navy: #002855;
-  --atp-blue: #0066cc; /* Màu xanh nước biển cho nút */
-  --bg-light: #ffffff;
-  --bg-gray: #f8fafc;
-  --border-color: #e2e8f0;
+.modern-matches-page {
+  --bg-page: #f8fafc;        /* Nền trang sáng, sạch */
+  --bg-surface: #ffffff;     /* Nền card trắng tinh */
+  --text-main: #0f172a;      /* Chữ đậm */
+  --text-muted: #64748b;     /* Chữ nhạt */
+  --border-light: #e2e8f0;   /* Viền mềm */
   
-  --text-dark: #0f172a;
-  --text-muted: #64748b;
-  --text-blue: #0055a4;
+  --primary-color: #2563eb;  /* Xanh dương hiện đại */
+  --primary-hover: #1d4ed8;
+  --live-color: #ef4444;     /* Đỏ tươi cho LIVE */
+  
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 10px 25px rgba(15, 23, 42, 0.05);
 
-  background: var(--bg-light);
+  background: var(--bg-page);
   min-height: 100vh;
-  font-family: 'Inter', Arial, sans-serif;
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--text-main);
 }
 
 .container {
@@ -438,36 +433,41 @@ onUnmounted(() => {
 }
 
 /* =========================================================
-   DATE NAV (SÁNG SỦA & GỌN GÀNG)
+   DATE NAV (NỔI & MƯỢT MÀ)
 ========================================================= */
-.clean-date-nav {
+.neo-date-nav {
   position: sticky;
-  top: 75px;
+  top: 70px;
   z-index: 100;
-  background: var(--bg-light);
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-light);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+  margin-bottom: 2rem;
 }
 
 .nav-inner {
   display: flex;
   align-items: center;
-  height: 70px;
+  height: 80px;
   gap: 1.5rem;
 }
 
-.btn-today {
+.neo-btn-today {
   flex-shrink: 0;
-  padding: 0.4rem 1rem;
-  background: var(--bg-gray);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 0.8rem;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0.6rem 1.2rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 99px;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: var(--text-dark);
+  color: var(--text-main);
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: 0.2s;
 }
-.btn-today:hover { background: #e2e8f0; }
+.neo-btn-today:hover { border-color: var(--primary-color); color: var(--primary-color); }
 
 .date-strip-wrapper {
   flex: 1;
@@ -479,226 +479,226 @@ onUnmounted(() => {
 .date-strip-track {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  padding: 0 1rem;
 }
+
+.month-divider {
+  display: flex; align-items: center; padding-left: 1rem; margin-right: 0.5rem;
+  border-left: 1px solid var(--border-light); height: 40px;
+}
+.date-strip-track > .month-divider:first-child { border-left: none; padding-left: 0; }
 
 .month-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  margin: 0 0.8rem 0 0.5rem;
-  padding-left: 0.8rem;
-  border-left: 1px solid var(--border-color);
+  font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;
 }
-.date-strip-track > .month-label:first-child { border-left: none; padding-left: 0; }
 
 .date-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 50px;
-  height: 56px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: 0.2s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 54px; height: 60px;
+  border: 1px solid transparent; border-radius: 12px;
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
-.date-item:hover { background: var(--bg-gray); color: var(--text-dark); }
+.date-item:hover { background: #f1f5f9; }
 
 .d-week { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; margin-bottom: 2px;}
-.d-num { font-size: 1.1rem; font-weight: 800; }
-.d-dot { width: 4px; height: 4px; border-radius: 50%; background: #cbd5e1; margin-top: 2px; }
+.d-num { font-size: 1.2rem; font-weight: 800; }
+.d-dot { width: 5px; height: 5px; border-radius: 50%; background: #cbd5e1; margin-top: 4px; transition: 0.3s; }
 
-.date-item.has-data .d-num { color: var(--text-dark); }
-.date-item.has-data .d-dot { background: var(--atp-blue); }
+.date-item.has-data .d-num { color: var(--text-main); }
+.date-item.has-data .d-dot { background: var(--primary-color); }
 
-.date-item.active { background: var(--atp-navy); color: white !important; }
+.date-item.active { background: var(--primary-color); color: white !important; box-shadow: 0 8px 16px rgba(37,99,235,0.25); transform: translateY(-2px);}
 .date-item.active .d-num, .date-item.active .d-week { color: white; }
 .date-item.active .d-dot { background: white; }
 
 
 /* =========================================================
-   MAIN LAYOUT (2 CỘT)
+   MAIN LAYOUT
 ========================================================= */
-.atp-layout {
+.neo-layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 2rem;
-  padding-top: 2rem;
+  grid-template-columns: 1fr 340px;
+  gap: 2.5rem;
   padding-bottom: 4rem;
 }
 
-/* ── CỘT TRÁI: ROW LIST ────────────────────────────────────────── */
+/* ── CỘT TRÁI: DANH SÁCH ────────────────────────────────────────── */
 .list-header-controls {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-.search-box {
-  display: flex; align-items: center; gap: 8px;
-  border: 1px solid var(--border-color);
-  padding: 8px 16px; border-radius: 6px;
-  width: 300px; background: var(--bg-light);
-}
-.search-box input { border: none; outline: none; width: 100%; font-size: 0.85rem; color: var(--text-dark); }
-.search-box .el-icon { color: var(--text-muted); }
-
-.header-actions { display: flex; gap: 8px; }
-.btn-action-solid {
-  background: var(--atp-blue); color: white; border: none;
-  padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer;
-  display: flex; align-items: center;
+  display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1.5rem;
 }
 
-.group-heading-row {
+.neo-search-box {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  padding: 10px 18px; border-radius: 99px;
+  width: 280px; box-shadow: var(--shadow-sm);
+  transition: 0.3s;
+}
+.neo-search-box:focus-within { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.neo-search-box input { border: none; outline: none; width: 100%; font-size: 0.9rem; color: var(--text-main); background: transparent;}
+.neo-search-box .el-icon { color: var(--text-muted); font-size: 1.1rem;}
+
+.group-heading-row { margin-bottom: 1.5rem; }
+.active-month-title { font-size: 1.4rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 12px;}
+.badge-count { 
+  font-size: 0.75rem; font-weight: 700; color: var(--primary-color); 
+  background: #eff6ff; padding: 4px 10px; border-radius: 99px;
+}
+
+/* TOURNAMENT CARD (Hiện đại, bo tròn) */
+.neo-tournament-card {
+  background: var(--bg-surface);
+  border-radius: 16px;
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+  transition: box-shadow 0.3s;
+}
+.neo-tournament-card:hover { box-shadow: var(--shadow-md); }
+
+.tour-banner {
   display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 1rem; color: var(--atp-navy);
+  padding: 1rem 1.5rem; cursor: pointer; background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-light);
 }
-.active-month-title { font-size: 1.1rem; font-weight: 800; margin: 0; }
-.active-month-title span { font-weight: 500; font-size: 0.9rem; color: var(--text-muted); }
-.collapse-icon { color: var(--atp-blue); font-size: 1.2rem; font-weight: bold;}
-
-/* Tournament Group */
-.atp-tournament-group { margin-bottom: 1rem; }
-.group-banner {
-  display: flex; justify-content: space-between; align-items: center;
-  background: var(--bg-gray); padding: 12px 16px;
-  border: 1px solid var(--border-color); border-radius: 8px 8px 0 0;
-  cursor: pointer;
+.tb-left { display: flex; align-items: center; gap: 1rem; }
+.tour-icon-box {
+  width: 44px; height: 44px; background: #f1f5f9; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary-color); font-size: 1.4rem;
 }
-.group-banner-left { display: flex; align-items: center; gap: 12px; }
-.tour-logo { width: 40px; height: auto; object-fit: contain;}
-.tour-name-info h3 { margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-dark); }
-.tour-loc { font-size: 0.75rem; color: var(--text-muted); }
-.rotated { transform: rotate(-90deg); transition: 0.3s; }
+.tour-name-info h3 { margin: 0 0 4px; font-size: 1.1rem; font-weight: 800; color: var(--text-main); }
+.tour-loc { font-size: 0.8rem; font-weight: 500; color: var(--text-muted); }
+.rotated { transform: rotate(-90deg); }
 
-/* Match Rows */
-.match-rows-container {
-  border: 1px solid var(--border-color);
-  border-top: none;
-  border-radius: 0 0 8px 8px;
-  background: var(--bg-light);
+/* MATCH ROW (Phân vùng rõ ràng) */
+.match-list { background: #fdfdfd; }
+.neo-match-row {
+  display: flex; align-items: stretch; padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9; transition: background 0.2s;
 }
-
-.atp-match-row {
-  display: flex;
-  align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid var(--border-color);
-  transition: background 0.2s;
-}
-.atp-match-row:last-child { border-bottom: none; }
-.atp-match-row:hover { background: #f8fafc; }
-
-.row-col { display: flex; flex-direction: column; }
+.neo-match-row:last-child { border-bottom: none; }
+.neo-match-row:hover { background: #f8fafc; }
 
 /* Cột 1: Meta */
-.col-meta { width: 120px; border-right: 1px solid var(--border-color); padding-right: 1rem; gap: 6px; }
-.m-round { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;}
-.m-status { font-size: 0.85rem; font-weight: 700; color: var(--text-dark); }
-.m-status.live { color: #dc2626; display: flex; align-items: center; gap: 6px; }
-.live-dot { width: 6px; height: 6px; background: #dc2626; border-radius: 50%; }
+.col-meta { 
+  width: 130px; display: flex; flex-direction: column; justify-content: center; gap: 8px;
+  border-right: 1px solid #f1f5f9; padding-right: 1.5rem;
+}
+.m-round { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;}
+.m-status-badge {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 800;
+  background: #f1f5f9; color: var(--text-main);
+}
+.m-status-badge.live { background: #fee2e2; color: var(--live-color); }
+.live-pulse {
+  width: 6px; height: 6px; background: var(--live-color); border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
 
 /* Cột 2: Players */
-.col-players { flex: 1; padding: 0 1.5rem; gap: 8px; }
+.col-players { flex: 1; padding: 0 2rem; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
 .p-line { display: flex; justify-content: space-between; align-items: center; }
-.p-identity { display: flex; align-items: center; gap: 8px; }
-.flag-mini { font-size: 0.9rem; }
-.p-name { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); }
-.is-winner .p-name { color: var(--text-dark); font-weight: 800; }
+.p-identity { display: flex; align-items: center; gap: 10px; }
+.flag-mini { font-size: 1rem; }
+.p-name { font-size: 1rem; font-weight: 600; color: var(--text-muted); }
+.is-winner .p-name { color: var(--text-main); font-weight: 800; }
+.winner-tick { color: #10b981; font-weight: bold; font-size: 1.1rem;}
 
-.p-score-wrap { display: flex; align-items: center; gap: 6px; min-width: 60px; justify-content: flex-end;}
-.p-score { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); width: 16px; text-align: center;}
-.is-winner .p-score { color: var(--text-dark); font-weight: 800; }
-.winner-tick { color: #16a34a; font-weight: bold; margin-left: 4px; font-size: 1.1rem;}
+.p-score-wrap { display: flex; align-items: center; gap: 8px; }
+.p-score { 
+  font-size: 1rem; font-weight: 600; color: var(--text-muted); 
+  width: 24px; text-align: center; background: #f8fafc; border-radius: 4px; padding: 2px 0;
+}
+.is-winner .p-score { color: var(--text-main); font-weight: 800; background: #eff6ff;}
 
 /* Cột 3: Actions */
-.col-actions { width: 130px; gap: 8px; border-left: 1px solid var(--border-color); padding-left: 1rem;}
-.btn-atp-outline {
-  border: 1px solid var(--atp-blue); color: var(--atp-blue); background: transparent;
-  padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+.col-actions { 
+  width: 140px; display: flex; flex-direction: column; justify-content: center; gap: 10px; 
+  border-left: 1px solid #f1f5f9; padding-left: 1.5rem;
 }
-.btn-atp-outline:hover { background: var(--bg-gray); }
+.btn-neo-ghost {
+  background: transparent; border: 1px solid var(--border-light); color: var(--text-muted);
+  padding: 8px 0; border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: 0.2s;
+}
+.btn-neo-ghost:hover { background: var(--bg-page); color: var(--text-main); border-color: var(--text-muted);}
 
-.btn-atp-solid {
-  border: none; background: var(--atp-blue); color: white;
-  padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 4px; transition: 0.2s;
+.btn-neo-solid {
+  background: #f1f5f9; border: none; color: var(--text-main);
+  padding: 8px 0; border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px; transition: 0.2s;
 }
-.btn-atp-solid:hover { background: #0055a4; }
+.btn-neo-solid:hover { background: var(--primary-color); color: white; }
 
 
 /* ── CỘT PHẢI: WIDGETS ─────────────────────────────────────────── */
-.atp-widget {
-  border: 1px solid var(--border-color);
-  background: var(--bg-light);
-  border-radius: 8px;
-  margin-bottom: 2rem;
-  overflow: hidden;
+.neo-widget {
+  background: var(--bg-surface); border-radius: 16px;
+  border: 1px solid var(--border-light); box-shadow: var(--shadow-sm); margin-bottom: 2rem; overflow: hidden;
 }
 .w-header {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 1rem; border-bottom: 1px solid var(--border-color);
+  padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-light);
 }
-.w-header h3 { margin: 0; font-size: 1rem; font-weight: 800; color: var(--atp-navy); }
-.brand-text { font-style: italic; color: #00b0f0; }
-.w-link { font-size: 0.75rem; color: var(--atp-blue); font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 2px;}
+.w-header h3 { margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--text-main); }
+.w-link { font-size: 0.8rem; color: var(--primary-color); font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 4px;}
+.w-link:hover { text-decoration: underline; }
 
-.w-subtabs {
-  display: flex; border-bottom: 1px solid var(--border-color);
-}
+.w-subtabs { display: flex; border-bottom: 1px solid var(--border-light); background: #f8fafc;}
 .w-subtabs span {
-  flex: 1; text-align: center; padding: 10px 0; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); cursor: pointer;
+  flex: 1; text-align: center; padding: 12px 0; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); cursor: pointer; transition: 0.2s;
 }
-.w-subtabs span.active { color: var(--atp-blue); border-bottom: 2px solid var(--atp-blue); }
-
-.p-0 { padding: 0 !important; }
+.w-subtabs span.active { color: var(--primary-color); background: var(--bg-surface); border-bottom: 2px solid var(--primary-color); }
 
 /* News Layout */
-.news-featured { cursor: pointer; border-bottom: 1px solid var(--border-color); }
-.nf-img { width: 100%; height: 160px; }
+.news-featured { cursor: pointer; display: flex; flex-direction: column; position: relative;}
+.nf-img { width: 100%; height: 200px; }
 .nf-img img { width: 100%; height: 100%; object-fit: cover;}
-.nf-title { padding: 1rem; margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--text-dark); line-height: 1.4;}
+.nf-content { padding: 1.25rem 1.5rem; background: var(--bg-surface); border-bottom: 1px solid var(--border-light);}
+.nf-title { margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--text-main); line-height: 1.4;}
 
 .news-list-item {
-  display: flex; gap: 12px; padding: 1rem;
-  border-bottom: 1px solid var(--border-color); cursor: pointer;
+  display: flex; gap: 16px; padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-light); cursor: pointer; transition: background 0.2s;
 }
+.news-list-item:hover { background: #f8fafc; }
 .news-list-item:last-child { border-bottom: none; }
-.nl-thumb { width: 60px; height: 60px; border-radius: 4px; overflow: hidden; flex-shrink: 0; }
-.nl-thumb img { width: 100%; height: 100%; object-fit: cover;}
-.nl-title { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-body); line-height: 1.3;}
+.nl-thumb { width: 70px; height: 70px; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+.nl-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s;}
+.news-list-item:hover .nl-thumb img { transform: scale(1.05); }
+.nl-title { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--text-main); line-height: 1.4;}
 
 /* Stats Table */
-.stats-table { width: 100%; border-collapse: collapse; }
-.stats-table td { padding: 12px 1rem; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; }
-.st-rank { width: 30px; font-weight: 700; color: var(--text-muted); }
-.st-flag { width: 30px; }
-.st-name { font-weight: 600; color: var(--text-dark); }
-.st-val { text-align: right; font-weight: 800; color: var(--atp-navy); }
+.neo-stats-table { width: 100%; border-collapse: collapse; }
+.neo-stats-table td { padding: 1rem 1.5rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+.neo-stats-table tr:last-child td { border-bottom: none; }
+.st-rank { width: 40px; font-weight: 800; color: var(--text-muted); font-size: 0.8rem;}
+.st-name { font-weight: 700; color: var(--text-main); }
+.st-val { text-align: right; font-weight: 800; color: var(--primary-color); }
 
 
 /* ── RESPONSIVE ────────────────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .atp-layout { grid-template-columns: 1fr; }
+  .neo-layout { grid-template-columns: 1fr; }
   .sidebar-column { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 }
 
 @media (max-width: 768px) {
   .sidebar-column { grid-template-columns: 1fr; }
-  .list-header-controls { flex-direction: column; gap: 1rem; align-items: flex-start; }
-  .search-box { width: 100%; }
+  .list-header-controls { justify-content: flex-start; }
+  .neo-search-box { width: 100%; }
   
-  .atp-match-row { flex-direction: column; align-items: stretch; gap: 12px;}
-  .col-meta { width: 100%; border-right: none; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; flex-direction: row; justify-content: space-between;}
+  .neo-match-row { flex-direction: column; align-items: stretch; gap: 1rem; padding: 1rem;}
+  .col-meta { width: 100%; border-right: none; border-bottom: 1px solid var(--border-light); padding-right: 0; padding-bottom: 12px; flex-direction: row; justify-content: space-between; align-items: center;}
   .col-players { padding: 0; }
-  .col-actions { width: 100%; border-left: none; border-top: 1px solid var(--border-color); padding-left: 0; padding-top: 12px; flex-direction: row; }
-  .btn-atp-outline, .btn-atp-solid { flex: 1; }
+  .col-actions { width: 100%; border-left: none; border-top: 1px solid var(--border-light); padding-left: 0; padding-top: 12px; flex-direction: row; gap: 12px;}
+  .btn-neo-ghost, .btn-neo-solid { flex: 1; padding: 10px 0;}
 }
 </style>

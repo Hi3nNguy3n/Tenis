@@ -47,14 +47,14 @@ onMounted(async () => {
       rawNewsPosts.value = newsData.sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
     }
     
-    // 2. Xử lý Rankings (Lọc bỏ Admin và đánh lại số Rank hiển thị)[cite: 33]
+    // 2. Xử lý Rankings
     const filteredRankings = (rankingsData || []).filter(p => !p.full_name?.toLowerCase().includes('admin'))
     topPlayers.value = filteredRankings.slice(0, 10).map((p, index) => ({
       ...p,
-      displayRank: index + 1 // Đánh số thứ tự mới sau khi lọc[cite: 33]
+      displayRank: index + 1
     }))
 
-    // 3. Xử lý Matches (Ẩn các trận đấu có Admin tham gia)[cite: 33]
+    // 3. Xử lý Matches
     const filteredMatches = (Array.isArray(matchesData) ? matchesData : []).filter(m => {
       const isP1Admin = m.p1_name?.toLowerCase().includes('admin')
       const isP2Admin = m.p2_name?.toLowerCase().includes('admin')
@@ -62,9 +62,7 @@ onMounted(async () => {
     })
     recentMatches.value = filteredMatches.slice(0, 5)
 
-    // ==========================================
-    // LOGIC H2H: TRẬN ĐẤU TÂM ĐIỂM (Không chọn Admin)[cite: 33]
-    // ==========================================
+    // 4. LOGIC H2H
     let p1 = null;
     let p2 = null;
 
@@ -97,7 +95,6 @@ onMounted(async () => {
 <template>
   <div class="home-page atp-theme">
     
-    <!-- SECTION 1: HERO NEWS & SCORES -->
     <section class="container atp-top-section">
       <div class="main-hero-news" v-if="newsItems.length > 0" @click="$router.push('/news/' + newsItems[0].slug)">
         <video 
@@ -116,60 +113,57 @@ onMounted(async () => {
 
       <div class="scores-widget">
         <div class="widget-header">
-          <h3>SCORES</h3>
-          <RouterLink to="/matches" class="view-all">See all <el-icon><Right /></el-icon></RouterLink>
+          <h3>{{ t('home.scores') }}</h3>
+          <RouterLink to="/matches" class="view-all">{{ t('home.seeAllMatches') }} <el-icon><Right /></el-icon></RouterLink>
         </div>
         <div class="widget-tabs">
-          <span class="active">Live / Completed</span>
-          <span>Schedule</span>
+          <span class="active">{{ t('home.liveCompleted') }}</span>
+          <span>{{ t('home.schedule') }}</span>
         </div>
         <div class="widget-body match-list">
           <div v-for="match in recentMatches" :key="match.id" class="match-item">
             <div class="match-meta">
-              <span class="round">{{ match.round_code || 'Round' }}</span>
+              <span class="round">{{ match.round_code || t('home.round') }}</span>
               <span class="status" :class="{ 'live-text': match.status === 'ongoing' }">
-                {{ match.status === 'completed' ? 'Finished' : (match.status === 'ongoing' ? 'Live' : match.start) }}
+                {{ match.status === 'completed' ? t('home.finished') : (match.status === 'ongoing' ? t('home.live') : match.start) }}
               </span>
             </div>
             <div class="player-row" :class="{ 'is-winner': match.winner_side === 'side_a' }">
-              <div class="p-name"><span class="flag"></span> {{ match.p1_name || 'TBA' }}</div>
+              <div class="p-name"><span class="flag"></span> {{ match.p1_name || t('home.tba') }}</div>
               <div class="p-score">
                 <span v-if="match.winner_side === 'side_a'" class="check-icon"><el-icon><Check /></el-icon></span>
                 <strong>{{ match.score ? match.score.split(',')[0].split('-')[0] : '-' }}</strong>
               </div>
             </div>
             <div class="player-row" :class="{ 'is-winner': match.winner_side === 'side_b' }">
-              <div class="p-name"><span class="flag"></span> {{ match.p2_name || 'TBA' }}</div>
+              <div class="p-name"><span class="flag"></span> {{ match.p2_name || t('home.tba') }}</div>
               <div class="p-score">
                 <span v-if="match.winner_side === 'side_b'" class="check-icon"><el-icon><Check /></el-icon></span>
                 <strong>{{ match.score ? match.score.split(',')[0].split('-')[1] : '-' }}</strong>
               </div>
             </div>
           </div>
-          <div v-if="recentMatches.length === 0" class="empty-state">No matches available</div>
+          <div v-if="recentMatches.length === 0" class="empty-state">{{ t('home.noMatches') }}</div>
         </div>
       </div>
     </section>
 
-    <!-- QUẢNG CÁO BANNER MỚI -->
     <section class="container ad-banner-section">
       <div class="ad-banner-wrapper">
         <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" class="ad-banner-img" />
       </div>
     </section>
 
-    <!-- SECTION 2: RANKINGS, H2H & NEWSLETTER -->
     <section class="container atp-middle-section">
       
-      <!-- Cột 1: Rankings Widget -->
       <div class="rankings-widget">
         <div class="widget-header">
-          <h3><span class="pif-logo">PIF</span> SGT RANKINGS</h3>
-          <RouterLink to="/rankings" class="view-all">View All <el-icon><Right /></el-icon></RouterLink>
+          <h3><span class="pif-logo">PIF</span> {{ t('home.rankings') }}</h3>
+          <RouterLink to="/rankings" class="view-all">{{ t('home.viewAll') }} <el-icon><Right /></el-icon></RouterLink>
         </div>
         <div class="widget-tabs">
-          <span class="active">Singles</span>
-          <span>Doubles</span>
+          <span class="active">{{ t('home.singles') }}</span>
+          <span>{{ t('home.doubles') }}</span>
         </div>
         <div class="widget-body ranking-list">
           <div v-for="(player, index) in topPlayers" :key="player.player_id" class="ranking-row">
@@ -177,14 +171,13 @@ onMounted(async () => {
             <div class="rank-name"><span class="flag"></span> {{ player.full_name }}</div>
             <div class="rank-pts">{{ player.elo_points }}</div>
           </div>
-          <div v-if="topPlayers.length === 0" class="empty-state">No ranking data</div>
+          <div v-if="topPlayers.length === 0" class="empty-state">{{ t('home.noRanking') }}</div>
         </div>
       </div>
 
-      <!-- Cột 2: Lịch sử đối đầu (HEAD 2 HEAD) -->
       <div class="h2h-widget" v-if="h2hData">
         <div class="h2h-header">
-          <h3>LEXUS <span class="h2h-logo">HEAD2HEAD</span></h3>
+          <h3>LEXUS <span class="h2h-logo">{{ t('home.h2h') }}</span></h3>
         </div>
         <div class="h2h-body">
           <div class="h2h-players">
@@ -216,49 +209,47 @@ onMounted(async () => {
           <div class="h2h-stats">
             <div class="stat-row">
               <span class="stat-left">{{ h2hData.player1.elo_points || '-' }}</span>
-              <span class="stat-label">Elo Points</span>
+              <span class="stat-label">{{ t('home.eloPoints') }}</span>
               <span class="stat-right">{{ h2hData.player2.elo_points || '-' }}</span>
             </div>
             <div class="stat-row">
               <span class="stat-left">{{ h2hData.player1.wins || 0 }}</span>
-              <span class="stat-label">Total Wins</span>
+              <span class="stat-label">{{ t('home.totalWins') }}</span>
               <span class="stat-right">{{ h2hData.player2.wins || 0 }}</span>
             </div>
             <div class="stat-row">
               <span class="stat-left">{{ h2hData.player1.win_rate || 0 }}%</span>
-              <span class="stat-label">Win Rate</span>
+              <span class="stat-label">{{ t('home.winRate') }}</span>
               <span class="stat-right">{{ h2hData.player2.win_rate || 0 }}%</span>
             </div>
           </div>
 
-          <button class="h2h-btn">Show Full H2H Detail <el-icon><Right /></el-icon></button>
+          <button class="h2h-btn">{{ t('home.showH2h') }} <el-icon><Right /></el-icon></button>
         </div>
       </div>
 
-      <!-- Cột 3: Newsletter & Shop -->
       <div class="right-widgets">
         <div class="newsletter-widget">
-          <h3>NEWSLETTERS</h3>
-          <p>Get official marketing communications from Saigon Tennis Tour, delivered straight to your inbox!</p>
+          <h3>{{ t('home.newsletter') }}</h3>
+          <p>{{ t('home.newsletterDesc') }}</p>
           <div class="input-group">
-            <input type="email" placeholder="name@domain.com" />
-            <button>SUBSCRIBE <el-icon><Message /></el-icon></button>
+            <input type="email" :placeholder="t('home.emailPlaceholder')" />
+            <button>{{ t('home.subscribe') }} <el-icon><Message /></el-icon></button>
           </div>
         </div>
 
         <RouterLink to="/tournaments" class="promo-card shop-card">
           <div class="shop-content">
-            <h4>OFFICIAL SGT STORE</h4>
-            <span class="promo-btn">Shop Now <el-icon><Right /></el-icon></span>
+            <h4>{{ t('home.sgtStore') }}</h4>
+            <span class="promo-btn">{{ t('home.shopNow') }} <el-icon><Right /></el-icon></span>
           </div>
         </RouterLink>
       </div>
     </section>
 
-    <!-- SECTION 3: TOP VIDEOS / MORE NEWS -->
     <section class="container atp-news-grid">
       <div class="section-title">
-        <h2>Top News & Videos</h2>
+        <h2>{{ t('home.topNews') }}</h2>
       </div>
       
       <div class="news-cards-row">
@@ -275,20 +266,19 @@ onMounted(async () => {
       </div>
     </section>
 
-    <!-- SECTION 4: SPONSORS GẮN LOGO ẢNH -->
     <section class="atp-sponsors">
       <div class="container">
         <div class="sponsor-tiers">
           
           <div class="tier">
-            <h5>Premier Partner</h5>
+            <h5>{{ t('home.premierPartner') }}</h5>
             <div class="logos">
               <img src="../../../public/emirates.svg" alt="Emirates" class="sponsor-img premier-img">
             </div>
           </div>
           
           <div class="tier">
-            <h5>Platinum Partners</h5>
+            <h5>{{ t('home.platinumPartner') }}</h5>
             <div class="logos">
               <img src="../../../public/pif.svg" alt="PIF" class="sponsor-img">
               <img src="../../../public/lexus.svg" alt="Lexus" class="sponsor-img">
@@ -296,7 +286,7 @@ onMounted(async () => {
           </div>
           
           <div class="tier">
-            <h5>Gold Partners</h5>
+            <h5>{{ t('home.goldPartner') }}</h5>
             <div class="logos">
               <img src="https://upload.wikimedia.org/wikipedia/commons/9/95/Infosys_logo.svg" alt="Infosys" class="sponsor-img">
               <img src="../../../public/nitto.svg" alt="Nitto" class="sponsor-img">
@@ -586,19 +576,18 @@ onMounted(async () => {
 }
 
 .sponsor-img {
-  height: 50px; /* Tăng kích thước logo bình thường từ 35px lên 50px */
+  height: 50px; 
   width: auto;
   object-fit: contain;
   transition: transform 0.3s ease;
-  /* ĐÃ BỎ filter: grayscale(100%) opacity(70%); ĐỂ LOGO LUÔN SÁNG MÀU */
 }
 
 .sponsor-img:hover {
-  transform: translateY(-3px); /* Nhẹ nhàng nảy lên khi hover */
+  transform: translateY(-3px);
 }
 
 .premier-img {
-  height: 85px; /* Tăng kích thước nhà tài trợ chính từ 60px lên 85px */
+  height: 85px; 
 }
 
 /* =========================================================
@@ -617,7 +606,7 @@ onMounted(async () => {
   .right-widgets { flex-direction: column; grid-column: span 1; }
   .hero-overlay h1 { font-size: 1.8rem; }
   .logos { gap: 2rem; }
-  .sponsor-img { height: 40px; } /* Thu nhỏ một chút trên mobile */
+  .sponsor-img { height: 40px; } 
   .premier-img { height: 65px; }
 }
 

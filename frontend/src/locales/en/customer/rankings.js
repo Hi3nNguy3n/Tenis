@@ -9,4 +9,27 @@ export default {
   matches: 'MATCHES',
   winRate: 'WIN RATE',
   elo: 'ELO POINTS',
+  
+  // CÁC KEY MỚI BỔ SUNG
+  sgt: 'SGT',
+  rankingsTitle: 'RANKINGS',
+  singlesTab: 'Singles',
+  doublesTab: 'Doubles',
+  raceToFinals: 'Race To Finals',
+  noDataDesc: 'No ranking data available',
+  points: 'POINTS',
+  scores: 'SCORES',
+  seeAll: 'See all',
+  sgtTour: 'SGT Tour',
+  challenger: 'Challenger',
+  saigonMasters: 'Saigon Masters 1000',
+  hcmc: 'Ho Chi Minh City, VN',
+  allScores: 'All Scores',
+  schedule: 'Schedule',
+  draw: 'Draw',
+  finalCenterCourt: 'Final - Center Court',
+  umpire: 'Ump: Trong Tai A',
+  h2h: 'H2H',
+  stats: 'Stats',
+  matchSummary: 'Game Set and Match Nguyễn M. Phú. Nguyễn M. Phú wins the match 6-4 6-2.'
 }

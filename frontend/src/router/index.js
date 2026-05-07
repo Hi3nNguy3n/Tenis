@@ -17,8 +17,6 @@ const NewsDetailView = () => import('../views/customer/tournaments/NewsDetailVie
 
 // --- PROFILE & ACCOUNT ---
 const ProfileView = () => import('../views/customer/profile/ProfileView.vue')
-const MyTournamentsView = () => import('../views/customer/profile/MyTournamentsView.vue')
-const ChangePasswordView = () => import('../views/customer/profile/ChangePasswordView.vue')
 
 // --- AUTH VIEWS ---
 const LoginView = () => import('../views/auth/LoginView.vue')
@@ -147,18 +145,6 @@ const router = createRouter({
       path: '/profile',
       name: 'profile',
       component: ProfileView,
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/profile/my-tournaments',
-      name: 'my-tournaments',
-      component: MyTournamentsView,
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/profile/change-password',
-      name: 'change-password',
-      component: ChangePasswordView,
       meta: { requiresAuth: true },
     },
     {

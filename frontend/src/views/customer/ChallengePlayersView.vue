@@ -46,7 +46,7 @@ const loadPlayers = async () => {
       displayRank: index + 1
     }))
   } catch (err) { 
-    ElMessage.error('Lỗi tải danh sách VĐV') 
+    ElMessage.error(t('challenges.loadError')) 
   } finally { 
     isLoading.value = false 
   }
@@ -58,18 +58,18 @@ const openChallenge = (p) => {
 }
 
 const sendChallengeRequest = async () => {
-  if (!challengeForm.value.date) return ElMessage.warning('Vui lòng chọn ngày dự kiến')
+  if (!challengeForm.value.date) return ElMessage.warning(t('challenges.selectDateWarning'))
   try {
     await apiClient.post('/api/challenges/', {
       challenged_id: selectedOpponent.value.player_id,
       proposed_date: challengeForm.value.date,
       notes: challengeForm.value.notes
     })
-    ElMessage.success('Đã gửi lời mời thách đấu! Vui lòng chờ đối thủ xác nhận.')
+    ElMessage.success(t('challenges.requestSentSuccess'))
     showChallengeDialog.value = false
     challengeForm.value = { date: '', notes: '' }
   } catch (err) { 
-    const errorMsg = err.response?.data?.detail || 'Lỗi gửi lời mời'
+    const errorMsg = err.response?.data?.detail || t('challenges.requestSendError')
     ElMessage.error(errorMsg) 
   }
 }
@@ -79,7 +79,7 @@ const viewH2H = async (p) => {
   showH2HDialog.value = true
   // Mock data
   h2hHistory.value = [
-    { date: '2026-03-15', score: '6-4, 6-2', winner: 'Bạn', type: 'win' },
+    { date: '2026-03-15', score: '6-4, 6-2', winner: t('challenges.you'), type: 'win' },
     { date: '2026-02-10', score: '3-6, 4-6', winner: p.full_name, type: 'loss' }
   ]
 }
@@ -90,7 +90,6 @@ onMounted(loadPlayers)
 <template>
   <div class="atp-challenge-page">
     
-    <!-- QUẢNG CÁO TOP BANNER (ĐỒNG BỘ ATP STYLE) -->
     <div class="top-ad-banner">
       <div class="ad-placeholder">
         <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" />
@@ -99,10 +98,8 @@ onMounted(loadPlayers)
 
     <div class="container layout-grid">
       
-      <!-- CỘT TRÁI: DANH SÁCH ĐỐI THỦ -->
       <main class="main-content">
         
-        <!-- HEADER & BỘ LỌC DẠNG FLAT -->
         <div class="ranking-header-section">
           <div class="title-row">
             <h1 class="page-title"><el-icon class="pif-icon"><Aim /></el-icon> SGT <span>CHALLENGES</span></h1>
@@ -110,38 +107,36 @@ onMounted(loadPlayers)
 
           <div class="inline-filters">
             <div class="filter-tabs">
-              <span class="f-tab active">All Players</span>
-              <span class="f-tab">Suggested</span>
+              <span class="f-tab active">{{ t('challenges.allPlayers') }}</span>
+              <span class="f-tab">{{ t('challenges.suggested') }}</span>
             </div>
 
             <div class="filter-dropdowns">
-              <!-- Flat Search Box -->
               <div class="flat-search">
                 <el-icon><Search /></el-icon>
                 <input 
                   v-model="searchQuery" 
                   type="text" 
-                  placeholder="Search opponent..." 
+                  :placeholder="t('challenges.searchOpponent')" 
                 />
               </div>
             </div>
           </div>
         </div>
 
-        <!-- BẢNG DANH SÁCH KHÔNG VIỀN (FLAT TABLE) -->
         <div class="ranking-list-container" v-loading="isLoading">
           <div v-if="filteredPlayers.length === 0" class="empty-state">
-            <el-empty :description="t('common.noData') || 'Không tìm thấy đối thủ phù hợp'" />
+            <el-empty :description="t('common.noData') || t('challenges.noOpponentFound')" />
           </div>
 
           <table v-else class="atp-flat-table">
             <thead>
               <tr>
-                <th class="col-rank">Rank</th>
-                <th class="col-player">Player</th>
-                <th class="col-pts text-center">Points</th>
-                <th class="col-winrate hidden-mobile text-center">Win Rate</th>
-                <th class="col-actions text-right">Actions</th>
+                <th class="col-rank">{{ t('challenges.rank') }}</th>
+                <th class="col-player">{{ t('challenges.player') }}</th>
+                <th class="col-pts text-center">{{ t('challenges.points') }}</th>
+                <th class="col-winrate hidden-mobile text-center">{{ t('challenges.winRate') }}</th>
+                <th class="col-actions text-right">{{ t('challenges.actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -152,7 +147,7 @@ onMounted(loadPlayers)
                 <td class="col-player">
                   <div class="player-info-cell">
                     <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}`" class="player-ava" />
-                    <span class="flag-mini">🇻🇳</span>
+                    <span class="flag-mini"></span>
                     <strong class="player-name">{{ p.full_name }}</strong>
                   </div>
                 </td>
@@ -164,8 +159,8 @@ onMounted(loadPlayers)
                 </td>
                 <td class="col-actions text-right">
                   <div class="action-buttons">
-                    <button class="btn-atp-outline" @click="viewH2H(p)">H2H</button>
-                    <button class="btn-atp-solid" @click="openChallenge(p)">Challenge</button>
+                    <button class="btn-atp-outline" @click="viewH2H(p)">{{ t('challenges.h2h') }}</button>
+                    <button class="btn-atp-solid" @click="openChallenge(p)">{{ t('challenges.challengeBtn') }}</button>
                   </div>
                 </td>
               </tr>
@@ -174,69 +169,65 @@ onMounted(loadPlayers)
         </div>
       </main>
 
-      <!-- CỘT PHẢI: WIDGET THÔNG TIN -->
       <aside class="sidebar">
         
-        <!-- WIDGET THÔNG TIN CỦA BẠN -->
         <div class="atp-widget">
           <div class="ws-header">
-            <h3>YOUR STATUS</h3>
-            <a href="/profile" class="ws-link">Profile <el-icon><ArrowRight /></el-icon></a>
+            <h3>{{ t('challenges.yourStatus') }}</h3>
+            <a href="/profile" class="ws-link">{{ t('challenges.profile') }} <el-icon><ArrowRight /></el-icon></a>
           </div>
           
           <div class="ws-body profile-widget">
             <div class="my-profile-header">
               <img :src="authStore.user?.avatar_url || 'https://ui-avatars.com/api/?name=Me'" class="my-ava" />
               <div class="my-info">
-                <h4>{{ authStore.user?.full_name || 'Vận động viên' }}</h4>
-                <span><span class="flag-mini">🇻🇳</span> Vietnam</span>
+                <h4>{{ authStore.user?.full_name || t('challenges.defaultAthlete') }}</h4>
+                <span><span class="flag-mini"></span> {{ t('challenges.vietnam') }}</span>
               </div>
             </div>
             
             <div class="my-stats-grid">
               <div class="my-stat">
-                <span class="ms-lbl">Rank</span>
+                <span class="ms-lbl">{{ t('challenges.rank') }}</span>
                 <span class="ms-val">{{ authStore.profile?.player_profile?.rank || '--' }}</span>
               </div>
               <div class="my-stat">
-                <span class="ms-lbl">Points</span>
+                <span class="ms-lbl">{{ t('challenges.points') }}</span>
                 <span class="ms-val text-blue">{{ authStore.profile?.player_profile?.elo_points || 1000 }}</span>
               </div>
               <div class="my-stat">
-                <span class="ms-lbl">W-L</span>
+                <span class="ms-lbl">{{ t('challenges.wl') }}</span>
                 <span class="ms-val">{{ authStore.profile?.player_profile?.wins || 0 }} - {{ authStore.profile?.player_profile?.losses || 0 }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- WIDGET HƯỚNG DẪN / LUẬT -->
         <div class="atp-widget">
           <div class="ws-header">
-            <h3>HOW IT WORKS</h3>
+            <h3>{{ t('challenges.howItWorks') }}</h3>
           </div>
           <div class="ws-body rules-widget">
             <ul class="rules-list">
               <li>
                 <el-icon class="rule-icon"><Aim /></el-icon>
                 <div class="rule-text">
-                  <strong>1. Tìm đối thủ</strong>
-                  <p>Chọn đối thủ phù hợp với trình độ của bạn trên bảng xếp hạng.</p>
+                  <strong>{{ t('challenges.step1Title') }}</strong>
+                  <p>{{ t('challenges.step1Desc') }}</p>
                 </div>
               </li>
               <li>
                 <el-icon class="rule-icon"><Calendar /></el-icon>
                 <div class="rule-text">
-                  <strong>2. Gửi lời mời</strong>
-                  <p>Đề xuất ngày giờ thi đấu. Đối thủ sẽ nhận được thông báo để xác nhận.</p>
+                  <strong>{{ t('challenges.step2Title') }}</strong>
+                  <p>{{ t('challenges.step2Desc') }}</p>
                 </div>
               </li>
               <li>
                 <el-icon class="rule-icon"><Trophy /></el-icon>
                 <div class="rule-text">
-                  <strong>3. Thi đấu & Cập nhật ELO</strong>
-                  <!-- SỬA TẠI ĐÂY: Xóa thông tin về phí 200.000 VNĐ -->
-                  <p>Điểm ELO sẽ được hệ thống tính toán và cập nhật ngay sau khi kết quả trận đấu được xác nhận.</p>
+                  <strong>{{ t('challenges.step3Title') }}</strong>
+                  <p>{{ t('challenges.step3Desc') }}</p>
                 </div>
               </li>
             </ul>
@@ -246,15 +237,10 @@ onMounted(loadPlayers)
       </aside>
     </div>
 
-    <!-- ==============================================
-         MODALS (ĐỒNG BỘ PHONG CÁCH CLEAN) 
-         ============================================== -->
-         
-    <!-- MODAL THÁCH ĐẤU -->
     <el-dialog v-model="showChallengeDialog" :show-close="false" width="450px" class="atp-modal">
       <template #header>
         <div class="modal-custom-header">
-          <h3>CHALLENGE REQUEST</h3>
+          <h3>{{ t('challenges.challengeRequest') }}</h3>
           <button class="close-btn" @click="showChallengeDialog = false"><el-icon><Close /></el-icon></button>
         </div>
       </template>
@@ -263,50 +249,49 @@ onMounted(loadPlayers)
         <div class="challenge-target">
           <img :src="selectedOpponent?.avatar_url" alt="" class="target-avatar" />
           <div class="target-info">
-            <span>Opponent</span>
+            <span>{{ t('challenges.opponent') }}</span>
             <strong>{{ selectedOpponent?.full_name }}</strong>
           </div>
         </div>
 
         <el-form label-position="top" class="atp-form">
-          <el-form-item label="Proposed Date">
+          <el-form-item :label="t('challenges.proposedDate')">
             <el-date-picker 
               v-model="challengeForm.date" 
               type="date" 
-              placeholder="Select date..."
+              :placeholder="t('challenges.selectDate')"
               value-format="YYYY-MM-DD" 
               style="width: 100%" 
             />
           </el-form-item>
-          <el-form-item label="Message (Optional)">
+          <el-form-item :label="t('challenges.messageOptional')">
             <el-input 
               v-model="challengeForm.notes" 
               type="textarea" 
               :rows="3"
-              placeholder="e.g. Let's play 2 sets..." 
+              :placeholder="t('challenges.messagePlaceholder')" 
             />
           </el-form-item>
         </el-form>
 
         <div class="atp-notice-box">
           <el-icon class="notice-icon"><InfoFilled /></el-icon>
-          <p>Your request will be sent to the opponent. Venue fees will apply once accepted.</p>
+          <p>{{ t('challenges.noticeText') }}</p>
         </div>
       </div>
 
       <template #footer>
         <div class="modal-footer-flex">
-          <button class="btn-cancel" @click="showChallengeDialog = false">Cancel</button>
-          <button class="btn-atp-solid" @click="sendChallengeRequest">Send Request</button>
+          <button class="btn-cancel" @click="showChallengeDialog = false">{{ t('challenges.cancel') }}</button>
+          <button class="btn-atp-solid" @click="sendChallengeRequest">{{ t('challenges.sendRequest') }}</button>
         </div>
       </template>
     </el-dialog>
 
-    <!-- MODAL LỊCH SỬ ĐỐI ĐẦU (H2H) -->
     <el-dialog v-model="showH2HDialog" :show-close="false" width="550px" class="atp-modal">
       <template #header>
         <div class="modal-custom-header">
-          <h3>HEAD 2 HEAD</h3>
+          <h3>{{ t('challenges.head2head') }}</h3>
           <button class="close-btn" @click="showH2HDialog = false"><el-icon><Close /></el-icon></button>
         </div>
       </template>
@@ -315,9 +300,9 @@ onMounted(loadPlayers)
         <div class="h2h-versus-header">
           <div class="v-player">
             <div class="v-avatar"><img :src="authStore.user?.avatar_url || 'https://ui-avatars.com/api/?name=Me'" /></div>
-            <span>YOU</span>
+            <span>{{ t('challenges.youUpper') }}</span>
           </div>
-          <div class="v-divider">VS</div>
+          <div class="v-divider">{{ t('challenges.vs') }}</div>
           <div class="v-player">
             <div class="v-avatar"><img :src="selectedOpponent?.avatar_url" /></div>
             <span>{{ selectedOpponent?.full_name }}</span>
@@ -329,8 +314,8 @@ onMounted(loadPlayers)
             <div class="h2h-date">{{ item.date }}</div>
             <div class="h2h-score">{{ item.score }}</div>
             <div class="h2h-result">
-              <span v-if="item.type === 'win'" class="res-badge win"><el-icon><CircleCheck /></el-icon> WIN</span>
-              <span v-else class="res-badge lose">LOSS</span>
+              <span v-if="item.type === 'win'" class="res-badge win"><el-icon><CircleCheck /></el-icon> {{ t('challenges.win') }}</span>
+              <span v-else class="res-badge lose">{{ t('challenges.loss') }}</span>
             </div>
           </div>
         </div>

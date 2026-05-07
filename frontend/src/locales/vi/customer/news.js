@@ -15,4 +15,19 @@ export default {
   mostRecent: 'Mới nhất',
   noNews: 'Không có tin tức nào được tìm thấy',
   official: 'CHÍNH THỨC',
+
+  // --- TỪ KHÓA MỚI BỔ SUNG CHO GIAO DIỆN ATP ---
+  news: 'TIN TỨC',
+  updating: 'Đang cập nhật...',
+  viewAll: 'Xem tất cả ➔',
+  newsletters: 'BẢN TIN',
+  newsletterDesc: 'Đăng ký để nhận thông tin mới nhất về giải đấu, tin tức và các ưu đãi đặc quyền từ Saigon Tennis Tour.',
+  emailPlaceholder: 'Nhập email của bạn...',
+  subscribe: 'ĐĂNG KÝ ✉',
+  relatedNews: 'TIN TỨC LIÊN QUAN',
+  atpRankings: 'BẢNG XẾP HẠNG ATP',
+  viewFullRankings: 'Xem toàn bộ BXH ➔',
+  share: 'Chia sẻ',
+  comment: 'Bình luận',
+  scroll: 'CUỘN',
 }
