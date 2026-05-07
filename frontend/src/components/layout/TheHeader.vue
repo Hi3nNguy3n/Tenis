@@ -116,7 +116,6 @@ const closeMenus = () => {
             <hr />
             <RouterLink v-if="authStore.isAdmin" to="/admin" class="dropdown-item" @click="closeMenus">{{ $t('nav.adminConsole') }}</RouterLink>
             <RouterLink to="/profile" class="dropdown-item" @click="closeMenus">{{ $t('nav.profile') }}</RouterLink>
-            <RouterLink to="/profile/my-tournaments" class="dropdown-item" @click="closeMenus">{{ $t('nav.myTournaments') }}</RouterLink>
             <hr />
             <button class="dropdown-item logout-action" @click="handleLogout">{{ $t('nav.logout') }}</button>
           </div>

@@ -74,22 +74,20 @@ onMounted(async () => {
     
     <div class="container main-wrapper" v-loading="loading">
       
-      <!-- HEADER MANG PHONG CÁCH MINIMALIST -->
       <header class="portfolio-hero">
         <h1 class="hero-title">
-          Danh Sách <span class="highlight-text">Vận Động Viên</span>
+          {{ t('players.list') }} <span class="highlight-text">{{ t('players.players') }}</span>
         </h1>
         <p class="hero-subtitle">
-          Hệ thống dữ liệu lưu trữ thông tin, thứ hạng và lịch sử thi đấu của các tay vợt.
+          {{ t('players.systemData') }}
         </p>
 
       </header>
 
-      <!-- DANH SÁCH TOP VĐV (DẠNG STORY) -->
       <section class="featured-section" v-if="recentWinners.length">
         <div class="section-heading">
           <el-icon><Medal /></el-icon>
-          <h2>VẬN ĐỘNG VIÊN NỔI BẬT</h2>
+          <h2>{{ t('players.featuredPlayers') }}</h2>
         </div>
         <div class="featured-scroll">
           <div v-for="(p, i) in recentWinners" :key="'featured-'+p.id" class="featured-card">
@@ -98,69 +96,62 @@ onMounted(async () => {
               <div class="rank-ring"><span>#{{ i + 1 }}</span></div>
             </div>
             <h4 class="featured-name">{{ p.full_name }}</h4>
-            <p class="featured-pts">{{ p.elo_points }} Điểm</p>
+            <p class="featured-pts">{{ p.elo_points }} {{ t('players.points') }}</p>
           </div>
         </div>
       </section>
 
-      <!-- BỐ CỤC CHÍNH (GRID + SIDEBAR) -->
       <div class="content-layout">
         
-        <!-- BENTO GRID (DANH SÁCH VĐV) -->
         <main class="grid-column">
           <div class="talent-grid">
             <div v-for="p in visiblePlayers" :key="p.id" class="talent-card group">
               
-              <!-- Hình ảnh VĐV -->
               <div class="talent-image-box">
                 <img :src="p.avatar_url" alt="" class="talent-img" />
               </div>
               
-              <!-- Thông tin VĐV -->
               <div class="talent-info">
                 <div class="talent-header">
                   <h3 class="talent-name">{{ p.full_name }}</h3>
-                  <span class="talent-badge">HẠNG #{{ p.rank || '--' }}</span>
+                  <span class="talent-badge">{{ t('players.rank') }} #{{ p.rank || '--' }}</span>
                 </div>
                 
                 <div class="talent-metrics">
                   <div class="metric">
-                    <span class="m-label">ELO</span>
+                    <span class="m-label">{{ t('players.elo') }}</span>
                     <span class="m-value">{{ p.elo_points }}</span>
                   </div>
                   <div class="metric-divider"></div>
                   <div class="metric">
-                    <span class="m-label">TỈ LỆ THẮNG</span>
+                    <span class="m-label">{{ t('players.winRate') }}</span>
                     <span class="m-value">{{ p.win_rate || 0 }}%</span>
                   </div>
                   <div class="metric-divider"></div>
                   <div class="metric">
-                    <span class="m-label">SỐ TRẬN</span>
+                    <span class="m-label">{{ t('players.matchesCount') }}</span>
                     <span class="m-value">{{ (p.wins || 0) + (p.losses || 0) }}</span>
                   </div>
                 </div>
 
-                <!-- Nút xem hồ sơ tĩnh, luôn hiển thị -->
                 <button class="view-profile-btn">
-                  Hồ sơ chi tiết <el-icon><Right /></el-icon>
+                  {{ t('players.viewProfile') }} <el-icon><Right /></el-icon>
                 </button>
               </div>
             </div>
 
-            <!-- Empty State -->
             <div v-if="!visiblePlayers.length" class="empty-state-card">
-              <p>Không tìm thấy vận động viên nào trùng khớp với "{{ searchQuery }}".</p>
+              <p>{{ t('players.noMatch') }} "{{ searchQuery }}".</p>
             </div>
           </div>
         </main>
 
-        <!-- CỘT RIGHT SIDEBAR (TIN TỨC) -->
         <aside class="widgets-column">
           
           <div class="clean-widget">
             <div class="widget-top">
-              <h3>TIN TỨC MỚI NHẤT</h3>
-              <RouterLink to="/news" class="widget-link">Tất cả <el-icon><Right /></el-icon></RouterLink>
+              <h3>{{ t('players.latestNews') }}</h3>
+              <RouterLink to="/news" class="widget-link">{{ t('players.viewAll') }} <el-icon><Right /></el-icon></RouterLink>
             </div>
             
             <div class="widget-feed" v-if="latestNews.length">
@@ -190,15 +181,14 @@ onMounted(async () => {
                 </div>
               </RouterLink>
             </div>
-            <div v-else class="empty-feed">Đang cập nhật bài viết...</div>
+            <div v-else class="empty-feed">{{ t('players.updatingPosts') }}</div>
           </div>
 
-          <!-- Promo Widget Xanh Xám -->
           <div class="clean-widget promo-card">
             <div class="promo-content">
-              <h4>Giải đấu sắp tới</h4>
-              <p>Hệ thống giải đấu chuyên nghiệp đang mở đăng ký. Đăng ký ngay để cọ xát và cải thiện điểm Elo.</p>
-              <RouterLink to="/tournaments" class="btn-primary">XEM LỊCH THI ĐẤU</RouterLink>
+              <h4>{{ t('players.upcomingTournament') }}</h4>
+              <p>{{ t('players.tournamentDesc') }}</p>
+              <RouterLink to="/tournaments" class="btn-primary">{{ t('players.viewSchedule') }}</RouterLink>
             </div>
           </div>
 

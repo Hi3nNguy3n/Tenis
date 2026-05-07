@@ -9,4 +9,27 @@ export default {
   matches: 'TRẬN ĐẤU',
   winRate: 'TỶ LỆ THẮNG',
   elo: 'ĐIỂM ELO',
+
+  // CÁC KEY MỚI BỔ SUNG
+  sgt: 'SGT',
+  rankingsTitle: 'RANKINGS',
+  singlesTab: 'Đơn (Singles)',
+  doublesTab: 'Đôi (Doubles)',
+  raceToFinals: 'Race To Finals',
+  noDataDesc: 'Chưa có dữ liệu xếp hạng',
+  points: 'ĐIỂM',
+  scores: 'KẾT QUẢ',
+  seeAll: 'Xem tất cả',
+  sgtTour: 'SGT Tour',
+  challenger: 'Challenger',
+  saigonMasters: 'Saigon Masters 1000',
+  hcmc: 'Hồ Chí Minh, VN',
+  allScores: 'Tất cả',
+  schedule: 'Lịch thi đấu',
+  draw: 'Nhánh đấu',
+  finalCenterCourt: 'Chung Kết - Sân Trung Tâm',
+  umpire: 'Trọng tài: Trọng Tài A',
+  h2h: 'H2H',
+  stats: 'Thống kê',
+  matchSummary: 'Game Set and Match Nguyễn M. Phú. Nguyễn M. Phú giành chiến thắng 6-4 6-2.'
 }

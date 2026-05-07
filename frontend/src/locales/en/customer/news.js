@@ -15,4 +15,18 @@ export default {
   mostRecent: 'Most Recent',
   noNews: 'No news found',
   official: 'OFFICIAL',
+  // --- TỪ KHÓA MỚI BỔ SUNG CHO GIAO DIỆN ATP ---
+  news: 'NEWS',
+  updating: 'Updating...',
+  viewAll: 'View All ➔',
+  newsletters: 'NEWSLETTERS',
+  newsletterDesc: 'Subscribe to get the latest tournament updates, news, and exclusive offers from Saigon Tennis Tour.',
+  emailPlaceholder: 'Enter your email...',
+  subscribe: 'SUBSCRIBE ✉',
+  relatedNews: 'RELATED NEWS',
+  atpRankings: 'ATP RANKINGS',
+  viewFullRankings: 'View Full Rankings ➔',
+  share: 'Share',
+  comment: 'Comment',
+  scroll: 'SCROLL',
 }

@@ -80,7 +80,6 @@ onMounted(fetchRankings)
 <template>
   <div class="atp-ranking-page">
     
-    <!-- QUẢNG CÁO TOP BANNER (GIẢ LẬP NHƯ ATP) -->
     <div class="top-ad-banner">
       <div class="ad-placeholder">
         <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" />
@@ -89,26 +88,24 @@ onMounted(fetchRankings)
 
     <div class="container layout-grid">
       
-      <!-- CỘT TRÁI: BẢNG XẾP HẠNG -->
       <main class="main-content">
         
-        <!-- HEADER & BỘ LỌC DẠNG FLAT -->
         <div class="ranking-header-section">
           <div class="title-row">
-            <h1 class="page-title"><el-icon class="pif-icon"><Trophy /></el-icon> SGT <span>RANKINGS</span></h1>
+            <h1 class="page-title"><el-icon class="pif-icon"><Trophy /></el-icon> {{ t('rankings.sgt') }} <span>{{ t('rankings.rankingsTitle') }}</span></h1>
           </div>
 
           <div class="inline-filters">
             <div class="filter-tabs">
-              <span class="f-tab active">Singles</span>
-              <span class="f-tab">Doubles</span>
-              <span class="f-tab">Race To Finals</span>
+              <span class="f-tab active">{{ t('rankings.singlesTab') }}</span>
+              <span class="f-tab">{{ t('rankings.doublesTab') }}</span>
+              <span class="f-tab">{{ t('rankings.raceToFinals') }}</span>
             </div>
 
             <div class="filter-dropdowns">
               <el-select
                 v-model="filters.category"
-                placeholder="All Content"
+                :placeholder="t('rankings.searchPlaceholder')"
                 clearable
                 class="flat-select"
                 @change="fetchRankings"
@@ -123,7 +120,7 @@ onMounted(fetchRankings)
 
               <el-select
                 v-model="filters.province"
-                placeholder="All Regions"
+                :placeholder="t('rankings.regionPlaceholder')"
                 clearable
                 filterable
                 class="flat-select"
@@ -140,21 +137,20 @@ onMounted(fetchRankings)
           </div>
         </div>
 
-        <!-- DANH SÁCH LIST KHÔNG VIỀN -->
         <div class="ranking-list-container" v-loading="isLoading">
           <div v-if="rankings.length === 0" class="empty-state">
-            <el-empty :description="t('common.noData') || 'Chưa có dữ liệu xếp hạng'" />
+            <el-empty :description="t('common.noData') || t('rankings.noDataDesc')" />
           </div>
 
           <table v-else class="atp-flat-table">
             <thead>
               <tr>
-                <th class="col-rank">Rank</th>
-                <th class="col-player">Player</th>
-                <th class="col-level hidden-mobile text-center">Level</th>
-                <th class="col-pts text-center">Points</th>
-                <th class="col-matches hidden-mobile text-center">Matches</th>
-                <th class="col-winrate hidden-mobile text-center">Win Rate</th>
+                <th class="col-rank">{{ t('rankings.rank') }}</th>
+                <th class="col-player">{{ t('rankings.player') }}</th>
+                <th class="col-level hidden-mobile text-center">{{ t('rankings.level') }}</th>
+                <th class="col-pts text-center">{{ t('rankings.points') }}</th>
+                <th class="col-matches hidden-mobile text-center">{{ t('rankings.matches') }}</th>
+                <th class="col-winrate hidden-mobile text-center">{{ t('rankings.winRate') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -187,32 +183,31 @@ onMounted(fetchRankings)
         </div>
       </main>
 
-      <!-- CỘT PHẢI: WIDGET SCORES (NHƯ HÌNH ATP) -->
       <aside class="sidebar">
         <div class="widget-scores">
           <div class="ws-header">
-            <h3>SCORES</h3>
-            <a href="#" class="ws-link">See all <el-icon><ArrowRight /></el-icon></a>
+            <h3>{{ t('rankings.scores') }}</h3>
+            <a href="#" class="ws-link">{{ t('rankings.seeAll') }} <el-icon><ArrowRight /></el-icon></a>
           </div>
           <div class="ws-tabs">
-            <span class="ws-tab active">SGT Tour</span>
-            <span class="ws-tab">Challenger</span>
+            <span class="ws-tab active">{{ t('rankings.sgtTour') }}</span>
+            <span class="ws-tab">{{ t('rankings.challenger') }}</span>
           </div>
           
           <div class="ws-body">
             <div class="ws-tour-name">
-              <h4>Saigon Masters 1000</h4>
-              <p>Ho Chi Minh City, VN</p>
+              <h4>{{ t('rankings.saigonMasters') }}</h4>
+              <p>{{ t('rankings.hcmc') }}</p>
             </div>
             
             <div class="ws-subtabs">
-              <span class="ws-sub active">All Scores</span>
-              <span class="ws-sub">Schedule</span>
-              <span class="ws-sub">Draw</span>
+              <span class="ws-sub active">{{ t('rankings.allScores') }}</span>
+              <span class="ws-sub">{{ t('rankings.schedule') }}</span>
+              <span class="ws-sub">{{ t('rankings.draw') }}</span>
             </div>
 
             <div class="ws-match">
-              <div class="match-status">Final - Center Court <span>01:15:20</span></div>
+              <div class="match-status">{{ t('rankings.finalCenterCourt') }} <span>01:15:20</span></div>
               
               <div class="match-player">
                 <div class="mp-name"><span class="flag-mini">🇻🇳</span> Nguyễn M. Phú <span class="seed">(1)</span> <el-icon class="winner-check"><Check /></el-icon></div>
@@ -229,13 +224,13 @@ onMounted(fetchRankings)
               </div>
 
               <div class="match-footer">
-                <span class="umpire">Ump: Trong Tai A</span>
+                <span class="umpire">{{ t('rankings.umpire') }}</span>
                 <div class="mf-links">
-                  <a href="#">H2H</a>
-                  <a href="#">Stats</a>
+                  <a href="#">{{ t('rankings.h2h') }}</a>
+                  <a href="#">{{ t('rankings.stats') }}</a>
                 </div>
               </div>
-              <p class="match-summary">Game Set and Match Nguyễn M. Phú. Nguyễn M. Phú wins the match 6-4 6-2.</p>
+              <p class="match-summary">{{ t('rankings.matchSummary') }}</p>
             </div>
           </div>
         </div>
