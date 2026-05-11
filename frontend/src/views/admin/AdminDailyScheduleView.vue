@@ -145,7 +145,7 @@ onMounted(fetchData)
             <div class="corner-header">GIỜ / SÂN</div>
             <div class="court-header" v-for="court in courts" :key="court.id">
               <strong>{{ court.court_name }}</strong>
-              <span>{{ court.location_name || 'Saigon Tennis' }}</span>
+              <span>{{ court.location_name || 'Saigontennistours' }}</span>
             </div>
           </div>
 

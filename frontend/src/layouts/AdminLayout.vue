@@ -172,7 +172,7 @@ const getLocalizedDescription = (desc) => {
 }
 
 const pageTitle = computed(() => getLocalizedTitle(route.meta.adminTitle || 'Tổng quan Quản trị'))
-const pageDescription = computed(() => getLocalizedDescription(route.meta.adminDescription || 'Hệ thống quản lý giải đấu Saigon Tennis - Admin Dashboard.'))
+const pageDescription = computed(() => getLocalizedDescription(route.meta.adminDescription || 'Hệ thống quản lý giải đấu Saigontennistours- Admin Dashboard.'))
 const currentUserName = computed(() => authStore.user?.full_name || authStore.user?.email || t('admin.admin'))
 const isSidebarOpen = ref(false)
 
@@ -221,7 +221,7 @@ const toggleSidebar = () => {
                 class="brand-logo"
               />
             </span>
-            <span>Saigon Tennis</span>
+            <span>Saigontennistours</span>
             <el-icon style="margin-left: auto; color: rgba(225, 255, 236, 0.75);"><ArrowRight style="transform: rotate(90deg);" /></el-icon>
           </div>
           <p>{{ $t('admin.opsCenter') }}</p>

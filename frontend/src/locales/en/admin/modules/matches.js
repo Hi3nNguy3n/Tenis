@@ -55,7 +55,7 @@ export default {
   dateTimeCol: 'Date & Time',
   statusCol: 'Status',
   actionCol: 'Action',
-  saigonTennisSystem: 'Saigon Tennis System',
+  saigonTennisSystem: 'Saigontennistours System',
   unassignedCourt: 'Unassigned',
   editMatch: 'Edit Match',
   reschedule: 'Reschedule',

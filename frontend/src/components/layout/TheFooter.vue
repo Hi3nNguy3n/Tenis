@@ -66,7 +66,7 @@ import { Location, Phone, Message, Right } from '@element-plus/icons-vue'
       <!-- CỘT 3: MẠNG XÃ HỘI -->
       <div class="footer-social">
         <h4>{{ t('footer.social') }}</h4>
-        <p>{{ t('footer.socialDesc') || 'Theo dõi Saigon Tennis trên các nền tảng mạng xã hội để cập nhật tin tức nhanh nhất.' }}</p>
+        <p>{{ t('footer.socialDesc') || 'Theo dõi Saigontennistours trên các nền tảng mạng xã hội để cập nhật tin tức nhanh nhất.' }}</p>
         
         <div class="social-icons">
           <a href="https://www.facebook.com/share/1N74PXKSQq/" target="_blank" class="social-btn fb" title="Facebook">

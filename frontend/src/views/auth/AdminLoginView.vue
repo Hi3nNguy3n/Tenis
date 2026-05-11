@@ -149,7 +149,7 @@ const login = async () => {
           <footer class="form-bottom">
             <div class="encryption-notice">
               <el-icon><Lock /></el-icon>
-              <span>DỮ LIỆU ĐƯỢC MÃ HÓA ĐẦU CUỐI - SAIGON TENNIS</span>
+              <span>DỮ LIỆU ĐƯỢC MÃ HÓA ĐẦU CUỐI - Saigontennistours</span>
             </div>
             <router-link to="/" class="public-exit-btn">Quay lại trang chủ</router-link>
           </footer>

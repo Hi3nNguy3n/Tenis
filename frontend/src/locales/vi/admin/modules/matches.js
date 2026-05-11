@@ -55,7 +55,7 @@ export default {
   dateTimeCol: 'Ngày & Giờ',
   statusCol: 'Trạng thái',
   actionCol: 'Hành động',
-  saigonTennisSystem: 'Hệ thống giải Saigon Tennis',
+  saigonTennisSystem: 'Hệ thống giải Saigontennistours',
   unassignedCourt: 'Chưa gán sân',
   editMatch: 'Sửa trận đấu',
   reschedule: 'Dời lịch',

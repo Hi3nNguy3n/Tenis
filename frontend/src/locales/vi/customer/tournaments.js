@@ -9,7 +9,7 @@ export default {
 
   // --- NEW KEYS FOR TOURNAMENTS ---
   appDigitization: 'Ứng dụng số hoá Tennis',
-  experienceSystem: 'Trải nghiệm hệ thống Saigon Tennis Tour ngay hôm nay!',
+  experienceSystem: 'Trải nghiệm hệ thống Saigontennistours ngay hôm nay!',
   partners: 'Đối tác',
   all: 'Tất cả',
   ongoing: 'Đang diễn ra',
@@ -34,7 +34,7 @@ export default {
   playersCount: 'Tay vợt',
   surface: 'Mặt sân',
   aboutTournament: 'Về giải đấu này',
-  tournamentDesc: 'là cơ hội tuyệt vời để cọ xát, nâng cao kỹ năng và khẳng định vị thế trên bảng xếp hạng Saigon Tennis Tour. Hệ thống tính điểm ELO sẽ được áp dụng tự động ngay sau khi giải kết thúc.',
+  tournamentDesc: 'là cơ hội tuyệt vời để cọ xát, nâng cao kỹ năng và khẳng định vị thế trên bảng xếp hạng Saigontennistours. Hệ thống tính điểm ELO sẽ được áp dụng tự động ngay sau khi giải kết thúc.',
   registrationDeadline: 'Thời hạn ghi danh:',
   from: 'Từ',
   to: 'đến',

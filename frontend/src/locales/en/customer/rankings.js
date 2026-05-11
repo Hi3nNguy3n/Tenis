@@ -1,6 +1,6 @@
 export default {
   title: 'Global Rankings',
-  description: 'Honoring the best players in the Saigon Tennis Tour system based on Elo scores.',
+  description: 'Honoring the best players in the Saigontennistours system based on Elo scores.',
   searchPlaceholder: 'All content',
   regionPlaceholder: 'All regions',
   rank: 'RANK',

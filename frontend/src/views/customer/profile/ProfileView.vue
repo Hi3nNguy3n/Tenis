@@ -486,7 +486,7 @@ const selectTab = (tab) => {
               <article v-for="reg in tournamentStore.myRegistrations" :key="reg.id" class="atp-tour-card">
                 <div class="tour-main-info">
                   <div class="tour-header-row">
-                    <span class="tour-category">SAIGON TENNIS TOUR</span>
+                    <span class="tour-category">Saigontennistours</span>
                     <span :class="['atp-status-pill', reg.payment_status]">
                       {{ reg.payment_status === 'confirmed' ? 'Đã xác nhận' : 'Đang xử lý' }}
                     </span>
