@@ -225,7 +225,7 @@ const submitRegistration = async () => {
         <div class="ticket-widget sticky">
           
           <div class="ticket-top">
-            <div class="ticket-brand">SAIGON TENNIS TOUR</div>
+            <div class="ticket-brand">Saigontennistours</div>
             <h3 class="ticket-tour-name">{{ tournament?.name || t('tournaments.loadingInfo') }}</h3>
             <div class="ticket-info-grid">
               <div class="t-info-item">

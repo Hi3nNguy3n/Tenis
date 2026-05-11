@@ -124,7 +124,7 @@ const viewDetail = (id) => {
           <img src="/ad-main.jpg" alt="Sponsor Ad" onerror="this.src='https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?auto=format&fit=crop&q=80&w=400'" />
           <div class="ad-content">
             <h4>Ứng dụng số hoá Tennis</h4>
-            <p>Trải nghiệm hệ thống Saigon Tennis Tour ngay hôm nay!</p>
+            <p>Trải nghiệm hệ thống Saigontennistours ngay hôm nay!</p>
           </div>
         </div>
 

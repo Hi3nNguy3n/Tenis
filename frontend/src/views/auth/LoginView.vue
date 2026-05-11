@@ -112,7 +112,7 @@ const login = async () => {
         <div class="brand-content">
           <div>
             <p class="brand-kicker">{{ $t('auth.brandKicker') }}</p>
-            <h1 id="login-page-heading">Saigon Tennis</h1>
+            <h1 id="login-page-heading">Saigontennistours</h1>
             <p class="brand-description">
               {{ $t('auth.brandDesc') }}
             </p>
@@ -130,7 +130,7 @@ const login = async () => {
 
       <section class="form-panel">
         <div class="form-panel-inner">
-          <div class="mobile-brand">Saigon Tennis</div>
+          <div class="mobile-brand">Saigontennistours</div>
 
           <header class="form-header">
             <p class="form-kicker">{{ $t('auth.loginHeaderKicker') }}</p>

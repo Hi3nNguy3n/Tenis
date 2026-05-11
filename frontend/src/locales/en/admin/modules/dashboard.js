@@ -1,5 +1,5 @@
 export default {
-  adminOpsCenter: 'Saigon Tennis Admin Dashboard',
+  adminOpsCenter: 'Saigontennistours Admin Dashboard',
   adminOpsDesc: 'Monitor revenue, tournaments, registrations, and operational progress in one modern dashboard.',
   completed: 'Completed',
   matchesDone: 'Matches Done',

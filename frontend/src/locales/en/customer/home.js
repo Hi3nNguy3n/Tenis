@@ -47,7 +47,7 @@ export default {
   winRate: 'Win Rate',
   showH2h: 'Show Full H2H Detail',
   newsletter: 'NEWSLETTERS',
-  newsletterDesc: 'Get official marketing communications from Saigon Tennis Tour, delivered straight to your inbox!',
+  newsletterDesc: 'Get official marketing communications from Saigontennistours Tour, delivered straight to your inbox!',
   emailPlaceholder: "name{'@'}domain.com",
   subscribe: 'SUBSCRIBE',
   sgtStore: 'OFFICIAL SGT STORE',

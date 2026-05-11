@@ -9,7 +9,7 @@ export default {
 
   // --- NEW KEYS FOR TOURNAMENTS ---
   appDigitization: 'Tennis Digital Application',
-  experienceSystem: 'Experience the Saigon Tennis Tour system today!',
+  experienceSystem: 'Experience the Saigontennistours system today!',
   partners: 'Partners',
   all: 'All',
   ongoing: 'Ongoing',
@@ -34,7 +34,7 @@ export default {
   playersCount: 'Players',
   surface: 'Surface',
   aboutTournament: 'About this tournament',
-  tournamentDesc: 'is a great opportunity to compete, improve your skills, and assert your position on the Saigon Tennis Tour rankings. The ELO rating system will be applied automatically after the tournament ends.',
+  tournamentDesc: 'is a great opportunity to compete, improve your skills, and assert your position on the Saigontennistours rankings. The ELO rating system will be applied automatically after the tournament ends.',
   registrationDeadline: 'Registration Deadline:',
   from: 'From',
   to: 'to',

@@ -1,5 +1,5 @@
 export default {
-  adminOpsCenter: 'Dashboard điều hành Saigon Tennis',
+  adminOpsCenter: 'Dashboard điều hành Saigontennistours',
   adminOpsDesc: 'Theo dõi doanh thu, giải đấu, đăng ký và tiến độ vận hành trong một màn hình, theo phong cách gọn, sáng và hiện đại.',
   completed: 'Hoàn thành',
   matchesDone: 'Trận đã xong',

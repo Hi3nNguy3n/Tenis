@@ -55,7 +55,7 @@ const handleResetPassword = async () => {
     <main class="auth-shell">
       <section class="auth-card">
         <header class="auth-header">
-          <div class="brand-logotype">Saigon Tennis</div>
+          <div class="brand-logotype">Saigontennistours</div>
           <h1>{{ step === 1 ? $t('auth.forgotTitle') : $t('auth.resetTitle') }}</h1>
           <p v-if="step === 1">{{ $t('auth.forgotSubtitle') }}</p>
           <p v-else>{{ $t('auth.resetSubtitle') }}</p>
