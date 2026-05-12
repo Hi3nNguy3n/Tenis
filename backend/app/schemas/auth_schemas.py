@@ -22,6 +22,13 @@ class RegisterRequest(BaseModel):
     gender: Optional[str] = None
     account_type: Optional[str] = "player"
 
+    # === BỔ SUNG CÁC TRƯỜNG DÀNH CHO ADMIN TẠO MỚI ===
+    avatar_url: Optional[str] = None
+    skill_level: Optional[str] = "Beginner"
+    preferred_category: Optional[str] = "Singles"
+    elo_points: Optional[int] = 1000
+    play_hand: Optional[str] = "right"
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -31,5 +38,4 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user_id: Optional[int] = None
     full_name: Optional[str] = None
-    role_id: Optional[int] = None
-    account_type: Optional[str] = None
+    role_key: Optional[str] = None

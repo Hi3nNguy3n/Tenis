@@ -165,6 +165,20 @@ def search_players(
     # CRUD giờ đã trả về dữ liệu chuẩn Dictionary khớp với Schema
     return crud_player.search_players(db, keyword=keyword)
 
+# THÊM ĐOẠN NÀY VÀO TRƯỚC @router.get("/{player_id}")
+@router.post("/upload-avatar")
+def upload_avatar_to_cloudinary(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        # Thực hiện upload file ảnh thẳng lên Cloudinary
+        result = cloudinary.uploader.upload(file.file)
+        # Trả về URL an toàn (https)
+        return {"avatar_url": result.get("secure_url")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi khi tải ảnh lên Cloudinary: {str(e)}")
+    
 # 2. API Lấy hồ sơ công khai của 1 người
 @router.get("/{player_id}", response_model=PlayerPublicResponse)
 def get_public_profile(player_id: int, db: Session = Depends(get_db)):

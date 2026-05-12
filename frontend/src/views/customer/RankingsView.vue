@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import { Trophy, Check, ArrowRight } from '@element-plus/icons-vue'
@@ -14,8 +14,10 @@ const filters = ref({
 })
 
 const provinceOptions = ref([])
-const categoryOptions = ref([])
-
+const categoryOptions = ref([
+  { value: 'Singles', label: 'Đơn (Singles)' },
+  { value: 'Doubles', label: 'Đôi (Doubles)' }
+])
 
 const formatCategoryLabel = (value) => {
   if (!value) return ''
@@ -40,41 +42,39 @@ const buildFilterOptions = (items = []) => {
 const fetchRankings = async () => {
   isLoading.value = true
   try {
-    let url = '/api/players/rankings'
-    const queryParts = []
+    // Sử dụng URLSearchParams để tự động xử lý và nối chuỗi param an toàn
+    const params = new URLSearchParams()
+    if (filters.value.category) params.append('category', filters.value.category)
+    if (filters.value.province) params.append('province', filters.value.province)
 
-    if (filters.value.category) {
-      queryParts.push(`category=${encodeURIComponent(filters.value.category)}`)
-    }
+    const queryString = params.toString()
+    const url = queryString ? `/api/players/rankings?${queryString}` : '/api/players/rankings'
 
-    if (filters.value.province) {
-      queryParts.push(`province=${encodeURIComponent(filters.value.province)}`)
-    }
-
-    if (queryParts.length > 0) {
-      url += `?${queryParts.join('&')}`
-    }
-
-    const data = await apiClient.get(url)
-    const normalized = data || []
+    // Gọi API
+    const response = await apiClient.get(url)
+    const normalized = Array.isArray(response) ? response : []
     
-    // Lọc admin và đánh lại số thứ tự
+    // Lọc bỏ tài khoản Admin và đánh lại số thứ tự (Rank)
     const filteredPlayers = normalized.filter(p => !p.full_name?.toLowerCase().includes('admin'))
     rankings.value = filteredPlayers.map((player, index) => ({
       ...player,
       rank: index + 1
     }))
 
+    // Chỉ tạo danh sách tuỳ chọn Tỉnh/Thành ở lần load đầu tiên (khi chưa có filter)
     if (!filters.value.category && !filters.value.province) {
       buildFilterOptions(rankings.value)
     }
   } catch (error) {
-    ElMessage.error(t('common.errorLoading') || 'Lỗi tải dữ liệu')
+    ElMessage.error(t('common.errorLoading') || 'Lỗi tải dữ liệu bảng xếp hạng')
   } finally {
     isLoading.value = false
   }
 }
-
+// TỰ ĐỘNG LỌC LẠI KHI NGƯỜI DÙNG CHỌN MENU THẢ XUỐNG
+watch(filters, () => {
+  fetchRankings()
+}, { deep: true })
 onMounted(fetchRankings)
 </script>
 
@@ -162,7 +162,7 @@ onMounted(fetchRankings)
                 <td class="col-player">
                   <div class="player-info-cell">
                     <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" />
-                    <span class="flag-mini">🇻🇳</span>
+                    <span class="flag-mini"></span>
                     <strong class="player-name">{{ player.full_name }}</strong>
                   </div>
                 </td>
@@ -211,14 +211,14 @@ onMounted(fetchRankings)
               <div class="match-status">{{ t('rankings.finalCenterCourt') }} <span>01:15:20</span></div>
               
               <div class="match-player">
-                <div class="mp-name"><span class="flag-mini">🇻🇳</span> Nguyễn M. Phú <span class="seed">(1)</span> <el-icon class="winner-check"><Check /></el-icon></div>
+                <div class="mp-name"><span class="flag-mini"></span> Nguyễn M. Phú <span class="seed">(1)</span> <el-icon class="winner-check"><Check /></el-icon></div>
                 <div class="mp-score">
                   <span>6</span><span>6</span>
                 </div>
               </div>
               
               <div class="match-player">
-                <div class="mp-name"><span class="flag-mini">🇻🇳</span> Nguyễn M. Anh <span class="seed">(2)</span></div>
+                <div class="mp-name"><span class="flag-mini"></span> Nguyễn M. Anh <span class="seed">(2)</span></div>
                 <div class="mp-score">
                   <span>4</span><span>2</span>
                 </div>

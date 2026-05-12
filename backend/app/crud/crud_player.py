@@ -10,9 +10,11 @@ def get_player_by_user_id(db: Session, user_id: int):
 def update_player_profile(db: Session, user: User, update_data: PlayerUpdate):
     if update_data.full_name: user.full_name = update_data.full_name
     if update_data.phone: user.phone = update_data.phone
-    
-    # BỔ SUNG DÒNG NÀY: Lưu province vào bảng User
     if update_data.province: user.province = update_data.province 
+    
+    # BỔ SUNG DÒNG NÀY ĐỂ LƯU AVATAR VÀO BẢNG USER
+    if hasattr(update_data, 'avatar_url') and update_data.avatar_url is not None:
+        user.avatar_url = update_data.avatar_url
 
     player = get_player_by_user_id(db, user.id)
     if player:
@@ -50,23 +52,38 @@ def get_players_list(db: Session, search: str = None, skill: str = None, status:
         
     return query.all()
 
-def admin_update_player_data(db: Session, player_id: int, data: PlayerUpdate):
+def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpdate):
+    # 1. Tìm thông tin Player
     player = db.query(Player).filter(Player.id == player_id).first()
     if not player:
         return None
         
+    # 2. Tìm thông tin User tương ứng
     user = db.query(User).filter(User.id == player.user_id).first()
     
-    # Chuyển data thành dictionary chỉ lấy các trường có update
-    data_dict = data.model_dump(exclude_unset=True)
-    
-    if 'full_name' in data_dict: user.full_name = data_dict['full_name']
-    if 'phone' in data_dict: user.phone = data_dict['phone']
-    if 'skill_level' in data_dict: player.skill_level = data_dict['skill_level']
-    if 'play_hand' in data_dict: player.play_hand = data_dict['play_hand']
-    if 'is_active' in data_dict: user.is_active = data_dict['is_active']
-    
+    if user:
+        # Cập nhật thông tin cơ bản
+        if update_data.full_name is not None: user.full_name = update_data.full_name
+        if update_data.phone is not None: user.phone = update_data.phone
+        if update_data.province is not None: user.province = update_data.province
+        
+        # BỔ SUNG: Cập nhật Ảnh đại diện & Trạng thái tài khoản
+        if hasattr(update_data, 'avatar_url') and update_data.avatar_url is not None:
+            user.avatar_url = update_data.avatar_url
+        if hasattr(update_data, 'is_active') and update_data.is_active is not None:
+            user.is_active = update_data.is_active
+
+    # 3. Cập nhật thông tin Player (VĐV)
+    if update_data.gender is not None: player.gender = update_data.gender
+    if update_data.date_of_birth is not None: player.date_of_birth = update_data.date_of_birth
+    if update_data.play_hand is not None: player.play_hand = update_data.play_hand
+    if update_data.skill_level is not None: player.skill_level = update_data.skill_level
+    if update_data.preferred_category is not None: player.preferred_category = update_data.preferred_category
+
     db.commit()
+    db.refresh(player)
+    db.refresh(user)
+    
     return player
 
 def get_player_rankings(db: Session, category: str = None, province: str = None):
