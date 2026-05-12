@@ -17,6 +17,10 @@ from typing import List
 
 from app.schemas.player_schemas import PlayerPublicResponse
 
+from app.api.deps import get_current_admin
+from app.schemas.auth_schemas import RegisterRequest
+from app.crud import crud_auth
+
 router = APIRouter()
 
 @router.get("/me")
@@ -168,3 +172,28 @@ def get_public_profile(player_id: int, db: Session = Depends(get_db)):
     if not player_data:
         raise HTTPException(status_code=404, detail="Không tìm thấy người chơi này")
     return player_data
+
+# THÊM API NÀY VÀO CUỐI FILE PLAYERS.PY
+@router.post("/admin-create", dependencies=[Depends(get_current_admin)])
+@audit_log(module="PLAYER", action="CREATE", event_name="Admin tạo tài khoản VĐV mới")
+def admin_create_player(
+    request: RegisterRequest, 
+    db: Session = Depends(get_db)
+):
+    # 1. Kiểm tra xem email đã tồn tại trong DB chưa
+    user_exists = crud_auth.get_user_by_email(db, request.email)
+    if user_exists:
+        raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
+        
+    # 2. Lấy role_id của user bình thường
+    role = crud_auth.get_role_by_key(db, "user")
+    if not role:
+        raise HTTPException(status_code=500, detail="Hệ thống chưa cấu hình Role 'user'.")
+    
+    # 3. Thực hiện Transaction giống hệt user đăng ký (Nhưng bỏ qua check OTP ở auth.py)
+    try:
+        user = crud_auth.create_user_and_player_transaction(db, request, role.id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi DB: {str(e)}")
+    
+    return {"message": "Tạo tài khoản VĐV thành công!", "user_id": user.id}
