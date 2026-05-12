@@ -13,6 +13,8 @@ class PlayerUpdate(BaseModel):
     skill_level: Optional[str] = None
     preferred_category: Optional[str] = None
 
+    avatar_url: Optional[str] = None 
+    is_active: Optional[bool] = None
 class PlayerPublicResponse(BaseModel):
     id: int
     full_name: str

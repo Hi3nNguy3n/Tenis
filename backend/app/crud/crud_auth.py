@@ -61,20 +61,20 @@ def create_user_and_player_transaction(db: Session, request: RegisterRequest, ro
             date_of_birth=request.date_of_birth,
             gender=request.gender,
             role_id=role_id,
-            is_verified=True 
+            is_verified=True,
+            avatar_url=request.avatar_url # BỔ SUNG LƯU AVATAR VÀO BẢNG USER
         )
         db.add(new_user)
         db.flush()
 
         new_player = Player(
             user_id=new_user.id,
-            elo_points=1000,
-            matches_played=0,
-            wins=0,
-            losses=0
+            play_hand=request.play_hand,                   # BỔ SUNG TAY THUẬN
+            skill_level=request.skill_level,               # BỔ SUNG TRÌNH ĐỘ
+            preferred_category=request.preferred_category, # BỔ SUNG SỞ TRƯỜNG
+            elo_points=request.elo_points                  # BỔ SUNG ĐIỂM ELO
         )
         db.add(new_player)
-        
         db.commit()
         db.refresh(new_user)
         return new_user
