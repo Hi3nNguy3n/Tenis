@@ -106,11 +106,16 @@ async def send_otp_via_brevo(email_to: str, otp_code: str):
 # Tích hợp vào API đăng ký/gửi OTP của bạn
 @router.post("/send-otp")
 async def send_otp(request: SendOTPRequest):
-    # 1. Tạo mã OTP ngẫu nhiên gồm 6 chữ số
+    # 1. Tạo mã OTP
     otp_code = str(random.randint(100000, 999999))
     
-    # 2. (Quan trọng) Chỗ này bạn gọi hàm lưu otp_code vào Redis hoặc Database của bạn nhé
-    # save_to_redis(request.email, otp_code) 
+    # 2. LƯU OTP VÀO REDIS (Cực kỳ quan trọng)
+    # Thời gian sống của OTP là 300 giây (5 phút)
+    redis_db = get_redis()
+    
+    # LƯU Ý: Tên key "register_otp:{email}" hoặc "otp:{email}" phải khớp 
+    # với tên key mà hàm /register của bạn đang dùng để kiểm tra!
+    redis_db.setex(f"otp:{request.email}", 300, otp_code) 
     
     # 3. Gửi email qua Brevo
     await send_otp_via_brevo(email_to=request.email, otp_code=otp_code)
