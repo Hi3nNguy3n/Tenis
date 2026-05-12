@@ -427,12 +427,12 @@ const toggleSidebar = () => {
 .brand-link {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  font-size: 1.5rem;
+  gap: 10px; /* Giảm khoảng cách giữa logo và chữ một chút */
+  font-size: 1.15rem; /* Giảm kích thước chữ từ 1.5rem xuống 1.15rem */
   font-weight: 800;
-  letter-spacing: -0.05em;
+  letter-spacing: -0.02em;
   text-decoration: none;
-  color: #07111f;
+  color: #ffffff; /* Đổi màu chữ sang màu trắng */
 }
 
 .brand-logo-wrap {
@@ -863,7 +863,7 @@ const toggleSidebar = () => {
   }
 
   .brand-link {
-    font-size: 1.32rem;
+    font-size: 1.05rem;
   }
 
   .nav-item {
@@ -941,8 +941,8 @@ const toggleSidebar = () => {
   }
 
   .brand-link {
-    font-size: 1.18rem;
-    gap: 10px;
+    font-size: 0.95rem;
+    gap: 8px;
   }
 
   .brand-logo-wrap {
