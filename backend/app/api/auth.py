@@ -12,6 +12,7 @@ from app.core.security import verify_password, create_access_token
 from app.crud import crud_auth
 from app.api.deps import get_current_user
 from app.models.models import User
+router = APIRouter()
 # --- THÊM ĐOẠN NÀY VÀO DƯỚI CÁC DÒNG IMPORT ---
 # Phục hồi lại cấu hình cũ để các file khác (tournaments, v.v.) không bị sập khi import
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
