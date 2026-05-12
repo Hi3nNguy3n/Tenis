@@ -12,8 +12,22 @@ from app.core.security import verify_password, create_access_token
 from app.crud import crud_auth
 from app.api.deps import get_current_user
 from app.models.models import User
+# --- THÊM ĐOẠN NÀY VÀO DƯỚI CÁC DÒNG IMPORT ---
+# Phục hồi lại cấu hình cũ để các file khác (tournaments, v.v.) không bị sập khi import
+from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 
-router = APIRouter()
+conf = ConnectionConfig(
+    MAIL_USERNAME=settings.MAIL_USERNAME,
+    MAIL_PASSWORD=settings.MAIL_PASSWORD,
+    MAIL_FROM=settings.MAIL_FROM,
+    MAIL_PORT=settings.MAIL_PORT,
+    MAIL_SERVER=settings.MAIL_SERVER,
+    MAIL_STARTTLS=False,
+    MAIL_SSL_TLS=True,
+    USE_CREDENTIALS=True,
+    VALIDATE_CERTS=True
+)
+# ---------------------------------------------router = APIRouter()
 
 # ==========================================
 # HÀM HỖ TRỢ: GỬI MAIL QUA BREVO API
