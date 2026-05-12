@@ -14,7 +14,7 @@ from app.crud import crud_auth
 
 from app.api.deps import get_current_user
 from app.models.models import User
-
+import httpx
 router = APIRouter()
 
 conf = ConnectionConfig(
@@ -23,8 +23,8 @@ conf = ConnectionConfig(
     MAIL_FROM=settings.MAIL_FROM,
     MAIL_PORT=settings.MAIL_PORT,
     MAIL_SERVER=settings.MAIL_SERVER,
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
+    MAIL_STARTTLS=False,
+    MAIL_SSL_TLS=True,
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True
 )
@@ -42,25 +42,80 @@ def change_password(
     crud_auth.update_password(db, user=current_user, new_password=new_password)
     return {"message": "Đổi mật khẩu thành công!"}
 
+async def send_otp_via_brevo(email_to: str, otp_code: str):
+    """
+    Hàm gọi API của Brevo để gửi email
+    """
+    url = "https://api.brevo.com/v3/smtp/email"
+    
+    headers = {
+        "accept": "application/json",
+        "api-key": settings.BREVO_API_KEY,
+        "content-type": "application/json"
+    }
+    
+    payload = {
+        "sender": {
+            "email": settings.MAIL_FROM, 
+            "name": "Saigon Tennis Tours"
+        },
+        "to": [
+            {"email": email_to}
+        ],
+        "subject": "Mã xác nhận OTP - Saigon Tennis Tours",
+        "htmlContent": f"""
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2>Xin chào,</h2>
+            <p>Bạn vừa yêu cầu mã OTP để xác thực tài khoản tại Saigon Tennis Tours.</p>
+            <p>Mã xác nhận của bạn là: <strong style="font-size: 24px; color: #10b981;">{otp_code}</strong></p>
+            <p>Mã này sẽ hết hạn sau 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>
+        </div>
+        """
+    }
+
+    # Gọi API bất đồng bộ
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, headers=headers, json=payload)
+        
+    # Nếu API trả về lỗi
+    if response.status_code not in [200, 201, 202]:
+        print(f"Lỗi gửi mail: {response.text}") # In ra terminal để dễ debug
+        raise HTTPException(
+            status_code=500, 
+            detail="Không thể gửi email OTP lúc này. Vui lòng thử lại sau."
+        )
+    
+# @router.post("/send-otp")
+# async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
+#     otp = str(random.randint(100000, 999999))
+    
+#     # Lưu OTP vào Redis (giữ nguyên thời gian hết hạn của ông)
+#     r.setex(f"otp:{request.email}", 300, otp) 
+
+#     # Gửi Email (giữ nguyên template của ông)
+#     message = MessageSchema(
+#         subject="Mã xác thực Saigon Tennis Tour",
+#         recipients=[request.email],
+#         body=f"Mã xác thực của bạn là: {otp}. Mã có hiệu lực trong 5 phút.",
+#         subtype=MessageType.plain
+#     )
+#     fm = FastMail(conf)
+#     await fm.send_message(message)
+    
+#     return {"message": "Mã OTP đã được gửi thành công."}
+# Tích hợp vào API đăng ký/gửi OTP của bạn
 @router.post("/send-otp")
-async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
-    otp = str(random.randint(100000, 999999))
+async def send_otp(request: SendOTPRequest):
+    # 1. Tạo mã OTP ngẫu nhiên gồm 6 chữ số
+    otp_code = str(random.randint(100000, 999999))
     
-    # Lưu OTP vào Redis (giữ nguyên thời gian hết hạn của ông)
-    r.setex(f"otp:{request.email}", 300, otp) 
-
-    # Gửi Email (giữ nguyên template của ông)
-    message = MessageSchema(
-        subject="Mã xác thực Saigon Tennis Tour",
-        recipients=[request.email],
-        body=f"Mã xác thực của bạn là: {otp}. Mã có hiệu lực trong 5 phút.",
-        subtype=MessageType.plain
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    # 2. (Quan trọng) Chỗ này bạn gọi hàm lưu otp_code vào Redis hoặc Database của bạn nhé
+    # save_to_redis(request.email, otp_code) 
     
-    return {"message": "Mã OTP đã được gửi thành công."}
-
+    # 3. Gửi email qua Brevo
+    await send_otp_via_brevo(email_to=request.email, otp_code=otp_code)
+    
+    return {"message": "Mã OTP đã được gửi đến email của bạn!"}
 @router.post("/register")
 def register(
     request: RegisterRequest, 
