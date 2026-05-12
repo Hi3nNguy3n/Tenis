@@ -13,7 +13,6 @@ const search = ref('')
 const skillFilter = ref('')
 const statusFilter = ref('')
 
-// === ĐÃ SỬA: Đổi date_of_birth thành null ===
 const isEditDialogVisible = ref(false)
 const editForm = ref({
   id: null,
@@ -30,7 +29,6 @@ const editForm = ref({
   is_active: true
 })
 
-// === ĐÃ SỬA: Đổi date_of_birth thành null ===
 const isCreateDialogVisible = ref(false)
 const isCreating = ref(false)
 const createForm = ref({
@@ -61,7 +59,6 @@ const handleImageUpload = async (event, formType) => {
   isUploading.value = true
   try {
     const response = await apiClient.post('/api/players/upload-avatar', formData)
-    
     const uploadedUrl = response.data?.avatar_url || response.avatar_url || response.data?.url || response.url
     
     if (formType === 'create') {
@@ -127,7 +124,6 @@ const handleCreatePlayer = async () => {
   }
   isCreating.value = true
   try {
-    // ĐẢM BẢO NGÀY SINH GỬI ĐÚNG FORMAT HOẶC LÀ NULL ĐỂ TRÁNH LỖI 422
     const payload = { ...createForm.value }
     if (!payload.date_of_birth) payload.date_of_birth = null
 
@@ -145,7 +141,6 @@ const handleCreatePlayer = async () => {
 const handleUpdatePlayer = async () => {
   isSaving.value = true
   try {
-    // ĐẢM BẢO NGÀY SINH GỬI ĐÚNG FORMAT HOẶC LÀ NULL ĐỂ TRÁNH LỖI 422
     const payload = { ...editForm.value }
     if (!payload.date_of_birth) payload.date_of_birth = null
 
@@ -160,8 +155,14 @@ const handleUpdatePlayer = async () => {
   }
 }
 
+// Đã cập nhật hàm map ngôn ngữ động cho trình độ VĐV
 const formatSkillLevel = (val) => {
-  const map = { 'Beginner': 'Người mới', 'Intermediate': 'Trung bình', 'Advanced': 'Nâng cao', 'Professional': 'Chuyên nghiệp' }
+  const map = { 
+    'Beginner': t('admin.beginner'), 
+    'Intermediate': t('admin.intermediate'), 
+    'Advanced': t('admin.advanced'), 
+    'Professional': t('admin.professional') 
+  }
   return map[val] || val || 'N/A'
 }
 
@@ -187,13 +188,13 @@ const getSkillType = (skill) => {
         <el-option :label="$t('admin.locked')" value="inactive" />
       </el-select>
       <el-button type="success" @click="openCreateDialog" style="margin-left: auto;">
-        <el-icon><Plus /></el-icon> Thêm VĐV
+        <el-icon><Plus /></el-icon> {{ $t('admin.createPlayer') }}
       </el-button>
     </section>
 
     <section class="table-card">
       <el-table :data="players" v-loading="loading" stripe>
-        <el-table-column label="VẬN ĐỘNG VIÊN" min-width="200">
+        <el-table-column :label="$t('admin.player').toUpperCase()" min-width="200">
           <template #default="{ row }">
             <div class="player-info">
               <img 
@@ -209,35 +210,35 @@ const getSkillType = (skill) => {
             </div>
           </template>
         </el-table-column>
-        <el-table-column property="user.phone" label="SỐ ĐIỆN THOẠI" width="120" />
-        <el-table-column label="TRÌNH ĐỘ" width="130">
+        <el-table-column property="user.phone" :label="$t('admin.phone').toUpperCase()" width="120" />
+        <el-table-column :label="$t('admin.skillLevel').toUpperCase()" width="130">
           <template #default="{ row }">
             <el-tag :type="getSkillType(row.player_profile?.skill_level)">
               {{ formatSkillLevel(row.player_profile?.skill_level) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="ELO" width="80" align="center">
+        <el-table-column :label="$t('admin.elo').toUpperCase()" width="80" align="center">
            <template #default="{ row }">
              <span>{{ row.player_profile?.elo_points || 0 }}</span>
            </template>
         </el-table-column>
-        <el-table-column label="TRẠNG THÁI" width="120">
+        <el-table-column :label="$t('admin.accountStatus').toUpperCase()" width="120">
            <template #default="{ row }">
              <el-tag :type="row.user.is_active ? 'success' : 'danger'">
-               {{ row.user.is_active ? 'Hoạt động' : 'Bị khóa' }}
+               {{ row.user.is_active ? $t('admin.active') : $t('admin.locked') }}
              </el-tag>
            </template>
         </el-table-column>
-        <el-table-column label="HÀNH ĐỘNG" width="100" fixed="right">
+        <el-table-column :label="$t('admin.action').toUpperCase()" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" plain @click="openEditDialog(row)">Sửa</el-button>
+            <el-button size="small" type="primary" plain @click="openEditDialog(row)">{{ $t('admin.edit') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
     </section>
 
-    <el-dialog v-model="isCreateDialogVisible" title="Thêm Vận Động Viên Mới" width="650px">
+    <el-dialog v-model="isCreateDialogVisible" :title="$t('admin.createNewPlayer')" width="650px">
       <el-form label-position="top">
         <div class="avatar-upload-section">
           <div class="avatar-preview">
@@ -248,38 +249,39 @@ const getSkillType = (skill) => {
               <el-icon><Camera /></el-icon>
             </label>
           </div>
-          <p class="upload-tip">Nhấn để tải ảnh đại diện</p>
+          <p class="upload-tip">{{ $t('admin.clickToUpload') }}</p>
         </div>
 
         <el-row :gutter="20">
-          <el-col :span="12"><el-form-item label="Họ và tên (*)"><el-input v-model="createForm.full_name" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="Email (*)"><el-input v-model="createForm.email" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="Mật khẩu (*)"><el-input v-model="createForm.password" type="password" show-password /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="Điện thoại"><el-input v-model="createForm.phone" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.fullName') + ' (*)'"><el-input v-model="createForm.full_name" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.email') + ' (*)'"><el-input v-model="createForm.email" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.password') + ' (*)'"><el-input v-model="createForm.password" type="password" show-password /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.phone')"><el-input v-model="createForm.phone" /></el-form-item></el-col>
           <el-col :span="8">
-            <el-form-item label="Trình độ">
+            <el-form-item :label="$t('admin.skillLevel')">
               <el-select v-model="createForm.skill_level" style="width: 100%">
                 <el-option v-for="s in ['Beginner', 'Intermediate', 'Advanced', 'Professional']" :key="s" :label="formatSkillLevel(s)" :value="s" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="Sở trường">
+            <el-form-item :label="$t('admin.preferredCategory')">
               <el-select v-model="createForm.preferred_category" style="width: 100%">
-                <el-option label="Đơn" value="Singles" /><el-option label="Đôi" value="Doubles" />
+                <el-option :label="$t('admin.singles')" value="Singles" />
+                <el-option :label="$t('admin.doubles')" value="Doubles" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8"><el-form-item label="Elo"><el-input-number v-model="createForm.elo_points" style="width: 100%" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="Khu vực"><el-input v-model="createForm.province" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item :label="$t('admin.elo')"><el-input-number v-model="createForm.elo_points" style="width: 100%" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.province')"><el-input v-model="createForm.province" /></el-form-item></el-col>
           <el-col :span="12">
-            <el-form-item label="Ngày sinh">
+            <el-form-item :label="$t('admin.dob')">
               <el-date-picker 
                 v-model="createForm.date_of_birth" 
                 type="date" 
                 format="DD/MM/YYYY" 
                 value-format="YYYY-MM-DD" 
-                placeholder="Nhập hoặc chọn (DD/MM/YYYY)" 
+                :placeholder="$t('admin.dobPlaceholder')" 
                 style="width: 100%" 
               />
             </el-form-item>
@@ -287,12 +289,12 @@ const getSkillType = (skill) => {
         </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="isCreateDialogVisible = false">Hủy</el-button>
-        <el-button type="success" :loading="isCreating" @click="handleCreatePlayer">Xác nhận tạo</el-button>
+        <el-button @click="isCreateDialogVisible = false">{{ $t('admin.cancel') }}</el-button>
+        <el-button type="success" :loading="isCreating" @click="handleCreatePlayer">{{ $t('admin.confirmCreate') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="isEditDialogVisible" title="Chỉnh sửa hồ sơ VĐV" width="650px">
+    <el-dialog v-model="isEditDialogVisible" :title="$t('admin.editPlayerProfile')" width="650px">
       <el-form label-position="top">
         <div class="avatar-upload-section">
           <div class="avatar-preview">
@@ -303,57 +305,59 @@ const getSkillType = (skill) => {
               <el-icon><Camera /></el-icon>
             </label>
           </div>
-          <p class="upload-tip">Nhấn để thay đổi ảnh</p>
+          <p class="upload-tip">{{ $t('admin.clickToChange') }}</p>
         </div>
 
         <el-row :gutter="20">
-          <el-col :span="12"><el-form-item label="Họ tên"><el-input v-model="editForm.full_name" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="Điện thoại"><el-input v-model="editForm.phone" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.fullName')"><el-input v-model="editForm.full_name" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.phone')"><el-input v-model="editForm.phone" /></el-form-item></el-col>
           <el-col :span="8">
-            <el-form-item label="Trình độ">
+            <el-form-item :label="$t('admin.skillLevel')">
               <el-select v-model="editForm.skill_level" style="width: 100%">
                 <el-option v-for="s in ['Beginner', 'Intermediate', 'Advanced', 'Professional']" :key="s" :label="formatSkillLevel(s)" :value="s" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="Sở trường">
+            <el-form-item :label="$t('admin.preferredCategory')">
               <el-select v-model="editForm.preferred_category" style="width: 100%">
-                <el-option label="Đơn" value="Singles" /><el-option label="Đôi" value="Doubles" />
+                <el-option :label="$t('admin.singles')" value="Singles" />
+                <el-option :label="$t('admin.doubles')" value="Doubles" />
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8"><el-form-item label="Elo"><el-input-number v-model="editForm.elo_points" style="width: 100%" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="Khu vực"><el-input v-model="editForm.province" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item :label="$t('admin.elo')"><el-input-number v-model="editForm.elo_points" style="width: 100%" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.province')"><el-input v-model="editForm.province" /></el-form-item></el-col>
           <el-col :span="12">
-            <el-form-item label="Ngày sinh">
+            <el-form-item :label="$t('admin.dob')">
               <el-date-picker 
                 v-model="editForm.date_of_birth" 
                 type="date" 
                 format="DD/MM/YYYY" 
                 value-format="YYYY-MM-DD" 
-                placeholder="Nhập hoặc chọn (DD/MM/YYYY)" 
+                :placeholder="$t('admin.dobPlaceholder')" 
                 style="width: 100%" 
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Giới tính">
+            <el-form-item :label="$t('admin.gender')">
               <el-radio-group v-model="editForm.gender">
-                <el-radio label="male">Nam</el-radio><el-radio label="female">Nữ</el-radio>
+                <el-radio label="male">{{ $t('admin.male') }}</el-radio>
+                <el-radio label="female">{{ $t('admin.female') }}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="Trạng thái">
-              <el-switch v-model="editForm.is_active" active-text="Hoạt động" inactive-text="Khóa" />
+            <el-form-item :label="$t('admin.accountStatus')">
+              <el-switch v-model="editForm.is_active" :active-text="$t('admin.active')" :inactive-text="$t('admin.locked')" />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="isEditDialogVisible = false">Hủy</el-button>
-        <el-button type="primary" :loading="isSaving" @click="handleUpdatePlayer">Lưu thay đổi</el-button>
+        <el-button @click="isEditDialogVisible = false">{{ $t('admin.cancel') }}</el-button>
+        <el-button type="primary" :loading="isSaving" @click="handleUpdatePlayer">{{ $t('admin.saveChanges') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -368,7 +372,6 @@ const getSkillType = (skill) => {
 .player-info .details span:first-child { font-weight: 700; color: #002855; }
 .player-info .details span:last-child { font-size: 0.75rem; color: #64748b; }
 
-/* CSS UPLOAD ẢNH GIỐNG PROFILE */
 .avatar-upload-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 25px; }
 .avatar-preview { position: relative; width: 100px; height: 100px; border-radius: 12px; background: #f1f5f9; border: 2px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
