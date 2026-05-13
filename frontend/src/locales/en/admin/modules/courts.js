@@ -35,5 +35,9 @@ export default {
   surfaceLabel: 'Surface',
   statusLabel: 'Status',
   cancelBtn: 'Cancel',
-  saveBtn: 'Save Information'
+  saveBtn: 'Save Information',
+  totalCourts: 'Total Courts',
+  activeCourts: 'Active Courts',
+  hardCourts: 'Hard Surface',
+  clayCourts: 'Clay Courts',
 }

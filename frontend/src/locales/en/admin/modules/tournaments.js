@@ -39,4 +39,5 @@ export default {
   sendMailConfirm: 'The system will send email notifications to all players in "{name}". Proceed?',
   sendMailTitle: 'Confirm Bulk Notification',
   confirmSend: 'Confirm & Send',
+  details: 'Details',
 }

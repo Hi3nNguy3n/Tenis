@@ -1,5 +1,6 @@
 export default {
-  drawingMatrix: 'Seed management center, draw processing, and playoff bracket finalization.',
+  drawingMatrix: 'Tournament Draws & Brackets',
+  drawingMatrixDesc: 'Seed management center, draw processing, and playoff bracket finalization.',
   selectTournamentPlaceholder: '-- Select Tournament --',
   finalizeGroups: 'Finalize Groups & Playoff',
   startNewDraw: 'Start New Draw',

@@ -2,13 +2,13 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import {
-  Calendar,
+  Calendar as CalendarIcon,
   Compass,
   Connection,
   DataAnalysis,
   DataBoard,
   Histogram,
-  Location,
+  Location as LocationIcon,
   Memo,
   Tickets,
   Trophy,
@@ -72,21 +72,21 @@ const iconMap = {
   'Giải đấu': Trophy,
   'Danh sách Đăng ký': Tickets,
   'Bốc thăm & Nhánh': Compass,
-  'Quản lý Sân': Location,
+  'Quản lý Sân': LocationIcon,
   'Trận đấu': Histogram,
-  'Lịch trình': Calendar,
+  'Lịch trình': CalendarIcon,
   'BXH & Điểm số': DataAnalysis,
   'Điểm danh QR': Monitor,
   'Thanh toán': Tickets,
   'Nhật ký hệ thống': Setting,
   'Lịch thi đấu ngày': Memo,
-  'Lịch tổng quan': Calendar,
+  'Lịch tổng quan': CalendarIcon,
   'Tin tức': Files,
   'Gửi mail hàng loạt': Message,
   'Tạo trận thủ công': Monitor
 }
 
-const activeGroups = ref(['Tổng quan', 'Giải đấu'])
+const activeGroups = ref(['Tổng quan', 'Giải đấu', 'Vận hành', 'Điều phối', 'Hệ thống'])
 
 const toggleGroup = (label) => {
   const index = activeGroups.value.indexOf(label)
@@ -202,17 +202,15 @@ const toggleSidebar = () => {
 
 <template>
   <div class="admin-layout">
-    <div class="bg-orb orb-1"></div>
-    <div class="bg-orb orb-2"></div>
-    <div class="bg-orb orb-3"></div>
+    <!-- Sidebar Overlay for Mobile -->
+    <transition name="fade">
+      <div v-if="isSidebarOpen" class="sidebar-backdrop" @click="closeSidebar"></div>
+    </transition>
 
-    <div v-if="isSidebarOpen" class="sidebar-backdrop" @click="closeSidebar"></div>
-
+    <!-- Admin Sidebar -->
     <aside class="admin-sidebar" :class="{ 'is-open': isSidebarOpen }">
-      <div class="sidebar-glow"></div>
-
-      <el-dropdown trigger="click" placement="bottom-start" class="brand-dropdown">
-        <div class="brand-block">
+      <div class="sidebar-header">
+        <div class="brand-block" @click="router.push('/admin')">
           <div class="brand-link">
             <span class="brand-logo-wrap">
               <img
@@ -221,95 +219,112 @@ const toggleSidebar = () => {
                 class="brand-logo"
               />
             </span>
-            <span>Saigontennistours</span>
-            <el-icon style="margin-left: auto; color: rgba(225, 255, 236, 0.75);"><ArrowRight style="transform: rotate(90deg);" /></el-icon>
+            <span class="brand-name">Saigontennistours</span>
           </div>
-          <p>{{ $t('admin.opsCenter') }}</p>
+          <p class="brand-subtitle">{{ $t('admin.opsCenter') }}</p>
         </div>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item @click="router.push('/admin')">
-              {{ $t('admin.dashboard') }}
-            </el-dropdown-item>
-            <el-dropdown-item divided @click="handleLogout" style="color: #dc2626; font-weight: bold;">
-              {{ $t('admin.logout') }}
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      </div>
 
-      <div class="nav-groups">
-        <section v-for="group in groupedNavigation" :key="group.label" class="nav-group">
-          <div
-            class="group-header"
-            :class="{ 'is-expanded': isGroupActive(group.originalLabel) }"
-            @click="toggleGroup(group.originalLabel)"
-          >
-            <p class="group-label">{{ group.label }}</p>
-            <el-icon class="arrow-icon"><ArrowRight /></el-icon>
-          </div>
-
-          <transition name="collapse">
-            <div v-show="isGroupActive(group.originalLabel)" class="group-body">
-              <nav class="admin-nav">
-                <RouterLink
-                  v-for="item in group.items"
-                  :key="item.to"
-                  :to="item.to"
-                  class="nav-item"
-                  active-class="nav-item-active"
-                  @click="closeSidebar"
-                >
-                  <div class="nav-leading">
-                    <span class="nav-icon-shell">
-                      <el-icon><component :is="item.icon" /></el-icon>
-                    </span>
-                    <span class="nav-label">{{ item.localizedLabel }}</span>
-                  </div>
-                  <span class="nav-badge" v-if="item.badge">{{ item.badge }}</span>
-                </RouterLink>
-              </nav>
+      <!-- Navigation groups with Scrollable Container -->
+      <div class="nav-groups-wrapper custom-scrollbar">
+        <div class="nav-groups">
+          <section v-for="group in groupedNavigation" :key="group.label" class="nav-group">
+            <div
+              class="group-header"
+              :class="{ 'is-expanded': isGroupActive(group.originalLabel) }"
+              @click="toggleGroup(group.originalLabel)"
+            >
+              <span class="group-label">{{ group.label }}</span>
+              <el-icon class="arrow-icon"><ArrowRight /></el-icon>
             </div>
-          </transition>
-        </section>
+
+            <transition name="collapse">
+              <div v-show="isGroupActive(group.originalLabel)" class="group-body">
+                <nav class="admin-nav">
+                  <RouterLink
+                    v-for="item in group.items"
+                    :key="item.to"
+                    :to="item.to"
+                    class="nav-item"
+                    active-class="nav-item-active"
+                    @click="closeSidebar"
+                  >
+                    <div class="nav-leading">
+                      <span class="nav-icon-shell">
+                        <el-icon><component :is="item.icon" /></el-icon>
+                      </span>
+                      <span class="nav-label">{{ item.localizedLabel }}</span>
+                    </div>
+                    <span class="nav-badge" v-if="item.badge">{{ item.badge }}</span>
+                  </RouterLink>
+                </nav>
+              </div>
+            </transition>
+          </section>
+        </div>
+      </div>
+
+      <!-- Fixed Sidebar Footer -->
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="user-avatar">
+            <el-icon><UserFilled /></el-icon>
+          </div>
+          <div class="user-meta">
+            <span class="user-name">{{ currentUserName }}</span>
+            <span class="user-role">Administrator</span>
+          </div>
+        </div>
+        <button class="logout-btn-sidebar" @click="handleLogout">
+          <el-icon><Connection /></el-icon>
+          <span>{{ $t('admin.logout') }}</span>
+        </button>
       </div>
     </aside>
 
+    <!-- Main Content Shell -->
     <section class="admin-shell">
       <header class="admin-topbar">
-        <div class="topbar-panel">
-          <button class="mobile-menu-button" type="button" @click="toggleSidebar" aria-label="Mở menu">
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
-          <div class="topbar-copy">
-            <p class="page-kicker">{{ $t('admin.adminSpace') }}</p>
-            <h1>{{ pageTitle }}</h1>
-            <p>{{ pageDescription }}</p>
+        <div class="topbar-inner">
+          <div class="topbar-left">
+            <button class="mobile-menu-button" @click="toggleSidebar" aria-label="Toggle Menu">
+              <span class="line"></span>
+              <span class="line"></span>
+              <span class="line"></span>
+            </button>
+            <div class="page-info">
+              <span class="page-kicker">{{ $t('admin.adminSpace') }}</span>
+              <h1 class="page-title">{{ pageTitle }}</h1>
+            </div>
           </div>
 
-          <div class="topbar-actions">
-            <!-- Globe Locale Toggle -->
-            <button 
-              class="lang-toggle-btn-admin" 
-              @click="toggleLocale" 
-            >
-              <span class="globe-icon">🌐</span>
-              <span class="lang-text">{{ currentLocale.toUpperCase() }}</span>
-            </button>
-
-            <div class="topbar-status">
-              <span class="status-dot"></span>
-              <span>{{ $t('admin.systemActive') }}</span>
+          <div class="topbar-right">
+            <div class="topbar-actions">
+              <button class="lang-btn" @click="toggleLocale">
+                <span class="icon">🌐</span>
+                <span class="text">{{ currentLocale.toUpperCase() }}</span>
+              </button>
+              
+              <div class="system-status">
+                <span class="status-dot pulse"></span>
+                <span class="status-text">{{ $t('admin.systemActive') }}</span>
+              </div>
             </div>
           </div>
         </div>
+        <div class="page-description" v-if="pageDescription">
+          <p>{{ pageDescription }}</p>
+        </div>
       </header>
 
-      <main class="admin-main">
-        <div class="admin-content-panel">
-          <RouterView />
+      <main class="admin-main custom-scrollbar">
+        <div class="admin-view-panel">
+          <RouterView v-slot="{ Component }">
+            <transition name="page-fade" mode="out-in">
+              <!-- ADDED KEY TO FORCE RE-RENDER ON ROUTE CHANGE -->
+              <component :is="Component" :key="route.path" />
+            </transition>
+          </RouterView>
         </div>
       </main>
     </section>
@@ -317,692 +332,346 @@ const toggleSidebar = () => {
 </template>
 
 <style scoped>
+/* Base Layout */
 :global(body.admin-body) {
   margin: 0;
-  background: #f3f7f4 !important;
-  color: #0f172a;
+  background: #f8fafc !important;
+  overflow: hidden;
 }
 
 .admin-layout {
-  position: relative;
-  min-height: 100vh;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 14% 18%, rgba(34, 197, 94, 0.12), transparent 24%),
-    radial-gradient(circle at 85% 10%, rgba(20, 98, 80, 0.1), transparent 26%),
-    radial-gradient(circle at 62% 80%, rgba(34, 197, 94, 0.08), transparent 28%),
-    linear-gradient(135deg, #083a31 0%, #0f5c4d 35%, #146250 60%, #0f5c4d 82%, #083a31 100%);
-  color: #e2e8f0;
-}
-
-.sidebar-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(2, 6, 23, 0.42);
-  backdrop-filter: blur(2px);
-  z-index: 20;
-}
-
-.bg-orb {
-  position: absolute;
-  border-radius: 999px;
-  filter: blur(90px);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.orb-1 {
-  top: -80px;
-  right: 12%;
-  width: 260px;
-  height: 260px;
-  background: rgba(34, 197, 94, 0.18);
-}
-
-.orb-2 {
-  bottom: 8%;
-  left: 18%;
-  width: 300px;
-  height: 300px;
-  background: rgba(20, 98, 80, 0.18);
-}
-
-.orb-3 {
-  top: 34%;
-  right: -50px;
-  width: 220px;
-  height: 220px;
-  background: rgba(220, 252, 231, 0.12);
-}
-
-.admin-sidebar {
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+  width: 100vw;
+  background: #064e3b;
   position: relative;
-  z-index: 10;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.admin-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 22px 14px 18px;
-  background: linear-gradient(180deg, #083a31 0%, #0f5c4d 55%, #146250 100%);
-  border-right: 1px solid rgba(220, 252, 231, 0.12);
-  box-shadow: 20px 0 60px rgba(6, 78, 59, 0.28);
+  background: #064e3b;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 24px 0; /* Padding handled by internal elements */
+  z-index: 100;
+  height: 100vh;
+  overflow: hidden;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.sidebar-glow {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(220, 252, 231, 0.14), transparent 26%),
-    radial-gradient(circle at bottom left, rgba(20, 98, 80, 0.18), transparent 28%);
-  pointer-events: none;
-}
-
-.brand-dropdown {
-  width: 100%;
-  display: block;
-}
-
-.brand-dropdown:focus-visible {
-  outline: none;
+.sidebar-header { 
+  padding: 0 20px;
+  margin-bottom: 24px; 
 }
 
 .brand-block {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px 14px;
-  margin-bottom: 6px;
+  padding: 12px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background 0.2s ease;
-  border-radius: 8px;
+  transition: all 0.3s;
 }
+.brand-block:hover { background: rgba(255, 255, 255, 0.05); }
 
-.brand-block:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.brand-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px; /* Giảm khoảng cách giữa logo và chữ một chút */
-  font-size: 1.15rem; /* Giảm kích thước chữ từ 1.5rem xuống 1.15rem */
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  text-decoration: none;
-  color: #ffffff; /* Đổi màu chữ sang màu trắng */
-}
+.brand-link { display: flex; align-items: center; gap: 12px; }
 
 .brand-logo-wrap {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, rgba(217, 244, 59, 0.18), rgba(255, 255, 255, 0.92));
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  flex-shrink: 0;
+  width: 40px; height: 40px;
+  background: #fff;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.brand-logo { width: 30px; height: 30px; }
+
+.brand-name {
+  font-weight: 700; font-size: 1.1rem; color: #fff;
+  letter-spacing: -0.01em;
+}
+.brand-subtitle {
+  margin: 6px 0 0; font-size: 0.65rem; color: rgba(255,255,255,0.4);
+  text-transform: uppercase; letter-spacing: 0.1em;
 }
 
-.brand-logo {
-  width: 34px;
-  height: 34px;
-  object-fit: contain;
-  display: block;
-}
-
-.brand-block p {
-  margin: 0;
-  color: rgba(225, 255, 236, 0.75);
-  font-size: 0.84rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+/* Nav Groups - FIXED SCROLLING */
+.nav-groups-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0; /* Critical for flex scrolling */
+  padding: 0 16px;
 }
 
 .nav-groups {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 10px;
-  overflow-y: auto;
-  padding-right: 4px;
-  padding-bottom: 4px;
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px;
+  padding-bottom: 20px;
 }
 
-.nav-group {
-  border-radius: 18px;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  overflow: visible;
-}
+.nav-group { display: flex; flex-direction: column; gap: 4px; }
 
 .group-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  cursor: pointer;
-  border-radius: 14px;
-  transition:
-    background 0.28s ease,
-    transform 0.28s ease,
-    box-shadow 0.28s ease,
-    border-color 0.28s ease;
-  background: rgba(220, 252, 231, 0.95);
-  border: 1px solid rgba(220, 252, 231, 0.12);
-  will-change: transform;
-}
-
-.group-header:hover {
-  background: rgba(220, 252, 231, 1);
-  transform: translateX(2px);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
-}
-
-.group-label {
-  margin: 0;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #0f172a;
-}
-
-.arrow-icon {
-  font-size: 12px;
-  color: #64748b;
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), color 0.28s ease;
-}
-
-.is-expanded .arrow-icon {
-  transform: rotate(90deg);
-  color: #0f172a;
-}
-
-.is-expanded .group-label {
-  color: #0f172a;
-}
-
-.group-body {
-  margin-top: 8px;
-  padding: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 10px; border-radius: 8px;
   background: transparent;
-  border: 0;
+  cursor: pointer; transition: all 0.2s;
+}
+.group-header:hover { background: rgba(255,255,255,0.03); }
+
+/* Highlighted Parent Headers */
+.group-label {
+  font-size: 0.8rem; 
+  font-weight: 800; 
+  color: rgba(255,255,255,0.8); /* Brighter */
+  text-transform: uppercase; 
+  letter-spacing: 0.08em;
+}
+.arrow-icon { font-size: 12px; color: rgba(255,255,255,0.4); transition: transform 0.3s; }
+.is-expanded .arrow-icon { transform: rotate(90deg); }
+
+/* Tree Structure Indentation */
+.admin-nav { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 4px; 
+  padding-left: 20px;
+  position: relative;
+  margin-top: 4px;
 }
 
-.admin-nav {
-  display: grid;
-  gap: 8px;
-  padding: 0;
-  margin: 0;
+.admin-nav::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 24px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .nav-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 44px;
-  padding: 0 10px 0 8px;
-  border-radius: 16px;
-  color: #0f172a;
-  transition:
-    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.24s ease,
-    color 0.24s ease,
-    border-color 0.24s ease,
-    box-shadow 0.24s ease;
-  text-decoration: none;
-  font-size: 0.92rem;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.92);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: 8px;
+  color: rgba(255,255,255,0.65); text-decoration: none;
+  transition: all 0.2s;
+  position: relative;
 }
 
-.nav-item:hover {
-  color: #0f172a;
-  background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(220, 252, 231, 0.24);
-
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+.nav-item::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  width: 10px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
 }
 
-.nav-leading {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
+.nav-item:hover { background: rgba(255,255,255,0.06); color: #fff; }
 
-.nav-icon-shell {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.88);
-  color: #0f172a;
-  flex-shrink: 0;
-}
+.nav-leading { display: flex; align-items: center; gap: 10px; }
+.nav-icon-shell { font-size: 18px; opacity: 0.7; display: flex; align-items: center; }
+.nav-label { font-size: 0.95rem; font-weight: 500; }
 
-.nav-label {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
+/* Active Item - White Theme */
 .nav-item-active {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(240, 253, 244, 0.96));
-  border-color: rgba(34, 197, 94, 0.28);
-  color: #0f5c4d !important;
+  background: #fff !important; 
+  color: #064e3b !important;
   font-weight: 700;
-  box-shadow: 
-    0 8px 20px rgba(0, 0, 0, 0.2),
-    inset 0 0 15px rgba(217, 244, 59, 0.1);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
 }
-
-.nav-item-active .nav-icon-shell {
-  background: #d9f43b;
-  color: #0f5c4d;
-}
+.nav-item-active .nav-icon-shell { opacity: 1; }
 
 .nav-badge {
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.06);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  color: #0f172a;
-  font-size: 0.63rem;
+  background: rgba(0,0,0,0.2); padding: 2px 6px;
+  border-radius: 4px; font-size: 0.6rem; font-weight: 800;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #064e3b;
+}
+.user-info { display: flex; align-items: center; gap: 12px; }
+.user-avatar {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(255,255,255,0.1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: #fff;
+}
+.user-meta { display: flex; flex-direction: column; }
+.user-name { font-size: 0.9rem; font-weight: 600; color: #fff; }
+.user-role { font-size: 0.75rem; color: rgba(255,255,255,0.4); }
+
+.logout-btn-sidebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  cursor: pointer;
+  transition: all 0.2s;
   font-weight: 700;
-  text-transform: uppercase;
-  flex-shrink: 0;
+}
+.logout-btn-sidebar:hover {
+  background: #ef4444;
+  color: #fff;
+  border-color: transparent;
 }
 
-.nav-item-active .nav-badge {
-  background: #ffffff;
-  color: #0f5c4d;
-  border-color: #0f172a;
-}
-
-.collapse-enter-active,
-.collapse-leave-active {
-  transition:
-    opacity 0.28s ease,
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    max-height 0.32s ease;
+/* Main Content Shell */
+.admin-shell {
+  background: #f8fafc;
+  display: flex; flex-direction: column;
+  height: 100vh;
   overflow: hidden;
 }
 
-.collapse-enter-to,
-.collapse-leave-from {
-  max-height: 800px;
-  opacity: 1;
-  transform: translateY(0);
-}
+.admin-topbar { padding: 32px 48px 16px; }
 
-.collapse-enter-from,
-.collapse-leave-to {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-6px);
-}
+.topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 32px; }
 
-.sidebar-footer {
-  position: relative;
-  z-index: 1;
-  margin-top: auto;
-  display: grid;
-  gap: 10px;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(220, 252, 231, 0.12);
-  backdrop-filter: blur(14px);
-}
+.topbar-left { display: flex; align-items: center; gap: 24px; }
 
-.admin-user-chip {
-  display: grid;
-  gap: 4px;
-}
-
-.admin-user-chip strong {
-  color: #0f172a;
-  font-size: 0.92rem;
-  line-height: 1.35;
-}
-
-.user-label {
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #0f172a;
-}
-
-.logout-button {
-  justify-self: start;
-  color: #0f172a;
-  padding: 0;
-  font-weight: 700;
-  font-size: 0.9rem;
-}
-
-.logout-button:hover {
-  text-decoration: underline;
-}
-
-.admin-shell {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.mobile-menu-button {
-  display: none;
-  width: 44px;
-  height: 44px;
-  border: 1px solid rgba(16, 185, 129, 0.16);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.94);
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  flex-direction: column;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.mobile-menu-button span {
-  width: 18px;
-  height: 2px;
-  border-radius: 99px;
-  background: #0f172a;
-  display: block;
-}
-
-.admin-topbar {
-  padding: 24px 28px 12px;
-}
-
-.topbar-panel {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 22px 24px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(240, 253, 244, 0.95));
-  border: 1px solid rgba(16, 185, 129, 0.14);
-  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(20px);
-}
-
-.topbar-copy {
-  min-width: 0;
-}
-
+.page-info { display: flex; flex-direction: column; }
 .page-kicker {
-  margin: 0 0 10px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #0f172a;
+  font-size: 0.8rem; font-weight: 700; color: #059669;
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+.page-title {
+  margin: 6px 0 0; font-size: 2.4rem; font-weight: 800;
+  color: #0f172a; letter-spacing: -0.03em;
 }
 
-.admin-topbar h1 {
-  margin: 0 0 8px;
-  font-size: clamp(2rem, 3.6vw, 2.8rem);
-  line-height: 1.02;
-  letter-spacing: -0.05em;
-  color: #0f172a;
-}
+.page-description { margin-top: 12px; padding: 0 48px; }
+.page-description p { margin: 0; color: #64748b; line-height: 1.6; font-size: 1rem; }
 
-.admin-topbar p {
-  margin: 0;
-  max-width: 780px;
-  color: #475569;
-  line-height: 1.6;
-}
+.topbar-right { display: flex; align-items: center; }
+.topbar-actions { display: flex; align-items: center; gap: 20px; }
 
-.topbar-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(220, 252, 231, 0.95);
-  border: 1px solid rgba(220, 252, 231, 0.35);
-  color: #0f172a;
-  font-size: 0.88rem;
-  white-space: nowrap;
+.lang-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 12px;
+  background: #fff; border: 1px solid #e2e8f0;
+  cursor: pointer; transition: all 0.2s;
+  font-weight: 700; color: #0f172a;
 }
+.lang-btn:hover { border-color: #059669; background: #f0fdf4; }
 
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.system-status {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px; background: #ecfdf5;
+  border-radius: 12px; border: 1px solid rgba(5, 150, 105, 0.1);
 }
+.status-dot { width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
+.status-dot.pulse { animation: pulse 2s infinite; }
+.status-text { font-size: 0.85rem; font-weight: 600; color: #065f46; }
 
-.lang-toggle-btn-admin {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: white;
-  border: 1px solid rgba(16, 185, 129, 0.14);
-  padding: 8px 16px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-}
-
-.lang-toggle-btn-admin:hover {
-  background: #f0fdf4;
-  transform: translateY(-1px);
-}
-
-.lang-toggle-btn-admin .globe-icon {
-  font-size: 1.1rem;
-}
-
-.lang-toggle-btn-admin .lang-text {
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: #0f172a;
-}
-
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #d9f43b;
-  box-shadow: 0 0 16px #d9f43b;
-}
-
+/* Main Area */
 .admin-main {
-  padding: 8px 28px 28px;
+  flex: 1; 
+  overflow-y: auto; 
+  padding: 16px 48px 48px;
+  display: block; /* Allow children to flow and expand naturally */
 }
 
-.admin-content-panel {
-  min-height: calc(100vh - 160px);
-  border-radius: 28px;
+.admin-view-panel {
+  background: #fff; 
+  border-radius: 24px;
+  padding: 40px; 
+  box-shadow: 0 4px 25px rgba(0,0,0,0.03);
+  border: 1px solid #f1f5f9;
+  min-height: calc(100vh - 180px); /* Ensure it fills space but can grow infinitely */
+  width: 100%;
 }
 
-.nav-groups::-webkit-scrollbar {
-  width: 5px;
+/* Mobile Controls */
+.mobile-menu-button {
+  display: none; flex-direction: column; gap: 5px;
+  width: 48px; height: 48px; border-radius: 12px;
+  border: 1px solid #e2e8f0; background: #fff;
+  cursor: pointer; align-items: center; justify-content: center;
+}
+.mobile-menu-button .line { width: 20px; height: 2px; background: #0f172a; border-radius: 10px; }
+
+.sidebar-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px); z-index: 90;
 }
 
-.nav-groups::-webkit-scrollbar-thumb {
-  background: rgba(217, 244, 59, 0.2);
-  border-radius: 999px;
+/* SCROLLBAR REFINED */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { 
+  background: rgba(255, 255, 255, 0.2); 
+  border-radius: 10px; 
+}
+.custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); }
+
+/* Main Content Scrollbar */
+.admin-main.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.1); }
+.admin-main.custom-scrollbar:hover::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); }
+
+/* Animations */
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
 
-.nav-groups::-webkit-scrollbar-track {
-  background: transparent;
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.collapse-enter-active, .collapse-leave-active {
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s;
+  overflow: hidden;
+}
+.collapse-enter-from, .collapse-leave-to { max-height: 0; opacity: 0; }
+.collapse-enter-to, .collapse-leave-from { max-height: 2000px; opacity: 1; }
+
+.page-fade-enter-active, .page-fade-leave-active { transition: all 0.3s ease; }
+.page-fade-enter-from { opacity: 0; transform: scale(0.98); }
+.page-fade-leave-to { opacity: 0; transform: scale(1.02); }
+
+/* Responsive */
+@media (max-width: 1280px) {
+  .admin-layout { grid-template-columns: 260px 1fr; }
+  .admin-topbar { padding: 24px 32px 12px; }
+  .admin-main { padding: 0 32px 32px; }
+  .page-description { padding: 0 32px; }
 }
 
-@media (max-width: 1200px) {
-  .admin-layout {
-    grid-template-columns: 232px minmax(0, 1fr);
-  }
-
-  .admin-topbar,
-  .admin-main {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
-
-  .brand-link {
-    font-size: 1.05rem;
-  }
-
-  .nav-item {
-    min-height: 42px;
-    font-size: 0.88rem;
-  }
-}
-
-@media (max-width: 960px) {
-  .admin-layout {
-    grid-template-columns: 1fr;
-  }
-
+@media (max-width: 1024px) {
+  .admin-layout { grid-template-columns: 1fr; }
   .admin-sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 300px;
-    min-height: auto;
-    max-height: none;
-    border-right: none;
-    border-bottom: 1px solid rgba(173, 216, 255, 0.15);
-    transform: translateX(-102%);
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-    z-index: 30;
+    position: fixed; left: 0; top: 0; bottom: 0;
+    transform: translateX(-100%); width: 280px;
   }
-
-  .admin-sidebar.is-open {
-    transform: translateX(0);
-  }
-
-  .nav-groups {
-    max-height: none;
-  }
-
-  .admin-shell {
-    min-width: 0;
-  }
-
-  .topbar-panel {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .mobile-menu-button {
-    display: inline-flex;
-  }
-
-  .topbar-status {
-    align-self: flex-start;
-  }
+  .admin-sidebar.is-open { transform: translateX(0); }
+  .admin-shell { margin: 0; }
+  .mobile-menu-button { display: flex; }
+  .system-status { display: none; }
 }
 
 @media (max-width: 640px) {
-  .admin-layout {
-    grid-template-columns: 1fr;
-    overflow-x: hidden;
-  }
-
-  .admin-sidebar {
-    width: min(86vw, 320px);
-    padding: 16px 10px 12px;
-    gap: 12px;
-  }
-
-  .admin-topbar,
-  .admin-main {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-
-  .brand-block {
-    padding: 8px 8px 10px;
-  }
-
-  .brand-link {
-    font-size: 0.95rem;
-    gap: 8px;
-  }
-
-  .brand-logo-wrap {
-    width: 36px;
-    height: 36px;
-  }
-
-  .brand-logo {
-    width: 28px;
-    height: 28px;
-  }
-
-  .brand-block p {
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
-  }
-
-  .nav-groups {
-    gap: 8px;
-  }
-
-  .group-header {
-    padding: 10px 12px;
-  }
-
-  .nav-item {
-    min-height: 40px;
-    padding: 0 10px 0 8px;
-  }
-
-  .nav-icon-shell {
-    width: 26px;
-    height: 26px;
-  }
-
-  .sidebar-footer {
-    padding: 10px;
-  }
-
-  .topbar-panel {
-    padding: 18px 16px;
-    border-radius: 20px;
-  }
-
-  .mobile-menu-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-  }
-
-  .admin-topbar h1 {
-    font-size: 1.8rem;
-  }
-
-  .admin-topbar p {
-    font-size: 0.92rem;
-  }
-
-  .admin-content-panel {
-    border-radius: 20px;
-  }
+  .admin-topbar { padding: 24px 20px 12px; }
+  .admin-main { padding: 0 20px 20px; }
+  .admin-view-panel { padding: 24px; border-radius: 20px; }
+  .page-title { font-size: 1.6rem; }
+  .page-description { display: none; }
+  .topbar-right { display: none; }
 }
 </style>

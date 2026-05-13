@@ -28,3 +28,7 @@ chat_service/alembic/__pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+
+.agent/
+.sandbox/
+.python-version

@@ -45,5 +45,9 @@ export default {
   intermediate: 'Trung bình',
   advanced: 'Nâng cao',
   professional: 'Chuyên nghiệp',
-  avatarUrl: 'Link hình đại diện (URL)'
+  avatarUrl: 'Link hình đại diện (URL)',
+  totalPlayers: 'Tổng số VĐV',
+  activePlayers: 'Đang hoạt động',
+  newPlayers: 'Đăng ký tháng này',
+  topElo: 'VĐV top đầu'
 }

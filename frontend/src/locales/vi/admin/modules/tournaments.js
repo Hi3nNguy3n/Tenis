@@ -39,4 +39,5 @@ export default {
   sendMailConfirm: 'Hệ thống sẽ gửi email thông báo đến toàn bộ VĐV của giải "{name}". Bạn có chắc chắn muốn thực hiện?',
   sendMailTitle: 'Xác nhận gửi thông báo hàng loạt',
   confirmSend: 'Xác nhận gửi',
+  details: 'Chi tiết',
 }

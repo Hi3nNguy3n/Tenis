@@ -110,8 +110,15 @@ onMounted(async () => {
     const history = await playerService.getMatchHistory()
     matchHistory.value = history || []
     
-    loadMyChallenges() 
+  loadMyChallenges() 
     await tournamentStore.fetchMyRegistrations() 
+    
+    // Handle tab from query param
+    const urlParams = new URLSearchParams(window.location.search)
+    const tab = urlParams.get('tab')
+    if (tab && ['info', 'challenges', 'tournaments', 'security'].includes(tab)) {
+      activeTab.value = tab
+    }
   } catch (error) {
     console.error('Lỗi khi tải dữ liệu hồ sơ:', error)
   }

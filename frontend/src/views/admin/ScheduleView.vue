@@ -2,7 +2,12 @@
 import { onMounted, ref, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
-import { Refresh, Download, Edit, Location, Timer } from '@element-plus/icons-vue'
+import { 
+  Refresh, Download, Edit, Location as LocationIcon, Timer,
+  Trophy, Monitor, Connection, ArrowLeft,
+  CircleCheckFilled, Message, Search, Filter,
+  Calendar as CalendarIcon, Operation, VideoPlay, Clock as ClockIcon
+} from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 
 const isLoading = ref(false)
@@ -30,6 +35,7 @@ const getStatusType = (s) => {
   const status = s?.toLowerCase()
   if (status === 'ongoing') return 'primary'
   if (status === 'completed' || status === 'finished') return 'success'
+  if (status === 'scheduled') return 'warning'
   return 'info'
 }
 
@@ -58,7 +64,6 @@ const handleSchedule = async () => {
     return ElMessage.warning(t('admin.chooseCourtAndTime'))
   }
   try {
-    // Phải gán lại đúng format cho API
     await apiClient.post(`/api/tournaments/matches/${editingMatch.value.id}/schedule`, {
       court_id: editForm.value.court_id,
       start_time: editForm.value.start_time
@@ -78,55 +83,61 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="schedule-container">
-    <!-- HEADER PREMIUM -->
-    <section class="action-bar-glass shadow-sm">
-      <div class="action-info">
-        <div class="kicker-wrap">
-          <span class="section-kicker">{{ $t('admin.scheduleOverview') }}</span>
-          <div class="live-indicator">
-            <span class="dot"></span>
-            ACTIVE
-          </div>
+  <div class="saas-container" v-loading="isLoading">
+    <!-- Action Bar -->
+    <section class="saas-header">
+      <div class="header-left">
+        <div class="operation-badge-premium green">
+          <el-icon class="mr-1"><Timer /></el-icon>
+          <span>Schedule Management</span>
         </div>
-        <p>{{ $t('admin.scheduleOverviewDesc') }}</p>
+        <div class="header-titles">
+          <h2 class="saas-title">{{ $t('admin.scheduleOverview') }}</h2>
+          <p class="saas-subtitle">{{ $t('admin.scheduleOverviewDesc') }}</p>
+        </div>
       </div>
-
-      <div class="hero-actions-v2">
+      
+      <div class="header-right">
         <el-date-picker 
           v-model="filterDate" 
           type="date" 
           :placeholder="$t('admin.filterByDate')" 
           value-format="YYYY-MM-DD" 
-          style="width: 180px" 
-          round
+          class="saas-date-picker-premium"
           @change="loadMatches"
         />
-        <el-button :icon="Refresh" circle @click="loadMatches" />
-        <el-button :icon="Download" type="primary" round class="btn-excel">{{ $t('admin.exportData') }}</el-button>
+        <el-button @click="loadMatches" :icon="Refresh" class="saas-btn-refresh">Refresh</el-button>
+        <el-button type="primary" :icon="Download" class="saas-btn-primary">{{ $t('admin.exportData') }}</el-button>
       </div>
     </section>
 
-    <main class="table-card-premium shadow-sm" v-loading="isLoading">
-      <div class="table-meta">
-        <h3>{{ $t('admin.systemSchedule') }}</h3>
-        <span class="count-chip">{{ filteredSchedule.length }} {{ $t('admin.matchesCount') }}</span>
+    <!-- Table Card -->
+    <main class="saas-card-premium table-block">
+      <div class="table-header-saas">
+        <div class="th-left">
+          <el-icon><CalendarIcon /></el-icon>
+          <h3>{{ $t('admin.systemSchedule') }}</h3>
+        </div>
+        <el-badge :value="filteredSchedule.length" type="primary" class="saas-badge-count" />
       </div>
 
-      <el-table :data="filteredSchedule" style="width: 100%" stripe class="modern-table">
-        <el-table-column :label="$t('admin.tournamentCol')" min-width="240">
+      <el-table :data="filteredSchedule" style="width: 100%" class="saas-table-premium">
+        <el-table-column :label="$t('admin.tournamentCol')" min-width="280">
           <template #default="{ row }">
-            <div class="tour-cell">
-              <span class="tour-name">{{ row.tournament }}</span>
-              <span class="tour-sub">{{ $t('admin.saigonTennisSystem') }}</span>
+            <div class="tour-cell-saas">
+              <div class="tc-icon"><el-icon><Trophy /></el-icon></div>
+              <div class="tc-info">
+                <span class="tc-name">{{ row.tournament }}</span>
+                <span class="tc-sub">Saigon Tennis System</span>
+              </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.locationCol')" min-width="200">
+        <el-table-column :label="$t('admin.locationCol')" min-width="220">
           <template #default="{ row }">
-            <div class="location-cell">
-              <el-icon class="loc-icon"><Location /></el-icon>
+            <div class="loc-cell-saas">
+              <el-icon class="mr-2"><LocationIcon /></el-icon>
               <span>{{ row.court || $t('admin.unassignedCourt') }}</span>
             </div>
           </template>
@@ -134,19 +145,19 @@ onMounted(() => {
 
         <el-table-column :label="$t('admin.dateTimeCol')" width="200">
           <template #default="{ row }">
-            <div class="schedule-cell">
-              <span class="d-val">{{ row.date }}</span>
-              <div class="t-val">
-                <el-icon><Timer /></el-icon>
-                <span>{{ row.start }}</span>
+            <div class="time-cell-saas">
+              <span class="tc-date">{{ row.date }}</span>
+              <div class="tc-time">
+                <el-icon><ClockIcon /></el-icon>
+                <strong>{{ row.start }}</strong>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.statusCol')" width="140" align="center">
+        <el-table-column :label="$t('admin.statusCol')" width="160" align="center">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" effect="light" class="status-pill">
+            <el-tag :type="getStatusType(row.status)" effect="dark" class="saas-status-pill">
               {{ row.status?.toUpperCase() }}
             </el-tag>
           </template>
@@ -154,54 +165,76 @@ onMounted(() => {
 
         <el-table-column :label="$t('admin.actionCol')" width="120" fixed="right" align="center">
           <template #default="{ row }">
-            <div class="action-cell">
+            <div class="saas-action-buttons">
               <el-tooltip :content="$t('admin.editMatch')" placement="top">
-                <el-button circle size="small" type="primary" plain :icon="Edit" @click="handleEdit(row)" />
+                <el-button circle :icon="Edit" @click="handleEdit(row)" class="btn-edit" />
               </el-tooltip>
               <el-tooltip :content="$t('admin.reschedule')" placement="top">
-                <el-button circle size="small" type="success" plain :icon="Timer" @click="handleEdit(row)" />
+                <el-button circle :icon="Timer" @click="handleEdit(row)" class="btn-reschedule" />
               </el-tooltip>
             </div>
           </template>
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="filteredSchedule.length === 0" :description="$t('admin.noScheduleMatch')" />
+      <el-empty v-if="filteredSchedule.length === 0" :image-size="120" :description="$t('admin.noScheduleMatch')" />
     </main>
 
-    <el-dialog v-model="showEditDialog" :title="$t('admin.adjustSchedule')" width="460px" destroy-on-close class="premium-dialog">
-      <div v-if="editingMatch" class="edit-context shadow-inner">
-        <div class="context-item">
-          <span class="label">{{ $t('admin.tournamentCol') }}:</span>
-          <span class="val">{{ editingMatch.tournament }}</span>
+    <!-- Adjust Schedule Dialog -->
+    <el-dialog 
+      v-model="showEditDialog" 
+      width="500px" 
+      class="saas-dialog-premium"
+      destroy-on-close
+    >
+      <template #header>
+        <div class="dialog-header-saas">
+          <el-icon class="mr-2"><Timer /></el-icon>
+          <span>{{ $t('admin.adjustSchedule') }}</span>
         </div>
-        <div class="context-item">
-          <span class="label">{{ $t('admin.currentVal') }}</span>
-          <span class="val">{{ editingMatch.court || $t('admin.unassignedCourt') }} | {{ editingMatch.start || '--:--' }}</span>
+      </template>
+
+      <div class="saas-dialog-content">
+        <div v-if="editingMatch" class="saas-context-card mb-6">
+          <div class="context-row">
+            <span class="label">Tournament</span>
+            <strong class="value">{{ editingMatch.tournament }}</strong>
+          </div>
+          <div class="context-row">
+            <span class="label">Current Location</span>
+            <strong class="value">{{ editingMatch.court || 'Unassigned' }}</strong>
+          </div>
+          <div class="context-row">
+            <span class="label">Current Time</span>
+            <strong class="value">{{ editingMatch.start || '--:--' }}</strong>
+          </div>
         </div>
+
+        <el-form label-position="top" class="saas-form-premium">
+          <el-form-item :label="$t('admin.selectNewCourt')">
+            <el-select v-model="editForm.court_id" :placeholder="$t('admin.clickToSelectCourt')" class="w-full saas-input-large">
+              <template #prefix><el-icon><LocationIcon /></el-icon></template>
+              <el-option v-for="c in courts" :key="c.id" :label="c.court_name" :value="c.id" />
+            </el-select>
+          </el-form-item>
+          
+          <el-form-item :label="$t('admin.newDateTime')">
+            <el-date-picker
+              v-model="editForm.start_time"
+              type="datetime"
+              :placeholder="$t('admin.selectSpecificTime')"
+              format="DD/MM/YYYY HH:mm"
+              value-format="YYYY-MM-DDTHH:mm:ss"
+              class="w-full saas-input-large"
+            />
+          </el-form-item>
+        </el-form>
       </div>
 
-      <el-form label-position="top" class="mt-4">
-        <el-form-item :label="$t('admin.selectNewCourt')" required>
-          <el-select v-model="editForm.court_id" style="width: 100%" :placeholder="$t('admin.clickToSelectCourt')">
-            <el-option v-for="c in courts" :key="c.id" :label="c.court_name" :value="c.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('admin.newDateTime')" required>
-          <el-date-picker
-            v-model="editForm.start_time"
-            type="datetime"
-            :placeholder="$t('admin.selectSpecificTime')"
-            format="DD/MM/YYYY HH:mm"
-            value-format="YYYY-MM-DDTHH:mm:ss"
-            style="width: 100%"
-          />
-        </el-form-item>
-      </el-form>
       <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="showEditDialog = false" plain>{{ $t('admin.cancel') }}</el-button>
-          <el-button type="primary" @click="handleSchedule" class="px-6">{{ $t('admin.confirmUpdate') }}</el-button>
+        <div class="saas-dialog-footer">
+          <el-button @click="showEditDialog = false" class="saas-btn-secondary">{{ $t('admin.cancel') }}</el-button>
+          <el-button type="primary" @click="handleSchedule" class="saas-btn-primary">{{ $t('admin.confirmUpdate') }}</el-button>
         </div>
       </template>
     </el-dialog>
@@ -209,77 +242,89 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.schedule-container { display: grid; gap: 16px; padding: 10px; }
+.saas-container { display: flex; flex-direction: column; gap: 32px; min-height: 100%; }
 
-.action-bar-glass {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  padding: 16px 24px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+/* Action Bar */
+.saas-header { display: flex; align-items: center; justify-content: space-between; }
+.header-left { display: flex; align-items: center; }
+
+.operation-badge-premium {
+  background: #eff6ff; color: #2563eb; padding: 10px 20px; border-radius: 14px;
+  font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+  display: inline-flex; align-items: center; margin-right: 24px;
 }
+.operation-badge-premium.green { background: #f0fdf4; color: #16a34a; }
 
-.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
-.section-kicker { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
+.header-titles { display: flex; flex-direction: column; gap: 4px; }
+.saas-title { font-size: 1.8rem; font-weight: 900; color: #0f172a; margin: 0; letter-spacing: -0.02em; }
+.saas-subtitle { font-size: 0.95rem; color: #64748b; margin: 0; font-weight: 600; }
 
-.live-indicator {
-  display: flex; align-items: center; gap: 6px;
-  background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800;
-  padding: 2px 8px; border-radius: 99px;
+.header-right { display: flex; align-items: center; gap: 12px; }
+.saas-date-picker-premium :deep(.el-input__wrapper) { 
+  background: #fff !important; border-radius: 14px !important; height: 48px; border: 1px solid #e2e8f0 !important; box-shadow: none !important;
 }
-.dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+.saas-btn-refresh { height: 48px !important; border-radius: 14px !important; font-weight: 800 !important; width: 48px !important; padding: 0 !important; }
+.saas-btn-primary { height: 48px !important; border-radius: 14px !important; font-weight: 900 !important; padding: 0 24px !important; background: #2563eb !important; border: none !important; }
 
-@keyframes pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-}
+/* Table Block */
+.saas-card-premium { background: #fff; border-radius: 32px; border: 1px solid #f1f5f9; padding: 32px; box-shadow: 0 10px 40px rgba(0,0,0,0.02); }
+.table-block { padding: 0; overflow: hidden; }
 
-.action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
+.table-header-saas { padding: 32px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
+.th-left { display: flex; align-items: center; gap: 12px; }
+.th-left h3 { margin: 0; font-size: 1.2rem; font-weight: 900; color: #0f172a; }
+.th-left .el-icon { color: #2563eb; font-size: 20px; }
+.saas-badge-count :deep(.el-badge__content) { background: #eff6ff; color: #2563eb; font-weight: 900; border: none; }
 
-.hero-actions-v2 { display: flex; align-items: center; gap: 12px; }
-.btn-excel {
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  border: none;
-  font-weight: 700;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
-}
+/* Table Premium */
+.saas-table-premium :deep(.el-table__header) { background: #fafafa; }
+.saas-table-premium :deep(.el-table__header th) { background: #fafafa; color: #94a3b8; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; padding: 20px 0; }
+.saas-table-premium :deep(.el-table__row) { transition: all 0.2s; }
+.saas-table-premium :deep(.el-table__row:hover) { background-color: #f8fafc !important; }
 
-.table-card-premium {
-  background: white; padding: 8px; border-radius: 20px;
-  border: 1px solid #f1f5f9; box-shadow: 0 10px 30px rgba(0,0,0,0.03);
-  overflow: hidden;
-}
+.tour-cell-saas { display: flex; align-items: center; gap: 16px; }
+.tc-icon { width: 40px; height: 40px; background: #f0f7ff; color: #3b82f6; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.tc-info { display: flex; flex-direction: column; gap: 2px; }
+.tc-name { font-weight: 800; color: #1e293b; font-size: 0.95rem; }
+.tc-sub { font-size: 0.75rem; color: #94a3b8; font-weight: 700; }
 
-.table-meta { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; }
-.table-meta h3 { margin: 0; color: #1e293b; font-size: 1.1rem; font-weight: 700; }
-.count-chip { background: #f1f5f9; padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; color: #64748b; }
+.loc-cell-saas { display: flex; align-items: center; color: #475569; font-weight: 700; font-size: 0.9rem; }
+.loc-cell-saas .el-icon { color: #2563eb; font-size: 18px; }
 
-.tour-cell { display: flex; flex-direction: column; gap: 2px; }
-.tour-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
-.tour-sub { font-size: 0.75rem; color: #94a3b8; }
+.time-cell-saas { display: flex; flex-direction: column; gap: 4px; }
+.tc-date { font-size: 0.8rem; color: #94a3b8; font-weight: 700; }
+.tc-time { display: flex; align-items: center; gap: 6px; color: #0f172a; }
+.tc-time strong { font-size: 1rem; font-weight: 900; }
+.tc-time .el-icon { color: #f59e0b; }
 
-.location-cell { display: flex; align-items: center; gap: 8px; color: #475569; font-weight: 600; font-size: 0.9rem; }
-.loc-icon { color: #3b82f6; font-size: 1rem; }
+.saas-status-pill { border-radius: 10px; font-weight: 900; font-size: 0.7rem; padding: 0 16px; height: 32px; border: none; letter-spacing: 0.05em; }
 
-.schedule-cell { display: flex; flex-direction: column; gap: 4px; }
-.d-val { font-size: 0.85rem; color: #64748b; font-weight: 600; }
-.t-val { font-size: 0.95rem; font-weight: 900; color: #0f172a; display: flex; align-items: center; gap: 6px; }
+.saas-action-buttons { display: flex; gap: 10px; justify-content: center; }
+.saas-action-buttons .el-button { border: 1px solid #f1f5f9; background: #fff; transition: all 0.2s; color: #64748b; }
+.saas-action-buttons .btn-edit:hover { background: #eff6ff; color: #2563eb; border-color: #2563eb; }
+.saas-action-buttons .btn-reschedule:hover { background: #f0fdf4; color: #10b981; border-color: #10b981; }
 
-.status-pill { font-weight: 800; border-radius: 99px; padding: 0 16px; font-size: 0.65rem; border: none !important; }
+/* Dialog Premium */
+:deep(.saas-dialog-premium) { border-radius: 32px !important; overflow: hidden; }
+:deep(.el-dialog__header) { padding: 0 !important; margin: 0 !important; }
 
-.action-cell { display: flex; gap: 12px; justify-content: center; }
+.dialog-header-saas { padding: 24px 32px; background: #fafafa; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; font-weight: 900; color: #0f172a; font-size: 1.1rem; }
+.saas-dialog-content { padding: 32px; }
 
-:deep(.el-table) { border-radius: 12px; }
-:deep(.el-table .cell) { padding: 12px 16px; }
+.saas-context-card { background: #f8fafc; border-radius: 20px; padding: 24px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 12px; }
+.context-row { display: flex; justify-content: space-between; align-items: center; }
+.context-row .label { font-size: 0.75rem; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.context-row .value { font-size: 0.95rem; color: #1e293b; font-weight: 800; }
 
-.shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.edit-context { background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 8px; }
-.context-item { display: flex; justify-content: space-between; font-size: 0.85rem; }
-.label { color: #64748b; font-weight: 600; }
-.val { color: #0f172a; font-weight: 800; }
+.saas-form-premium { display: flex; flex-direction: column; gap: 20px; }
+.saas-input-large :deep(.el-input__wrapper) { background: #f8fafc !important; border-radius: 14px !important; height: 50px; box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+
+.saas-dialog-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 0 32px 32px; }
+.saas-btn-secondary { height: 48px; border-radius: 12px; font-weight: 700; padding: 0 24px; border-color: #e2e8f0; }
+.saas-btn-primary { height: 48px; border-radius: 12px; font-weight: 900; padding: 0 32px; background: #2563eb; border: none; }
+
+.mb-6 { margin-bottom: 24px; }
+.mr-1 { margin-right: 4px; }
+.mr-2 { margin-right: 8px; }
+.w-full { width: 100%; }
 </style>
