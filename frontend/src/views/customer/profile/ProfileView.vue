@@ -677,13 +677,32 @@ const selectTab = (tab) => {
 .atp-card { 
   background: #fff; border: 1px solid var(--profile-border); 
   border-radius: 12px; padding: 2rem 2.5rem; 
-  box-shadow: var(--profile-shadow); margin-bottom: 2rem; 
+  box-shadow: var(--profile-shadow); margin-bottom: 2rem;
+  max-width: 1000px;
 }
-.card-header-flex { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; }
+.card-header-flex { 
+  display: flex; 
+  justify-content: flex-start; 
+  align-items: flex-end; 
+  gap: 2rem;
+  margin-bottom: 2rem; 
+}
+.card-header-flex .btn-atp-outline {
+  margin-left: auto;
+}
 .atp-section-title { margin: 0; font-size: 1.4rem; font-weight: 800; text-transform: uppercase; color: var(--profile-primary); }
 .section-line { width: 40px; height: 3px; background: var(--profile-secondary); margin-top: 0.8rem; }
 
-.data-display-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.data-display-grid { 
+  display: grid; 
+  grid-template-columns: repeat(2, minmax(200px, 350px)); 
+  gap: 2rem 3rem; 
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem 2rem;
+}
 .display-item label { font-size: 0.7rem; color: var(--profile-muted); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 0.5rem; letter-spacing: 0.05em;}
 .display-item p { font-size: 1rem; font-weight: 600; color: var(--profile-text); margin: 0; word-break: break-all; }
 

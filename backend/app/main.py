@@ -18,8 +18,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=["*"],
-    allow_origins=origins,
+    allow_origins=["*"], # Cho phép tất cả origin để sửa lỗi CORS
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

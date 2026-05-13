@@ -187,12 +187,71 @@ const formatSkillLevel = (val) => {
   return map[val] || val || 'N/A'
 }
 
+const formatPhone = (val) => {
+  if (!val) return 'N/A'
+  // Remove all non-numeric characters
+  const cleaned = ('' + val).replace(/\D/g, '')
+  // Match groups for XXX XXX XXXX
+  const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/)
+  if (match) {
+    return `${match[1]} ${match[2]} ${match[3]}`
+  }
+  // Fallback for other lengths
+  if (cleaned.length === 10) {
+    return cleaned.slice(0, 3) + ' ' + cleaned.slice(3, 6) + ' ' + cleaned.slice(6)
+  }
+  return val
+}
+
+const formatElo = (val) => {
+  if (val === null || val === undefined) return '0'
+  return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
 onMounted(fetchPlayers)
 
 const getSkillType = (skill) => {
   if (skill === 'Professional') return 'danger'
   if (skill === 'Advanced') return 'warning'
   if (skill === 'Intermediate') return 'success'
+  return 'info'
+}
+
+// --- PLAYER DETAILS LOGIC ---
+const isDetailDialogVisible = ref(false)
+const selectedPlayer = ref(null)
+const matchHistory = ref([])
+const tournamentList = ref([])
+const detailsLoading = ref(false)
+
+const openDetailDialog = async (player) => {
+  selectedPlayer.value = player
+  isDetailDialogVisible.value = true
+  detailsLoading.value = true
+  
+  try {
+    const [history, tournaments] = await Promise.all([
+      playerService.getMatchHistoryAdmin(player.id),
+      playerService.getTournamentsAdmin(player.id)
+    ])
+    matchHistory.value = history
+    tournamentList.value = tournaments
+  } catch (err) {
+    ElMessage.error('Lỗi khi tải thông tin chi tiết: ' + err.message)
+  } finally {
+    detailsLoading.value = false
+  }
+}
+
+const getResultTagType = (status) => {
+  if (status === 'THẮNG') return 'success'
+  if (status === 'THUA') return 'danger'
+  return 'info'
+}
+
+const getRegStatusType = (status) => {
+  if (status === 'confirmed' || status === 'checked_in') return 'success'
+  if (status === 'pending') return 'warning'
   return 'info'
 }
 </script>
@@ -244,7 +303,7 @@ const getSkillType = (skill) => {
       >
         <el-table-column :label="$t('admin.player')" min-width="250">
           <template #default="{ row }">
-            <div class="saas-user-cell">
+            <div class="saas-user-cell clickable" @click="openDetailDialog(row)">
               <div class="saas-avatar">
                 <img 
                   :src="row.user.avatar_url || `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`" 
@@ -259,7 +318,11 @@ const getSkillType = (skill) => {
           </template>
         </el-table-column>
 
-        <el-table-column property="user.phone" :label="$t('admin.phone')" width="140" />
+        <el-table-column :label="$t('admin.phone')" width="140">
+          <template #default="{ row }">
+            {{ formatPhone(row.user.phone) }}
+          </template>
+        </el-table-column>
 
         <el-table-column :label="$t('admin.skillLevel')" width="160">
           <template #default="{ row }">
@@ -273,11 +336,11 @@ const getSkillType = (skill) => {
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.elo')" width="100" align="center">
-           <template #default="{ row }">
-             <span class="elo-badge">{{ row.player_profile?.elo_points || 1000 }}</span>
-           </template>
-        </el-table-column>
+         <el-table-column :label="$t('admin.elo')" width="100" align="center">
+            <template #default="{ row }">
+              <span class="elo-badge">{{ formatElo(row.player_profile?.elo_points || 1000) }}</span>
+            </template>
+         </el-table-column>
 
         <el-table-column :label="$t('admin.accountStatus')" width="140">
            <template #default="{ row }">
@@ -288,17 +351,28 @@ const getSkillType = (skill) => {
            </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.action')" width="120" fixed="right" align="center">
+        <el-table-column :label="$t('admin.action')" width="180" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button 
-              size="small" 
-              type="primary" 
-              @click="openEditDialog(row)"
-              class="saas-edit-btn"
-            >
-              <el-icon><EditPen /></el-icon>
-              <span>{{ $t('admin.edit') }}</span>
-            </el-button>
+            <div class="action-btns">
+              <el-button 
+                size="small" 
+                circle
+                type="info" 
+                @click="openDetailDialog(row)"
+                title="Xem chi tiết"
+              >
+                <el-icon><User /></el-icon>
+              </el-button>
+              <el-button 
+                size="small" 
+                type="primary" 
+                @click="openEditDialog(row)"
+                class="saas-edit-btn"
+              >
+                <el-icon><EditPen /></el-icon>
+                <span>{{ $t('admin.edit') }}</span>
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -412,6 +486,81 @@ const getSkillType = (skill) => {
         <el-button @click="isEditDialogVisible = false" class="saas-btn-secondary">{{ $t('admin.cancel') }}</el-button>
         <el-button type="primary" :loading="isSaving" @click="handleUpdatePlayer" class="saas-btn-primary">{{ $t('admin.saveChanges') }}</el-button>
       </template>
+    </el-dialog>
+
+    <!-- PLAYER DETAILS DIALOG -->
+    <el-dialog v-model="isDetailDialogVisible" width="850px" class="saas-dialog detail-dialog" destroy-on-close>
+      <template #header>
+        <div class="detail-header">
+          <div class="player-info-brief" v-if="selectedPlayer">
+            <div class="saas-avatar large">
+              <img :src="selectedPlayer.user.avatar_url || `https://ui-avatars.com/api/?name=${selectedPlayer.user.full_name}&background=f1f5f9&color=64748b`" />
+            </div>
+            <div class="meta">
+              <h3>{{ selectedPlayer.user.full_name }}</h3>
+              <div class="badges">
+                <el-tag size="small" :type="getSkillType(selectedPlayer.player_profile?.skill_level)">{{ formatSkillLevel(selectedPlayer.player_profile?.skill_level) }}</el-tag>
+                <span class="elo-val">ELO: {{ formatElo(selectedPlayer.player_profile?.elo_points) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <el-tabs type="border-card" class="detail-tabs" v-loading="detailsLoading">
+        <el-tab-pane label="Lịch sử thi đấu">
+          <el-table :data="matchHistory" stripe style="width: 100%" size="small" empty-text="Chưa có dữ liệu thi đấu">
+            <el-table-column property="time" label="Thời gian" width="150" />
+            <el-table-column property="tournament_name" label="Giải đấu" min-width="180" show-overflow-tooltip />
+            <el-table-column property="opponent" label="Đối thủ" min-width="150" />
+            <el-table-column label="Kết quả" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="getResultTagType(row.result_status)" size="small" effect="dark">
+                  {{ row.result_status }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column property="score" label="Tỷ số" width="100" align="center" />
+            <el-table-column type="expand">
+              <template #default="{ row }">
+                <div class="match-detail-expand">
+                  <h4>Chi tiết trận đấu #{{ row.id }}</h4>
+                  <el-descriptions :column="2" border size="small">
+                    <el-descriptions-item label="Sân thi đấu">{{ row.court }}</el-descriptions-item>
+                    <el-descriptions-item label="Vòng đấu">{{ row.round }}</el-descriptions-item>
+                    <el-descriptions-item label="Đối thủ">{{ row.opponent }}</el-descriptions-item>
+                    <el-descriptions-item label="Tỷ số chung cuộc">{{ row.score }}</el-descriptions-item>
+                    <el-descriptions-item label="Trạng thái">{{ row.status === 'completed' ? 'Hoàn thành' : 'Đang chờ' }}</el-descriptions-item>
+                    <el-descriptions-item label="Người thắng">{{ row.winner_side === 'side_a' ? 'Bản thân' : (row.winner_side === 'side_b' ? row.opponent : 'N/A') }}</el-descriptions-item>
+                    <el-descriptions-item label="Tỷ số các hiệp" :span="2">
+                      <div class="sets-summary">
+                        <template v-for="(val, key) in row.sets" :key="key">
+                          <el-tag v-if="val.a !== null || val.b !== null" size="small" effect="plain" class="set-tag">
+                            {{ key.replace('set', 'Set ') }}: <strong>{{ val.a }} - {{ val.b }}</strong>
+                          </el-tag>
+                        </template>
+                      </div>
+                    </el-descriptions-item>
+                  </el-descriptions>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+        
+        <el-tab-pane label="Giải đấu tham gia">
+          <el-table :data="tournamentList" stripe style="width: 100%" size="small" empty-text="Chưa tham gia giải đấu nào">
+            <el-table-column property="registered_at" label="Ngày đăng ký" width="150" />
+            <el-table-column property="tournament_name" label="Tên giải đấu" min-width="200" />
+            <el-table-column label="Trạng thái" width="120">
+              <template #default="{ row }">
+                <el-tag :type="getRegStatusType(row.status)" size="small">{{ row.status }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column property="payment_status" label="Thanh toán" width="120" />
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
     </el-dialog>
   </div>
 </template>
@@ -666,5 +815,52 @@ const getSkillType = (skill) => {
 :deep(.el-dialog__title) {
   font-weight: 700 !important;
   color: #1e293b !important;
+}
+
+.clickable { cursor: pointer; }
+.clickable:hover .user-name { color: #059669; text-decoration: underline; }
+
+.action-btns { display: flex; align-items: center; gap: 8px; justify-content: center; }
+
+.detail-header { padding-bottom: 10px; }
+.player-info-brief { display: flex; align-items: center; gap: 20px; }
+.saas-avatar.large { width: 64px; height: 64px; border-radius: 16px; }
+.player-info-brief h3 { margin: 0; font-size: 1.25rem; color: #1e293b; }
+.player-info-brief .badges { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.elo-val { font-size: 0.85rem; font-weight: 700; color: #059669; background: #ecfdf5; padding: 2px 8px; border-radius: 4px; }
+
+.detail-tabs { border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0 !important; box-shadow: none !important; }
+:deep(.el-tabs--border-card) { background: #fff; }
+:deep(.el-tabs__header) { background: #f8fafc !important; border-bottom: 1px solid #e2e8f0 !important; }
+
+.match-detail-expand { padding: 15px 25px; background: #f8fafc; border-radius: 8px; margin: 5px; }
+.match-detail-expand h4 { margin-top: 0; margin-bottom: 15px; font-size: 0.9rem; color: #475569; border-left: 3px solid #059669; padding-left: 10px; }
+.match-detail-expand {
+  padding: 16px;
+  background-color: #f8fafc;
+  border-radius: 8px;
+}
+
+.match-detail-expand h4 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.sets-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.set-tag {
+  border-radius: 6px !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.set-tag strong {
+  color: #059669;
+  margin-left: 4px;
 }
 </style>
