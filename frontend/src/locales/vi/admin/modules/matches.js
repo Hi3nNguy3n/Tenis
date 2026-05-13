@@ -72,4 +72,6 @@ export default {
   chooseCourtAndTime: 'Vui lòng chọn sân và giờ thi đấu',
   updateScheduleSuccess: 'Cập nhật lịch thi đấu thành công',
   updateError: 'Lỗi cập nhật: ',
+  matchSchedule: 'Lịch Thi Đấu Tổng Thể',
+  calendarDesc: 'Quản lý và điều phối lịch trình các giải đấu',
 }

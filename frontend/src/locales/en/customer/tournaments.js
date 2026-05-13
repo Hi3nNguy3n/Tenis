@@ -97,7 +97,7 @@ export default {
   verifying: 'Verifying...',
   confirmRegistration: 'Confirm Registration',
   registrationSuccessTitle: 'Registration Successful!',
-  registrationSuccessDesc: 'Awesome! Your tournament application has been saved to the system.<br>Please go to the Check-in desk at the court to complete the fee payment (if any).',
+  registrationSuccessDesc: 'Awesome! Your tournament application has been saved to the system. Please go to the Check-in desk at the court to complete the fee payment (if any).',
   viewETicket: 'View E-Ticket (QR Code)',
   startDateTicket: 'Start Date',
   matchFormat: 'Match Format',

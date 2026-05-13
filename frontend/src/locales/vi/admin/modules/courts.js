@@ -35,5 +35,9 @@ export default {
   surfaceLabel: 'Mặt sân',
   statusLabel: 'Trạng thái',
   cancelBtn: 'Hủy',
-  saveBtn: 'Lưu thông tin'
+  saveBtn: 'Lưu thông tin',
+  totalCourts: 'Tổng số sân',
+  activeCourts: 'Đang hoạt động',
+  hardCourts: 'Sân mặt cứng',
+  clayCourts: 'Sân đất nện',
 }

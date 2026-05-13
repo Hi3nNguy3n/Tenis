@@ -2,7 +2,10 @@
 import { ref, onMounted, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
-import { Trophy, Top, Bottom, DataAnalysis, Filter, Search } from '@element-plus/icons-vue'
+import { 
+  Trophy, Top, Bottom, DataAnalysis, Filter, Search,
+  TrendCharts, Monitor, Refresh, User, StarFilled
+} from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 
 const players = ref([])
@@ -44,128 +47,135 @@ const getEloTrendColor = (elo) => {
   return '#10b981' // Amateur
 }
 
+const getEloTrendClass = (elo) => {
+  if (elo >= 1500) return 'is-elite'
+  if (elo >= 1200) return 'is-pro'
+  return 'is-amateur'
+}
+
 onMounted(fetchData)
 </script>
 
 <template>
-  <div class="rankings-container">
-    <!-- ACTION BAR -->
-    <!-- HEADER PREMIUM -->
-    <section class="action-bar-glass shadow-sm">
-      <div class="action-info">
-        <div class="kicker-wrap">
-          <span class="section-kicker">Ranking & ELO Stats</span>
-          <div class="live-indicator">
-            <span class="dot"></span>
-            LIVE
-          </div>
-        </div>
-        <p>{{ $t('admin.rankingsDesc') }}</p>
-      </div>
-
-      <div class="filter-actions-v2">
-        <el-input
-          v-model="searchQuery"
-          :placeholder="$t('admin.searchPlayerPlaceholder')"
-          :prefix-icon="Search"
-          style="width: 220px"
-          round
-          clearable
-        />
-        <el-select v-model="selectedCategory" style="width: 170px" @change="fetchData" round>
-          <el-option v-for="c in categories" :key="c.value" :label="c.label" :value="c.value" />
-        </el-select>
-        <el-button :icon="DataAnalysis" type="primary" round @click="fetchData">{{ $t('admin.refresh') }}</el-button>
-      </div>
-    </section>
-
-    <div class="stats-grid">
-      <div class="stat-card-glass">
-        <div class="si pro"><el-icon><Top /></el-icon></div>
-        <div class="sd">
-          <div class="val">{{ filteredPlayers.filter(p => p.elo_points >= 1200).length }}</div>
-          <div class="lab">{{ $t('admin.proRank') }}</div>
+  <div class="saas-container">
+    <!-- Stats Grid -->
+    <div class="saas-stats-grid">
+      <div class="saas-stat-card">
+        <div class="stat-icon p-red"><el-icon><Top /></el-icon></div>
+        <div class="stat-content">
+          <span class="stat-label">{{ $t('admin.proRank') }}</span>
+          <h3 class="stat-value">{{ filteredPlayers.filter(p => p.elo_points >= 1200).length }}</h3>
         </div>
       </div>
-      <div class="stat-card-glass">
-        <div class="si avg"><el-icon><DataAnalysis /></el-icon></div>
-        <div class="sd">
-          <div class="val">{{ Math.round(filteredPlayers.reduce((acc, p) => acc + p.elo_points, 0) / (filteredPlayers.length || 1)) }}</div>
-          <div class="lab">{{ $t('admin.avgElo') }}</div>
+      <div class="saas-stat-card">
+        <div class="stat-icon p-blue"><el-icon><TrendCharts /></el-icon></div>
+        <div class="stat-content">
+          <span class="stat-label">{{ $t('admin.avgElo') }}</span>
+          <h3 class="stat-value">{{ Math.round(filteredPlayers.reduce((acc, p) => acc + p.elo_points, 0) / (filteredPlayers.length || 1)) }}</h3>
         </div>
       </div>
-      <div class="stat-card-glass">
-        <div class="si active"><el-icon><Filter /></el-icon></div>
-        <div class="sd">
-          <div class="val">{{ filteredPlayers.length }}</div>
-          <div class="lab">{{ $t('admin.totalPlayers') }}</div>
+      <div class="saas-stat-card">
+        <div class="stat-icon p-green"><el-icon><User /></el-icon></div>
+        <div class="stat-content">
+          <span class="stat-label">{{ $t('admin.totalPlayers') }}</span>
+          <h3 class="stat-value">{{ filteredPlayers.length }}</h3>
         </div>
       </div>
     </div>
 
-    <div class="table-card-premium shadow-sm" v-loading="isLoading">
-      <el-table :data="filteredPlayers" style="width: 100%" class="modern-rank-table">
-        <el-table-column :label="$t('admin.rank')" min-width="80" align="center">
+    <!-- Header & Action Bar -->
+    <div class="saas-header">
+      <div class="header-left">
+        <div class="operation-badge">
+          <el-icon class="mr-1"><Monitor /></el-icon>
+          <span>Ranking Engine</span>
+        </div>
+        <el-input
+          v-model="searchQuery"
+          :placeholder="$t('admin.searchPlayerPlaceholder')"
+          :prefix-icon="Search"
+          class="saas-search"
+          clearable
+        />
+        <el-select v-model="selectedCategory" class="saas-filter" @change="fetchData">
+          <el-option v-for="c in categories" :key="c.value" :label="c.label" :value="c.value" />
+        </el-select>
+        <el-button :icon="Refresh" circle @click="fetchData" class="saas-icon-btn" />
+      </div>
+    </div>
+
+    <!-- Main Content: Ranking Table -->
+    <div class="saas-content-area" v-loading="isLoading">
+      <el-table 
+        :data="filteredPlayers" 
+        class="saas-table"
+        :header-cell-style="{ background: 'transparent', color: '#1e293b', fontWeight: '800', borderBottom: '2px solid #e2e8f0' }"
+      >
+        <el-table-column :label="$t('admin.rank')" width="100" align="center">
           <template #default="scope">
-            <div class="rank-badge-cell">
-              <div v-if="scope.$index < 3" class="trophy-wrap" :class="'rank-' + (scope.$index + 1)">
+            <div class="rank-badge-premium">
+              <div v-if="scope.$index < 3" class="trophy-hexagon" :class="'rank-' + (scope.$index + 1)">
                 <el-icon><Trophy /></el-icon>
-                <span>{{ scope.$index + 1 }}</span>
+                <span class="rank-val">{{ scope.$index + 1 }}</span>
               </div>
-              <span v-else class="rank-num">{{ scope.$index + 1 }}</span>
+              <span v-else class="rank-num-saas">{{ scope.$index + 1 }}</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.player')" min-width="280">
+        <el-table-column :label="$t('admin.player')" min-width="300">
           <template #default="scope">
-            <div class="player-profile-cell">
-              <el-avatar :size="40" :src="scope.row.avatar_url">
-                {{ scope.row.full_name?.charAt(0) }}
-              </el-avatar>
-              <div class="p-info">
-                <span class="p-name">{{ scope.row.full_name }}</span>
-                <span class="p-email">{{ scope.row.email || 'Saigon Tennis Member' }}</span>
+            <div class="saas-premium-cell">
+              <div class="avatar-wrapper-premium">
+                <el-avatar :size="48" :src="scope.row.avatar_url" class="saas-avatar-premium">
+                  {{ scope.row.full_name?.charAt(0) }}
+                </el-avatar>
+                <div v-if="scope.$index < 10" class="star-badge"><el-icon><StarFilled /></el-icon></div>
+              </div>
+              <div class="cell-meta">
+                <span class="cell-title">{{ scope.row.full_name }}</span>
+                <span class="cell-subtitle">{{ scope.row.email || 'Saigon Tennis Member' }}</span>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.eloPoints')" min-width="120" sortable prop="elo_points" align="center">
+        <el-table-column :label="$t('admin.eloPoints')" width="160" align="center">
           <template #default="scope">
-            <div class="elo-pill" :style="{ background: getEloTrendColor(scope.row.elo_points) }">
-              {{ scope.row.elo_points }}
+            <div class="elo-score-saas" :class="getEloTrendClass(scope.row.elo_points)">
+              <span class="elo-val">{{ scope.row.elo_points }}</span>
+              <span class="elo-lbl">ELO</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.matchesPlayed')" min-width="100" align="center">
+        <el-table-column :label="$t('admin.matchesPlayed')" width="140" align="center">
           <template #default="scope">
-            <span class="m-played">{{ scope.row.matches_played }}</span>
+            <span class="match-count-pill">{{ scope.row.matches_played }} {{ $t('admin.matchCountLabel') }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.winRate')" min-width="200">
+        <el-table-column :label="$t('admin.winRate')" min-width="220">
           <template #default="{ row }">
-            <div class="win-rate-stack">
-              <div class="wr-top">
-                <span class="wr-val">{{ Math.round((row.wins / (row.matches_played || 1)) * 100) }}%</span>
-                <span class="wr-stat">{{ row.wins }}W - {{ row.matches_played - row.wins }}L</span>
+            <div class="saas-winrate-box">
+              <div class="wr-header-saas">
+                <span class="wr-percent">{{ Math.round((row.wins / (row.matches_played || 1)) * 100) }}%</span>
+                <span class="wr-detail">{{ row.wins }}W - {{ row.matches_played - row.wins }}L</span>
               </div>
               <el-progress 
                 :percentage="Math.round((row.wins / (row.matches_played || 1)) * 100)" 
                 :show-text="false" 
-                :stroke-width="6" 
-                stroke-linecap="round"
+                :stroke-width="8" 
                 :color="row.wins / (row.matches_played || 1) > 0.5 ? '#10b981' : '#3b82f6'"
+                class="saas-progress-bar"
               />
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.skillLevel')" min-width="150" align="center">
+        <el-table-column :label="$t('admin.skillLevel')" width="160" align="center">
           <template #default="scope">
-            <el-tag :type="scope.row.skill_level === 'Professional' ? 'danger' : 'info'" effect="light" class="level-pill">
+            <el-tag :type="scope.row.skill_level === 'Professional' ? 'danger' : 'info'" effect="dark" round class="saas-skill-tag">
               {{ scope.row.skill_level || 'UNRANKED' }}
             </el-tag>
           </template>
@@ -176,100 +186,102 @@ onMounted(fetchData)
 </template>
 
 <style scoped>
-.rankings-container { display: grid; gap: 16px; padding: 10px; }
+.saas-container { display: flex; flex-direction: column; gap: 32px; min-height: 100%; }
 
-.action-bar-glass {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(12px);
-  padding: 16px 24px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+/* Stats Grid */
+.saas-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
+.saas-stat-card {
+  background: #fff; border-radius: 24px; padding: 24px; display: flex; align-items: center; gap: 20px;
+  border: 1px solid #f1f5f9; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+.saas-stat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.05); }
+
+.stat-icon { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.p-red { background: #fef2f2; color: #ef4444; }
+.p-blue { background: #eff6ff; color: #3b82f6; }
+.p-green { background: #ecfdf5; color: #10b981; }
+
+.stat-label { font-size: 0.75rem; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.8rem; font-weight: 900; color: #0f172a; margin: 4px 0 0; }
+
+/* Header & Action Bar */
+.saas-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+
+.operation-badge {
+  background: #fdf2f8; color: #db2777; padding: 8px 16px; border-radius: 12px;
+  font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+  display: flex; align-items: center; border: 1px solid #fce7f3;
 }
 
-.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
-.section-kicker { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
+.saas-search { width: 280px; }
+.saas-filter { width: 180px; }
 
-.live-indicator {
-  display: flex; align-items: center; gap: 6px;
-  background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800;
-  padding: 2px 8px; border-radius: 99px;
-}
-.dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
-
-@keyframes pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+:deep(.el-input__wrapper), :deep(.el-select__wrapper) {
+  background-color: #f8fafc !important;
+  box-shadow: none !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  padding: 8px 12px !important;
 }
 
-.action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
-.filter-actions-v2 { display: flex; gap: 12px; }
-
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-
-.stat-card-glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(8px);
-  padding: 20px 24px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.02);
-  transition: all 0.3s ease;
-}
-.stat-card-glass:hover { transform: translateY(-5px); box-shadow: 0 15px 35px rgba(0,0,0,0.05); }
-
-.si { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
-.si.pro { background: #fef2f2; color: #ef4444; }
-.si.avg { background: #eff6ff; color: #3b82f6; }
-.si.active { background: #f0fdf4; color: #10b981; }
-
-.val { font-size: 1.8rem; font-weight: 900; color: #0f172a; line-height: 1; }
-.lab { font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-top: 4px; }
-
-.table-card-premium {
-  background: white; border-radius: 24px; border: 1px solid #f1f5f9;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.02); overflow: hidden;
+.saas-icon-btn {
+  width: 44px; height: 44px; border-radius: 12px !important;
+  background: #f8fafc !important; border: 1px solid #e2e8f0 !important;
 }
 
-.rank-badge-cell { display: flex; justify-content: center; align-items: center; }
-.trophy-wrap {
-  width: 36px; height: 36px; border-radius: 50%; display: flex;
-  flex-direction: column; align-items: center; justify-content: center; font-size: 1rem; position: relative;
+/* Ranking Table */
+.saas-content-area { background: #fff; border-radius: 32px; border: 1px solid #f1f5f9; padding: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.02); }
+
+.rank-badge-premium { display: flex; justify-content: center; align-items: center; }
+.trophy-hexagon {
+  width: 44px; height: 44px; position: relative; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-size: 1.2rem;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
 }
-.trophy-wrap span { font-size: 0.6rem; font-weight: 900; position: absolute; bottom: 2px; }
+.rank-val { font-size: 0.65rem; font-weight: 900; position: absolute; bottom: 4px; }
 
-.rank-1 { background: #fffbeb; color: #f59e0b; border: 1px solid #fde68a; }
-.rank-2 { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
-.rank-3 { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
-.rank-num { font-weight: 800; color: #cbd5e1; font-size: 1.1rem; }
+.rank-1 { background: #fffbeb; color: #f59e0b; }
+.rank-2 { background: #f8fafc; color: #94a3b8; }
+.rank-3 { background: #fff7ed; color: #c2410c; }
+.rank-num-saas { font-weight: 900; color: #cbd5e1; font-size: 1.2rem; font-family: monospace; }
 
-.player-profile-cell { display: flex; align-items: center; gap: 16px; }
-.p-info { display: flex; flex-direction: column; }
-.p-name { font-weight: 700; color: #0f172a; font-size: 1rem; }
-.p-email { font-size: 0.75rem; color: #94a3b8; }
-
-.elo-pill {
-  padding: 4px 16px; border-radius: 99px; color: white; font-weight: 900;
-  font-size: 0.85rem; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+.saas-premium-cell { display: flex; align-items: center; gap: 16px; }
+.avatar-wrapper-premium { position: relative; }
+.saas-avatar-premium { border: 2px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+.star-badge {
+  position: absolute; top: -1px; right: -1px; background: #f59e0b; color: #fff;
+  width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 10px; border: 2px solid #fff;
 }
 
-.m-played { font-weight: 800; color: #475569; font-size: 1rem; }
+.cell-meta { display: flex; flex-direction: column; gap: 2px; }
+.cell-title { font-weight: 800; color: #0f172a; font-size: 1rem; }
+.cell-subtitle { font-size: 0.8rem; color: #94a3b8; font-weight: 600; }
 
-.win-rate-stack { display: flex; flex-direction: column; gap: 6px; }
-.wr-top { display: flex; justify-content: space-between; align-items: flex-end; }
-.wr-val { font-size: 1rem; font-weight: 900; color: #0f172a; line-height: 1; }
-.wr-stat { font-size: 0.65rem; font-weight: 700; color: #94a3b8; }
+.elo-score-saas {
+  display: flex; flex-direction: column; align-items: center; line-height: 1;
+  padding: 8px 16px; border-radius: 16px; min-width: 80px;
+}
+.elo-val { font-size: 1.3rem; font-weight: 900; }
+.elo-lbl { font-size: 0.6rem; font-weight: 800; opacity: 0.8; margin-top: 2px; }
 
-.level-pill { font-weight: 800; border-radius: 99px; padding: 0 16px; font-size: 0.65rem; border: none !important; }
+.is-elite { background: #fef2f2; color: #ef4444; }
+.is-pro { background: #eff6ff; color: #3b82f6; }
+.is-amateur { background: #ecfdf5; color: #10b981; }
 
-:deep(.el-table) { border-radius: 16px; }
-:deep(.el-table .cell) { padding: 16px 20px; }
-.shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.match-count-pill {
+  background: #f8fafc; color: #475569; font-weight: 800; font-size: 0.8rem;
+  padding: 6px 14px; border-radius: 99px; border: 1px solid #e2e8f0;
+}
+
+.saas-winrate-box { display: flex; flex-direction: column; gap: 8px; }
+.wr-header-saas { display: flex; justify-content: space-between; align-items: flex-end; }
+.wr-percent { font-size: 1.1rem; font-weight: 900; color: #0f172a; }
+.wr-detail { font-size: 0.7rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; }
+.saas-progress-bar { width: 100%; }
+
+.saas-skill-tag { font-weight: 900; font-size: 0.7rem; letter-spacing: 0.05em; padding: 0 16px; height: 28px; line-height: 26px; border: none !important; }
+
+.mr-1 { margin-right: 4px; }
 </style>

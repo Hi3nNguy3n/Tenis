@@ -1,7 +1,12 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bell, Clock, Promotion } from '@element-plus/icons-vue'
+import { 
+  Bell, Clock, Promotion, Trophy, 
+  Monitor, Connection, ArrowLeft,
+  CircleCheckFilled, Message, Timer,
+  Finished, Delete, Document, Search
+} from '@element-plus/icons-vue'
 import { tournamentService } from '../../services/tournamentService'
 import apiClient from '../../services/apiClient'
 import { useAuthStore } from '../../stores/auth'
@@ -75,7 +80,6 @@ const appendLog = (entry) => {
   persistStoredState()
 }
 
-// 1. CHỈNH SỬA HÀM GỬI NGAY
 const sendNow = async () => {
   if (!selectedTournament.value || !subject.value.trim() || !message.value.trim()) {
     return ElMessage.warning(t('admin.fillInfoWarning'))
@@ -86,7 +90,6 @@ const sendNow = async () => {
 
   sending.value = true
   try {
-    // Gửi payload với scheduled_at = null để Backend gửi ngay
     const result = await apiClient.post(`/api/tournaments/${selectedTournament.value.id}/send-notifications`, {
       subject: subject.value.trim(),
       message: message.value.trim(),
@@ -107,7 +110,6 @@ const sendNow = async () => {
   }
 }
 
-// 2. CHỈNH SỬA HÀM HẸN GIỜ (GIAO VIỆC CHO BACKEND)
 const scheduleCampaign = async () => {
   if (!selectedTournament.value || !subject.value.trim() || !message.value.trim() || !sendAt.value) {
     return ElMessage.warning(t('admin.fillAllAndScheduleWarning'))
@@ -120,7 +122,6 @@ const scheduleCampaign = async () => {
 
   scheduling.value = true
   try {
-    // Ép kiểu Date thành chuẩn ISO (UTC) để Backend không bị lệch múi giờ
     const payload = {
       subject: subject.value.trim(),
       message: message.value.trim(),
@@ -129,7 +130,6 @@ const scheduleCampaign = async () => {
 
     const result = await apiClient.post(`/api/tournaments/${selectedTournament.value.id}/send-notifications`, payload)
 
-    // Thêm vào UI để Admin xem cho vui (Backend đã tự lo việc gửi)
     scheduledQueue.value = [{
       id: `schedule-${Date.now()}`, tournamentName: selectedTournament.value.name,
       subject: payload.subject, sendAt: new Date(sendTime).toISOString(),
@@ -157,530 +157,327 @@ const clearAllLogs = () => {
 }
 
 onMounted(async () => {
-  // 1. Khởi tạo dữ liệu cơ bản
   authStore.hydrate()
   loadStoredState()
-  
-  // 2. Kiểm tra xem có tournamentId từ trang Giải Đấu truyền sang không
   if (route.query.tournamentId) {
-    // Gán vào ID (biến ref), KHÔNG gán vào selectedTournament (biến computed)
     selectedTournamentId.value = String(route.query.tournamentId)
   }
-  
-  // 3. Gọi hàm load danh sách giải đấu (Nhớ là loadTournaments chứ không phải fetchTournaments)
   await loadTournaments()
-  
-  // 4. Áp dụng mẫu mail mặc định
   applyTemplate(templateKey.value)
 })
 
 </script>
 
 <template>
-  <div class="mail-campaign-shell">
-    <section class="hero-card">
-      <div>
-        <span class="eyebrow">Mail campaign</span>
-        <h2>{{ $t('admin.mailCampaignTitle') }}</h2>
-        <p>
-          {{ $t('admin.mailCampaignDesc') }}
-        </p>
-      </div>
-      <div class="hero-stats">
-        <div class="hero-stat">
-          <span>{{ $t('admin.templateLabel') }}</span>
-          <strong>{{ templates.length }}</strong>
+  <div class="saas-container" v-loading="loadingTournaments">
+    <!-- Action Bar -->
+    <section class="saas-header">
+      <div class="header-left">
+        <div class="operation-badge-premium green">
+          <el-icon class="mr-1"><Promotion /></el-icon>
+          <span>Email Campaign Manager</span>
         </div>
-        <div class="hero-stat">
-          <span>{{ $t('admin.queuedLabel') }}</span>
-          <strong>{{ scheduledQueue.length }}</strong>
-        </div>
-        <div class="hero-stat hero-stat-accent">
-          <span>{{ $t('admin.latestLogLabel') }}</span>
-          <strong>{{ campaignLogs.length }}</strong>
+        <div class="header-titles">
+          <h2 class="saas-title">{{ $t('admin.mailCampaignTitle') }}</h2>
+          <p class="saas-subtitle">{{ $t('admin.mailCampaignDesc') }}</p>
         </div>
       </div>
     </section>
 
-    <section class="content-grid">
-      <article class="composer-card">
-        <div class="section-head">
-          <div>
-            <span class="section-kicker">{{ $t('admin.composeMailSection') }}</span>
-            <h3>{{ $t('admin.campaignSection') }}</h3>
+    <!-- Hero Stats Grid -->
+    <div class="saas-stats-grid">
+      <div class="saas-stat-card">
+        <div class="stat-icon p-blue"><el-icon><Document /></el-icon></div>
+        <div class="stat-content">
+          <span class="stat-label">{{ $t('admin.templateLabel') }}</span>
+          <h3 class="stat-value">{{ templates.length }}</h3>
+        </div>
+      </div>
+      <div class="saas-stat-card">
+        <div class="stat-icon p-orange"><el-icon><Timer /></el-icon></div>
+        <div class="stat-content">
+          <span class="stat-label">{{ $t('admin.queuedLabel') }}</span>
+          <h3 class="stat-value">{{ scheduledQueue.length }}</h3>
+        </div>
+      </div>
+      <div class="saas-stat-card">
+        <div class="stat-icon p-green"><el-icon><Finished /></el-icon></div>
+        <div class="stat-content">
+          <span class="stat-label">{{ $t('admin.latestLogLabel') }}</span>
+          <h3 class="stat-value">{{ campaignLogs.length }}</h3>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Layout -->
+    <div class="campaign-layout-saas">
+      <!-- Left: Composer -->
+      <main class="saas-card-premium composer-block">
+        <div class="section-header-saas">
+          <span class="accent-line p-green"></span>
+          <div class="sh-text">
+            <h3>{{ $t('admin.composeMailSection') }}</h3>
+            <p>Thiết kế nội dung và lên lịch gửi email cho vận động viên</p>
           </div>
-          <span class="section-badge" v-if="selectedTournament">{{ selectedTournament.name }}</span>
         </div>
 
-        <div class="form-grid">
-          <label class="field">
-            <span>{{ $t('admin.selectTournamentLabel') }}</span>
-            <select v-model="selectedTournamentId" :disabled="loadingTournaments">
-              <option v-for="item in tournaments" :key="item.id" :value="String(item.id)">
-                {{ item.name }}
-              </option>
-            </select>
-          </label>
+        <el-form label-position="top" class="saas-form-premium">
+          <div class="saas-form-grid">
+            <el-form-item :label="$t('admin.selectTournamentLabel')" class="span-2">
+              <el-select v-model="selectedTournamentId" :disabled="loadingTournaments" filterable class="w-full saas-input-large">
+                <template #prefix><el-icon><Trophy /></el-icon></template>
+                <el-option v-for="item in tournaments" :key="item.id" :label="item.name" :value="String(item.id)" />
+              </el-select>
+            </el-form-item>
 
-          <div class="template-row">
-            <button
-              v-for="item in templates"
-              :key="item.key"
-              type="button"
-              class="template-chip"
-              :class="{ active: templateKey === item.key }"
-              @click="applyTemplate(item.key)"
-            >
-              {{ item.label }}
-            </button>
-          </div>
+            <div class="template-selector-wrap span-2">
+              <span class="field-label">{{ $t('admin.templateLabel') }}</span>
+              <div class="saas-template-row">
+                <button
+                  v-for="item in templates"
+                  :key="item.key"
+                  type="button"
+                  class="saas-template-chip"
+                  :class="{ active: templateKey === item.key }"
+                  @click="applyTemplate(item.key)"
+                >
+                  {{ item.label }}
+                </button>
+              </div>
+            </div>
 
-          <label class="field">
-            <span>{{ $t('admin.mailSubjectLabel') }}</span>
-            <input v-model="subject" type="text" :placeholder="$t('admin.mailSubjectPlaceholder')" />
-          </label>
+            <el-form-item :label="$t('admin.mailSubjectLabel')" class="span-2">
+              <el-input v-model="subject" :placeholder="$t('admin.mailSubjectPlaceholder')" class="saas-input-large">
+                <template #prefix><el-icon><Message /></el-icon></template>
+              </el-input>
+            </el-form-item>
 
-          <label class="field">
-            <span>{{ $t('admin.mailContentLabel') }}</span>
-            <textarea v-model="message" rows="10" :placeholder="$t('admin.mailContentPlaceholder')"></textarea>
-          </label>
+            <el-form-item :label="$t('admin.mailContentLabel')" class="span-2">
+              <el-input 
+                v-model="message" 
+                type="textarea" 
+                :rows="10" 
+                :placeholder="$t('admin.mailContentPlaceholder')"
+                class="saas-textarea-premium"
+              />
+            </el-form-item>
 
-          <div class="schedule-row">
-            <label class="field">
-              <span>{{ $t('admin.scheduleTimeLabel') }}</span>
-              <input v-model="sendAt" type="datetime-local" />
-            </label>
-            <div class="schedule-hint">
-              <Bell />
+            <el-form-item :label="$t('admin.scheduleTimeLabel')" class="span-1">
+              <el-date-picker 
+                v-model="sendAt" 
+                type="datetime" 
+                placeholder="Chọn thời gian gửi"
+                class="w-full saas-input-large"
+              />
+            </el-form-item>
+
+            <div class="schedule-info-saas span-1">
+              <el-icon><Bell /></el-icon>
               <p>{{ $t('admin.scheduleHint') }}</p>
             </div>
           </div>
 
-          <div class="action-row">
-            <button type="button" class="btn ghost" @click="scheduleCampaign" :disabled="scheduling">
-              <Clock />
-              <span>{{ scheduling ? $t('admin.savingScheduleBtn') : $t('admin.saveScheduleBtn') }}</span>
-            </button>
-            <button type="button" class="btn primary" @click="sendNow" :disabled="sending">
-              <Promotion />
-              <span>{{ sending ? $t('admin.sendingBtn') : $t('admin.sendNowBtn') }}</span>
-            </button>
+          <div class="composer-actions">
+            <el-button @click="scheduleCampaign" :loading="scheduling" :icon="Clock" class="saas-btn-action is-secondary">
+              {{ scheduling ? $t('admin.savingScheduleBtn') : $t('admin.saveScheduleBtn') }}
+            </el-button>
+            <el-button type="primary" @click="sendNow" :loading="sending" :icon="Promotion" class="saas-btn-action is-primary">
+              {{ sending ? $t('admin.sendingBtn') : $t('admin.sendNowBtn') }}
+            </el-button>
           </div>
+        </el-form>
+      </main>
+
+      <!-- Right: Queue & Logs -->
+      <aside class="saas-sidebar-premium">
+        <!-- Upcoming Queue -->
+        <div class="saas-card-premium mini sidebar-block">
+          <div class="sidebar-head">
+            <div class="sh-left">
+              <el-icon><Timer /></el-icon>
+              <h4>{{ $t('admin.upcomingCampaignsSection') }}</h4>
+            </div>
+            <el-badge :value="upcomingCampaigns.length" type="primary" />
+          </div>
+
+          <div v-if="upcomingCampaigns.length" class="queue-stack-saas">
+            <div v-for="item in upcomingCampaigns" :key="item.id" class="queue-item-saas">
+              <div class="qi-top">
+                <strong>{{ item.tournamentName }}</strong>
+                <span class="qi-time">{{ new Date(item.sendAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) }}</span>
+              </div>
+              <p class="qi-subject">{{ item.subject }}</p>
+              <div class="qi-footer">
+                <span>By: {{ item.author }}</span>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else :image-size="60" :description="$t('admin.noUpcomingCampaigns')" />
         </div>
-      </article>
 
-      <aside class="side-stack">
-        <article class="log-card">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">{{ $t('admin.sendScheduleSection') }}</span>
-              <h3>{{ $t('admin.upcomingCampaignsSection') }}</h3>
+        <!-- Recent Logs -->
+        <div class="saas-card-premium mini sidebar-block mt-6">
+          <div class="sidebar-head">
+            <div class="sh-left">
+              <el-icon><Finished /></el-icon>
+              <h4>{{ $t('admin.recentActivitySection') }}</h4>
             </div>
-            <span class="count-chip">{{ upcomingCampaigns.length }}</span>
+            <el-button link type="danger" @click="clearAllLogs" class="mini-clear-btn">{{ $t('admin.clearLogBtn') }}</el-button>
           </div>
 
-          <div v-if="upcomingCampaigns.length" class="queue-list">
-            <div v-for="item in upcomingCampaigns" :key="item.id" class="queue-item">
-              <div>
-                <strong>{{ item.tournamentName }}</strong>
-                <p>{{ item.subject }}</p>
+          <div v-if="campaignLogs.length" class="log-stack-saas">
+            <div v-for="item in campaignLogs" :key="item.id" class="log-item-saas">
+              <div class="li-header">
+                <span :class="['status-dot', item.status]"></span>
+                <strong class="truncate">{{ item.tournamentName }}</strong>
               </div>
-              <span>{{ new Date(item.sendAt).toLocaleString('vi-VN') }}</span>
-            </div>
-          </div>
-          <p v-else class="muted">{{ $t('admin.noUpcomingCampaigns') }}</p>
-        </article>
-
-        <article class="log-card">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">{{ $t('admin.sendLogsSection') }}</span>
-              <h3>{{ $t('admin.recentActivitySection') }}</h3>
-            </div>
-            <button class="mini-link" type="button" @click="clearAllLogs">{{ $t('admin.clearLogBtn') }}</button>
-          </div>
-
-          <div v-if="campaignLogs.length" class="activity-list">
-            <div v-for="item in campaignLogs" :key="item.id" class="activity-item">
-              <div class="activity-top">
-                <strong>{{ item.tournamentName }}</strong>
-                <span :class="['status-pill', item.status]">{{ item.status }}</span>
-              </div>
-              <p>{{ item.subject }}</p>
-              <div class="activity-meta">
-                <span>{{ item.author }}</span>
-                <span>{{ new Date(item.finishedAt || item.sendAt).toLocaleString('vi-VN') }}</span>
-              </div>
-              <div class="activity-actions">
-                <button type="button" class="text-btn" @click="deleteLog(item.id)">{{ $t('admin.deleteBtn') }}</button>
+              <p class="li-subject">{{ item.subject }}</p>
+              <div class="li-footer">
+                <span class="li-time">{{ new Date(item.sendAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                <el-button link type="danger" :icon="Delete" @click="deleteLog(item.id)" />
               </div>
             </div>
           </div>
-          <p v-else class="muted">{{ $t('admin.noSendLogs') }}</p>
-        </article>
+          <el-empty v-else :image-size="60" :description="$t('admin.noSendLogs')" />
+        </div>
       </aside>
-    </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.mail-campaign-shell {
-  display: grid;
-  gap: 20px;
+.saas-container { display: flex; flex-direction: column; gap: 32px; min-height: 100%; }
+
+/* Action Bar */
+.saas-header { display: flex; align-items: center; justify-content: space-between; }
+.header-left { display: flex; align-items: center; }
+
+.operation-badge-premium {
+  background: #eff6ff; color: #2563eb; padding: 10px 20px; border-radius: 14px;
+  font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+  display: inline-flex; align-items: center; margin-right: 24px;
+}
+.operation-badge-premium.green { background: #f0fdf4; color: #16a34a; }
+
+.header-titles { display: flex; flex-direction: column; gap: 4px; }
+.saas-title { font-size: 1.8rem; font-weight: 900; color: #0f172a; margin: 0; letter-spacing: -0.02em; }
+.saas-subtitle { font-size: 0.95rem; color: #64748b; margin: 0; }
+
+/* Stats Grid */
+.saas-stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.saas-stat-card {
+  background: #fff; border-radius: 24px; padding: 24px; display: flex; align-items: center; gap: 20px;
+  border: 1px solid #f1f5f9; transition: all 0.3s; box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+}
+.saas-stat-card:hover { transform: translateY(-5px); box-shadow: 0 12px 30px rgba(0,0,0,0.04); }
+
+.stat-icon { width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.stat-icon.p-blue { background: #eff6ff; color: #3b82f6; }
+.stat-icon.p-orange { background: #fff7ed; color: #f97316; }
+.stat-icon.p-green { background: #f0fdf4; color: #10b981; }
+
+.stat-label { font-size: 0.8rem; color: #64748b; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 1.75rem; font-weight: 900; color: #0f172a; margin: 2px 0 0; }
+
+/* Main Layout */
+.campaign-layout-saas { display: grid; grid-template-columns: 1fr 380px; gap: 32px; }
+
+.saas-card-premium { background: #fff; border-radius: 32px; border: 1px solid #f1f5f9; padding: 40px; box-shadow: 0 10px 40px rgba(0,0,0,0.02); }
+.saas-card-premium.mini { padding: 24px; }
+
+.section-header-saas { display: flex; gap: 16px; margin-bottom: 32px; }
+.accent-line { width: 4px; height: 44px; border-radius: 4px; }
+.p-green { background: #10b981; }
+
+.sh-text h3 { font-size: 1.25rem; font-weight: 900; color: #0f172a; margin: 0; }
+.sh-text p { font-size: 0.85rem; color: #64748b; margin-top: 4px; font-weight: 600; }
+
+/* Form Styles */
+.saas-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.span-2 { grid-column: span 2; }
+.span-1 { grid-column: span 1; }
+
+.field-label { display: block; font-weight: 800; color: #475569; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+
+.saas-template-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.saas-template-chip {
+  background: #f8fafc; border: 1px solid #e2e8f0; color: #475569; border-radius: 12px;
+  padding: 8px 16px; font-weight: 800; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+}
+.saas-template-chip:hover { border-color: #3b82f6; color: #3b82f6; }
+.saas-template-chip.active { background: #2563eb; color: #fff; border-color: #2563eb; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2); }
+
+.saas-input-large :deep(.el-input__wrapper), .saas-input-large :deep(.el-select__wrapper) { 
+  background: #f8fafc !important; border: 1px solid #e2e8f0 !important; border-radius: 16px !important;
+  height: 52px; box-shadow: none !important;
 }
 
-.hero-card,
-.composer-card,
-.log-card {
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(16, 185, 129, 0.14);
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+.saas-textarea-premium :deep(.el-textarea__inner) {
+  background: #f8fafc !important; border: 1px solid #e2e8f0 !important; border-radius: 20px !important;
+  padding: 16px !important; box-shadow: none !important; font-family: inherit; font-size: 0.95rem; line-height: 1.6;
 }
 
-.hero-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 24px 26px;
-  align-items: flex-start;
+.schedule-info-saas { 
+  background: #f1f5f9; border-radius: 16px; padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start;
+  color: #475569; font-size: 0.85rem; font-weight: 600; margin-top: 10px;
+}
+.schedule-info-saas .el-icon { font-size: 18px; color: #2563eb; margin-top: 2px; }
+.schedule-info-saas p { margin: 0; line-height: 1.5; }
+
+.composer-actions { display: flex; gap: 16px; margin-top: 32px; justify-content: flex-end; }
+.saas-btn-action { height: 52px !important; border-radius: 16px !important; font-weight: 900 !important; padding: 0 32px !important; }
+.saas-btn-action.is-primary { background: #2563eb !important; border: none !important; box-shadow: 0 8px 15px rgba(37, 99, 235, 0.2); }
+.saas-btn-action.is-secondary { background: #f1f5f9 !important; border: 1px solid #e2e8f0 !important; color: #1e293b !important; }
+
+/* Sidebar Premium */
+.saas-sidebar-premium { display: flex; flex-direction: column; gap: 24px; }
+.sidebar-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.sh-left { display: flex; align-items: center; gap: 10px; }
+.sh-left h4 { font-size: 0.95rem; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; }
+.sh-left .el-icon { color: #2563eb; }
+
+.queue-stack-saas, .log-stack-saas { display: flex; flex-direction: column; gap: 12px; }
+
+.queue-item-saas { 
+  background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 20px; padding: 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.qi-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.qi-top strong { font-size: 0.9rem; color: #1e293b; font-weight: 800; line-height: 1.4; }
+.qi-time { font-size: 0.7rem; color: #2563eb; font-weight: 900; background: #fff; padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
+.qi-subject { font-size: 0.8rem; color: #64748b; margin: 0; font-weight: 600; }
+.qi-footer { font-size: 0.7rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; }
+
+.log-item-saas {
+  background: #fff; border: 1px solid #f1f5f9; border-radius: 16px; padding: 14px;
+  transition: all 0.2s;
+}
+.log-item-saas:hover { border-color: #e2e8f0; background: #fafafa; }
+.li-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot.sent { background: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1); }
+.status-dot.failed { background: #ef4444; }
+.li-header strong { font-size: 0.85rem; color: #1e293b; font-weight: 800; }
+.li-subject { font-size: 0.75rem; color: #64748b; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.li-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.li-time { font-size: 0.7rem; color: #94a3b8; font-weight: 700; }
+
+.mini-clear-btn { font-size: 0.75rem; font-weight: 800; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 1400px) {
+  .campaign-layout-saas { grid-template-columns: 1fr; }
+  .saas-sidebar-premium { display: grid; grid-template-columns: 1fr 1fr; }
 }
 
-.eyebrow,
-.section-kicker {
-  display: inline-flex;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: rgba(20, 98, 80, 0.08);
-  color: #146250;
-  text-transform: uppercase;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+@media (max-width: 900px) {
+  .saas-sidebar-premium { grid-template-columns: 1fr; }
+  .saas-stats-grid { grid-template-columns: 1fr; }
+  .saas-form-grid { grid-template-columns: 1fr; }
 }
 
-.hero-card h2,
-.composer-card h3,
-.log-card h3 {
-  margin: 10px 0 8px;
-  color: #0f172a;
-}
-
-.hero-card p,
-.muted,
-.queue-item p,
-.activity-item p,
-.schedule-hint p {
-  color: #5b6b78;
-  line-height: 1.6;
-}
-
-.hero-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  min-width: min(380px, 100%);
-}
-
-.hero-stat {
-  display: grid;
-  gap: 4px;
-  padding: 16px;
-  border-radius: 18px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.hero-stat span {
-  color: #64748b;
-  font-size: 0.76rem;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.hero-stat strong {
-  font-size: 1.8rem;
-  color: #0f172a;
-}
-
-.hero-stat-accent {
-  background: linear-gradient(135deg, #0f5c4d, #1b7a61);
-}
-
-.hero-stat-accent span,
-.hero-stat-accent strong {
-  color: #fff;
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
-  gap: 20px;
-  align-items: start;
-}
-
-.composer-card,
-.log-card {
-  padding: 22px;
-}
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.section-badge,
-.count-chip {
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: #dcfce7;
-  color: #146250;
-  font-weight: 800;
-  font-size: 0.8rem;
-}
-
-.form-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.field {
-  display: grid;
-  gap: 8px;
-}
-
-.field span {
-  color: #0f172a;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.field input,
-.field textarea,
-.field select {
-  width: 100%;
-  border-radius: 16px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  padding: 14px 16px;
-  font: inherit;
-  color: #0f172a;
-  outline: none;
-}
-
-.field input:focus,
-.field textarea:focus,
-.field select:focus {
-  border-color: #146250;
-  box-shadow: 0 0 0 4px rgba(20, 98, 80, 0.08);
-}
-
-.template-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.template-chip {
-  border: 1px solid #dbe4ee;
-  background: #f8fafc;
-  color: #0f172a;
-  border-radius: 999px;
-  padding: 10px 14px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.template-chip.active {
-  background: #146250;
-  color: #fff;
-  border-color: #146250;
-}
-
-.schedule-row {
-  display: grid;
-  grid-template-columns: 1fr 0.9fr;
-  gap: 16px;
-}
-
-.schedule-hint {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 16px;
-  border-radius: 18px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.schedule-hint svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  color: #146250;
-  margin-top: 2px;
-}
-
-.schedule-hint p {
-  margin: 0;
-  font-size: 0.92rem;
-}
-
-.action-row {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.btn {
-  border: none;
-  border-radius: 14px;
-  padding: 14px 18px;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.btn.ghost {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.btn.primary {
-  background: linear-gradient(135deg, #146250, #1b7a61);
-  color: #fff;
-}
-
-.btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.side-stack {
-  display: grid;
-  gap: 20px;
-}
-
-.queue-list,
-.activity-list {
-  display: grid;
-  gap: 12px;
-}
-
-.queue-item,
-.activity-item {
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-}
-
-.queue-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.queue-item strong,
-.activity-top strong {
-  color: #0f172a;
-}
-
-.queue-item span,
-.activity-meta {
-  color: #64748b;
-  font-size: 0.8rem;
-}
-
-.activity-top {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-
-.status-pill {
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.status-pill.sent {
-  background: #dcfce7;
-  color: #146250;
-}
-
-.status-pill.failed {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.status-pill.scheduled {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.activity-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
-}
-
-.activity-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 10px;
-}
-
-.text-btn,
-.mini-link {
-  border: none;
-  background: transparent;
-  color: #146250;
-  font-weight: 800;
-  cursor: pointer;
-  padding: 0;
-}
-
-@media (max-width: 1100px) {
-  .content-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .schedule-row {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-card {
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 720px) {
-  .hero-stats {
-    grid-template-columns: 1fr;
-    min-width: 0;
-    width: 100%;
-  }
-
-  .action-row {
-    justify-content: stretch;
-  }
-
-  .btn {
-    width: 100%;
-    justify-content: center;
-  }
-}
+.mr-1 { margin-right: 4px; }
+.mr-2 { margin-right: 8px; }
+.mt-6 { margin-top: 24px; }
+.w-full { width: 100%; }
 </style>

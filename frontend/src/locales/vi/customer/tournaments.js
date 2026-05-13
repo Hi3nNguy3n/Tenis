@@ -97,7 +97,7 @@ export default {
   verifying: 'Đang xác thực...',
   confirmRegistration: 'Xác nhận Đăng ký',
   registrationSuccessTitle: 'Ghi danh thành công!',
-  registrationSuccessDesc: 'Tuyệt vời! Hồ sơ tham dự giải đấu của bạn đã được lưu vào hệ thống.<br>Vui lòng đến bàn Check-in tại sân để hoàn tất thanh toán lệ phí (nếu có).',
+  registrationSuccessDesc: 'Tuyệt vời! Hồ sơ tham dự giải đấu của bạn đã được lưu vào hệ thống. Vui lòng đến bàn Check-in tại sân để hoàn tất thanh toán lệ phí (nếu có).',
   viewETicket: 'Xem Vé điện tử (QR Code)',
   startDateTicket: 'Ngày khởi tranh',
   matchFormat: 'Thể thức thi đấu',

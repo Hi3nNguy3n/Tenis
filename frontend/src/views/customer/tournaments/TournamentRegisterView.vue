@@ -82,7 +82,8 @@ const submitRegistration = async () => {
     const payload = {
       notes: form.value.notes,
       partners: tournament.value?.format_type === 'Doubles' ? partners.value : [],
-      otp: otpCode.value
+      otp: otpCode.value,
+      status: 'pending' // Force status to pending for admin approval
     }
     await apiClient.post(`/api/tournaments/${tournamentId}/register`, payload)
     step.value = 3
@@ -134,7 +135,7 @@ const submitRegistration = async () => {
           <div class="card-icon warning"><el-icon><WarningFilled /></el-icon></div>
           <h2>{{ t('tournaments.alreadyRegisteredTitle') }}</h2>
           <p>{{ t('tournaments.alreadyRegisteredDesc') }}</p>
-          <button class="neo-btn-primary mt-4" @click="router.push('/profile/my-tournaments')">
+          <button class="neo-btn-primary mt-4" @click="router.push('/profile?tab=tournaments')">
             {{ t('tournaments.goToProfile') }} <el-icon class="ml-2"><ArrowRight /></el-icon>
           </button>
         </div>
@@ -213,7 +214,7 @@ const submitRegistration = async () => {
             <p v-html="t('tournaments.registrationSuccessDesc')"></p>
             
             <div class="success-actions">
-              <button class="neo-btn-primary" @click="router.push('/profile/my-tournaments')">
+              <button class="neo-btn-primary" @click="router.push('/profile?tab=tournaments')">
                 {{ t('tournaments.viewETicket') }}
               </button>
             </div>

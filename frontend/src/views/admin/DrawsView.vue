@@ -1,11 +1,19 @@
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { tournamentService } from '../../services/tournamentService' 
 import { useAuthStore } from '../../stores/auth' 
 import { ElMessage } from 'element-plus'
 import apiClient from '../../services/apiClient'
 import { t } from '../../utils/locale'
+import { 
+  Trophy, Finished, EditPen, Menu,
+  CircleCheckFilled, CircleCloseFilled,
+  Search, Refresh, Edit, Delete
+} from '@element-plus/icons-vue'
 
+const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const tournaments = ref([])
 const selectedTournamentId = ref(null)
@@ -58,19 +66,7 @@ const fetchTournaments = async () => {
   }
 }
 
-const fetchMatches = async () => {
-  if (!selectedTournamentId.value) return
-  isLoading.value = true
-  try {
-    const data = await tournamentService.getMatches(selectedTournamentId.value)
-    matches.value = data
-  } catch (err) {
-    ElMessage.error(t('admin.loadMatchesError') || 'Error loading brackets: ' + err.message)
-    matches.value = []
-  } finally {
-    isLoading.value = false
-  }
-}
+// Các hàm fetchMatches và handleTournamentChange đã được dời xuống dưới để gộp vào luồng khởi tạo chính.
 
 const confirmGenerateDraw = async () => {
   if (!selectedTournamentId.value) return
@@ -131,73 +127,153 @@ const groupedMatches = computed(() => {
 const groupRounds = computed(() => groupedMatches.value.filter(r => r.roundCode.includes('G')))
 const knockoutRounds = computed(() => groupedMatches.value.filter(r => !r.roundCode.includes('G')))
 
-onMounted(fetchTournaments)
+// Tải dữ liệu các trận đấu
+const fetchMatches = async () => {
+  if (!selectedTournamentId.value) {
+    matches.value = []
+    return
+  }
+  isLoading.value = true
+  try {
+    const data = await tournamentService.getMatches(selectedTournamentId.value)
+    matches.value = data
+  } catch (err) {
+    ElMessage.error(t('admin.loadMatchesError') || 'Error loading brackets: ' + err.message)
+    matches.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Xử lý khi chọn giải đấu khác từ dropdown
+const handleTournamentChange = (id) => {
+  router.push({ query: { ...route.query, tournamentId: id } })
+}
+
+// Chỉ theo dõi ID để cập nhật dữ liệu trận đấu
+watch(() => route.query.tournamentId, async (newId) => {
+  if (newId) {
+    selectedTournamentId.value = parseInt(newId)
+    await fetchMatches()
+  } else {
+    // Nếu URL bị xóa ID (ví dụ nhấn menu), tự động chọn lại cái đầu tiên nếu có
+    if (tournaments.value.length > 0) {
+      handleTournamentChange(tournaments.value[0].id)
+    }
+  }
+})
+
+onMounted(async () => {
+  isLoading.value = true
+  try {
+    // 1. Tải danh sách giải đấu
+    await fetchTournaments()
+    
+    // 2. Xác định giải đấu cần hiển thị
+    const queryId = route.query.tournamentId
+    if (queryId) {
+      selectedTournamentId.value = parseInt(queryId)
+    } else if (tournaments.value.length > 0) {
+      // Tự động chọn giải đấu đầu tiên nếu URL trống
+      selectedTournamentId.value = tournaments.value[0].id
+      handleTournamentChange(selectedTournamentId.value)
+    }
+    
+    // 3. Tải trận đấu
+    if (selectedTournamentId.value) {
+      await fetchMatches()
+    }
+  } finally {
+    isLoading.value = false
+  }
+})
 </script>
 
 <template>
-  <div class="module-shell">
-    <section class="action-bar-glass shadow-sm">
-      <div class="action-info">
-        <div class="kicker-wrap">
-          <span class="section-kicker">Drawing Matrix</span>
-          <div class="live-indicator"><span class="dot"></span>ACTIVE</div>
+  <div class="saas-container">
+    <section class="saas-action-bar">
+      <div class="bar-left">
+        <div class="page-title-wrap">
+          <div class="title-icon"><el-icon><Trophy /></el-icon></div>
+          <div>
+            <h2 class="page-title">{{ $t('admin.drawingMatrix') }}</h2>
+            <p class="page-subtitle">{{ $t('admin.drawingMatrixDesc') || 'Quản lý bốc thăm và sơ đồ nhánh đấu' }}</p>
+          </div>
         </div>
-        <p>{{ $t('admin.drawingMatrix') }}</p>
-        <p v-if="lastDrawSummary" class="draw-summary">System: {{ lastDrawSummary.message }}</p>
       </div>
-      <div class="hero-actions">
-        <div class="control-group-v2">
-          <el-select v-model="selectedTournamentId" :placeholder="$t('admin.selectTournamentPlaceholder')" style="width: 240px" @change="fetchMatches" filterable round>
-            <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
+
+      <div class="bar-right">
+        <div class="control-cluster">
+          <el-select v-model="selectedTournamentId" :placeholder="$t('admin.selectTournamentPlaceholder')" class="tournament-selector" @change="handleTournamentChange" filterable>
+            <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id">
+              <div class="t-opt">
+                <span class="t-name">{{ t.name }}</span>
+                <el-tag size="small" :type="t.status === 'open' ? 'success' : 'info'" effect="plain">{{ t.status.toUpperCase() }}</el-tag>
+              </div>
+            </el-option>
           </el-select>
           
-          <el-button v-if="hasGroupStage" type="danger" :disabled="!selectedTournamentId" :loading="generatingPlayoff" @click="openPlayoffDialog" round>
-            {{ $t('admin.finalizeGroups') }}
+          <el-button v-if="hasGroupStage" type="danger" :disabled="!selectedTournamentId" :loading="generatingPlayoff" @click="openPlayoffDialog" class="saas-btn-action is-danger">
+            <el-icon class="mr-1"><Finished /></el-icon> {{ $t('admin.finalizeGroups') }}
           </el-button>
 
-          <el-button type="primary" :disabled="!canDraw" :loading="generating" @click="openDrawDialog" class="btn-generate-premium" round>
+          <el-button type="primary" :disabled="!canDraw" :loading="generating" @click="openDrawDialog" class="saas-btn-action is-primary">
+            <el-icon class="mr-1"><EditPen /></el-icon> {{ $t('admin.startNewDraw') }}
+          </el-button>
+        </div>
+      </div>
+    </section>
+
+    <section class="saas-draw-viewport" v-loading="isLoading">
+      <div v-if="!selectedTournamentId" class="saas-empty-state">
+        <el-empty :description="$t('admin.emptyDrawState')">
+          <p class="empty-tip">Vui lòng chọn một giải đấu để xem hoặc bắt đầu bốc thăm.</p>
+        </el-empty>
+      </div>
+      <div v-else-if="matches.length === 0" class="saas-empty-state">
+        <el-empty :description="$t('admin.noMatchesState')">
+          <el-button type="primary" plain round @click="openDrawDialog" :disabled="!canDraw">
             {{ $t('admin.startNewDraw') }}
           </el-button>
-        </div>
-      </div>
-    </section>
-
-    <section class="draw-container" v-loading="isLoading">
-      <div v-if="!selectedTournamentId" class="empty-state">
-        <p>{{ $t('admin.emptyDrawState') }}</p>
-      </div>
-      <div v-else-if="matches.length === 0" class="empty-state">
-        <p>{{ $t('admin.noMatchesState') }}</p>
+        </el-empty>
       </div>
       
-      <div v-else class="stages-wrapper">
+      <div v-else class="saas-stages-grid">
         
-        <div v-if="groupRounds.length > 0" class="stage-section">
-          <div class="stage-header">
-            <h3>{{ $t('admin.stage1Title') }}</h3>
-            <p>{{ $t('admin.stage1Desc') }}</p>
+        <!-- Vòng Bảng -->
+        <div v-if="groupRounds.length > 0" class="saas-stage-block group-stage">
+          <div class="stage-header-modern">
+            <div class="header-icon"><el-icon><Menu /></el-icon></div>
+            <div class="header-text">
+              <h3>{{ $t('admin.stage1Title') }}</h3>
+              <span>{{ $t('admin.stage1Desc') }}</span>
+            </div>
           </div>
-          <div class="group-board">
-            <div v-for="round in groupRounds" :key="round.roundCode" class="group-column">
-              <div class="round-tag-wrapper"><span class="round-tag">{{ round.roundCode }}</span></div>
-              <div class="matches-list">
-                <div v-for="m in round.items" :key="m.id" class="match-card-premium">
-                  <div class="match-top">
-                    <span class="m-no">{{ $t('admin.matchNo') }} #{{ m.match_no }}</span>
-                    <span class="m-status" :class="m.status">{{ m.status?.toUpperCase() }}</span>
+
+          <div class="group-board-horizontal">
+            <div v-for="round in groupRounds" :key="round.roundCode" class="group-lane">
+              <div class="lane-header"><span class="lane-tag">{{ round.roundCode }}</span></div>
+              <div class="lane-content">
+                <div v-for="m in round.items" :key="m.id" class="saas-match-card">
+                  <div class="m-card-header">
+                    <span class="m-id">#{{ m.match_no }}</span>
+                    <el-tag size="small" :type="m.status === 'completed' ? 'success' : 'warning'" effect="dark" class="m-status-tag">
+                      {{ m.status?.toUpperCase() }}
+                    </el-tag>
                   </div>
-                  <div class="match-players">
-                    <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a', 'is-me': m.p1_name === currentUserName }">
-                      <span class="p-name">{{ m.p1_name || '...' }}</span>
-                      <span v-if="m.score && m.winner_side" class="m-score-inline">{{ m.winner_side === 'side_a' ? 'WIN' : '' }}</span>
+                  <div class="m-card-body">
+                    <div class="team-row" :class="{ 'is-winner': m.winner_side === 'side_a' }">
+                      <span class="team-name">{{ m.p1_name || '---' }}</span>
+                      <el-icon v-if="m.winner_side === 'side_a'" class="win-icon"><CircleCheckFilled /></el-icon>
                     </div>
-                    <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b', 'is-me': m.p2_name === currentUserName }">
-                      <span class="p-name">{{ m.p2_name || '...' }}</span>
-                      <span v-if="m.score && m.winner_side" class="m-score-inline">{{ m.winner_side === 'side_b' ? 'WIN' : '' }}</span>
+                    <div class="team-row" :class="{ 'is-winner': m.winner_side === 'side_b' }">
+                      <span class="team-name">{{ m.p2_name || '---' }}</span>
+                      <el-icon v-if="m.winner_side === 'side_b'" class="win-icon"><CircleCheckFilled /></el-icon>
                     </div>
                   </div>
-                  <div class="match-footer" v-if="m.result_note || m.score_summary">
-                    {{ $t('admin.score') }}: <strong>{{ m.result_note || m.score_summary }}</strong>
+                  <div class="m-card-footer" v-if="m.result_note || m.score_summary">
+                    <span class="score-label">{{ $t('admin.score') }}</span>
+                    <span class="score-value">{{ m.result_note || m.score_summary }}</span>
                   </div>
                 </div>
               </div>
@@ -205,38 +281,42 @@ onMounted(fetchTournaments)
           </div>
         </div>
 
-        <div v-if="groupRounds.length > 0 && knockoutRounds.length > 0" class="stage-divider"></div>
-
-        <div v-if="knockoutRounds.length > 0" class="stage-section">
-          <div class="stage-header playoff-header">
-            <h3>{{ $t('admin.stage2Title') }}</h3>
-            <p>{{ $t('admin.stage2Desc') }}</p>
+        <!-- Vòng Loại Trực Tiếp -->
+        <div v-if="knockoutRounds.length > 0" class="saas-stage-block knockout-stage">
+          <div class="stage-header-modern">
+            <div class="header-icon knockout"><el-icon><Finished /></el-icon></div>
+            <div class="header-text">
+              <h3>{{ $t('admin.stage2Title') }}</h3>
+              <span>{{ $t('admin.stage2Desc') }}</span>
+            </div>
           </div>
           
-          <div class="bracket-board">
-            <div v-for="(round, index) in knockoutRounds" :key="round.roundCode" class="bracket-column">
-              <div class="round-tag-wrapper"><span class="round-tag knockout-tag">{{ round.roundCode }}</span></div>
-              
-              <div class="bracket-matches">
-                <div v-for="m in round.items" :key="m.id" class="match-wrapper">
-                  <div class="bracket-line-left" v-if="index > 0"></div>
+          <div class="bracket-viewport-wrapper">
+            <div class="bracket-flex-board">
+              <div v-for="(round, index) in knockoutRounds" :key="round.roundCode" class="bracket-column-lane">
+                <div class="lane-header"><span class="lane-tag knockout">{{ round.roundCode }}</span></div>
+                
+                <div class="bracket-matches-stack">
+                  <div v-for="m in round.items" :key="m.id" class="bracket-match-node">
+                    <div class="connector-line-in" v-if="index > 0"></div>
 
-                  <div class="match-card-premium knockout-card">
-                    <div class="match-top">
-                      <span class="m-no">#{{ m.match_no }}</span>
-                      <span class="m-status" :class="m.status">{{ m.status?.toUpperCase() }}</span>
-                    </div>
-                    <div class="match-players">
-                      <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_a' }">
-                        <span class="p-name">{{ m.p1_name || '...' }}</span>
+                    <div class="saas-match-card bracket-card">
+                      <div class="m-card-header compact">
+                        <span class="m-id">#{{ m.match_no }}</span>
+                        <span class="m-status-dot" :class="m.status"></span>
                       </div>
-                      <div class="p-row" :class="{ 'is-winner': m.winner_side === 'side_b' }">
-                        <span class="p-name">{{ m.p2_name || '...' }}</span>
+                      <div class="m-card-body">
+                        <div class="team-row compact" :class="{ 'is-winner': m.winner_side === 'side_a' }">
+                          <span class="team-name">{{ m.p1_name || '---' }}</span>
+                        </div>
+                        <div class="team-row compact" :class="{ 'is-winner': m.winner_side === 'side_b' }">
+                          <span class="team-name">{{ m.p2_name || '---' }}</span>
+                        </div>
                       </div>
                     </div>
+                    
+                    <div class="connector-line-out" v-if="index < knockoutRounds.length - 1"></div>
                   </div>
-                  
-                  <div class="bracket-line-right" v-if="index < knockoutRounds.length - 1"></div>
                 </div>
               </div>
             </div>
@@ -245,7 +325,6 @@ onMounted(fetchTournaments)
 
       </div>
     </section>
-  </div>
 
   <el-dialog v-model="isDrawDialogOpen" :title="$t('admin.drawOptionsTitle')" width="450px" destroy-on-close>
     <el-form :model="drawForm" label-position="top">
@@ -280,66 +359,360 @@ onMounted(fetchTournaments)
       <el-button type="danger" @click="confirmGeneratePlayoff">{{ $t('admin.generatePlayoffBtn') }}</el-button>
     </template>
   </el-dialog>
+</div>
 </template>
 
 <style scoped>
-/* GENERAL LAYOUT */
-.module-shell { display: grid; gap: 24px; padding: 10px; }
-.action-bar-glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); padding: 20px 24px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
-.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
-.section-kicker { font-size: 0.75rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
-.live-indicator { display: flex; align-items: center; gap: 6px; background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800; padding: 2px 8px; border-radius: 99px; }
-.dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
-@keyframes pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34,197,94,0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34,197,94,0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
-.action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
-.control-group-v2 { display: flex; gap: 12px; align-items: center; }
-.empty-state { text-align: center; color: #94a3b8; font-style: italic; padding: 80px 0; }
-.draw-container { background: transparent; min-height: 600px; }
-.stages-wrapper { display: grid; gap: 40px; }
+/* MODER SAAS LAYOUT */
+.saas-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 10px;
+}
 
-/* STAGE HEADERS */
-.stage-section { background: white; padding: 30px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.02); border: 1px solid #f1f5f9; overflow-x: auto; }
-.stage-header { margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #f1f5f9; }
-.stage-header h3 { margin: 0 0 8px; font-size: 1.4rem; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;}
-.stage-header p { margin: 0; color: #64748b; font-size: 0.95rem; }
-.playoff-header h3 { color: #b91c1c; } /* Nhấn mạnh Playoff màu đỏ đô */
+.saas-action-bar {
+  background: white;
+  padding: 24px 32px;
+  border-radius: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+  border: 1px solid #f1f5f9;
+}
 
-.stage-divider { height: 4px; background: repeating-linear-gradient(90deg, #e2e8f0, #e2e8f0 10px, transparent 10px, transparent 20px); border-radius: 2px; margin: -10px 20px; opacity: 0.6;}
+.page-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 
-/* CARDS COMMON */
-.match-card-premium { background: white; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); overflow: hidden; transition: all 0.3s ease; position: relative; z-index: 2;}
-.match-card-premium:hover { transform: translateY(-3px); border-color: #3b82f6; box-shadow: 0 12px 20px -5px rgba(0,0,0,0.08); }
-.match-top { background: #f8fafc; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
-.m-no { font-size: 0.65rem; font-weight: 800; color: #64748b; text-transform: uppercase;}
-.m-status { font-size: 0.6rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
-.m-status.pending { background: #fff7ed; color: #c2410c; }
-.m-status.completed { background: #f0fdf4; color: #15803d; }
-.m-status.scheduled { background: #eff6ff; color: #1d4ed8; }
-.match-players { padding: 4px; display: grid; gap: 2px; }
-.p-row { padding: 12px 14px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-.p-name { font-size: 0.9rem; font-weight: 600; color: #334155; }
-.is-winner { background: #f0fdf4; }
-.is-winner .p-name { color: #15803d; font-weight: 800; }
-.m-score-inline { font-size: 0.7rem; font-weight: 900; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;}
-.match-footer { background: #f8fafc; padding: 8px 12px; font-size: 0.8rem; color: #475569; border-top: 1px dashed #e2e8f0; text-align: center;}
+.title-icon {
+  width: 48px;
+  height: 48px;
+  background: #eff6ff;
+  color: #2563eb;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
 
-/* GROUP STAGE SPECIFIC */
-.group-board { display: flex; gap: 24px; }
-.group-column { min-width: 280px; display: flex; flex-direction: column; gap: 20px; }
-.matches-list { display: grid; gap: 16px; }
+.page-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
 
-/* PLAYOFF BRACKET SPECIFIC (TREE DESIGN) */
-.bracket-board { display: flex; gap: 60px; padding: 10px 0; }
-.bracket-column { display: flex; flex-direction: column; justify-content: space-around; flex: 1; min-width: 260px; position: relative; }
-.bracket-matches { display: flex; flex-direction: column; justify-content: space-around; flex-grow: 1; gap: 30px;}
-.match-wrapper { position: relative; width: 100%; display: flex; align-items: center;}
-.knockout-card { width: 100%; border: 2px solid #e2e8f0; }
+.page-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: #64748b;
+}
 
-/* CSS TREE CONNECTORS */
-.bracket-line-right { position: absolute; right: -30px; top: 50%; width: 30px; height: 2px; background: #cbd5e1; z-index: 1; }
-.bracket-line-left { position: absolute; left: -30px; top: 50%; width: 30px; height: 2px; background: #cbd5e1; z-index: 1; }
+.control-cluster {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
 
-.round-tag-wrapper { text-align: center; margin-bottom: 24px; }
-.round-tag { background: #f1f5f9; color: #475569; padding: 6px 20px; border-radius: 99px; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; border: 1px solid #e2e8f0; }
-.knockout-tag { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.tournament-selector {
+  width: 280px;
+}
+
+.saas-btn-action {
+  height: 45px;
+  padding: 0 24px;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.saas-btn-action.is-primary {
+  background: #2563eb !important;
+  border: none !important;
+}
+
+.saas-btn-action.is-danger {
+  background: #dc2626 !important;
+  border: none !important;
+}
+
+.saas-btn-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+
+.saas-empty-state {
+  background: white;
+  padding: 80px 0;
+  border-radius: 24px;
+  border: 1px solid #f1f5f9;
+}
+
+.empty-tip {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+/* STAGE BLOCKS */
+.saas-stage-block {
+  background: white;
+  padding: 32px;
+  border-radius: 24px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+  margin-bottom: 32px;
+}
+
+.stage-header-modern {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #f8fafc;
+}
+
+.header-icon {
+  width: 40px;
+  height: 40px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.header-icon.knockout {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.header-text h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.header-text span {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+/* MATCH CARDS */
+.saas-match-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.saas-match-card:hover {
+  border-color: #2563eb;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.04);
+}
+
+.m-card-header {
+  background: #f8fafc;
+  padding: 10px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.m-id {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.m-card-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.team-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fcfcfc;
+  border: 1px solid transparent;
+}
+
+.team-row.is-winner {
+  background: #f0fdf4;
+  border-color: #dcfce7;
+}
+
+.team-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.is-winner .team-name {
+  color: #16a34a;
+}
+
+.win-icon {
+  color: #16a34a;
+  font-size: 18px;
+}
+
+.m-card-footer {
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-top: 1px dashed #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.score-label {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.score-value {
+  color: #1e293b;
+  font-weight: 800;
+}
+
+/* HORIZONTAL SCROLL FOR GROUPS */
+.group-board-horizontal {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+
+.group-lane {
+  min-width: 300px;
+  flex: 0 0 300px;
+}
+
+.lane-header {
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.lane-tag {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 6px 20px;
+  border-radius: 99px;
+  font-weight: 800;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  border: 1px solid #e2e8f0;
+}
+
+.lane-tag.knockout {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.lane-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* BRACKET LAYOUT */
+.bracket-viewport-wrapper {
+  overflow-x: auto;
+  padding: 20px 0;
+}
+
+.bracket-flex-board {
+  display: flex;
+  gap: 80px;
+  min-width: max-content;
+}
+
+.bracket-column-lane {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+}
+
+.bracket-matches-stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  flex-grow: 1;
+  gap: 40px;
+}
+
+.bracket-match-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bracket-card {
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.m-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e2e8f0;
+}
+
+.m-status-dot.completed { background: #16a34a; }
+.m-status-dot.scheduled { background: #2563eb; }
+.m-status-dot.pending { background: #f59e0b; }
+
+/* CONNECTORS */
+.connector-line-in {
+  position: absolute;
+  left: -40px;
+  width: 40px;
+  height: 2px;
+  background: #e2e8f0;
+}
+
+.connector-line-out {
+  position: absolute;
+  right: -40px;
+  width: 40px;
+  height: 2px;
+  background: #e2e8f0;
+}
+
+@media (max-width: 1024px) {
+  .saas-action-bar {
+    flex-direction: column;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  .control-cluster {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .tournament-selector {
+    width: 100%;
+  }
+}
 </style>

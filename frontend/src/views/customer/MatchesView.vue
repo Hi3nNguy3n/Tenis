@@ -360,7 +360,7 @@ onUnmounted(() => {
           <div class="w-body p-0">
             <div class="news-featured" v-if="latestNews.length > 0" @click="openNewsDetail(latestNews[0].slug)">
               <div class="nf-img">
-                <img :src="latestNews[0].thumbnail_url || latestNews[0].media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=400'" />
+                <img :src="latestNews[0].thumbnail_url || latestNews[0].media_url || '/poster-1.jpg'" />
               </div>
               <div class="nf-content">
                 <h4 class="nf-title">{{ latestNews[0].title }}</h4>
@@ -369,7 +369,7 @@ onUnmounted(() => {
             <div class="news-list">
               <div v-for="post in latestNews.slice(1)" :key="post.id" class="news-list-item" @click="openNewsDetail(post.slug)">
                 <div class="nl-thumb">
-                  <img :src="post.thumbnail_url || post.media_url || 'https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150'" />
+                  <img :src="post.thumbnail_url || post.media_url || '/poster-1.jpg'" />
                 </div>
                 <p class="nl-title">{{ post.title }}</p>
               </div>

@@ -68,7 +68,22 @@ export const apiClient = {
     const { method = 'GET', body, headers = {}, includeJson = true, useChatApi = false, ...rest } = options
 
     const baseUrl = useChatApi ? CHAT_API_URL : MAIN_API_URL
-    const url = `${baseUrl}${endpoint}`
+    let url = `${baseUrl}${endpoint}`
+    
+    // Support query parameters in GET/DELETE or any request
+    if (options.params && Object.keys(options.params).length > 0) {
+      const queryParams = new URLSearchParams()
+      Object.entries(options.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, value)
+        }
+      })
+      const queryString = queryParams.toString()
+      if (queryString) {
+        url += (url.includes('?') ? '&' : '?') + queryString
+      }
+    }
+
     const isFormData = body instanceof FormData
     const finalIncludeJson = isFormData ? false : includeJson
 

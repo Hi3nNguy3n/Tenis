@@ -121,7 +121,7 @@ const viewDetail = (id) => {
       
       <aside class="left-sidebar">
         <div class="ad-banner">
-          <img src="/ad-main.jpg" alt="Sponsor Ad" onerror="this.src='https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?auto=format&fit=crop&q=80&w=400'" />
+          <img src="/ad-main.jpg" alt="Sponsor Ad" />
           <div class="ad-content">
             <h4>{{ t('tournaments.appDigitization') }}</h4>
             <p>{{ t('tournaments.experienceSystem') }}</p>
@@ -226,7 +226,7 @@ const viewDetail = (id) => {
 
       <aside class="right-sidebar">
         <div class="ad-banner mini">
-          <img src="/ad-mini.jpg" alt="Sponsor Ad" onerror="this.src='https://images.unsplash.com/photo-1599586120429-48281b6f0ece?auto=format&fit=crop&q=80&w=300'" />
+          <img src="/ad-mini.jpg" alt="Sponsor Ad" />
         </div>
 
         <div class="widget">
@@ -235,7 +235,7 @@ const viewDetail = (id) => {
           </div>
           <div class="widget-body news-list">
             <div v-for="post in latestNews.slice(0, 3)" :key="post.id" class="news-item" @click="$router.push('/news/' + post.slug)">
-              <img :src="post.thumbnail_url || '/poster-1.jpg'" onerror="this.src='https://images.unsplash.com/photo-1595435064214-079678c18789?auto=format&fit=crop&q=80&w=150'" />
+              <img :src="post.thumbnail_url || '/poster-1.jpg'" />
               <p>{{ post.title }}</p>
             </div>
           </div>

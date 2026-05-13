@@ -1,7 +1,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
-import { Document, Search, Timer } from '@element-plus/icons-vue'
+import { 
+  Document, Search, Timer, Monitor, 
+  Connection, User, Calendar, InfoFilled,
+  VideoPlay, ArrowRight, View, Histogram,
+  SuccessFilled as SuccessIcon
+} from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 
 const logs = ref([])
@@ -91,128 +96,251 @@ const translateEvent = (eventName) => {
   }
   return map[eventName] ? t(map[eventName]) : eventName
 }
+
+// Stats for header
+const totalLogs = computed(() => logs.value.length)
+const createCount = computed(() => logs.value.filter(l => l.action_type === 'CREATE').length)
+const updateCount = computed(() => logs.value.filter(l => l.action_type === 'UPDATE').length)
 </script>
 
 <template>
-  <div class="logs-page">
-    <section class="action-bar shadow-sm">
-      <div class="action-info">
-        <span class="section-kicker">{{ $t('admin.auditTrails') }}</span>
-        <p>{{ $t('admin.auditTrailsDesc') }}</p>
+  <div class="saas-container" v-loading="isLoading">
+    <!-- Action Bar -->
+    <section class="saas-header">
+      <div class="header-left">
+        <div class="operation-badge-premium purple">
+          <el-icon class="mr-1"><Monitor /></el-icon>
+          <span>Audit Engine</span>
+        </div>
+        <div class="header-titles">
+          <h2 class="saas-title">{{ $t('admin.auditTrails') }}</h2>
+          <p class="saas-subtitle">{{ $t('admin.auditTrailsDesc') }}</p>
+        </div>
       </div>
-      
-      <div class="hero-actions">
-        <el-select 
-          v-model="filterModule" 
-          :placeholder="$t('admin.filterModulePlaceholder')" 
-          style="width: 220px"
-          @change="fetchLogs"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-          <el-option 
-            v-for="item in modules" 
-            :key="item.value" 
-            :label="item.label" 
-            :value="item.value" 
-          />
-        </el-select>
-        <el-button type="primary" @click="fetchLogs" :icon="Timer">{{ $t('admin.refreshBtn') }}</el-button>
+      <div class="header-right">
+        <div class="saas-filter-cluster">
+          <el-select 
+            v-model="filterModule" 
+            :placeholder="$t('admin.filterModulePlaceholder')" 
+            class="saas-module-filter"
+            @change="fetchLogs"
+          >
+            <template #prefix><el-icon><Search /></el-icon></template>
+            <el-option 
+              v-for="item in modules" 
+              :key="item.value" 
+              :label="item.label" 
+              :value="item.value" 
+            />
+          </el-select>
+          <el-button type="primary" :icon="Timer" @click="fetchLogs" class="saas-btn-action">
+            {{ $t('admin.refreshBtn') }}
+          </el-button>
+        </div>
       </div>
     </section>
 
-    <el-card shadow="never" class="table-card">
-      <el-table :data="displayLogs" v-loading="isLoading" style="width: 100%" row-key="id">
-        <!-- ... (columns remain same) ... -->
+    <!-- Mini Stats Grid -->
+    <div class="saas-stats-grid-mini">
+      <div class="saas-stat-card-mini">
+        <div class="mini-icon p-blue"><el-icon><Histogram /></el-icon></div>
+        <div class="mini-content">
+          <span class="mini-label">Tổng số bản ghi</span>
+          <h4 class="mini-value">{{ totalLogs }}</h4>
+        </div>
+      </div>
+      <div class="saas-stat-card-mini">
+        <div class="mini-icon p-green"><el-icon><SuccessIcon /></el-icon></div>
+        <div class="mini-content">
+          <span class="mini-label">Khởi tạo (CREATE)</span>
+          <h4 class="mini-value">{{ createCount }}</h4>
+        </div>
+      </div>
+      <div class="saas-stat-card-mini">
+        <div class="mini-icon p-orange"><el-icon><VideoPlay /></el-icon></div>
+        <div class="mini-content">
+          <span class="mini-label">Cập nhật (UPDATE)</span>
+          <h4 class="mini-value">{{ updateCount }}</h4>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Content Area -->
+    <main class="saas-content-area">
+      <el-table :data="displayLogs" class="saas-table-premium" row-key="id" stripe>
+        <!-- JSON Details Expanded -->
         <el-table-column type="expand">
           <template #default="props">
-            <div class="expand-detail">
-              <div class="detail-grid">
-                <div class="data-block">
-                  <h4>{{ $t('admin.oldDataTitle') }}</h4>
-                  <pre v-if="props.row.old_data">{{ JSON.stringify(parseJson(props.row.old_data), null, 2) }}</pre>
-                  <span v-else class="text-muted">{{ $t('admin.noData') }}</span>
+            <div class="audit-expand-viewport">
+              <div class="expand-header-saas">
+                <el-icon class="mr-2"><View /></el-icon>
+                <span>Dữ liệu chi tiết sự thay đổi</span>
+              </div>
+              <div class="audit-grid-saas">
+                <div class="audit-block-saas">
+                  <div class="block-label">Dữ liệu cũ (Old Data)</div>
+                  <div class="code-container">
+                    <pre v-if="props.row.old_data">{{ JSON.stringify(parseJson(props.row.old_data), null, 2) }}</pre>
+                    <div v-else class="empty-code">Không có dữ liệu cũ</div>
+                  </div>
                 </div>
                 
-                <div class="data-block">
-                  <h4>{{ $t('admin.newDataTitle') }}</h4>
-                  <pre v-if="props.row.new_data">{{ JSON.stringify(parseJson(props.row.new_data), null, 2) }}</pre>
-                  <span v-else class="text-muted">{{ $t('admin.noData') }}</span>
+                <div class="audit-block-saas">
+                  <div class="block-label highlight">Dữ liệu mới (New Data)</div>
+                  <div class="code-container">
+                    <pre v-if="props.row.new_data">{{ JSON.stringify(parseJson(props.row.new_data), null, 2) }}</pre>
+                    <div v-else class="empty-code">Không có dữ liệu mới</div>
+                  </div>
                 </div>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.timeCol')" width="180">
+        <!-- Time Column -->
+        <el-table-column :label="$t('admin.timeCol')" width="200">
           <template #default="scope">
-            <span class="time-text">{{ formatDateTime(scope.row.created_at) }}</span>
+            <div class="audit-time-box">
+              <el-icon class="mr-1 text-slate-300"><Calendar /></el-icon>
+              <span>{{ formatDateTime(scope.row.created_at) }}</span>
+            </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.userCol')" prop="user_name" width="200">
+        <!-- User Column -->
+        <el-table-column :label="$t('admin.userCol')" width="240">
           <template #default="scope">
-            <strong>{{ scope.row.user_name }}</strong>
-            <div class="ip-text">{{ scope.row.ip_address || 'IP: N/A' }}</div>
+            <div class="audit-user-box">
+              <el-avatar :size="32" class="saas-avatar-mini">{{ scope.row.user_name?.charAt(0) }}</el-avatar>
+              <div class="user-meta">
+                <span class="u-name">{{ scope.row.user_name }}</span>
+                <span class="u-ip">IP: {{ scope.row.ip_address || 'N/A' }}</span>
+              </div>
+            </div>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.moduleCol')" prop="module_name" width="150" />
-
-        <el-table-column :label="$t('admin.actionCol')" width="120">
+        <!-- Module Column -->
+        <el-table-column :label="$t('admin.moduleCol')" width="180">
           <template #default="scope">
-            <el-tag :type="getActionTagType(scope.row.action_type)" effect="dark" size="small">
+            <el-tag size="small" effect="plain" class="saas-module-tag">{{ scope.row.module_name }}</el-tag>
+          </template>
+        </el-table-column>
+
+        <!-- Action Column -->
+        <el-table-column :label="$t('admin.actionCol')" width="140">
+          <template #default="scope">
+            <el-tag :type="getActionTagType(scope.row.action_type)" effect="dark" class="saas-action-badge">
               {{ scope.row.action_type }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.eventDescCol')" min-width="200">
+        <!-- Event Description Column -->
+        <el-table-column :label="$t('admin.eventDescCol')" min-width="250">
           <template #default="scope">
-            {{ translateEvent(scope.row.event_name) }}
+            <span class="event-desc-text">{{ translateEvent(scope.row.event_name) }}</span>
           </template>
         </el-table-column>
-
       </el-table>
 
-      <div class="pagination-footer">
+      <!-- Pagination -->
+      <div class="saas-pagination-wrap">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
-          :page-sizes="[15, 30, 50]"
+          :page-sizes="[15, 30, 50, 100]"
           layout="total, sizes, prev, pager, next"
           :total="logs.length"
           background
         />
       </div>
-    </el-card>
+    </main>
   </div>
 </template>
 
 <style scoped>
-.logs-page { display: grid; gap: 24px; padding: 10px; }
-.action-bar {
-  background: white; padding: 16px 24px; border-radius: 12px;
-  display: flex; justify-content: space-between; align-items: center;
-  border-left: 5px solid #6366f1; border: 1px solid #eef2f6;
-}
-.action-info p { color: #64748b; font-size: 0.9rem; margin: 4px 0 0 0; }
-.hero-actions { display: flex; gap: 12px; }
-.section-kicker { font-size: 0.72rem; font-weight: 800; color: #6366f1; text-transform: uppercase; letter-spacing: 0.05em; }
-.shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.saas-container { display: flex; flex-direction: column; gap: 32px; min-height: 100%; }
 
-.table-card { border-radius: 16px; border: 1px solid #f0f2f2; }
-.pagination-footer { margin-top: 25px; display: flex; justify-content: center; }
-.time-text { color: #4e6073; font-size: 0.9rem; }
-.ip-text { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+/* Action Bar */
+.saas-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.header-left { display: flex; align-items: center; }
 
-/* Khu vực Expand chi tiết JSON */
-.expand-detail { padding: 20px 40px; background: #f8fafc; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
-.data-block h4 { margin: 0 0 10px 0; color: var(--text-dark); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; }
-.data-block pre { 
-  background: #1e293b; color: #a5b4fc; padding: 15px; border-radius: 8px; 
-  font-family: 'Consolas', monospace; font-size: 0.85rem; 
-  white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto;
+.operation-badge-premium {
+  background: #eff6ff; color: #2563eb; padding: 10px 20px; border-radius: 14px;
+  font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+  display: inline-flex; align-items: center; margin-right: 24px;
 }
-.text-muted { color: #94a3b8; font-style: italic; }
+.operation-badge-premium.purple { background: #f5f3ff; color: #7c3aed; }
+
+.header-titles { display: flex; flex-direction: column; gap: 4px; }
+.saas-title { font-size: 1.8rem; font-weight: 900; color: #0f172a; margin: 0; letter-spacing: -0.02em; }
+.saas-subtitle { font-size: 0.95rem; color: #64748b; margin: 0; }
+
+.saas-filter-cluster { display: flex; gap: 12px; }
+.saas-module-filter { width: 220px; }
+
+:deep(.el-input__wrapper), :deep(.el-select__wrapper) {
+  background: #f8fafc !important; border: 1px solid #e2e8f0 !important; border-radius: 12px !important; padding: 10px 16px !important; box-shadow: none !important;
+}
+
+.saas-btn-action { height: 48px !important; border-radius: 12px !important; font-weight: 800 !important; padding: 0 20px !important; }
+
+/* Stats Mini */
+.saas-stats-grid-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
+.saas-stat-card-mini {
+  background: #fff; border-radius: 20px; padding: 20px; display: flex; align-items: center; gap: 16px;
+  border: 1px solid #f1f5f9; transition: all 0.3s;
+}
+.saas-stat-card-mini:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.03); border-color: #e2e8f0; }
+
+.mini-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.mini-icon.p-blue { background: #eff6ff; color: #3b82f6; }
+.mini-icon.p-green { background: #f0fdf4; color: #10b981; }
+.mini-icon.p-orange { background: #fff7ed; color: #f97316; }
+
+.mini-label { font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.mini-value { font-size: 1.25rem; font-weight: 900; color: #1e293b; margin: 2px 0 0; }
+
+/* Table Section */
+.saas-content-area { background: #fff; border-radius: 32px; border: 1px solid #f1f5f9; box-shadow: 0 10px 40px rgba(0,0,0,0.02); overflow: hidden; padding: 10px; }
+
+:deep(.saas-table-premium) { --el-table-border-color: #f1f5f9; border-radius: 24px; overflow: hidden; }
+:deep(.saas-table-premium .el-table__header) { background: #fafafa !important; }
+:deep(.saas-table-premium th.el-table__cell) { background: #fafafa !important; font-weight: 800; color: #64748b; font-size: 0.75rem; text-transform: uppercase; padding: 20px 0; border-bottom: 2px solid #f1f5f9; }
+:deep(.saas-table-premium td.el-table__cell) { padding: 16px 0; }
+
+.audit-time-box { font-size: 0.9rem; font-weight: 600; color: #475569; display: flex; align-items: center; }
+
+.audit-user-box { display: flex; align-items: center; gap: 12px; }
+.saas-avatar-mini { background: #f1f5f9; color: #64748b; font-weight: 800; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+.user-meta { display: flex; flex-direction: column; gap: 2px; }
+.u-name { font-weight: 800; color: #1e293b; font-size: 0.95rem; }
+.u-ip { font-size: 0.75rem; color: #94a3b8; font-family: monospace; }
+
+.saas-module-tag { border-radius: 8px; font-weight: 800; font-size: 0.7rem; letter-spacing: 0.02em; padding: 4px 10px; background: #f8fafc; border: 1px solid #e2e8f0; color: #64748b; }
+.saas-action-badge { border-radius: 8px; font-weight: 900; font-size: 0.7rem; letter-spacing: 0.05em; padding: 4px 12px; min-width: 80px; text-align: center; }
+
+.event-desc-text { font-weight: 600; color: #334155; font-size: 0.9rem; }
+
+/* Expanded Audit Details */
+.audit-expand-viewport { padding: 32px; background: #fafafa; border-radius: 24px; margin: 10px; border: 1px solid #f1f5f9; }
+.expand-header-saas { margin-bottom: 24px; display: flex; align-items: center; font-weight: 900; color: #1e293b; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.audit-grid-saas { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.audit-block-saas { display: flex; flex-direction: column; gap: 12px; }
+
+.block-label { font-size: 0.75rem; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; display: flex; align-items: center; gap: 8px; }
+.block-label.highlight { color: #2563eb; }
+
+.code-container { background: #0f172a; border-radius: 20px; padding: 24px; border: 1px solid #1e293b; box-shadow: inset 0 2px 10px rgba(0,0,0,0.2); }
+.code-container pre { margin: 0; color: #38bdf8; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; }
+.empty-code { color: #475569; font-style: italic; font-size: 0.9rem; text-align: center; padding: 20px 0; }
+
+.saas-pagination-wrap { padding: 32px; display: flex; justify-content: center; background: #fff; border-top: 1px solid #f1f5f9; }
+
+/* Utility */
+.mr-1 { margin-right: 4px; }
+.mr-2 { margin-right: 8px; }
+.text-slate-300 { color: #cbd5e1; }
 </style>
