@@ -42,7 +42,8 @@ const login = async () => {
     })
 
     if (!response.ok) {
-      errorMessage.value = 'Đăng nhập thất bại. Sai tài khoản hoặc mật khẩu.'
+      const errorData = await response.json()
+      errorMessage.value = errorData.detail || 'Đăng nhập thất bại. Sai tài khoản hoặc mật khẩu.'
       return
     }
 
