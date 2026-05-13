@@ -14,6 +14,12 @@ export const playerService = {
   async getMatchHistory() {
     return apiClient.get('/api/players/me/history')
   },
+  async getMatchHistoryAdmin(playerId) {
+    return apiClient.get(`/api/players/${playerId}/history`)
+  },
+  async getTournamentsAdmin(playerId) {
+    return apiClient.get(`/api/players/${playerId}/tournaments`)
+  },
   async updateMe(data) {
     return apiClient.put('/api/players/me', data)
   },

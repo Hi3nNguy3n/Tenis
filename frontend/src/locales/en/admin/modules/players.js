@@ -45,5 +45,14 @@ export default {
   intermediate: 'Intermediate',
   advanced: 'Advanced',
   professional: 'Professional',
-  avatarUrl: 'Avatar URL'
+  avatarUrl: 'Avatar URL',
+  matchHistory: 'Match History',
+  tournamentsParticipated: 'Participated Tournaments',
+  matchDetail: 'Match Details',
+  finalScore: 'Final Score',
+  winner: 'Winner',
+  setsScore: 'Set Scores',
+  self: 'Self',
+  noMatchData: 'No match history available',
+  noTournamentData: 'No tournaments joined yet'
 }

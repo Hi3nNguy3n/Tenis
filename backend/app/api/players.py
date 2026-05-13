@@ -179,6 +179,75 @@ def upload_avatar_to_cloudinary(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi tải ảnh lên Cloudinary: {str(e)}")
     
+@router.get("/{player_id}/history", dependencies=[Depends(get_current_admin)])
+def get_player_match_history_admin(
+    player_id: int, 
+    db: Session = Depends(get_db)
+):
+    try:
+        reg_ids = crud_player.get_player_registrations(db, player_id)
+        matches_data = crud_player.get_matches_by_registrations(db, reg_ids)
+
+        results = []
+        for m, t, c in matches_data:
+            is_side_a = m.side_a_registration_id in reg_ids
+            opponent_reg_id = m.side_b_registration_id if is_side_a else m.side_a_registration_id
+            
+            opponent_name = "Đang chờ đối thủ"
+            if opponent_reg_id:
+                opp_user = crud_player.get_opponent_user_by_reg_id(db, opponent_reg_id)
+                opponent_name = opp_user.full_name if opp_user else "VĐV"
+
+            result_status = "Đang chờ"
+            if m.status == "completed":
+                my_side = "side_a" if is_side_a else "side_b"
+                result_status = "THẮNG" if m.winner_side == my_side else "THUA"
+
+            results.append({
+                "id": m.id,
+                "tournament_name": t.name,
+                "round": m.round_code,
+                "opponent": opponent_name,
+                "score": m.result_note or m.score_summary or "- / -",
+                "status": m.status,
+                "result_status": result_status,
+                "court": c.court_name if c else "N/A",
+                "time": m.start_time.strftime("%d/%m/%Y %H:%M") if m.start_time else "TBD",
+                # Breakdown scores
+                "sets": {
+                    "set1": {"a": m.set1_a, "b": m.set1_b},
+                    "set2": {"a": m.set2_a, "b": m.set2_b},
+                    "set3": {"a": m.set3_a, "b": m.set3_b}
+                },
+                "winner_side": m.winner_side
+            })
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi truy vấn lịch sử: {str(e)}")
+
+@router.get("/{player_id}/tournaments", dependencies=[Depends(get_current_admin)])
+def get_player_tournaments_admin(
+    player_id: int, 
+    db: Session = Depends(get_db)
+):
+    try:
+        from app.crud import crud_registration
+        registrations = crud_registration.get_registrations_by_player(db, player_id)
+        
+        results = []
+        for reg, tourn in registrations:
+            results.append({
+                "id": reg.id,
+                "tournament_id": tourn.id,
+                "tournament_name": tourn.name,
+                "status": reg.status,
+                "payment_status": reg.payment_status,
+                "registered_at": reg.registered_at.strftime("%d/%m/%Y %H:%M") if reg.registered_at else "N/A"
+            })
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi truy vấn giải đấu: {str(e)}")
+
 # 2. API Lấy hồ sơ công khai của 1 người
 @router.get("/{player_id}", response_model=PlayerPublicResponse)
 def get_public_profile(player_id: int, db: Session = Depends(get_db)):

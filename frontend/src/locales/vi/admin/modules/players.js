@@ -49,5 +49,14 @@ export default {
   totalPlayers: 'Tổng số VĐV',
   activePlayers: 'Đang hoạt động',
   newPlayers: 'Đăng ký tháng này',
-  topElo: 'VĐV top đầu'
+  topElo: 'VĐV top đầu',
+  matchHistory: 'Lịch sử thi đấu',
+  tournamentsParticipated: 'Giải đấu tham gia',
+  matchDetail: 'Chi tiết trận đấu',
+  finalScore: 'Tỷ số chung cuộc',
+  winner: 'Người thắng',
+  setsScore: 'Tỷ số các hiệp',
+  self: 'Bản thân',
+  noMatchData: 'Chưa có dữ liệu thi đấu',
+  noTournamentData: 'Chưa tham gia giải đấu nào'
 }
