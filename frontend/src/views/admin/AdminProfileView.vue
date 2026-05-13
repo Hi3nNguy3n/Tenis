@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { 
-  User, Mail, Shield, IDCard, 
+  User, Message, Lock, Postcard, 
   Monitor, Connection, ArrowLeft,
   CircleCheckFilled, Setting, Key
 } from '@element-plus/icons-vue'
@@ -35,7 +35,7 @@ onMounted(() => {
     <section class="saas-header">
       <div class="header-left">
         <div class="operation-badge-premium orange">
-          <el-icon class="mr-1"><Shield /></el-icon>
+          <el-icon class="mr-1"><Lock /></el-icon>
           <span>Security & Identity</span>
         </div>
         <div class="header-titles">
@@ -71,7 +71,7 @@ onMounted(() => {
         
         <div class="saas-card-premium">
           <div class="card-header-saas">
-            <el-icon class="mr-2"><IDCard /></el-icon>
+            <el-icon class="mr-2"><Postcard /></el-icon>
             <span>Thông tin định danh</span>
           </div>
           
@@ -79,7 +79,7 @@ onMounted(() => {
             <div class="info-item-saas">
               <span class="info-label">Email Address</span>
               <div class="info-value-box">
-                <el-icon><Mail /></el-icon>
+                <el-icon><Message /></el-icon>
                 <strong>{{ authStore.profile?.user_info?.email || authStore.user?.email || 'N/A' }}</strong>
               </div>
             </div>
@@ -95,7 +95,7 @@ onMounted(() => {
             <div class="info-item-saas">
               <span class="info-label">Access Level</span>
               <div class="info-value-box">
-                <el-icon><Shield /></el-icon>
+                <el-icon><Lock /></el-icon>
                 <strong>{{ authStore.profile?.user_info?.role_id || authStore.roleId || 'N/A' }} (Administrator)</strong>
               </div>
             </div>
