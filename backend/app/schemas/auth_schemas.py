@@ -38,4 +38,6 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user_id: Optional[int] = None
     full_name: Optional[str] = None
+    role_id: Optional[int] = None
+    account_type: Optional[str] = None
     role_key: Optional[str] = None
