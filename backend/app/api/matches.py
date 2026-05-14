@@ -65,6 +65,8 @@ def list_matches(
             "tournament": display_name,
             "court": c.court_name if c else "Chưa gán sân",
             "court_id": m.court_id,
+            "tournament_start_date": t.start_date.isoformat() if t and t.start_date else None,
+            "tournament_end_date": t.end_date.isoformat() if t and t.end_date else None,
             "date": m.match_date.isoformat() if m.match_date else None,
             
             # Phục vụ trang Điều phối (Match Control) - Dùng ISO format
@@ -107,5 +109,19 @@ def create_match(
         }
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{match_id}")
+def delete_match(
+    match_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    try:
+        crud_match.cancel_match(db, match_id)
+        return {"message": "Đã hủy trận đấu thành công!"}
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

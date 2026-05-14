@@ -72,4 +72,17 @@ export default {
   chooseCourtAndTime: 'Please select a court and time',
   updateScheduleSuccess: 'Schedule updated successfully',
   updateError: 'Update error: ',
+  
+  // New unified keys
+  round: 'Round',
+  update: 'Update',
+  updateSchedule: 'Update Match Schedule',
+  allocateMatch: 'Allocate Match',
+  assignCourt: 'Assign Court',
+  matchTime: 'Match Time',
+  cancel: 'Cancel',
+  confirm: 'Confirm',
+  ongoingMatches: 'Ongoing Matches',
+  scheduledMatches: 'Scheduled Matches',
+  completedMatches: 'Completed Matches',
 }

@@ -6,8 +6,8 @@ from datetime import datetime
 
 from app.db.database import get_db, SessionLocal
 from app.api.deps import get_current_user, get_current_admin
-from app.models.models import User, Registration, Tournament, Player
-from app.crud import crud_registration, crud_player # Import crud_player
+from app.models.models import User, Registration, Tournament, Player, Payment
+from app.crud import crud_registration, crud_player
 from app.schemas import registration_schemas
 from app.core.qr_generator import generate_registration_qr
 
@@ -84,7 +84,8 @@ def admin_get_all_registrations(
         item.tournament_name = tourn.name
         item.location = tourn.location
         item.player_name = user.full_name
-        item.tournament_date = tourn.start_date
+        item.tournament_date = tourn.start_date.isoformat() if tourn.start_date else None
+        item.registered_at = reg.registered_at.isoformat() if reg.registered_at else None
         item.category_type = tourn.category_type
         item.entry_fee = float(tourn.entry_fee) if tourn.entry_fee else 0
         item.player_phone = user.phone
@@ -109,16 +110,59 @@ def admin_check_in(registration_id: int, db: Session = Depends(get_db)):
     
     if info == "not_found":
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
-    if info == "not_paid":
-        raise HTTPException(status_code=400, detail="Đơn này chưa thanh toán, không thể check-in.")
     
     return {
-        "message": "Vận động viên đã check-in thành công!", 
-        "player_id": reg.player_id,
+        "status": info["status"],
+        "registration_id": reg.id,
         "player_name": info["user"].full_name,
         "tournament_name": info["tourn"].name,
-        "location": info["tourn"].location
+        "location": info["tourn"].location,
+        "entry_fee": info["entry_fee"]
     }
+
+# 8. ADMIN THU TIỀN MẶT & CHECK-IN TẠI CHỖ
+@router.post("/{registration_id}/pay-and-check-in")
+def admin_pay_and_check_in(
+    registration_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    reg = db.query(Registration).filter(Registration.id == registration_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
+        
+    tourn = db.query(Tournament).filter(Tournament.id == reg.tournament_id).first()
+    player = db.query(Player).filter(Player.id == reg.player_id).first()
+    user = db.query(User).filter(User.id == player.user_id).first()
+
+    try:
+        # 1. Tạo bản ghi Thanh toán Tiền mặt
+        new_payment = Payment(
+            registration_id=reg.id,
+            amount=(tourn.entry_fee_team if reg.registrant_type == "team" else tourn.entry_fee) if tourn else 0,
+            currency="VND",
+            payment_method="cash_onsite",
+            status="completed",
+            transaction_ref=f"CASH-ADM{current_admin.id}-{int(datetime.utcnow().timestamp())}",
+            paid_at=datetime.utcnow()
+        )
+        db.add(new_payment)
+        
+        # 2. Cập nhật Đăng ký
+        reg.payment_status = "paid"
+        reg.status = "checked_in"
+        reg.notes = (reg.notes or "") + f" | Admin {current_admin.full_name} thu tiền mặt & Check-in lúc {datetime.utcnow()}"
+        
+        db.commit()
+        
+        return {
+            "message": "Đã thu tiền và check-in thành công!",
+            "player_name": user.full_name,
+            "amount": float(tourn.entry_fee) if tourn and tourn.entry_fee else 0
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xử lý giao dịch: {str(e)}")
 
 @router.post("/{registration_id}/confirm", dependencies=[Depends(get_current_admin)])
 def admin_confirm_registration(

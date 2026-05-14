@@ -155,7 +155,7 @@ export const adminModules = [
     description: 'Truy vết các thay đổi dữ liệu và thao tác của quản trị viên trên toàn hệ thống.',
     highlights: ['Truy vết JSON', 'IP Address Tracker', 'Action Type Filter'],
   },
-  {
+/*   {
     path: 'daily-schedule',
     name: 'admin-daily-schedule',
     label: 'Lịch thi đấu ngày',
@@ -177,7 +177,7 @@ export const adminModules = [
     description: 'Giao diện lịch theo tháng giúp theo dõi mật độ các trận đấu.',
     highlights: ['Monthly View', 'Match Density', 'Status Tracking'],
   },
-  {
+ */  {
     path: 'news',
     name: 'admin-news',
     label: 'Tin tức',
