@@ -23,9 +23,15 @@ const handleCheckIn = async () => {
   let id = registrationId.value.trim()
   if (!id) return
   
-  // Hỗ trợ người dùng nhập cả tiền tố STT_REG_
   if (id.toUpperCase().startsWith('STT_REG_')) {
     id = id.substring(8)
+  }
+
+  // Kiểm tra tính hợp lệ: ID phải là số
+  if (!/^\d+$/.test(id)) {
+    error.value = 'Mã đăng ký không hợp lệ. Vui lòng nhập số ID chính xác.'
+    ElMessage.error(error.value)
+    return
   }
   
   isLoading.value = true
@@ -33,16 +39,48 @@ const handleCheckIn = async () => {
   checkInData.value = null
   
   try {
-    // API scan check-in
     const result = await apiClient.post(`/api/registrations/${id}/check-in`)
     checkInData.value = result
-    ElMessage.success(t('admin.checkInSuccess'))
-    registrationId.value = '' // Clear for next scan
+    
+    if (result.status === 'success') {
+      ElMessage.success(t('admin.checkInSuccess'))
+    } else if (result.status === 'requires_payment') {
+      ElMessage.warning('VĐV chưa thanh toán lệ phí')
+    } else if (result.status === 'already_checked_in') {
+      ElMessage.info('VĐV đã có mặt từ trước')
+    }
+    
+    registrationId.value = '' 
   } catch (err) {
-    error.value = err.response?.data?.detail || err.message || t('admin.checkInError')
-    ElMessage.error(error.value)
+    let msg = err.response?.data?.detail || err.message || t('admin.checkInError')
+    
+    // Nếu lỗi trả về là mảng (FastAPI validation errors)
+    if (Array.isArray(msg)) {
+      msg = msg.map(e => e.msg).join(', ')
+    } else if (typeof msg === 'object') {
+      msg = JSON.stringify(msg)
+    }
+    
+    error.value = msg
+    ElMessage.error(msg)
   } finally {
     isLoading.value = false
+  }
+}
+
+const isProcessingPayment = ref(false)
+const handlePayAndCheckIn = async () => {
+  if (!checkInData.value) return
+  
+  isProcessingPayment.value = true
+  try {
+    const res = await apiClient.post(`/api/registrations/${checkInData.value.registration_id}/pay-and-check-in`)
+    ElMessage.success(res.message)
+    checkInData.value.status = 'success'
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || 'Lỗi khi xử lý thanh toán')
+  } finally {
+    isProcessingPayment.value = false
   }
 }
 
@@ -152,12 +190,22 @@ const handleFileUpload = (event) => {
       <!-- Right Column: Result -->
       <div class="saas-card-premium result-block">
         <div class="result-viewport">
-          <!-- Success State -->
+          <!-- Success / Requires Payment / Already Checked-in States -->
           <div v-if="checkInData" class="status-result success-anim">
-            <div class="status-icon-wrapper p-green">
-              <el-icon><SuccessFilled /></el-icon>
+            <div class="status-icon-wrapper" :class="{ 
+              'p-green': checkInData.status === 'success' || checkInData.status === 'already_checked_in', 
+              'p-orange': checkInData.status === 'requires_payment' 
+            }">
+              <el-icon v-if="checkInData.status === 'success'"><SuccessFilled /></el-icon>
+              <el-icon v-else-if="checkInData.status === 'already_checked_in'"><Checked /></el-icon>
+              <el-icon v-else><WarningFilled /></el-icon>
             </div>
-            <h3 class="status-title">{{ $t('admin.checkInSuccess') }}</h3>
+
+            <h3 class="status-title" :class="{ 'is-warning': checkInData.status === 'requires_payment' }">
+              <span v-if="checkInData.status === 'success'">{{ $t('admin.checkInSuccess') }}</span>
+              <span v-else-if="checkInData.status === 'already_checked_in'">Đã Check-in từ trước</span>
+              <span v-else>Cần Thu Lệ Phí</span>
+            </h3>
             
             <div class="result-details-stack">
               <div class="detail-item-saas">
@@ -168,15 +216,28 @@ const handleFileUpload = (event) => {
                 <div class="di-label"><el-icon><Trophy /></el-icon> {{ $t('admin.tournamentLabel') }}</div>
                 <div class="di-value">{{ checkInData.tournament_name }}</div>
               </div>
-              <div class="detail-item-saas">
-                <div class="di-label"><el-icon><Location /></el-icon> {{ $t('admin.locationLabel') }}</div>
-                <div class="di-value">{{ checkInData.location }}</div>
+              <div v-if="checkInData.status === 'requires_payment'" class="detail-item-saas payment-highlight">
+                <div class="di-label"><el-icon><Pointer /></el-icon> Lệ phí cần thu</div>
+                <div class="di-value price-tag">{{ checkInData.entry_fee?.toLocaleString() }} đ</div>
               </div>
             </div>
 
-            <div class="success-footer-tip">
+            <div v-if="checkInData.status === 'requires_payment'" class="payment-action-box">
+              <p class="payment-tip">VĐV cần đóng tiền mặt để hoàn tất Check-in</p>
+              <el-button 
+                type="primary" 
+                size="large" 
+                class="saas-btn-pay" 
+                :loading="isProcessingPayment"
+                @click="handlePayAndCheckIn"
+              >
+                Xác nhận Thu tiền & Check-in
+              </el-button>
+            </div>
+
+            <div v-else class="success-footer-tip">
               <el-icon class="mr-2"><Checked /></el-icon>
-              <span>{{ $t('admin.playerPresentTip') }}</span>
+              <span>{{ checkInData.status === 'already_checked_in' ? 'VĐV này đã có mặt tại giải đấu' : $t('admin.playerPresentTip') }}</span>
             </div>
           </div>
 
@@ -343,6 +404,14 @@ const handleFileUpload = (event) => {
 @media (max-width: 1024px) {
   .checkin-grid-premium { grid-template-columns: 1fr; }
 }
+
+.status-icon-wrapper.p-orange { background: #fff7ed; color: #f97316; border: 4px solid #ffedd5; }
+.status-title.is-warning { color: #f97316; }
+.payment-highlight { background: #fff7ed !important; border-radius: 12px; padding: 12px !important; margin-top: 8px; border: 1px dashed #fdba74 !important; }
+.price-tag { color: #f97316; font-size: 1.3rem; font-weight: 900; }
+.payment-action-box { width: 100%; display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+.payment-tip { font-size: 0.85rem; color: #94a3b8; font-weight: 600; margin: 0; }
+.saas-btn-pay { height: 56px !important; border-radius: 16px !important; font-weight: 900 !important; width: 100%; font-size: 1rem !important; box-shadow: 0 10px 20px rgba(249, 115, 22, 0.2) !important; background: #f97316 !important; border: none !important; }
 
 .mr-1 { margin-right: 4px; }
 .mr-2 { margin-right: 8px; }

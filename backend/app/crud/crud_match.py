@@ -61,3 +61,14 @@ def create_manual_match(db, match_data):
     db.commit()
     db.refresh(new_match)
     return new_match
+
+def cancel_match(db: Session, match_id: int):
+    """Cập nhật trạng thái trận đấu thành canceled"""
+    match = db.query(Match).filter(Match.id == match_id).first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu")
+    
+    match.status = "canceled"
+    db.commit()
+    db.refresh(match)
+    return match

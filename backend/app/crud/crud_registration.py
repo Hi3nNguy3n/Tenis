@@ -77,18 +77,36 @@ def admin_cancel_registration(db: Session, registration_id: int):
 
 def admin_check_in_registration(db: Session, registration_id: int):
     reg = db.query(Registration).filter(Registration.id == registration_id).first()
-    if not reg: return None, "not_found"
-    if reg.payment_status != "paid": return None, "not_paid"
-    
-    reg.notes = (reg.notes or "") + f" | Checked-in at {datetime.utcnow()}"
-    reg.status = "checked_in"
+    if not reg: 
+        return None, "not_found"
     
     tourn = db.query(Tournament).filter(Tournament.id == reg.tournament_id).first()
     player = db.query(Player).filter(Player.id == reg.player_id).first()
     user = db.query(User).filter(User.id == player.user_id).first()
     
+    info = {
+        "user": user, 
+        "tourn": tourn,
+        "entry_fee": float(tourn.entry_fee) if tourn and tourn.entry_fee else 0
+    }
+
+    # Trường hợp chưa thanh toán
+    if reg.payment_status != "paid":
+        info["status"] = "requires_payment"
+        return reg, info
+    
+    # Trường hợp đã check-in rồi
+    if reg.status == "checked_in":
+        info["status"] = "already_checked_in"
+        return reg, info
+        
+    # Trường hợp hợp lệ -> Thực hiện check-in
+    reg.notes = (reg.notes or "") + f" | Checked-in at {datetime.utcnow()}"
+    reg.status = "checked_in"
     db.commit()
-    return reg, {"user": user, "tourn": tourn}
+    
+    info["status"] = "success"
+    return reg, info
 
 def update_registration_qr_url(db: Session, reg_id: int, url: str):
     r = db.query(Registration).filter(Registration.id == reg_id).first()

@@ -507,7 +507,7 @@ const selectTab = (tab) => {
                 </div>
                 <div class="atp-ticket-stub">
                   <div class="stub-qr-box">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=SAIGONTENNIS" alt="QR Code" />
+                    <img :src="reg.qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=STT_REG_${reg.id}`" alt="QR Code" />
                   </div>
                   <span class="stub-label">Mã đăng ký</span>
                   <code>#{{ reg.id.toString().slice(-8).toUpperCase() }}</code>

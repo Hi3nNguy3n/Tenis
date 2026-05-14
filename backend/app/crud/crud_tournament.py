@@ -269,6 +269,8 @@ def get_all_matches_detail(db: Session):
             "id": m.id,
             "tournament_id": t.id,
             "tournament": t.name,
+            "tournament_start_date": t.start_date.isoformat() if t.start_date else None,
+            "tournament_end_date": t.end_date.isoformat() if t.end_date else None,
             "location": t.location or "Vietnam",
             "round_code": m.round_code,
             "court": c.court_name if c else "Chưa gán sân",
