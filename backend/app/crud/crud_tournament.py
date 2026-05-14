@@ -291,7 +291,16 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload):
     if not match or match.status == "completed":
         raise HTTPException(status_code=400, detail="Trận đấu không tồn tại hoặc đã kết thúc.")
 
-    # 2. LOGIC MỚI: Xác định Player ID linh hoạt dựa trên loại trận đấu
+    # 0. Kiểm tra xem trận đấu có được phép tính ELO không
+    if not getattr(match, 'elo_affected', False):
+        # Nếu không tính ELO, chúng ta chỉ cập nhật trạng thái trận đấu
+        match.status = "completed"
+        match.score_summary = payload.score
+        match.winner_side = payload.winner_side
+        db.commit()
+        return {"message": "Cập nhật tỷ số thành công (Không tính ELO)"}
+
+    # 1. LẤY PLAYER ID CỦA 2 BÊN
     p1_id = None
     p2_id = None
 
@@ -301,12 +310,16 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload):
         reg_b = db.query(Registration).filter(Registration.id == match.side_b_registration_id).first()
         if reg_a: p1_id = reg_a.player_id
         if reg_b: p2_id = reg_b.player_id
+        
+        # Fallback: Nếu không tìm thấy qua Registration, lấy trực tiếp từ match (cho các trận tạo thủ công)
+        if not p1_id: p1_id = match.player_a_id
+        if not p2_id: p2_id = match.player_b_id
     else:
         # Trường hợp trận GIAO HỮU: Lấy trực tiếp từ player_a_id và player_b_id
         p1_id = match.player_a_id
         p2_id = match.player_b_id
 
-    # 3. Kiểm tra tính đầy đủ của 2 vận động viên[cite: 33]
+    # 3. Kiểm tra tính đầy đủ của 2 vận động viên
     if not p1_id or not p2_id:
         raise HTTPException(status_code=400, detail="Trận đấu phải có đủ 2 VĐV mới tính được điểm Elo.")
 
@@ -349,16 +362,23 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload):
     # 7. Xử lý logic thăng hạng nếu là trận đấu giải[cite: 33]
     message_suffix = ""
     if match.tournament_id:
-        if match.round_code == "FINAL":
+        # Kiểm tra xem còn trận đấu nào chưa xong không
+        remaining_matches = db.query(Match).filter(
+            Match.tournament_id == match.tournament_id,
+            Match.id != match.id, # Trừ trận hiện tại vừa xong
+            Match.status.in_(["pending", "scheduled", "ongoing"])
+        ).count()
+
+        if remaining_matches == 0:
             tournament = db.query(Tournament).filter(Tournament.id == match.tournament_id).first()
-            if tournament:
+            if tournament and tournament.status != "finished":
                 tournament.status = "finished"
-                # Cập nhật ID của nhà vô địch vào giải đấu
-                if hasattr(tournament, 'winner_player_id'):
+                # Cập nhật ID nhà vô địch nếu là trận Chung kết
+                if match.round_code in ["FINAL", "F"] and hasattr(tournament, 'winner_player_id'):
                     tournament.winner_player_id = winner_p.id
-                message_suffix = f" Chúc mừng nhà vô địch {winner_p.full_name if hasattr(winner_p, 'full_name') else winner_p.id}!"
+                message_suffix = f" Giải đấu đã chính thức khép lại. Chúc mừng {winner_p.full_name if hasattr(winner_p, 'full_name') else winner_p.id}!"
         else:
-            # Tự động đẩy người thắng vào trận đấu tiếp theo trong sơ đồ[cite: 33]
+            # Tự động đẩy người thắng vào trận đấu tiếp theo trong sơ đồ
             if match.next_match_id:
                 next_m = db.query(Match).filter(Match.id == match.next_match_id).first()
                 if next_m:
@@ -768,3 +788,27 @@ def generate_playoff_draw(db: Session, tournament_id: int, advancers_per_group: 
 
     db.commit()
     return {"message": f"Đã chốt sổ Vòng bảng và tạo {len(match_pairs)} trận Playoff thành công!"}
+
+def auto_update_tournament_statuses(db: Session):
+    """Hàm chạy ngầm để quét và cập nhật trạng thái giải đấu dựa trên thời gian thực tế."""
+    today = datetime.utcnow().date()
+    
+    # 1. Chuyển từ 'open' sang 'ongoing' nếu đã đến ngày khai mạc
+    open_tours = db.query(Tournament).filter(
+        Tournament.status == "open",
+        Tournament.start_date <= today
+    ).all()
+    for tour in open_tours:
+        tour.status = "ongoing"
+        
+    # 2. Chuyển sang 'finished' nếu quá ngày kết thúc
+    # Chỉ quét các giải đang mở hoặc đang diễn ra mà đã quá hạn
+    past_tours = db.query(Tournament).filter(
+        Tournament.status.in_(["open", "ongoing"]),
+        Tournament.end_date < today
+    ).all()
+    for tour in past_tours:
+        tour.status = "finished"
+        
+    db.commit()
+    return len(open_tours) + len(past_tours)

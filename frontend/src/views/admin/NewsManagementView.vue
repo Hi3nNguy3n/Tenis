@@ -1,11 +1,11 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DocumentAdd, Edit, Delete, Picture, View } from '@element-plus/icons-vue'
+import { DocumentAdd, Edit, Delete, Picture } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
-import { QuillEditor } from '@vueup/vue-quill'
-import '@vueup/vue-quill/dist/vue-quill.snow.css'
+import Quill from 'quill'
+import 'quill/dist/quill.snow.css'
 
 const posts = ref([])
 const isLoading = ref(false)
@@ -17,13 +17,18 @@ const isSaving = ref(false)
 const isEditMode = ref(false)
 const isUploading = ref(false)
 
+const editorRef = ref(null)
+let quillInstance = null
+
 const form = ref({
   id: null,
   title: '',
+  summary: '',
   content: '',
   category: 'announcement',
   status: 'published',
-  thumbnail_url: ''
+  thumbnail_url: '',
+  tags: []
 })
 
 const imageHandler = () => {
@@ -46,37 +51,66 @@ const imageHandler = () => {
         includeJson: false
       })
       
-      const quill = document.querySelector('.ql-editor').__quill
-      const range = quill.getSelection()
-      quill.insertEmbed(range.index, 'image', res.url)
+      const range = quillInstance.getSelection()
+      if (range) {
+        quillInstance.insertEmbed(range.index, 'image', res.url)
+      } else {
+        quillInstance.insertEmbed(quillInstance.getLength(), 'image', res.url)
+      }
     } catch (err) {
       ElMessage.error(t('admin.uploadError') || 'Upload failed')
     }
   }
 }
 
-const quillToolbar = [
-  ['bold', 'italic', 'underline', 'strike'],
-  ['blockquote', 'code-block'],
-  [{ 'header': 1 }, { 'header': 2 }],
-  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-  [{ 'indent': '-1'}, { 'indent': '+1' }],
-  [{ 'size': ['small', false, 'large', 'huge'] }],
-  [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-  [{ 'color': [] }, { 'background': [] }],
-  [{ 'align': [] }],
-  ['clean'],
-  ['link', 'image', 'video']
-]
+const initQuill = () => {
+  if (!editorRef.value) return
 
-const quillModules = {
-  toolbar: {
-    container: quillToolbar,
-    handlers: {
-      image: imageHandler
+  quillInstance = new Quill(editorRef.value, {
+    theme: 'snow',
+    placeholder: 'Nhập nội dung bài viết...',
+    modules: {
+      toolbar: {
+        container: [
+          ['bold', 'italic', 'underline', 'strike'],
+          ['blockquote', 'code-block'],
+          [{ 'header': 1 }, { 'header': 2 }],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          [{ 'indent': '-1'}, { 'indent': '+1' }],
+          [{ 'size': ['small', false, 'large', 'huge'] }],
+          [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+          [{ 'color': [] }, { 'background': [] }],
+          [{ 'align': [] }],
+          ['clean'],
+          ['link', 'image', 'video']
+        ],
+        handlers: {
+          image: imageHandler
+        }
+      }
     }
+  })
+
+  // Set initial content
+  if (form.value.content) {
+    quillInstance.root.innerHTML = form.value.content
   }
+
+  // Sync content back to form
+  quillInstance.on('text-change', () => {
+    form.value.content = quillInstance.root.innerHTML
+  })
 }
+
+// Watch for dialog open to re-init Quill
+watch(isDialogOpen, async (newVal) => {
+  if (newVal) {
+    await nextTick()
+    initQuill()
+  } else {
+    quillInstance = null
+  }
+})
 
 const categories = computed(() => [
   { label: t('admin.announcement'), value: 'announcement' },
@@ -100,12 +134,6 @@ const fetchPosts = async () => {
     posts.value = data
   } catch (err) {
     console.error('Fetch News Error:', err)
-    if (err.message.includes('404')) {
-      posts.value = [
-        { id: 1, title: 'Saigon Open 2026 Opening', category: 'announcement', status: 'published', views: 120, created_at: '2026-04-15' },
-        { id: 2, title: 'Highlight: A vs B', category: 'highlight', status: 'draft', views: 0, created_at: '2026-04-16' }
-      ]
-    }
   } finally {
     isLoading.value = false
   }
@@ -113,7 +141,7 @@ const fetchPosts = async () => {
 
 const openCreateDialog = () => {
   isEditMode.value = false
-  form.value = { id: null, title: '', content: '', category: 'announcement', status: 'published', thumbnail_url: '' }
+  form.value = { id: null, title: '', summary: '', content: '', category: 'announcement', status: 'published', thumbnail_url: '', tags: [] }
   isDialogOpen.value = true
 }
 
@@ -141,17 +169,17 @@ const handleThumbnailUpload = async (event) => {
     form.value.thumbnail_url = res.url 
     ElMessage.success(t('admin.uploadSuccess') || 'Upload successful!')
   } catch (err) {
-    ElMessage.error(t('admin.uploadError') || 'Upload failed: ' + (err.message || 'Server error'))
+    ElMessage.error(t('admin.uploadError') || 'Upload failed')
   } finally {
     isUploading.value = false 
     event.target.value = '' 
   }
 }
 
-
-
 const savePost = async () => {
-  if (!form.value.title || !form.value.content) {
+  const isContentEmpty = !form.value.content || form.value.content === '<p><br></p>' || form.value.content.trim() === ''
+  
+  if (!form.value.title || isContentEmpty) {
     return ElMessage.warning(t('admin.inputRequired'))
   }
 
@@ -271,15 +299,18 @@ onMounted(fetchPosts)
               <el-input v-model="form.title" placeholder="..." size="large" />
             </el-form-item>
 
+            <el-form-item :label="$t('admin.postSummaryLabel')">
+              <el-input 
+                v-model="form.summary" 
+                type="textarea" 
+                :rows="2" 
+                placeholder="Nhập tóm tắt ngắn (hiển thị ở trang danh sách tin tức)..." 
+              />
+            </el-form-item>
+
             <el-form-item :label="$t('admin.postContentLabel')" required>
               <div class="editor-wrapper">
-                <QuillEditor 
-                  v-model:content="form.content" 
-                  contentType="html"
-                  theme="snow"
-                  :modules="quillModules"
-                  placeholder="Nhập nội dung bài viết..."
-                />
+                <div ref="editorRef" style="height: 400px;"></div>
               </div>
             </el-form-item>
           </el-col>
@@ -295,6 +326,22 @@ onMounted(fetchPosts)
             <el-form-item :label="$t('admin.filterByCategory')">
               <el-select v-model="form.category" style="width: 100%">
                 <el-option v-for="cat in categories" :key="cat.value" :label="cat.label" :value="cat.value" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item :label="$t('admin.tagsLabel')">
+              <el-select
+                v-model="form.tags"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                placeholder="Nhập hoặc chọn tags..."
+                style="width: 100%"
+              >
+                <el-option label="Tennis" value="Tennis" />
+                <el-option label="SaigonTennis" value="SaigonTennis" />
+                <el-option label="Giải đấu" value="Giải đấu" />
               </el-select>
             </el-form-item>
 
@@ -426,6 +473,31 @@ onMounted(fetchPosts)
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
 }
+
+:deep(.ql-editor) {
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: #334155;
+}
+
+:deep(.ql-editor blockquote) {
+  border-left: 6px solid #c1ff72;
+  background: #f8fafc;
+  padding: 1.5rem;
+  margin: 2rem 0;
+  font-style: italic;
+  font-size: 1.2rem;
+  color: #1e293b;
+  border-radius: 0 8px 8px 0;
+}
+
+:deep(.ql-editor .ql-bg-black) { background-color: #000; color: #fff; }
+:deep(.ql-editor .ql-bg-red) { background-color: #e60000; color: #fff; }
+:deep(.ql-editor .ql-bg-orange) { background-color: #f50; color: #fff; }
+:deep(.ql-editor .ql-bg-yellow) { background-color: #ff0; color: #000; }
+:deep(.ql-editor .ql-bg-green) { background-color: #008a00; color: #fff; }
+:deep(.ql-editor .ql-bg-blue) { background-color: #06c; color: #fff; }
+:deep(.ql-editor .ql-bg-purple) { background-color: #d85d00; color: #fff; }
 
 :deep(.ql-toolbar) {
   border-top-left-radius: 8px;

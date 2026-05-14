@@ -9,6 +9,7 @@ from app.db.database import SessionLocal
 from app.models.models import MailCampaign, Tournament, Registration, Player, User
 from app.api.auth import conf
 from fastapi_mail import FastMail, MessageSchema, MessageType
+from app.crud import crud_tournament
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,8 +21,11 @@ def start_scheduler():
     # 2. Gắn nhiệm vụ gửi email (mỗi 1 phút)
     scheduler.add_job(process_pending_emails, 'interval', minutes=1, id='mail_sender_job', replace_existing=True)
     
+    # 3. Gắn nhiệm vụ cập nhật trạng thái giải đấu (mỗi 5 phút)
+    scheduler.add_job(update_tournament_statuses_task, 'interval', minutes=5, id='tour_status_job', replace_existing=True)
+
     scheduler.start()
-    logger.info("⚙️ Async Scheduler đã được khởi động! (Chạy song song Dọn rác & Gửi Mail)")
+    logger.info("⚙️ Async Scheduler đã được khởi động! (Chạy song song Dọn rác, Gửi Mail & Cập nhật Giải)")
     
 # ==========================================
 # JOB 2: HẸN GIỜ GỬI EMAIL TỰ ĐỘNG (MỚI THÊM)
@@ -125,5 +129,17 @@ async def process_pending_emails():
                 campaign.status = "failed"
         
         db.commit()
+    finally:
+        db.close()
+
+async def update_tournament_statuses_task():
+    """Hàm wrapper cho job scheduler để cập nhật trạng thái giải đấu."""
+    db = SessionLocal()
+    try:
+        updated_count = crud_tournament.auto_update_tournament_statuses(db)
+        if updated_count > 0:
+            logger.info(f"🏆 [TOUR SCHEDULER] Đã tự động cập nhật trạng thái cho {updated_count} giải đấu.")
+    except Exception as e:
+        logger.error(f"❌ [TOUR SCHEDULER] Lỗi cập nhật trạng thái: {e}")
     finally:
         db.close()

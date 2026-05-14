@@ -143,12 +143,12 @@ const router = createRouter({
       name: 'rankings',
       component: RankingsView,
     },
-/*     {
+    {
       path: '/profile',
       name: 'profile',
       component: ProfileView,
       meta: { requiresAuth: true },
-    }, */
+    },
     {
       path: '/news',
       name: 'customer-news',

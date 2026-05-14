@@ -171,6 +171,7 @@ onMounted(fetchNewsAndRankings)
               </div>
               <div class="grid-content">
                 <h4 class="grid-title">{{ post.title }}</h4>
+                <p v-if="post.summary" class="grid-excerpt">{{ post.summary }}</p>
                 <span class="grid-date">{{ formatDate(post.publish_at || post.created_at) }}</span>
               </div>
             </article>
@@ -247,7 +248,8 @@ onMounted(fetchNewsAndRankings)
 .grid-cat-badge { position: absolute; top: 12px; left: 12px; background: #002855; color: white; font-size: 0.65rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 4px; text-transform: uppercase; }
 .play-icon-small { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: rgba(0,0,0,0.6); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; padding-left: 3px; }
 .grid-content { padding: 1.5rem; display: flex; flex-direction: column; flex: 1;}
-.grid-title { font-size: 1.15rem; font-weight: 700; line-height: 1.4; color: #0f172a; margin-bottom: 1rem; flex: 1; }
+.grid-title { font-size: 1.15rem; font-weight: 700; line-height: 1.4; color: #0f172a; margin-bottom: 0.5rem; flex: 0; }
+.grid-excerpt { font-size: 0.9rem; color: #64748b; line-height: 1.5; margin-bottom: 1rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
 .sidebar-widgets { display: flex; flex-direction: column; gap: 2rem; }
 .atp-widget { background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
 .widget-header { display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
