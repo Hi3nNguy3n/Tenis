@@ -142,8 +142,36 @@ const selectTournament = (row) => {
   isDetailDrawerOpen.value = true
 }
 
+const validateTournamentForm = () => {
+  const f = form.value
+  
+  if (!f.name) return t('admin.tournamentNameLabel')
+  if (!f.location) return t('admin.location')
+  if (!f.draw_size) return t('admin.drawSize')
+
+  const regOpen = f.registration_open_at ? new Date(f.registration_open_at) : null
+  const regClose = f.registration_close_at ? new Date(f.registration_close_at) : null
+  const startDate = f.start_date ? new Date(f.start_date + 'T00:00:00') : null
+  const endDate = f.end_date ? new Date(f.end_date + 'T23:59:59') : null
+
+  if (regOpen && regClose && regClose <= regOpen) {
+    return "Hạn chót đăng ký phải sau thời gian bắt đầu đăng ký"
+  }
+  
+  if (startDate && endDate && endDate < startDate) {
+    return "Ngày kết thúc giải phải sau hoặc bằng ngày khai mạc"
+  }
+  
+  if (regClose && startDate && startDate < regClose) {
+    return "Ngày khai mạc giải không được trước hạn chót đăng ký"
+  }
+
+  return null
+}
+
 const saveTournament = async () => {
-  if (!form.value.name) return ElMessage.warning(t('admin.tournamentNameLabel'))
+  const errorMsg = validateTournamentForm()
+  if (errorMsg) return ElMessage.warning(errorMsg)
   isSaving.value = true
   try {
     const payload = { ...form.value }
@@ -479,7 +507,7 @@ onMounted(() => {
               </el-form-item>
             </el-col>
             <el-col :span="8">
-              <el-form-item :label="$t('admin.drawSize')">
+              <el-form-item :label="$t('admin.drawSize')" required>
                 <el-select v-model="form.draw_size" style="width: 100%">
                   <el-option v-for="s in drawSizeOptions" :key="s" :label="s" :value="s" />
                 </el-select>
@@ -496,7 +524,7 @@ onMounted(() => {
           </div>
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item :label="$t('admin.location')">
+              <el-form-item :label="$t('admin.location')" required>
                 <el-input v-model="form.location" placeholder="Tên cụm sân thi đấu..." />
               </el-form-item>
             </el-col>

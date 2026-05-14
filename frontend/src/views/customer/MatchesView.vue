@@ -309,7 +309,7 @@ onUnmounted(() => {
                 <div class="col-players">
                   <div class="p-line" :class="{ 'is-winner': match.players[0].winner }">
                     <div class="p-identity">
-                      <span class="flag-mini">🇻🇳</span>
+                      <span class="flag-mini"></span>
                       <span class="p-name">{{ match.players[0].name }}</span>
                       <el-icon v-if="match.players[0].winner" class="winner-tick"><Check /></el-icon>
                     </div>
@@ -320,7 +320,7 @@ onUnmounted(() => {
                   
                   <div class="p-line" :class="{ 'is-winner': match.players[1].winner }">
                     <div class="p-identity">
-                      <span class="flag-mini">🇻🇳</span>
+                      <span class="flag-mini"></span>
                       <span class="p-name">{{ match.players[1].name }}</span>
                       <el-icon v-if="match.players[1].winner" class="winner-tick"><Check /></el-icon>
                     </div>

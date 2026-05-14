@@ -71,5 +71,14 @@ export default {
   changeSuccess: 'Đổi mật khẩu thành công!',
   updateSuccess: 'Cập nhật hồ sơ thành công!',
   avatarSuccess: 'Cập nhật ảnh đại diện thành công!',
-  categoryProfile: 'DANH MỤC HỒ SƠ'
+  acceptSuccess: 'Đã chấp nhận lời mời thách đấu!',
+  rejectSuccess: 'Đã từ chối lời mời thách đấu!',
+  paymentError: 'Lỗi khởi tạo thanh toán. Vui lòng thử lại sau.',
+  categoryProfile: 'DANH MỤC HỒ SƠ',
+  paymentConfirmed: 'Đã xác nhận',
+  processing: 'Đang xử lý',
+  matchTime: 'Thời gian',
+  matchTournament: 'Giải đấu',
+  matchOpponent: 'Đối thủ',
+  matchRound: 'Vòng'
 }

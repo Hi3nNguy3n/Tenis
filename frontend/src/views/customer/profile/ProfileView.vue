@@ -359,10 +359,10 @@ const selectTab = (tab) => {
               <!-- Desktop Table -->
               <div class="atp-table-wrapper hide-mobile">
                 <el-table :data="matchHistory" :empty-text="t('profile.noMatchData')" style="width: 100%">
-                  <el-table-column prop="time" label="Thời gian" width="160" />
-                  <el-table-column prop="tournament_name" label="Giải đấu" />
-                  <el-table-column prop="opponent" label="Đối thủ" />
-                  <el-table-column prop="round" label="Vòng" width="100" />
+                  <el-table-column prop="time" :label="t('profile.matchTime')" width="160" />
+                  <el-table-column prop="tournament_name" :label="t('profile.matchTournament')" />
+                  <el-table-column prop="opponent" :label="t('profile.matchOpponent')" />
+                  <el-table-column prop="round" :label="t('profile.matchRound')" width="100" />
                   <el-table-column prop="status" label="Kết quả" width="100">
                       <template #default="scope">
                         <span :class="['result-tag', scope.row.status === 'THẮNG' ? 'win' : 'lose']">{{ scope.row.status === 'THẮNG' ? t('profile.winTag') : t('profile.loseTag') }}</span>
@@ -379,9 +379,9 @@ const selectTab = (tab) => {
                     <span class="m-match-time">{{ match.time }}</span>
                   </div>
                   <div class="m-match-body">
-                    <div class="m-match-row"><b>Giải đấu:</b> <span>{{ match.tournament_name }}</span></div>
-                    <div class="m-match-row"><b>Đối thủ:</b> <span>{{ match.opponent }}</span></div>
-                    <div class="m-match-row"><b>Vòng:</b> <span>{{ match.round }}</span></div>
+                    <div class="m-match-row"><b>{{ t('profile.matchTournament') }}:</b> <span>{{ match.tournament_name }}</span></div>
+                    <div class="m-match-row"><b>{{ t('profile.matchOpponent') }}:</b> <span>{{ match.opponent }}</span></div>
+                    <div class="m-match-row"><b>{{ t('profile.matchRound') }}:</b> <span>{{ match.round }}</span></div>
                   </div>
                 </div>
                 <el-empty v-if="matchHistory.length === 0" :description="t('profile.noMatchData')" />
@@ -495,21 +495,21 @@ const selectTab = (tab) => {
                   <div class="tour-header-row">
                     <span class="tour-category">Saigontennistours</span>
                     <span :class="['atp-status-pill', reg.payment_status]">
-                      {{ reg.payment_status === 'confirmed' ? 'Đã xác nhận' : 'Đang xử lý' }}
+                      {{ reg.payment_status === 'confirmed' ? t('profile.paymentConfirmed') : t('profile.processing') }}
                     </span>
                   </div>
                   <h2 class="atp-tour-name">{{ reg.tournament_name }}</h2>
                   <div class="tour-meta-grid">
-                    <div class="m-item"><span class="m-label">Hạng đấu</span><span class="m-val">{{ reg.category_type || 'Chuyên nghiệp' }}</span></div>
-                    <div class="m-item"><span class="m-label">Ngày thi đấu</span><span class="m-val">{{ reg.tournament_date ? new Date(reg.tournament_date).toLocaleDateString() : 'TBD' }}</span></div>
-                    <div class="m-item"><span class="m-label">Địa điểm</span><span class="m-val">{{ reg.location || 'Saigon Tennis Center' }}</span></div>
+                    <div class="m-item"><span class="m-label">{{ t('profile.rank') }}</span><span class="m-val">{{ reg.category_type || 'Chuyên nghiệp' }}</span></div>
+                    <div class="m-item"><span class="m-label">{{ t('profile.proposedDate') }}</span><span class="m-val">{{ reg.tournament_date ? new Date(reg.tournament_date).toLocaleDateString() : 'TBD' }}</span></div>
+                    <div class="m-item"><span class="m-label">{{ t('profile.province') }}</span><span class="m-val">{{ reg.location || 'Saigon Tennis Center' }}</span></div>
                   </div>
                 </div>
                 <div class="atp-ticket-stub">
                   <div class="stub-qr-box">
                     <img :src="reg.qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=STT_REG_${reg.id}`" alt="QR Code" />
                   </div>
-                  <span class="stub-label">Mã đăng ký</span>
+                  <span class="stub-label">{{ t('profile.registrationCode') }}</span>
                   <code>#{{ reg.id.toString().slice(-8).toUpperCase() }}</code>
                 </div>
               </article>

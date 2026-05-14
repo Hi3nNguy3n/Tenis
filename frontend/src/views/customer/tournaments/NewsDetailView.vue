@@ -201,7 +201,7 @@ const getCategoryLabel = (val) => {
               <div class="widget-body ranking-list">
                 <div v-for="(player, index) in topPlayers" :key="player.player_id" class="ranking-row">
                   <div class="rank-pos">{{ index + 1 }}</div>
-                  <div class="rank-name"><span class="flag">🇻🇳</span> {{ player.full_name }}</div>
+                  <div class="rank-name"><span class="flag"></span> {{ player.full_name }}</div>
                   <div class="rank-pts">{{ player.elo_points }}</div>
                 </div>
               </div>

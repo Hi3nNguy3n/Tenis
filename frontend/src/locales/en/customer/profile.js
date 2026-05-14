@@ -71,5 +71,14 @@ export default {
   changeSuccess: 'Password changed successfully!',
   updateSuccess: 'Profile updated successfully!',
   avatarSuccess: 'Avatar updated successfully!',
-  categoryProfile: 'PROFILE MENU'
+  acceptSuccess: 'Challenge invitation accepted!',
+  rejectSuccess: 'Challenge invitation rejected!',
+  paymentError: 'Payment initialization error. Please try again later.',
+  categoryProfile: 'PROFILE MENU',
+  paymentConfirmed: 'Confirmed',
+  processing: 'Processing',
+  matchTime: 'Time',
+  matchTournament: 'Tournament',
+  matchOpponent: 'Opponent',
+  matchRound: 'Round'
 }

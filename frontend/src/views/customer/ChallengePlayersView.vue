@@ -77,11 +77,13 @@ const sendChallengeRequest = async () => {
 const viewH2H = async (p) => {
   selectedOpponent.value = p
   showH2HDialog.value = true
-  // Mock data
-  h2hHistory.value = [
-    { date: '2026-03-15', score: '6-4, 6-2', winner: t('challenges.you'), type: 'win' },
-    { date: '2026-02-10', score: '3-6, 4-6', winner: p.full_name, type: 'loss' }
-  ]
+  h2hHistory.value = []
+  try {
+    const data = await apiClient.get(`/api/players/h2h/${p.player_id}`)
+    h2hHistory.value = data
+  } catch (err) {
+    console.error('H2H Load Error:', err)
+  }
 }
 
 onMounted(loadPlayers)
@@ -92,7 +94,7 @@ onMounted(loadPlayers)
     
     <div class="top-ad-banner">
       <div class="ad-placeholder">
-        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" />
+        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" referrerpolicy="no-referrer" />
       </div>
     </div>
 
@@ -144,17 +146,17 @@ onMounted(loadPlayers)
                 <td class="col-rank">
                   <span class="rank-num">{{ p.displayRank || p.rank }}</span>
                 </td>
-                <td class="col-player">
+                <td class="col-player" :data-label="t('challenges.player')">
                   <div class="player-info-cell">
-                    <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}`" class="player-ava" />
+                    <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}`" class="player-ava" referrerpolicy="no-referrer" />
                     <span class="flag-mini"></span>
                     <strong class="player-name">{{ p.full_name }}</strong>
                   </div>
                 </td>
-                <td class="col-pts text-center">
+                <td class="col-pts text-center" :data-label="t('challenges.points')">
                   <strong class="points-val">{{ p.elo_points || 1000 }}</strong>
                 </td>
-                <td class="col-winrate hidden-mobile text-center">
+                <td class="col-winrate hidden-mobile text-center" :data-label="t('challenges.winRate')">
                   {{ p.win_rate || 0 }}%
                 </td>
                 <td class="col-actions text-right">
@@ -179,7 +181,7 @@ onMounted(loadPlayers)
           
           <div class="ws-body profile-widget">
             <div class="my-profile-header">
-              <img :src="authStore.user?.avatar_url || 'https://ui-avatars.com/api/?name=Me'" class="my-ava" />
+              <img :src="authStore.user?.avatar_url || 'https://ui-avatars.com/api/?name=Me'" class="my-ava" referrerpolicy="no-referrer" />
               <div class="my-info">
                 <h4>{{ authStore.user?.full_name || t('challenges.defaultAthlete') }}</h4>
                 <span><span class="flag-mini"></span> {{ t('challenges.vietnam') }}</span>
@@ -237,7 +239,7 @@ onMounted(loadPlayers)
       </aside>
     </div>
 
-    <el-dialog v-model="showChallengeDialog" :show-close="false" width="450px" class="atp-modal">
+    <el-dialog v-model="showChallengeDialog" :show-close="false" width="90%" style="max-width: 450px" class="atp-modal">
       <template #header>
         <div class="modal-custom-header">
           <h3>{{ t('challenges.challengeRequest') }}</h3>
@@ -247,7 +249,7 @@ onMounted(loadPlayers)
 
       <div class="modal-body">
         <div class="challenge-target">
-          <img :src="selectedOpponent?.avatar_url" alt="" class="target-avatar" />
+          <img :src="selectedOpponent?.avatar_url" alt="" class="target-avatar" referrerpolicy="no-referrer" />
           <div class="target-info">
             <span>{{ t('challenges.opponent') }}</span>
             <strong>{{ selectedOpponent?.full_name }}</strong>
@@ -288,7 +290,7 @@ onMounted(loadPlayers)
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showH2HDialog" :show-close="false" width="550px" class="atp-modal">
+    <el-dialog v-model="showH2HDialog" :show-close="false" width="95%" style="max-width: 550px" class="atp-modal">
       <template #header>
         <div class="modal-custom-header">
           <h3>{{ t('challenges.head2head') }}</h3>
@@ -299,17 +301,20 @@ onMounted(loadPlayers)
       <div class="h2h-modal-body">
         <div class="h2h-versus-header">
           <div class="v-player">
-            <div class="v-avatar"><img :src="authStore.user?.avatar_url || 'https://ui-avatars.com/api/?name=Me'" /></div>
+            <div class="v-avatar"><img :src="authStore.user?.avatar_url || 'https://ui-avatars.com/api/?name=Me'" referrerpolicy="no-referrer" /></div>
             <span>{{ t('challenges.youUpper') }}</span>
           </div>
           <div class="v-divider">{{ t('challenges.vs') }}</div>
           <div class="v-player">
-            <div class="v-avatar"><img :src="selectedOpponent?.avatar_url" /></div>
+            <div class="v-avatar"><img :src="selectedOpponent?.avatar_url" referrerpolicy="no-referrer" /></div>
             <span>{{ selectedOpponent?.full_name }}</span>
           </div>
         </div>
 
         <div class="h2h-list">
+          <div v-if="h2hHistory.length === 0" class="h2h-empty">
+            <el-empty :description="t('challenges.noH2H') || 'Chưa có lịch sử đối đầu'" :image-size="60" />
+          </div>
           <div v-for="(item, idx) in h2hHistory" :key="idx" class="h2h-item">
             <div class="h2h-date">{{ item.date }}</div>
             <div class="h2h-score">{{ item.score }}</div>
@@ -561,13 +566,94 @@ onMounted(loadPlayers)
 ======================================================= */
 @media (max-width: 1024px) {
   .layout-grid { grid-template-columns: 1fr; }
+  .sidebar { order: 2; }
+  .main-content { order: 1; }
 }
 
 @media (max-width: 768px) {
-  .inline-filters { flex-direction: column; align-items: flex-start; gap: 1rem; }
-  .flat-search { width: 100%; }
-  .hidden-mobile { display: none; }
-  .action-buttons { flex-direction: column; }
-  .btn-atp-outline, .btn-atp-solid { width: 100%; }
+  .container { padding: 0 1rem; }
+  .page-title { font-size: 1.5rem; }
+  
+  .inline-filters { 
+    flex-direction: column; 
+    align-items: stretch; 
+    gap: 1rem; 
+    padding-bottom: 15px;
+  }
+  
+  .filter-tabs { justify-content: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 5px; }
+  .flat-search { width: 100%; box-sizing: border-box; }
+
+  /* Biến bảng thành Card trên mobile */
+  .atp-flat-table thead { display: none; }
+  .atp-flat-table tr { 
+    display: block; 
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    position: relative;
+  }
+  .atp-flat-table td { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    padding: 0.5rem 0;
+    border: none;
+    text-align: left;
+  }
+  
+  .atp-flat-table td::before {
+    content: attr(data-label);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+    margin-right: 10px;
+  }
+
+  .col-rank { 
+    position: absolute; 
+    top: -10px; 
+    left: 1rem; 
+    background: #002855; 
+    color: white !important; 
+    width: 30px !important;
+    height: 30px;
+    border-radius: 4px;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    font-size: 0.9rem !important;
+    padding: 0 !important;
+    z-index: 1;
+  }
+  .col-rank::before { display: none; }
+  .rank-num { color: white; }
+
+  .col-player { padding-top: 1rem !important; }
+  .player-info-cell { width: 100%; justify-content: flex-start; }
+  
+  .col-actions { display: block !important; padding-top: 1rem !important; border-top: 1px solid #f1f5f9 !important; }
+  .action-buttons { width: 100%; gap: 10px; }
+  .action-buttons button { flex: 1; height: 40px; font-size: 0.8rem; }
+
+  /* H2H Versus Header Mobile */
+  .h2h-versus-header { gap: 1rem; }
+  .v-avatar { width: 45px; height: 45px; }
+  .v-player span { font-size: 0.75rem; }
+  .v-divider { font-size: 0.9rem; }
+  
+  .h2h-item { flex-direction: column; gap: 8px; align-items: center; }
+  .h2h-date, .h2h-result { width: 100%; text-align: center; }
+  .h2h-score { font-size: 1rem; }
+}
+
+@media (max-width: 480px) {
+  .page-title { font-size: 1.2rem; }
+  .player-name { font-size: 0.95rem; }
+  .my-profile-header { flex-direction: column; text-align: center; }
+  .my-stats-grid { grid-template-columns: 1fr; }
 }
 </style>

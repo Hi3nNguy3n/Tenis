@@ -6,7 +6,7 @@ from typing import Optional
 
 from app.db.database import get_db
 from app.api.deps import get_current_user
-from app.models.models import User
+from app.models.models import User, Player, Match, Registration, Tournament
 from app.schemas.player_schemas import PlayerUpdate
 from app.core.audit import audit_log
 from app.crud import crud_player # Import tầng CRUD mới cấu trúc
@@ -247,6 +247,69 @@ def get_player_tournaments_admin(
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi truy vấn giải đấu: {str(e)}")
+
+@router.get("/h2h/{opponent_id}")
+def get_h2h_history(
+    opponent_id: int, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Lấy lịch sử đối đầu thực tế giữa tôi và đối thủ."""
+    me = crud_player.get_player_by_user_id(db, current_user.id)
+    if not me:
+        raise HTTPException(status_code=404, detail="Bạn chưa có hồ sơ VĐV")
+
+    # 1. Tìm các trận đấu GIẢI (Tournament)
+    # Cần tìm registration_id của cả 2
+    my_regs = db.query(Registration.id).filter(Registration.player_id == me.id).all()
+    my_reg_ids = [r[0] for r in my_regs]
+    
+    opp_regs = db.query(Registration.id).filter(Registration.player_id == opponent_id).all()
+    opp_reg_ids = [r[0] for r in opp_regs]
+
+    tour_matches = db.query(Match).filter(
+        Match.status == "completed",
+        Match.tournament_id.is_not(None),
+        (
+            (Match.side_a_registration_id.in_(my_reg_ids) & Match.side_b_registration_id.in_(opp_reg_ids)) |
+            (Match.side_a_registration_id.in_(opp_reg_ids) & Match.side_b_registration_id.in_(my_reg_ids))
+        )
+    ).all()
+
+    # 2. Tìm các trận đấu GIAO HỮU / THÁCH ĐẤU (Friendly/Challenge)
+    friendly_matches = db.query(Match).filter(
+        Match.status == "completed",
+        Match.tournament_id.is_(None),
+        (
+            ((Match.player_a_id == me.id) & (Match.player_b_id == opponent_id)) |
+            ((Match.player_a_id == opponent_id) & (Match.player_b_id == me.id))
+        )
+    ).all()
+
+    all_matches = tour_matches + friendly_matches
+    # Sắp xếp theo ngày mới nhất
+    all_matches.sort(key=lambda x: x.match_date or x.start_time or datetime.min, reverse=True)
+
+    results = []
+    for m in all_matches:
+        # Xác định mình thắng hay thua
+        is_me_winner = False
+        if m.tournament_id:
+            is_me_winner = m.winner_registration_id in my_reg_ids
+        else:
+            # Đối với trận giao hữu, winner_side có thể là side_a hoặc side_b
+            # Chúng ta cần biết mình là side nào
+            is_me_side_a = m.player_a_id == me.id
+            is_me_winner = (m.winner_side == "side_a" if is_me_side_a else m.winner_side == "side_b")
+
+        results.append({
+            "date": (m.match_date or m.start_time).strftime("%Y-%m-%d") if (m.match_date or m.start_time) else "N/A",
+            "score": m.result_note or m.score_summary or "N/A",
+            "type": "win" if is_me_winner else "loss",
+            "winner": current_user.full_name if is_me_winner else "Đối thủ"
+        })
+
+    return results
 
 # 2. API Lấy hồ sơ công khai của 1 người
 @router.get("/{player_id}", response_model=PlayerPublicResponse)

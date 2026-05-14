@@ -84,7 +84,7 @@ onMounted(fetchRankings)
     
     <div class="top-ad-banner">
       <div class="ad-placeholder">
-        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" />
+        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" referrerpolicy="no-referrer" />
       </div>
     </div>
 
@@ -162,7 +162,7 @@ onMounted(fetchRankings)
                 </td>
                 <td class="col-player">
                   <div class="player-info-cell">
-                    <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" />
+                    <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" referrerpolicy="no-referrer" />
                     <span class="flag-mini"></span>
                     <strong class="player-name">{{ player.full_name }}</strong>
                   </div>
@@ -601,73 +601,85 @@ onMounted(fetchRankings)
 }
 
 @media (max-width: 768px) {
-  .container {
-    padding: 0 1rem;
-  }
+  .container { padding: 0 1rem; }
   
+  .layout-grid { margin-top: 1rem; gap: 2rem; }
+
+  .ranking-header-section { margin-bottom: 0.5rem; }
+
   .inline-filters {
     flex-direction: column;
     align-items: stretch;
     gap: 1rem;
-    padding-bottom: 10px;
+    padding-bottom: 0;
+    border-bottom: none;
   }
 
   .filter-tabs {
     display: flex;
+    gap: 1.2rem;
     overflow-x: auto;
-    padding-bottom: 10px;
+    padding-bottom: 8px;
     white-space: nowrap;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    border-bottom: 1px solid #f1f5f9;
   }
-  .filter-tabs::-webkit-scrollbar { display: none; }
+  .f-tab { padding-bottom: 8px; font-size: 0.85rem; }
+  .f-tab.active::after { bottom: -9px; }
 
   .filter-dropdowns {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
+    margin-top: 0.5rem;
   }
 
   .ranking-list-container {
-    margin: 1rem 0 0;
-    overflow-x: auto;
-    border-top: 1px solid #f1f5f9;
-    border-radius: 4px;
+    margin: 0.5rem 0 0;
+    overflow-x: visible; /* Bỏ cuộn ngang nếu có thể fit */
   }
 
   .atp-flat-table {
-    min-width: 600px;
+    min-width: auto; /* Cho phép co giãn tự do */
   }
+
+  .atp-flat-table th { padding: 0.8rem 0.4rem; }
+  .atp-flat-table td { padding: 0.8rem 0.4rem; }
 
   .hidden-mobile { display: none !important; }
   
   .page-title { 
-    font-size: 1.5rem; 
-    justify-content: center;
+    font-size: 1.4rem; 
+    justify-content: flex-start;
   }
-  .page-title span { display: block; font-size: 1.1rem; opacity: 0.8; }
+  .page-title span { font-size: 1.2rem; }
+  .pif-icon { font-size: 1.2rem; padding: 3px; }
 
-  .col-rank { width: 50px; }
-  .player-ava { width: 38px; height: 38px; }
-  .player-name { font-size: 0.95rem; }
+  .col-rank { width: 40px; font-size: 0.95rem; }
+  .col-pts { width: 80px; }
+  .player-ava { width: 34px; height: 34px; }
+  .player-name { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+  .points-val { font-size: 1rem; }
 }
 
 @media (max-width: 480px) {
   .filter-dropdowns { 
     grid-template-columns: 1fr; 
+    gap: 0.5rem;
   }
   
-  .title-row { margin-bottom: 1rem; }
+  .title-row { margin-bottom: 0.8rem; }
+  .page-title { font-size: 1.2rem; }
+  .page-title span { font-size: 1rem; }
   
   .atp-flat-table th, .atp-flat-table td {
     padding: 0.6rem 0.3rem;
   }
   
-  .rank-num { font-size: 0.9rem; }
+  .rank-num { font-size: 0.85rem; }
   .points-val { font-size: 0.9rem; }
   
-  .player-ava { width: 32px; height: 32px; }
-  .player-name { font-size: 0.85rem; }
+  .player-ava { width: 30px; height: 30px; }
+  .player-name { font-size: 0.8rem; max-width: 110px; }
   
   /* Chống tràn cho sidebar widget */
   .ws-body { padding: 0.75rem; }
