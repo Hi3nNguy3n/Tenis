@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@vueup/vue-quill": "^1.2.0",
     "element-plus": "^2.13.7",
     "file-saver": "^2.0.5",
     "jsqr": "^1.4.0",

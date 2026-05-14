@@ -4,6 +4,8 @@ import { apiClient } from '../../services/apiClient'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DocumentAdd, Edit, Delete, Picture, View } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
+import { QuillEditor } from '@vueup/vue-quill'
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
 
 const posts = ref([])
 const isLoading = ref(false)
@@ -23,6 +25,58 @@ const form = ref({
   status: 'published',
   thumbnail_url: ''
 })
+
+const imageHandler = () => {
+  const input = document.createElement('input')
+  input.setAttribute('type', 'file')
+  input.setAttribute('accept', 'image/*')
+  input.click()
+
+  input.onchange = async () => {
+    const file = input.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await apiClient.request('/api/upload/image', {
+        method: 'POST',
+        body: formData,
+        includeJson: false
+      })
+      
+      const quill = document.querySelector('.ql-editor').__quill
+      const range = quill.getSelection()
+      quill.insertEmbed(range.index, 'image', res.url)
+    } catch (err) {
+      ElMessage.error(t('admin.uploadError') || 'Upload failed')
+    }
+  }
+}
+
+const quillToolbar = [
+  ['bold', 'italic', 'underline', 'strike'],
+  ['blockquote', 'code-block'],
+  [{ 'header': 1 }, { 'header': 2 }],
+  [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+  [{ 'indent': '-1'}, { 'indent': '+1' }],
+  [{ 'size': ['small', false, 'large', 'huge'] }],
+  [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+  [{ 'color': [] }, { 'background': [] }],
+  [{ 'align': [] }],
+  ['clean'],
+  ['link', 'image', 'video']
+]
+
+const quillModules = {
+  toolbar: {
+    container: quillToolbar,
+    handlers: {
+      image: imageHandler
+    }
+  }
+}
 
 const categories = computed(() => [
   { label: t('admin.announcement'), value: 'announcement' },
@@ -93,6 +147,8 @@ const handleThumbnailUpload = async (event) => {
     event.target.value = '' 
   }
 }
+
+
 
 const savePost = async () => {
   if (!form.value.title || !form.value.content) {
@@ -207,7 +263,7 @@ onMounted(fetchPosts)
       </el-table>
     </section>
 
-    <el-dialog v-model="isDialogOpen" :title="isEditMode ? $t('admin.editPost') : $t('admin.createNewPost')" width="800px" destroy-on-close top="5vh">
+    <el-dialog v-model="isDialogOpen" :title="isEditMode ? $t('admin.editPost') : $t('admin.createNewPost')" width="1100px" destroy-on-close top="5vh">
       <el-form label-position="top" class="news-form">
         <el-row :gutter="20">
           <el-col :span="16">
@@ -216,12 +272,15 @@ onMounted(fetchPosts)
             </el-form-item>
 
             <el-form-item :label="$t('admin.postContentLabel')" required>
-              <el-input 
-                v-model="form.content" 
-                type="textarea" 
-                :rows="12" 
-                placeholder="..." 
-              />
+              <div class="editor-wrapper">
+                <QuillEditor 
+                  v-model:content="form.content" 
+                  contentType="html"
+                  theme="snow"
+                  :modules="quillModules"
+                  placeholder="Nhập nội dung bài viết..."
+                />
+              </div>
             </el-form-item>
           </el-col>
 
@@ -350,6 +409,30 @@ onMounted(fetchPosts)
 
 /* Dialog Form */
 .news-form { padding-top: 10px; }
+
+.editor-wrapper {
+  width: 100%;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+:deep(.ql-container) {
+  min-height: 450px;
+  max-height: 700px;
+  overflow-y: auto;
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+:deep(.ql-toolbar) {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  background: #f8fafc;
+}
+
 .thumbnail-uploader {
   width: 100%; height: 160px; border: 2px dashed #cbd5e1; border-radius: 20px;
   position: relative; overflow: hidden; cursor: pointer; background: #f8fafc; transition: 0.3s;
@@ -358,4 +441,12 @@ onMounted(fetchPosts)
 .upload-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; gap: 8px; }
 .thumbnail-preview { width: 100%; height: 100%; object-fit: cover; }
 .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+/* Modal Width Adjustment */
+:deep(.el-dialog) {
+  border-radius: 24px;
+}
+:deep(.el-dialog__body) {
+  padding: 10px 25px 30px;
+}
 </style>

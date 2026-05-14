@@ -26,6 +26,7 @@ const handleNext = async () => {
   // Xóa khoảng trắng thừa 2 đầu
   form.value.full_name = form.value.full_name?.trim() || ''
   form.value.phone = form.value.phone?.trim() || ''
+  form.value.email = form.value.email?.trim() || ''
 
   // 1. Kiểm tra rỗng
   if (!form.value.full_name) return ElMessage.warning(t('auth.valNameRequired'))

@@ -67,7 +67,9 @@ async def send_otp(request: SendOTPRequest, r = Depends(get_redis)):
     otp_code = str(random.randint(100000, 999999))
     
     # Lưu OTP vào Redis với thời hạn 300s (5 phút)
-    r.setex(f"otp:{request.email}", 300, otp_code) 
+    email_key = request.email.lower().strip()
+    print(f"[DEBUG SEND OTP]: Key='otp:{email_key}', Value='{otp_code}'")
+    r.setex(f"otp:{email_key}", 300, otp_code) 
     
     # Gửi email qua Brevo
     subject = "Mã xác nhận OTP - Saigon Tennis Tours"
@@ -89,12 +91,14 @@ async def send_otp(request: SendOTPRequest, r = Depends(get_redis)):
 @router.post("/register")
 def register(request: RegisterRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
     # Kiểm tra OTP trong Redis
-    cached_otp = r.get(f"otp:{request.email}")
+    email_key = request.email.lower().strip()
+    cached_otp = r.get(f"otp:{email_key}")
     
     # Xử lý trường hợp cached_otp là kiểu bytes (tùy cấu hình Redis)
     decoded_otp = cached_otp.decode("utf-8") if isinstance(cached_otp, bytes) else cached_otp
+    print(f"[DEBUG VERIFY OTP]: Key='otp:{email_key}', Cached='{decoded_otp}', Sent='{request.otp_code}'")
 
-    if not decoded_otp or decoded_otp != request.otp_code:
+    if not decoded_otp or str(decoded_otp).strip() != str(request.otp_code).strip():
         raise HTTPException(status_code=400, detail="Mã OTP không đúng hoặc hết hạn.")
 
     role = crud_auth.get_role_by_key(db, "user")
