@@ -31,7 +31,25 @@ const newsItems = computed(() => {
 // === STATE ===
 const topPlayers = ref([])
 const recentMatches = ref([])
+const featuredTournaments = ref([])
 const h2hData = ref(null) 
+
+const getTournamentStatusLabel = (status) => {
+  const map = {
+    'ongoing': t('tournaments.ongoing'),
+    'open': t('tournaments.upcoming'),
+    'finished': t('tournaments.completed'),
+    'pending': t('tournaments.upcoming')
+  }
+  return map[status] || t('tournaments.upcoming')
+}
+
+const getTournamentImage = (tour) => {
+  if (tour.media_url) return tour.media_url
+  const posters = ['/poster-1.jpg', '/poster-2.jpg', '/poster-3.jpg', '/poster-4.jpg']
+  const index = (tour.id || 0) % posters.length
+  return posters[index]
+}
 
 onMounted(async () => {
   authStore.hydrate()
@@ -39,8 +57,9 @@ onMounted(async () => {
   Promise.all([
     newsService.getAllPosts(),
     playerService.getRankings().catch(() => []),
-    apiClient.get('/api/tournaments/matches/all').catch(() => [])
-  ]).then(async ([newsData, rankingsData, matchesData]) => {
+    apiClient.get('/api/tournaments/matches/all').catch(() => []),
+    apiClient.get('/api/tournaments').catch(() => [])
+  ]).then(async ([newsData, rankingsData, matchesData, toursData]) => {
     
     // 1. Xử lý Tin tức
     if (newsData) {
@@ -61,6 +80,15 @@ onMounted(async () => {
       return !isP1Admin && !isP2Admin
     })
     recentMatches.value = filteredMatches.slice(0, 5)
+
+    // 2.5 Xử lý Tournaments
+    if (toursData && Array.isArray(toursData)) {
+      // Ưu tiên ONGOING -> OPEN -> FINISHED
+      const statusOrder = { 'ongoing': 0, 'open': 1, 'pending': 2, 'finished': 3 }
+      featuredTournaments.value = [...toursData]
+        .sort((a, b) => (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99))
+        .slice(0, 4)
+    }
 
     // 4. LOGIC H2H
     let p1 = null;
@@ -103,7 +131,7 @@ onMounted(async () => {
           class="hero-media" 
           autoplay muted loop playsinline
         ></video>
-        <img v-else :src="newsItems[0].image" class="hero-media" />
+        <img v-else :src="newsItems[0].image" class="hero-media" referrerpolicy="no-referrer" />
         
         <div class="hero-overlay">
           <span class="category-badge">{{ newsItems[0].category }}</span>
@@ -150,7 +178,7 @@ onMounted(async () => {
 
     <section class="container ad-banner-section">
       <div class="ad-banner-wrapper">
-        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" class="ad-banner-img" />
+        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" class="ad-banner-img" referrerpolicy="no-referrer" />
       </div>
     </section>
 
@@ -184,7 +212,7 @@ onMounted(async () => {
             
             <div class="h2h-player">
               <div class="h2h-avatar">
-                <img :src="h2hData.player1.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player1.full_name}&background=random`" />
+                <img :src="h2hData.player1.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player1.full_name}&background=random`" referrerpolicy="no-referrer" />
               </div>
               <h4 class="h2h-name">{{ h2hData.player1.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
@@ -198,7 +226,7 @@ onMounted(async () => {
 
             <div class="h2h-player">
               <div class="h2h-avatar">
-                <img :src="h2hData.player2.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player2.full_name}&background=random`" />
+                <img :src="h2hData.player2.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player2.full_name}&background=random`" referrerpolicy="no-referrer" />
               </div>
               <h4 class="h2h-name">{{ h2hData.player2.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
@@ -247,6 +275,39 @@ onMounted(async () => {
       </div>
     </section>
 
+    <section class="container atp-tournaments-section" v-if="featuredTournaments.length > 0">
+      <div class="section-header">
+        <h2>{{ t('home.featuredTournaments') || 'GIẢI ĐẤU TIÊU BIỂU' }}</h2>
+        <RouterLink to="/tournaments" class="view-all-link">{{ t('home.viewAllTournaments') || 'Xem tất cả giải đấu' }} <el-icon><Right /></el-icon></RouterLink>
+      </div>
+      <div class="tournament-grid">
+        <div 
+          v-for="tour in featuredTournaments" 
+          :key="tour.id" 
+          class="tour-card"
+          @click="$router.push(`/tournaments/${tour.id}`)"
+        >
+          <div class="tour-media">
+            <img :src="getTournamentImage(tour)" alt="Tournament" referrerpolicy="no-referrer" />
+            <div class="tour-status-badge" :class="tour.status">
+              <span v-if="tour.status === 'ongoing'" class="pulse-dot"></span>
+              {{ getTournamentStatusLabel(tour.status) }}
+            </div>
+            <div class="tour-location-badge">
+              <el-icon><Location /></el-icon> {{ tour.location || 'Hồ Chí Minh' }}
+            </div>
+          </div>
+          <div class="tour-info">
+            <h3 class="tour-name">{{ tour.name }}</h3>
+            <div class="tour-meta">
+              <span class="tour-date">{{ new Date(tour.start_date).toLocaleDateString(currentLocale === 'vi' ? 'vi-VN' : 'en-US') }}</span>
+              <span class="tour-type">{{ tour.category_type }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="container atp-news-grid">
       <div class="section-title">
         <h2>{{ t('home.topNews') }}</h2>
@@ -256,7 +317,7 @@ onMounted(async () => {
         <article v-for="news in newsItems.slice(1, 5)" :key="news.id" class="news-card" @click="$router.push('/news/' + news.slug)">
           <div class="card-media">
             <video v-if="isVideo(news.image)" :src="news.image" autoplay muted loop playsinline></video>
-            <img v-else :src="news.image" />
+            <img v-else :src="news.image" referrerpolicy="no-referrer" />
             <span class="play-icon" v-if="isVideo(news.image)"><el-icon><VideoPlay /></el-icon></span>
           </div>
           <div class="card-body">
@@ -591,6 +652,31 @@ onMounted(async () => {
 }
 
 /* =========================================================
+   TOURNAMENTS SECTION
+========================================================= */
+.atp-tournaments-section { margin-bottom: 4rem; }
+.atp-tournaments-section .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 2px solid var(--atp-blue); padding-bottom: 0.5rem; }
+.atp-tournaments-section h2 { font-size: 1.5rem; font-weight: 700; color: var(--atp-dark); margin: 0; }
+.view-all-link { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--atp-blue); text-decoration: none; font-weight: 700; transition: 0.2s; }
+.view-all-link:hover { color: #c1ff72; }
+.tournament-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+.tour-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.3s ease, box-shadow 0.3s ease; border: 1px solid #e2e8f0; }
+.tour-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+.tour-media { position: relative; height: 180px; background: #1e293b; }
+.tour-media img { width: 100%; height: 100%; object-fit: cover; }
+.tour-status-badge { position: absolute; top: 12px; left: 12px; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: white; display: flex; align-items: center; gap: 6px; backdrop-filter: blur(4px); }
+.tour-status-badge.ongoing { background: rgba(220, 38, 38, 0.9); }
+.tour-status-badge.open { background: rgba(22, 163, 74, 0.9); }
+.tour-status-badge.finished { background: rgba(100, 116, 139, 0.9); }
+.tour-status-badge.pending { background: rgba(37, 99, 235, 0.9); }
+.pulse-dot { width: 8px; height: 8px; background: #fff; border-radius: 50%; box-shadow: 0 0 0 rgba(255, 255, 255, 0.4); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); } }
+.tour-location-badge { position: absolute; bottom: 12px; left: 12px; background: rgba(255,255,255,0.9); color: #0f172a; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+.tour-info { padding: 1rem; }
+.tour-name { font-size: 1rem; font-weight: 700; color: #1e293b; margin: 0 0 0.5rem 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 2.8rem; line-height: 1.4; }
+.tour-meta { display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; font-weight: 600; }
+
+/* =========================================================
    RESPONSIVE
 ========================================================= */
 @media (max-width: 1024px) {
@@ -599,6 +685,7 @@ onMounted(async () => {
   .right-widgets { grid-column: span 2; flex-direction: row; }
   .newsletter-widget, .shop-card { flex: 1; }
   .news-cards-row { grid-template-columns: repeat(2, 1fr); }
+  .tournament-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -608,6 +695,7 @@ onMounted(async () => {
   .logos { gap: 2rem; }
   .sponsor-img { height: 40px; } 
   .premier-img { height: 65px; }
+  .atp-tournaments-section h2 { font-size: 1.2rem; }
 }
 
 @media (max-width: 480px) {
@@ -615,5 +703,6 @@ onMounted(async () => {
   .main-hero-news { min-height: 350px; }
   .h2h-players { gap: 1rem; }
   .score-number { font-size: 2rem; }
+  .tournament-grid { grid-template-columns: 1fr; }
 }
 </style>

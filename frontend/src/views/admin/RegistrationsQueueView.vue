@@ -170,67 +170,83 @@ const getStatusType = (status) => {
   return 'warning'
 }
 
-const formatDateTime = (val) => {
-  if (!val) return 'N/A'
-  return new Date(val).toLocaleString('vi-VN', {
-    hour: '2-digit', minute: '2-digit',
-    day: '2-digit', month: '2-digit', year: 'numeric'
-  })
+const parseDate = (val) => {
+  if (!val) return null
+  const d = new Date(val)
+  if (!isNaN(d.getTime())) return d
+  if (typeof val === 'string' && val.includes('/')) {
+    const p = val.split(/[\/\s:]/)
+    if (p.length >= 3) {
+      const d2 = new Date(p[2], p[1]-1, p[0])
+      if (!isNaN(d2.getTime())) return d2
+    }
+  }
+  return null
+}
+
+const formatDate = (val) => {
+  const d = parseDate(val)
+  return d ? d.toLocaleDateString('vi-VN') : '---'
+}
+
+const formatTime = (val) => {
+  const d = parseDate(val)
+  return d ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'
 }
 </script>
 
 <template>
   <div class="saas-container">
-    <!-- Stats Row -->
-    <div class="saas-stats-grid">
+    <div class="saas-stats-grid compact">
       <div class="saas-stat-card">
-        <div class="stat-icon p-blue"><el-icon><Tickets /></el-icon></div>
+        <div class="stat-icon p-blue small"><el-icon><Tickets /></el-icon></div>
         <div class="stat-content">
-          <span class="stat-label">TỔNG ĐƠN ĐĂNG KÝ</span>
-          <h3 class="stat-value">{{ stats.total }}</h3>
+          <span class="stat-label">TỔNG ĐƠN</span>
+          <h3 class="stat-value small">{{ stats.total }}</h3>
         </div>
       </div>
       <div class="saas-stat-card">
-        <div class="stat-icon p-orange"><el-icon><Clock /></el-icon></div>
+        <div class="stat-icon p-orange small"><el-icon><Clock /></el-icon></div>
         <div class="stat-content">
-          <span class="stat-label">ĐANG CHỜ XỬ LÝ</span>
-          <h3 class="stat-value">{{ stats.pending }}</h3>
+          <span class="stat-label">CHỜ XỬ LÝ</span>
+          <h3 class="stat-value small">{{ stats.pending }}</h3>
         </div>
       </div>
       <div class="saas-stat-card">
-        <div class="stat-icon p-green"><el-icon><CircleCheckFilled /></el-icon></div>
+        <div class="stat-icon p-green small"><el-icon><CircleCheckFilled /></el-icon></div>
         <div class="stat-content">
-          <span class="stat-label">ĐÃ XÁC NHẬN</span>
-          <h3 class="stat-value">{{ stats.confirmed }}</h3>
+          <span class="stat-label">XÁC NHẬN</span>
+          <h3 class="stat-value small">{{ stats.confirmed }}</h3>
         </div>
       </div>
       <div class="saas-stat-card">
-        <div class="stat-icon p-red"><el-icon><CircleCloseFilled /></el-icon></div>
+        <div class="stat-icon p-red small"><el-icon><CircleCloseFilled /></el-icon></div>
         <div class="stat-content">
-          <span class="stat-label">ĐÃ HỦY / TỪ CHỐI</span>
-          <h3 class="stat-value">{{ stats.cancelled }}</h3>
+          <span class="stat-label">HỦY/TỪ CHỐI</span>
+          <h3 class="stat-value small">{{ stats.cancelled }}</h3>
         </div>
       </div>
     </div>
 
     <!-- Header & Action Bar -->
-    <div class="saas-header">
+    <div class="saas-header compact">
       <div class="header-left">
         <el-input 
           v-model="search" 
           :placeholder="$t('admin.searchTournamentPlaceholder')" 
           clearable 
+          size="small"
           class="saas-search"
         >
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
         
-        <el-select v-model="statusFilter" placeholder="TẤT CẢ TRẠNG THÁI" clearable class="saas-filter">
+        <el-select v-model="statusFilter" placeholder="TRẠNG THÁI" clearable size="small" class="saas-filter">
           <template #prefix><el-icon><Filter /></el-icon></template>
           <el-option v-for="opt in statusOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
         </el-select>
-
-        <el-button circle @click="loadRegistrations" class="saas-icon-btn">
+        
+        <el-button circle @click="loadRegistrations" size="small" class="saas-icon-btn">
           <el-icon><Refresh /></el-icon>
         </el-button>
       </div>
@@ -244,7 +260,7 @@ const formatDateTime = (val) => {
         class="saas-table"
         :header-cell-style="{ background: 'transparent', color: '#1e293b', fontWeight: '800', borderBottom: '2px solid #e2e8f0' }"
       >
-        <el-table-column label="VẬN ĐỘNG VIÊN" min-width="260">
+        <el-table-column label="VẬN ĐỘNG VIÊN" min-width="200">
           <template #default="{ row }">
             <div class="saas-premium-cell">
               <div class="icon-box-premium p-blue"><el-icon><User /></el-icon></div>
@@ -256,7 +272,7 @@ const formatDateTime = (val) => {
           </template>
         </el-table-column>
 
-        <el-table-column label="GIẢI ĐẤU" min-width="260">
+        <el-table-column label="GIẢI ĐẤU" min-width="200">
           <template #default="{ row }">
             <div class="saas-premium-cell">
               <div class="icon-box-premium p-orange"><el-icon><Trophy /></el-icon></div>
@@ -268,22 +284,22 @@ const formatDateTime = (val) => {
           </template>
         </el-table-column>
 
-        <el-table-column label="THỜI GIAN ĐĂNG KÝ" width="220" align="right">
+        <el-table-column label="THỜI GIAN" width="140" align="right">
           <template #default="{ row }">
-            <div class="time-premium">
+            <div class="time-premium compact">
               <div class="time-row">
-                <el-icon><CalendarIcon /></el-icon>
-                <span>{{ new Date(row.registration_date || row.created_at).toLocaleDateString('vi-VN') }}</span>
+                <el-icon size="12"><CalendarIcon /></el-icon>
+                <span>{{ formatDate(row.registration_date || row.registered_at || row.created_at) }}</span>
               </div>
               <div class="time-row sub">
-                <el-icon><Timer /></el-icon>
-                <span>{{ new Date(row.registration_date || row.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                <el-icon size="12"><Timer /></el-icon>
+                <span>{{ formatTime(row.registration_date || row.registered_at || row.created_at) }}</span>
               </div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="TRẠNG THÁI" width="180" align="center">
+        <el-table-column label="TRẠNG THÁI" width="140" align="center">
           <template #default="{ row }">
             <div class="status-indicator" :class="[`is-${getStatusType(row.status)}`, { 'is-waiting-payment': row.status === 'confirmed' && row.payment_status === 'pending' }]">
               <span class="dot"></span>
@@ -292,27 +308,33 @@ const formatDateTime = (val) => {
           </template>
         </el-table-column>
 
-        <el-table-column label="THAO TÁC" width="220" fixed="right" align="center">
+        <el-table-column label="THAO TÁC" width="120" fixed="right" align="center">
           <template #default="{ row }">
-            <div class="saas-row-actions-prominent" v-if="['pending', 'waiting', 'confirmed'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid'">
+            <div class="saas-row-actions-compact" v-if="['pending', 'waiting', 'confirmed'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid'">
               <el-button 
                 type="success" 
+                size="small"
+                circle
                 @click="confirmRegistration(row.id)" 
-                class="prominent-btn confirm"
+                class="compact-btn confirm"
+                title="Xác nhận"
               >
-                <el-icon class="mr-1"><Check /></el-icon> DUYỆT
+                <el-icon><Check /></el-icon>
               </el-button>
               
               <el-button 
                 type="danger" 
+                size="small"
+                circle
                 plain 
                 @click="cancelRegistration(row.id)" 
-                class="prominent-btn cancel"
+                class="compact-btn cancel"
+                title="Hủy"
               >
-                <el-icon class="mr-1"><Close /></el-icon> HỦY
+                <el-icon><Close /></el-icon>
               </el-button>
             </div>
-            <div v-else class="done-label">
+            <div v-else class="done-label compact">
               <el-icon v-if="['confirmed', 'paid', 'checked_in'].includes((row.status || '').toLowerCase())" color="#059669"><CircleCheckFilled /></el-icon>
               <el-icon v-else color="#dc2626"><CircleCloseFilled /></el-icon>
             </div>
@@ -337,152 +359,90 @@ const formatDateTime = (val) => {
 .saas-container {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 20px;
   min-height: 100%;
 }
 
-/* Stats Grid */
-.saas-stats-grid {
+.saas-stats-grid.compact { 
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px; 
 }
-
-.saas-stat-card {
-  background: #fff;
-  border: 1px solid #f1f5f9;
-  border-radius: 24px;
-  padding: 24px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
-}
-
-.saas-stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px rgba(0,0,0,0.05);
-}
-
-.stat-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
+.saas-stat-card { 
+  background: #fff; 
+  border: 1px solid #f1f5f9; 
+  border-radius: 16px; 
+  padding: 20px; 
+  display: flex; 
+  flex-direction: column;
+  align-items: center; 
   justify-content: center;
-  font-size: 24px;
+  gap: 12px; 
+  transition: all 0.3s ease; 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02); 
+  text-align: center;
 }
-
+.saas-stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
+.stat-icon.small { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.stat-content { display: flex; flex-direction: column; align-items: center; }
 .p-blue { background: #eff6ff; color: #3b82f6; }
 .p-green { background: #ecfdf5; color: #10b981; }
 .p-orange { background: #fff7ed; color: #f97316; }
 .p-red { background: #fef2f2; color: #ef4444; }
-
-.stat-label { font-size: 0.75rem; color: #64748b; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
-.stat-value { margin: 4px 0 0; font-size: 1.8rem; font-weight: 800; color: #0f172a; }
+.stat-value.small { margin: 4px 0 0; font-size: 1.4rem; font-weight: 800; color: #0f172a; }
+.stat-label { font-size: 0.65rem; color: #64748b; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
 
 /* Header & Action Bar */
-.saas-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.saas-search { width: 320px; }
-.saas-filter { width: 220px; }
+.saas-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.saas-search { width: 240px; }
+.saas-filter { width: 180px; }
 
 :deep(.el-input__wrapper), :deep(.el-select__wrapper) {
   background-color: #f8fafc !important;
   box-shadow: none !important;
   border: 1px solid #e2e8f0 !important;
-  border-radius: 12px !important;
-  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
 }
 
-.saas-icon-btn {
-  width: 44px; height: 44px; border-radius: 12px !important;
-  background: #f8fafc !important; border: 1px solid #e2e8f0 !important;
-}
+.saas-icon-btn { width: 36px; height: 36px; border-radius: 8px !important; }
 
 /* Table Section */
-.saas-content {
-  background: #fff;
-  border-radius: 24px;
-  border: 1px solid #f1f5f9;
-  padding: 8px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.03);
-}
+.saas-content { background: #fff; border-radius: 16px; border: 1px solid #f1f5f9; padding: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); overflow-x: auto; }
+.saas-table { background: transparent !important; --el-table-bg-color: transparent; --el-table-tr-bg-color: transparent; font-size: 0.85rem; }
+:deep(.el-table .cell) { padding: 8px 12px !important; }
 
-.saas-table {
-  background: transparent !important;
-  --el-table-bg-color: transparent;
-  --el-table-tr-bg-color: transparent;
-}
-
-.saas-premium-cell {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.icon-box-premium {
-  width: 48px; height: 48px; border-radius: 14px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px; border: 1px solid #e2e8f0;
-}
-
+.saas-premium-cell { display: flex; align-items: center; gap: 10px; }
+.icon-box-premium { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 1px solid #e2e8f0; }
 .cell-meta { display: flex; flex-direction: column; gap: 2px; }
-.cell-title { font-weight: 800; color: #0f172a; font-size: 0.95rem; }
-.cell-subtitle { font-size: 0.8rem; color: #64748b; font-weight: 600; }
+.cell-title { font-weight: 800; color: #0f172a; font-size: 0.85rem; }
+.cell-subtitle { font-size: 0.75rem; color: #64748b; font-weight: 600; }
 
-.status-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  border-radius: 99px;
-  font-size: 0.75rem;
-  font-weight: 800;
-}
-
+.status-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; font-size: 0.7rem; font-weight: 800; }
 .is-success { background: #ecfdf5; color: #059669; }
 .is-warning, .is-waiting-payment { background: #fffbeb; color: #d97706; }
 .is-danger { background: #fef2f2; color: #dc2626; }
 .is-info { background: #f1f5f9; color: #475569; }
+.status-indicator .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
-.status-indicator .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.is-success .dot, .is-warning .dot, .is-waiting-payment .dot { animation: pulse 2s infinite; }
+.saas-row-actions-compact { display: flex; gap: 8px; justify-content: center; }
+.compact-btn { width: 32px; height: 32px; padding: 0 !important; }
+.done-label.compact { font-size: 20px; display: flex; justify-content: center; opacity: 0.8; }
 
-@keyframes pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+.time-premium.compact { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.time-row { display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: #1e293b; font-weight: 700; }
+.time-row.sub { font-size: 0.7rem; color: #64748b; font-weight: 600; }
+
+.saas-pagination { margin-top: 16px; padding: 8px; display: flex; justify-content: center; }
+
+@media (max-width: 1024px) {
+  .saas-stats-grid.compact { grid-template-columns: repeat(2, 1fr); }
 }
 
-.saas-row-actions-prominent { display: flex; gap: 12px; justify-content: center; }
-
-.prominent-btn {
-  border-radius: 10px !important;
-  font-weight: 800 !important;
-  padding: 10px 18px !important;
-  transition: all 0.2s !important;
-}
-
-.prominent-btn.confirm { box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2); }
-.prominent-btn.confirm:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(5, 150, 105, 0.3); }
-.prominent-btn.cancel:hover { transform: translateY(-2px); }
-
-.done-label { font-size: 24px; display: flex; justify-content: center; opacity: 0.8; }
-
-.time-premium { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.time-row { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: #1e293b; font-weight: 700; }
-.time-row.sub { font-size: 0.8rem; color: #64748b; font-weight: 600; }
-
-.saas-pagination { margin-top: 24px; padding: 12px; display: flex; justify-content: center; }
-
-.mr-1 { margin-right: 4px; }
-
-@media (max-width: 768px) {
-  .saas-stats-grid { grid-template-columns: 1fr 1fr; }
+@media (max-width: 640px) {
+  .saas-stats-grid.compact { grid-template-columns: 1fr; }
   .saas-header { flex-direction: column; align-items: stretch; }
-  .saas-search { width: 100%; }
+  .saas-search, .saas-filter { width: 100%; }
 }
 </style>

@@ -16,13 +16,19 @@ const isVideo = (url) => {
 const tournamentStore = useTournamentStore()
 const searchQuery = ref('')
 
-const activeFilter = ref('all') 
-
+const activeFilter = ref('all')
 const latestNews = ref([])
 const topPlayers = ref([])
 
+// Pagination
+const currentPage = ref(1)
+const pageSize = ref(6)
+
 const fetchTournaments = () => {
-  tournamentStore.fetchTournaments({ search: searchQuery.value })
+  tournamentStore.fetchTournaments({ 
+    search: searchQuery.value,
+    limit: 100 // Tăng giới hạn để lấy đủ 11 giải đấu (và nhiều hơn nữa)
+  })
 }
 
 onMounted(async () => {
@@ -99,15 +105,35 @@ const groupedTournaments = computed(() => {
     filtered = filtered.filter(t => t.is_registered || t.is_mine || t.is_participant)
   }
 
-  const groups = {}
-  filtered.forEach(tour => {
-    const dateKey = normalizeDateKey(tour.start_date)
-    const monthYear = dateKey ? getMonthLabel(new Date(`${dateKey}T12:00:00`)) : t('common.other')
-    if (!groups[monthYear]) groups[monthYear] = []
-    groups[monthYear].push(tour)
+  // Sorting: Ongoing (0) -> Open (1) -> Pending (2) -> Finished (3)
+  const statusOrder = { 'ongoing': 0, 'open': 1, 'pending': 2, 'finished': 3 }
+  
+  return [...filtered].sort((a, b) => {
+    const orderA = statusOrder[a.status] ?? 99
+    const orderB = statusOrder[b.status] ?? 99
+    
+    if (orderA !== orderB) return orderA - orderB
+    
+    // Within same status, sort by date (newest first)
+    return new Date(b.start_date) - new Date(a.start_date)
   })
-  return groups
 })
+
+const paginatedTournaments = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return groupedTournaments.value.slice(start, end)
+})
+
+const handlePageChange = (page) => {
+  currentPage.value = page
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+const handleFilterChange = (filter) => {
+  activeFilter.value = filter
+  currentPage.value = 1
+}
 
 const viewDetail = (id) => {
   router.push({ name: 'tournament-detail', params: { id } })
@@ -143,11 +169,11 @@ const viewDetail = (id) => {
         
         <div class="baseline-header-controls">
           <div class="baseline-tabs">
-            <button :class="{ active: activeFilter === 'all' }" @click="activeFilter = 'all'">{{ t('tournaments.all') }}</button>
-            <button :class="{ active: activeFilter === 'ongoing' }" @click="activeFilter = 'ongoing'">{{ t('tournaments.ongoing') }}</button>
-            <button :class="{ active: activeFilter === 'upcoming' }" @click="activeFilter = 'upcoming'">{{ t('tournaments.upcoming') }}</button>
-            <button :class="{ active: activeFilter === 'completed' }" @click="activeFilter = 'completed'">{{ t('tournaments.completed') }}</button>
-            <button :class="{ active: activeFilter === 'my_tours' }" @click="activeFilter = 'my_tours'">{{ t('tournaments.myTournaments') }}</button>
+            <button :class="{ active: activeFilter === 'all' }" @click="handleFilterChange('all')">{{ t('tournaments.all') }}</button>
+            <button :class="{ active: activeFilter === 'ongoing' }" @click="handleFilterChange('ongoing')">{{ t('tournaments.ongoing') }}</button>
+            <button :class="{ active: activeFilter === 'upcoming' }" @click="handleFilterChange('upcoming')">{{ t('tournaments.upcoming') }}</button>
+            <button :class="{ active: activeFilter === 'completed' }" @click="handleFilterChange('completed')">{{ t('tournaments.completed') }}</button>
+            <button :class="{ active: activeFilter === 'my_tours' }" @click="handleFilterChange('my_tours')">{{ t('tournaments.myTournaments') }}</button>
           </div>
           <div class="baseline-search">
             <el-input 
@@ -166,59 +192,69 @@ const viewDetail = (id) => {
         </div>
 
         <div v-else class="tournament-feed">
-          <div v-for="(tournaments, month) in groupedTournaments" :key="month" class="month-block">
-            <h3 class="month-title">{{ month }}</h3>
+          <div class="baseline-cards-wrapper">
+            <article 
+              v-for="tour in paginatedTournaments" 
+              :key="tour.id" 
+              class="baseline-card"
+              :class="tour.status"
+              @click="viewDetail(tour.id)"
+            >
+              <div class="card-hero-image">
+                <img :src="getTournamentImage(tour)" alt="Tournament Banner" />
+                
+                <div class="badge-status" :class="tour.status">
+                  <span v-if="tour.status === 'ongoing'" class="pulse-dot"></span>
+                  <el-icon><Clock /></el-icon> {{ getStatusLabel(tour.status) }}
+                </div>
+                
+                <div class="badge-location">
+                  <el-icon><Location /></el-icon> {{ tour.location || t('tournaments.hcmc') }}
+                </div>
+              </div>
 
-            <div class="baseline-cards-wrapper">
-              <article 
-                v-for="tour in tournaments" 
-                :key="tour.id" 
-                class="baseline-card"
-                @click="viewDetail(tour.id)"
-              >
-                <div class="card-hero-image">
-                  <img :src="getTournamentImage(tour)" alt="Tournament Banner" />
-                  
-                  <div class="badge-status">
-                    <el-icon><Clock /></el-icon> {{ getStatusLabel(tour.status) }}
+              <div class="card-info-section">
+                <div class="date-block">
+                  <div class="days-row">
+                    <span class="day">{{ getDay(tour.start_date) }}</span>
+                    <template v-if="tour.end_date && tour.end_date !== tour.start_date">
+                      <span class="dot">.</span>
+                      <span class="day">{{ getDay(tour.end_date) }}</span>
+                    </template>
                   </div>
-                  
-                  <div class="badge-location">
-                    <el-icon><Location /></el-icon> {{ tour.location || t('tournaments.hcmc') }}
+                  <div class="months-row">
+                    <span class="month">{{ getMonth(tour.start_date) }}</span>
+                    <template v-if="tour.end_date && tour.end_date !== tour.start_date">
+                      <span class="space"></span>
+                      <span class="month">{{ getMonth(tour.end_date) }}</span>
+                    </template>
                   </div>
                 </div>
 
-                <div class="card-info-section">
-                  <div class="date-block">
-                    <div class="days-row">
-                      <span class="day">{{ getDay(tour.start_date) }}</span>
-                      <template v-if="tour.end_date && tour.end_date !== tour.start_date">
-                        <span class="dot">.</span>
-                        <span class="day">{{ getDay(tour.end_date) }}</span>
-                      </template>
-                    </div>
-                    <div class="months-row">
-                      <span class="month">{{ getMonth(tour.start_date) }}</span>
-                      <template v-if="tour.end_date && tour.end_date !== tour.start_date">
-                        <span class="space"></span>
-                        <span class="month">{{ getMonth(tour.end_date) }}</span>
-                      </template>
-                    </div>
+                <div class="text-block">
+                  <div class="organizer-info">
+                    <el-icon class="org-icon"><Trophy /></el-icon>
+                    <span class="org-name">{{ tour.category_type || t('tournaments.sgtSystem') }} - {{ tour.format_type === 'Singles' ? t('tournaments.singles') : t('tournaments.doubles') }}</span>
                   </div>
-
-                  <div class="text-block">
-                    <div class="organizer-info">
-                      <el-icon class="org-icon"><Trophy /></el-icon>
-                      <span class="org-name">{{ tour.category_type || t('tournaments.sgtSystem') }} - {{ tour.format_type === 'Singles' ? t('tournaments.singles') : t('tournaments.doubles') }}</span>
-                    </div>
-                    <h2 class="tournament-title">{{ tour.name }}</h2>
-                  </div>
+                  <h2 class="tournament-title">{{ tour.name }}</h2>
                 </div>
-              </article>
-            </div>
+              </div>
+            </article>
           </div>
 
-          <div v-if="Object.keys(groupedTournaments).length === 0" class="empty-state">
+          <!-- Phân trang -->
+          <div class="pagination-container" v-if="groupedTournaments.length > pageSize">
+            <el-pagination
+              v-model:current-page="currentPage"
+              :page-size="pageSize"
+              :total="groupedTournaments.length"
+              layout="prev, pager, next"
+              background
+              @current-change="handlePageChange"
+            />
+          </div>
+
+          <div v-if="groupedTournaments.length === 0" class="empty-state">
             <el-empty :description="t('tournaments.noTournamentsFound')" />
           </div>
         </div>
@@ -259,8 +295,20 @@ const viewDetail = (id) => {
 .baseline-tabs button.active { background: #002855; color: #ffffff; }
 .baseline-search { width: 185px; flex-shrink: 0; }
 :deep(.baseline-search .el-input__wrapper) { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-.month-block { background: #ffffff; border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); }
-.month-title { background: #f8fafc; padding: 12px 20px; border-radius: 8px; font-size: 1.1rem; font-weight: 700; color: #1e293b; margin-top: 0; margin-bottom: 20px; text-transform: uppercase; }
+.baseline-card { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; background: #fff; }
+.baseline-card.ongoing { border-color: rgba(220, 38, 38, 0.3); border-left: 4px solid #dc2626; }
+.baseline-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
+.card-hero-image { position: relative; width: 100%; height: 280px; background: #1e293b; }
+.card-hero-image img { width: 100%; height: 100%; object-fit: cover; }
+.badge-status { position: absolute; top: 16px; left: 16px; background: rgba(15, 23, 42, 0.85); color: #ffffff; padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 6px; backdrop-filter: blur(4px); }
+.badge-status.ongoing { background: rgba(220, 38, 38, 0.9); }
+.badge-status.finished { background: rgba(100, 116, 139, 0.9); }
+
+.pulse-dot { width: 8px; height: 8px; background: #fff; border-radius: 50%; box-shadow: 0 0 0 rgba(255, 255, 255, 0.4); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); } }
+
+.pagination-container { display: flex; justify-content: center; margin-top: 3rem; padding-bottom: 2rem; }
+:deep(.el-pagination.is-background .el-pager li:not(.is-disabled).is-active) { background-color: #002855; }
 .baseline-cards-wrapper { display: flex; flex-direction: column; gap: 24px; }
 .baseline-card { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; background: #fff; }
 .baseline-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
@@ -297,8 +345,24 @@ const viewDetail = (id) => {
 .news-item p { margin: 0; font-size: 0.9rem; font-weight: 600; line-height: 1.4; color: #1e293b; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;}
 @media (max-width: 1200px) { .main-layout { grid-template-columns: 250px minmax(0, 1fr); } .right-sidebar { display: none; } }
 @media (max-width: 992px) { .main-layout { grid-template-columns: minmax(0, 1fr); } .left-sidebar { display: none; } }
-@media (max-width: 768px) { .baseline-header-controls { flex-direction: column; align-items: stretch; } .baseline-tabs { width: 100%; padding-bottom: 8px; } .baseline-search { width: 100%; } .card-info-section { flex-direction: column; align-items: flex-start; gap: 16px; padding: 16px; } .date-block { border-right: none; border-bottom: 1px solid #e2e8f0; padding-right: 0; padding-bottom: 16px; width: 100%; flex-direction: row; align-items: center; gap: 16px; } .months-row { margin-top: 0; } .days-row .day { font-size: 1.5rem; } .card-hero-image { height: 200px; } .month-block { padding: 16px; } }
-@media (max-width: 480px) { .tournament-title { font-size: 1.1rem; } .badge-location { font-size: 0.75rem; padding: 4px 10px; } .badge-status { font-size: 0.7rem; padding: 4px 10px; } }
+@media (max-width: 768px) { 
+  .baseline-header-controls { flex-direction: column; align-items: stretch; } 
+  .baseline-tabs { width: 100%; padding-bottom: 8px; } 
+  .baseline-search { width: 100%; } 
+  .card-info-section { flex-direction: row; align-items: center; gap: 16px; padding: 16px; } 
+  .date-block { border-right: 1px solid #e2e8f0; border-bottom: none; padding-right: 24px; padding-bottom: 0; width: auto; flex-direction: column; align-items: center; gap: 4px; } 
+  .months-row { margin-top: 4px; } 
+  .days-row .day { font-size: 1.8rem; } 
+  .card-hero-image { height: 220px; } 
+  .tournament-feed { padding: 0; }
+}
+@media (max-width: 480px) { 
+  .card-info-section { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .date-block { border-right: none; border-bottom: 1px solid #e2e8f0; padding-right: 0; padding-bottom: 12px; width: 100%; flex-direction: row; justify-content: flex-start; gap: 12px; }
+  .tournament-title { font-size: 1.1rem; } 
+  .badge-location { font-size: 0.75rem; padding: 4px 10px; } 
+  .badge-status { font-size: 0.7rem; padding: 4px 10px; } 
+}
 .loading-state { text-align: center; padding: 4rem; }
 .spinner { width: 40px; height: 40px; border: 4px solid rgba(0,0,0,0.05); border-top-color: #002855; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
 @keyframes spin { to { transform: rotate(360deg); } }

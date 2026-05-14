@@ -308,6 +308,7 @@ const getRegStatusType = (status) => {
                 <img 
                   :src="row.user.avatar_url || `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`" 
                   @error="$event.target.src = `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`"
+                  referrerpolicy="no-referrer"
                 />
               </div>
               <div class="saas-user-meta">
@@ -494,7 +495,10 @@ const getRegStatusType = (status) => {
         <div class="detail-header">
           <div class="player-info-brief" v-if="selectedPlayer">
             <div class="saas-avatar large">
-              <img :src="selectedPlayer.user.avatar_url || `https://ui-avatars.com/api/?name=${selectedPlayer.user.full_name}&background=f1f5f9&color=64748b`" />
+              <img 
+                :src="selectedPlayer.user.avatar_url || `https://ui-avatars.com/api/?name=${selectedPlayer.user.full_name}&background=f1f5f9&color=64748b`" 
+                referrerpolicy="no-referrer"
+              />
             </div>
             <div class="meta">
               <h3>{{ selectedPlayer.user.full_name }}</h3>

@@ -44,5 +44,13 @@ export default {
   cancel: 'Cancel',
   sendRequest: 'Send Request',
   head2head: 'HEAD 2 HEAD',
-  vs: 'VS'
+  vs: 'VS',
+  noH2H: 'No Head-to-Head history',
+  
+  // Challenge statuses
+  pending: 'Pending',
+  waiting_payment: 'Awaiting Payment',
+  paid: 'Paid',
+  scheduled: 'Scheduled',
+  rejected: 'Rejected'
 }

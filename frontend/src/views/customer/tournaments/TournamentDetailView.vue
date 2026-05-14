@@ -419,7 +419,7 @@ const formatDate = (dateStr) => {
 .neo-standings-box { margin-top: 1.5rem; }
 .standings-group { margin-bottom: 2.5rem; }
 .sg-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1rem;}
-.neo-table-wrapper { background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); overflow: hidden; }
+.neo-table-wrapper { background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); overflow-x: auto; }
 .neo-table { width: 100%; border-collapse: collapse; }
 .neo-table th { background: var(--bg-body); padding: 12px 16px; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; border-bottom: 1px solid var(--border-light); text-align: left; }
 .neo-table td { padding: 12px 16px; font-size: 0.9rem; color: var(--text-secondary); border-bottom: 1px solid var(--border-light); }
@@ -447,6 +447,91 @@ const formatDate = (dateStr) => {
 .neo-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
 .spinner-ring { width: 48px; height: 48px; border: 4px solid var(--border-light); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 1024px) { .neo-grid { grid-template-columns: 1fr; } .neo-col-sidebar { order: -1; } .neo-action-card { box-shadow: 0 10px 30px rgba(0,0,0,0.05); } }
-@media (max-width: 768px) { .hero-title { font-size: 2rem; } .hero-details { flex-direction: column; align-items: flex-start; gap: 1rem; width: 100%;} .hd-divider { display: none; } .bento-layout { grid-template-columns: 1fr; } .box-lg { grid-column: auto; } }
+@media (max-width: 1024px) { 
+  .neo-grid { grid-template-columns: 1fr; gap: 1.5rem; } 
+  .neo-col-sidebar { order: 2; } 
+  .neo-action-card { box-shadow: 0 10px 30px rgba(0,0,0,0.05); } 
+  .sticky { position: relative; top: 0; }
+  .main-overlap { margin-top: -2rem; }
+}
+
+@media (max-width: 768px) { 
+  .container { padding: 0 1rem; }
+  .neo-hero { padding: 3.5rem 0 4.5rem; }
+  .hero-title { font-size: 1.8rem; margin-bottom: 1.25rem; word-break: break-word; } 
+  .hero-details { 
+    flex-direction: column; 
+    align-items: flex-start; 
+    gap: 0.75rem; 
+    width: 100%;
+    padding: 1rem;
+    border-radius: var(--radius-md);
+  } 
+  .hd-divider { display: none; } 
+  .bento-layout { grid-template-columns: 1fr; gap: 0.75rem; } 
+  .box-lg { grid-column: auto; } 
+  .neo-tabs-container { padding: 1rem; border-radius: var(--radius-lg); min-height: auto; }
+  
+  .main-overlap { margin-top: -1.5rem; }
+
+  :deep(.neo-tabs .el-tabs__header) {
+    margin-bottom: 1rem;
+  }
+  
+  :deep(.neo-tabs .el-tabs__nav) {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  :deep(.neo-tabs .el-tabs__nav::-webkit-scrollbar) { display: none; }
+  
+  :deep(.neo-tabs .el-tabs__item) {
+    flex: 1;
+    text-align: center;
+    padding: 0 12px !important;
+    min-width: max-content;
+    font-size: 0.8rem;
+  }
+
+  .neo-table th, .neo-table td {
+    padding: 8px 6px;
+    font-size: 0.75rem;
+  }
+  
+  .sg-title { font-size: 0.95rem; }
+}
+
+@media (max-width: 480px) {
+  .hero-title { font-size: 1.5rem; }
+  .neo-hero { padding: 2.5rem 0 4rem; }
+  .neo-badge { font-size: 0.65rem; padding: 3px 8px; }
+  .tour-type { font-size: 0.7rem; }
+  
+  .main-overlap { margin-top: 0; }
+  .neo-tabs-container { border-radius: 0; margin-left: -1rem; margin-right: -1rem; width: calc(100% + 2rem); }
+
+  .bento-box { padding: 0.85rem; }
+  .bento-val { font-size: 1rem; }
+  .bento-icon { font-size: 1.25rem; }
+  
+  .neo-bracket-scroll {
+    gap: 12px;
+  }
+  
+  .bracket-col {
+    min-width: 200px;
+  }
+  
+  .neo-action-card {
+    padding: 1.25rem;
+    border-radius: var(--radius-lg);
+  }
+  
+  .price-tag { font-size: 1.25rem; }
+  .ac-header h2 { font-size: 1.1rem; }
+  .ac-header { margin-bottom: 1.25rem; }
+  .ac-progress-section { margin-bottom: 1.5rem; }
+}
 </style>

@@ -33,6 +33,11 @@
               </div>
             </div>
           </div>
+          <div class="header-right mobile-close-wrap">
+            <button @click="isOpen = false" class="btn-close-mobile">
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
         </div>
 
         <!-- VIEW 1: DANH SÁCH & TÌM KIẾM -->
@@ -694,6 +699,35 @@ const disconnectAll = () => {
   .chat-trigger-btn.is-active { display: none; }
   .chat-header { justify-content: space-between; padding-top: calc(env(safe-area-inset-top) + 20px);}
   .header-title { flex: 1; }
+  
+  .mobile-close-wrap {
+    display: flex;
+    align-items: center;
+  }
+  
+  .btn-close-mobile {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+  .btn-close-mobile:active {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(0.9);
+  }
+}
+
+.mobile-close-wrap { display: none; }
+@media (max-width: 480px) {
+  .mobile-close-wrap { display: flex; }
 }
 /* THÊM CSS NÀY VÀO CUỐI FILE */
 .chat-disconnected-state {

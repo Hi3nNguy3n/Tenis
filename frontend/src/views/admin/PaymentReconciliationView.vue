@@ -74,6 +74,30 @@ const handleExport = () => {
   }
 }
 
+const parseDate = (val) => {
+  if (!val) return null
+  const d = new Date(val)
+  if (!isNaN(d.getTime())) return d
+  if (typeof val === 'string' && val.includes('/')) {
+    const p = val.split(/[\/\s:]/)
+    if (p.length >= 3) {
+      const d2 = new Date(p[2], p[1]-1, p[0])
+      if (!isNaN(d2.getTime())) return d2
+    }
+  }
+  return null
+}
+
+const formatDate = (val) => {
+  const d = parseDate(val)
+  return d ? d.toLocaleDateString('vi-VN') : '---'
+}
+
+const formatTime = (val) => {
+  const d = parseDate(val)
+  return d ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'
+}
+
 onMounted(() => {
   fetchTournaments()
   fetchPayments()
@@ -82,34 +106,37 @@ onMounted(() => {
 
 <template>
   <div class="module-shell">
-    <section class="action-bar-glass shadow-sm">
+    <section class="action-bar-glass shadow-sm compact">
       <div class="action-info">
         <div class="kicker-wrap">
           <span class="section-kicker">{{ $t('admin.financialOversight') }}</span>
-          <div class="live-indicator"><span class="dot"></span>LIVE</div>
+          <div class="live-indicator small"><span class="dot"></span>LIVE</div>
         </div>
-        <p>{{ $t('admin.financialOversightDesc') }}</p>
+        <p class="compact-desc">{{ $t('admin.financialOversightDesc') }}</p>
       </div>
       
-      <div class="filter-area">
+      <div class="filter-area compact">
         <el-input 
           v-model="searchQuery" 
           :placeholder="$t('admin.searchPaymentPlaceholder')" 
           clearable 
+          size="small"
           :prefix-icon="Search"
           @clear="fetchPayments"
           @keyup.enter="fetchPayments"
-          style="width: 280px"
+          class="filter-input"
         />
-        <el-select v-model="filterTournament" :placeholder="$t('admin.allTournaments')" clearable @change="fetchPayments" style="width: 250px">
+        <el-select v-model="filterTournament" :placeholder="$t('admin.allTournaments')" clearable size="small" @change="fetchPayments" class="filter-select">
           <el-option :label="$t('admin.friendlyFee')" :value="0" />
           <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
         </el-select>
         
-        <el-button :icon="Refresh" circle @click="fetchPayments" />
-        <el-button type="primary" round :loading="isExporting" @click="handleExport" class="btn-export">
-          {{ $t('admin.exportCsvBtn') }}
-        </el-button>
+        <div class="filter-actions">
+          <el-button :icon="Refresh" circle size="small" @click="fetchPayments" />
+          <el-button type="primary" round size="small" :loading="isExporting" @click="handleExport" class="btn-export">
+            {{ $t('admin.exportCsvBtn') }}
+          </el-button>
+        </div>
       </div>
     </section>
 
@@ -159,13 +186,13 @@ onMounted(() => {
            </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.timeCol')" min-width="140" align="right">
+        <el-table-column :label="$t('admin.timeCol')" width="140" align="right">
            <template #default="{ row }">
              <div class="time-vertical" v-if="row.paid_at">
-               <span class="d-val">{{ new Date(row.paid_at).toLocaleDateString('vi-VN') }}</span>
-               <span class="t-val">{{ new Date(row.paid_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) }}</span>
+               <span class="d-val">{{ formatDate(row.paid_at) }}</span>
+               <span class="t-val">{{ formatTime(row.paid_at) }}</span>
              </div>
-             <span v-else>N/A</span>
+             <span v-else>---</span>
            </template>
         </el-table-column>
       </el-table>
@@ -180,34 +207,39 @@ onMounted(() => {
 .action-bar-glass {
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(12px);
-  padding: 16px 24px;
-  border-radius: 20px;
+  padding: 12px 20px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.4);
   display: flex;
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.kicker-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 2px; }
-.section-kicker { font-size: 0.7rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
+.kicker-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.section-kicker { font-size: 0.65rem; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
 
-.live-indicator {
-  display: flex; align-items: center; gap: 6px;
-  background: #f0fdf4; color: #15803d; font-size: 0.65rem; font-weight: 800;
-  padding: 2px 8px; border-radius: 99px;
-}
-.dot { width: 6px; height: 6px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
-
-@keyframes pulse {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+.live-indicator.small {
+  padding: 1px 6px; font-size: 0.6rem;
 }
 
-.action-info p { color: #64748b; font-size: 0.9rem; margin: 0; }
+.compact-desc { color: #64748b; font-size: 0.8rem; margin: 0; }
 
-.filter-area { display: flex; align-items: center; gap: 12px; }
+.filter-area { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.filter-input { width: 220px; }
+.filter-select { width: 200px; }
+.filter-actions { display: flex; align-items: center; gap: 8px; }
+
+:deep(.el-input__wrapper), :deep(.el-select__wrapper) {
+  background-color: #f8fafc !important;
+  box-shadow: none !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  padding: 2px 8px !important;
+}
+
 .btn-export {
   background: linear-gradient(135deg, #10b981, #059669);
   border: none;
@@ -216,9 +248,9 @@ onMounted(() => {
 }
 
 .table-card-premium {
-  background: white; padding: 8px; border-radius: 20px;
+  background: white; padding: 4px; border-radius: 16px;
   border: 1px solid #f1f5f9; box-shadow: 0 10px 30px rgba(0,0,0,0.03);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .tx-cell { display: flex; flex-direction: column; gap: 2px; }
@@ -230,9 +262,9 @@ onMounted(() => {
 .payer-name { font-weight: 700; color: #1e293b; font-size: 0.9rem; }
 .tour-name { font-weight: 600; color: #475569; font-size: 0.85rem; }
 
-.amount-cell { font-weight: 900; color: #10b981; font-size: 1rem; }
+.amount-cell { font-weight: 900; color: #10b981; font-size: 0.9rem; }
 
-.status-pill { font-weight: 800; border-radius: 99px; padding: 0 16px; font-size: 0.65rem; border: none !important; }
+.status-pill { font-weight: 800; border-radius: 99px; padding: 0 10px; font-size: 0.6rem; border: none !important; }
 
 .time-vertical { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .d-val { font-size: 0.85rem; color: #64748b; font-weight: 600; }
@@ -242,4 +274,10 @@ onMounted(() => {
 :deep(.el-table .cell) { padding: 12px 16px; }
 
 .shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+
+@media (max-width: 768px) {
+  .action-bar-glass { flex-direction: column; align-items: stretch; }
+  .filter-area { flex-direction: column; align-items: stretch; }
+  .filter-input, .filter-select { width: 100%; }
+}
 </style>

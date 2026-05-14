@@ -156,31 +156,19 @@ watch(() => route.query.tournamentId, async (newId) => {
     selectedTournamentId.value = parseInt(newId)
     await fetchMatches()
   } else {
-    // Nếu URL bị xóa ID (ví dụ nhấn menu), tự động chọn lại cái đầu tiên nếu có
-    if (tournaments.value.length > 0) {
-      handleTournamentChange(tournaments.value[0].id)
-    }
+    selectedTournamentId.value = null
+    matches.value = []
   }
 })
 
 onMounted(async () => {
   isLoading.value = true
   try {
-    // 1. Tải danh sách giải đấu
     await fetchTournaments()
     
-    // 2. Xác định giải đấu cần hiển thị
     const queryId = route.query.tournamentId
     if (queryId) {
       selectedTournamentId.value = parseInt(queryId)
-    } else if (tournaments.value.length > 0) {
-      // Tự động chọn giải đấu đầu tiên nếu URL trống
-      selectedTournamentId.value = tournaments.value[0].id
-      handleTournamentChange(selectedTournamentId.value)
-    }
-    
-    // 3. Tải trận đấu
-    if (selectedTournamentId.value) {
       await fetchMatches()
     }
   } finally {
@@ -226,9 +214,16 @@ onMounted(async () => {
 
     <section class="saas-draw-viewport" v-loading="isLoading">
       <div v-if="!selectedTournamentId" class="saas-empty-state">
-        <el-empty :description="$t('admin.emptyDrawState')">
-          <p class="empty-tip">Vui lòng chọn một giải đấu để xem hoặc bắt đầu bốc thăm.</p>
-        </el-empty>
+        <div class="empty-hero">
+          <div class="hero-blob"></div>
+          <el-icon class="hero-icon"><Trophy /></el-icon>
+        </div>
+        <h3>BẮT ĐẦU QUẢN LÝ BỐC THĂM</h3>
+        <p class="empty-tip">Vui lòng chọn một giải đấu từ danh sách phía trên để bắt đầu bốc thăm hoặc xem nhánh đấu.</p>
+        <div class="empty-action-hint">
+          <el-icon><Search /></el-icon>
+          <span>Sử dụng bộ chọn giải đấu ở góc trên bên phải</span>
+        </div>
       </div>
       <div v-else-if="matches.length === 0" class="saas-empty-state">
         <el-empty :description="$t('admin.noMatchesState')">
@@ -450,15 +445,74 @@ onMounted(async () => {
 
 .saas-empty-state {
   background: white;
-  padding: 80px 0;
-  border-radius: 24px;
-  border: 1px solid #f1f5f9;
+  padding: 100px 20px;
+  border-radius: 32px;
+  border: 1px dashed #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.empty-hero {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-blob {
+  position: absolute;
+  inset: 0;
+  background: #eff6ff;
+  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+  animation: blobMorph 8s infinite alternate;
+  opacity: 0.6;
+}
+
+@keyframes blobMorph {
+  0% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; transform: scale(1); }
+  100% { border-radius: 70% 30% 30% 70% / 70% 70% 30% 30%; transform: scale(1.1); }
+}
+
+.hero-icon {
+  font-size: 64px;
+  color: #3b82f6;
+  position: relative;
+  z-index: 2;
+}
+
+.saas-empty-state h3 {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #1e293b;
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
 }
 
 .empty-tip {
-  color: #94a3b8;
+  color: #64748b;
+  font-size: 1.1rem;
+  max-width: 400px;
+  margin: 0 auto 24px;
+  line-height: 1.6;
+}
+
+.empty-action-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: #f8fafc;
+  border-radius: 99px;
+  color: #3b82f6;
+  font-weight: 700;
   font-size: 0.9rem;
-  margin-top: 8px;
+  border: 1px solid #e2e8f0;
 }
 
 /* STAGE BLOCKS */

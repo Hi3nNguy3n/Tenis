@@ -231,12 +231,16 @@ onMounted(() => {
     <div class="saas-content-area" v-loading="isLoading">
       <!-- Empty State -->
       <div v-if="selectedTournamentId === null || selectedTournamentId === ''" class="saas-empty-state">
-        <div class="empty-visual">
-          <div class="blob-anim"></div>
-          <el-icon class="main-icon"><Trophy /></el-icon>
+        <div class="empty-hero">
+          <div class="hero-blob"></div>
+          <el-icon class="hero-icon"><Monitor /></el-icon>
         </div>
-        <h3>{{ $t('admin.startMatchControlTitle') }}</h3>
-        <p>{{ $t('admin.startMatchControlDesc') }}</p>
+        <h3>ĐIỀU HÀNH TRẬN ĐẤU</h3>
+        <p class="empty-tip">Vui lòng chọn một giải đấu để bắt đầu cập nhật lịch thi đấu, tỉ số và quản lý diễn biến các trận đấu.</p>
+        <div class="empty-action-hint">
+          <el-icon><Search /></el-icon>
+          <span>Sử dụng bộ chọn giải đấu ở thanh công cụ phía trên</span>
+        </div>
       </div>
 
       <!-- Match Rounds -->
@@ -465,25 +469,76 @@ onMounted(() => {
 
 /* Empty State */
 .saas-empty-state {
-  text-align: center; padding: 100px 40px; background: #fff; border-radius: 32px;
-  border: 1px dashed #cbd5e1; display: flex; flex-direction: column; align-items: center;
+  background: white;
+  padding: 100px 20px;
+  border-radius: 32px;
+  border: 1px dashed #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
-.empty-visual { position: relative; width: 120px; height: 120px; margin-bottom: 24px; }
-.main-icon { font-size: 80px; color: #94a3b8; position: relative; z-index: 2; }
-.blob-anim {
-  position: absolute; inset: 0; background: #f1f5f9; border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
-  animation: blobby 10s infinite linear; opacity: 0.5;
+.empty-hero {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@keyframes blobby {
-  0% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: rotate(0deg); }
-  50% { border-radius: 60% 40% 30% 70% / 50% 60% 40% 60%; }
-  100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; transform: rotate(360deg); }
+.hero-blob {
+  position: absolute;
+  inset: 0;
+  background: #fef2f2;
+  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+  animation: blobMorph 8s infinite alternate;
+  opacity: 0.6;
 }
 
-.saas-empty-state h3 { font-size: 1.5rem; font-weight: 800; color: #1e293b; margin-bottom: 12px; }
-.saas-empty-state p { color: #64748b; font-size: 1rem; }
+@keyframes blobMorph {
+  0% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; transform: scale(1); }
+  100% { border-radius: 70% 30% 30% 70% / 70% 70% 30% 30%; transform: scale(1.1); }
+}
+
+.hero-icon {
+  font-size: 64px;
+  color: #dc2626;
+  position: relative;
+  z-index: 2;
+}
+
+.saas-empty-state h3 {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #1e293b;
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+.empty-tip {
+  color: #64748b;
+  font-size: 1.1rem;
+  max-width: 450px;
+  margin: 0 auto 24px;
+  line-height: 1.6;
+}
+
+.empty-action-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: #fff1f2;
+  border-radius: 99px;
+  color: #e11d48;
+  font-weight: 700;
+  font-size: 0.9rem;
+  border: 1px solid #fecaca;
+}
 
 /* Rounds Layout */
 .rounds-wrapper { display: flex; flex-direction: column; gap: 48px; }

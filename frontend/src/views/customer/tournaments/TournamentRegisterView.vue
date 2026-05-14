@@ -290,9 +290,35 @@ const submitRegistration = async () => {
 .step-text { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
 .step-line { width: 40px; height: 2px; background: rgba(255,255,255,0.2); margin-top: -24px;}
 .step-line.active { background: var(--blue-accent); }
-@media (max-width: 900px) { .hero-inner { flex-direction: column; align-items: flex-start; } .neo-stepper { width: 100%; justify-content: space-between; } .step-line { flex: 1; margin-top: -20px;} .step-text { display: none; } }
-.neo-grid { display: grid; grid-template-columns: 1fr 340px; gap: 2rem; position: relative; z-index: 10; }
-@media (max-width: 900px) { .neo-grid { grid-template-columns: 1fr; } .sidebar-column { order: -1; } .neo-hero { padding-bottom: 5rem; margin-bottom: -3rem;} }
+@media (max-width: 900px) { 
+  .hero-inner { flex-direction: column; align-items: flex-start; gap: 1.25rem; } 
+  .neo-stepper { width: 100%; justify-content: space-between; } 
+  .step-line { flex: 1; margin-top: -18px;} 
+  .step-text { display: none; } 
+  .tour-title { font-size: 1.6rem; word-break: break-word; }
+  .neo-grid { grid-template-columns: 1fr; gap: 1.5rem; } 
+  .sidebar-column { order: 2; } 
+  .neo-hero { padding: 3rem 0 4.5rem; margin-bottom: -2.5rem;}
+  .sticky { position: relative; top: 0; }
+}
+
+@media (max-width: 600px) {
+  .container { padding: 0 1rem; }
+  .neo-hero { padding: 2.5rem 0 4rem; margin-bottom: -2rem;}
+  .tour-badge { font-size: 0.7rem; padding: 4px 10px; }
+  .tour-title { font-size: 1.4rem; }
+  .neo-form-grid { grid-template-columns: 1fr; gap: 1rem;}
+  .card-header { padding: 1.25rem 1.25rem 1rem; }
+  .card-body { padding: 1.25rem; }
+  .card-footer { padding: 1rem 1.25rem; flex-direction: column; gap: 0.75rem; }
+  .card-footer .neo-btn-primary, .card-footer .neo-btn-ghost { width: 100%; padding: 1rem; }
+  .neo-otp-input :deep(.el-input__inner) { font-size: 1.5rem; height: 55px; letter-spacing: 0.2em; }
+  .ticket-widget { border-radius: 12px; }
+  .ticket-top, .ticket-bottom { padding: 1.25rem; }
+  .notch { width: 20px; height: 20px; }
+  .notch.left { left: -11px; }
+  .notch.right { right: -11px; }
+}
 .neo-card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 10px 40px rgba(0,0,0,0.04); overflow: hidden; }
 .card-header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); }
 .ch-title { display: flex; align-items: center; gap: 10px; margin-bottom: 6px;}
