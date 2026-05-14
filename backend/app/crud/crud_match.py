@@ -42,11 +42,14 @@ def create_manual_match(db, match_data):
         round_code=match_data.match_name if not match_data.tournament_id else "Exhibition",        
         match_no=1,
 
-        side_a_registration_id=match_data.side_a_id if match_data.tournament_id else None,
-        side_b_registration_id=match_data.side_b_id if match_data.tournament_id else None,
+        # Nếu là giải đấu, chúng ta vẫn gán side_a_registration_id 
+        # CẢNH BÁO: Hiện tại match_data.side_a_id từ frontend gửi về đang là PLAYER ID
+        # Chúng ta sẽ lưu nó vào player_a_id/player_b_id để an toàn cho việc tính ELO
+        side_a_registration_id=None, # Tạm để None vì ID gửi về là Player ID
+        side_b_registration_id=None,
         
-        player_a_id=match_data.side_a_id if not match_data.tournament_id else None,
-        player_b_id=match_data.side_b_id if not match_data.tournament_id else None,
+        player_a_id=match_data.side_a_id,
+        player_b_id=match_data.side_b_id,
 
         match_date=match_data.match_date,
         
@@ -54,7 +57,8 @@ def create_manual_match(db, match_data):
         start_time=final_start_time, 
         
         best_of_sets=3,
-        status="scheduled"
+        status="scheduled",
+        elo_affected=True # LUÔN BẬT ĐỂ TÍNH ĐIỂM
     )
     
     db.add(new_match)

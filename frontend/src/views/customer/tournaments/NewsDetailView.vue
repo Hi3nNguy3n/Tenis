@@ -5,6 +5,7 @@ import { newsService } from '../../../services/newsService'
 import { playerService } from '../../../services/playerService' 
 import { Calendar, User, ArrowLeft, Share, ChatLineRound, VideoPlay } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../../utils/locale'
+import 'quill/dist/quill.snow.css'
 
 const route = useRoute()
 const router = useRouter()
@@ -152,7 +153,7 @@ const getCategoryLabel = (val) => {
           <main class="article-main">
             <p v-if="post.summary" class="article-lead">{{ post.summary }}</p>
 
-            <div class="article-content-rich" v-html="post.content"></div>
+            <div class="article-content-rich ql-editor" v-html="post.content"></div>
 
             <footer class="article-footer-tags">
               <div class="tags-container">
@@ -250,7 +251,14 @@ const getCategoryLabel = (val) => {
 .article-content-rich :deep(h2) { font-size: 1.8rem; font-weight: 700; color: #0f172a; margin: 3rem 0 1.5rem; }
 .article-content-rich :deep(h3) { font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 2rem 0 1rem; }
 .article-content-rich :deep(img), .article-content-rich :deep(video) { width: 100%; border-radius: 8px; margin: 2.5rem 0; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-.article-content-rich :deep(blockquote) { border-left: 6px solid #c1ff72; background: #002855; padding: 2rem; margin: 3rem 0; font-style: italic; font-size: 1.3rem; color: white; border-radius: 0 8px 8px 0; }
+.article-content-rich :deep(blockquote) { border-left: 6px solid #c1ff72; background: #f8fafc; padding: 2rem; margin: 3rem 0; font-style: italic; font-size: 1.3rem; color: #1e293b; border-radius: 0 8px 8px 0; }
+.article-content-rich :deep(.ql-bg-black) { background-color: #000; color: #fff; }
+.article-content-rich :deep(.ql-bg-red) { background-color: #e60000; color: #fff; }
+.article-content-rich :deep(.ql-bg-orange) { background-color: #f50; color: #fff; }
+.article-content-rich :deep(.ql-bg-yellow) { background-color: #ff0; color: #000; }
+.article-content-rich :deep(.ql-bg-green) { background-color: #008a00; color: #fff; }
+.article-content-rich :deep(.ql-bg-blue) { background-color: #06c; color: #fff; }
+.article-content-rich :deep(.ql-bg-purple) { background-color: #d85d00; color: #fff; }
 .article-footer-tags { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid #e2e8f0; }
 .tags-container { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 3rem; }
 .news-tag { border: none !important; background: #f1f5f9 !important; color: #475569 !important; font-weight: 600 !important; font-size: 0.9rem;}

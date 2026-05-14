@@ -21,9 +21,11 @@ const categoryOptions = ref([
 
 const formatCategoryLabel = (value) => {
   if (!value) return ''
-  if (value === 'Singles') return t('common.singles') || 'Đơn'
-  if (value === 'Doubles') return t('common.doubles') || 'Đôi'
-  return value
+  // Nếu value là object (trường hợp khởi tạo), lấy thuộc tính value
+  const val = typeof value === 'object' ? value.value : value
+  if (val === 'Singles') return t('common.singles') || 'Đơn'
+  if (val === 'Doubles') return t('common.doubles') || 'Đôi'
+  return val
 }
 
 const buildFilterOptions = (items = []) => {
@@ -54,9 +56,8 @@ const fetchRankings = async () => {
     const response = await apiClient.get(url)
     const normalized = Array.isArray(response) ? response : []
     
-    // Lọc bỏ tài khoản Admin và đánh lại số thứ tự (Rank)
-    const filteredPlayers = normalized.filter(p => !p.full_name?.toLowerCase().includes('admin'))
-    rankings.value = filteredPlayers.map((player, index) => ({
+    // Đánh lại số thứ tự (Rank)
+    rankings.value = normalized.map((player, index) => ({
       ...player,
       rank: index + 1
     }))
@@ -590,22 +591,86 @@ onMounted(fetchRankings)
 ========================================================= */
 @media (max-width: 1024px) {
   .layout-grid {
-    grid-template-columns: 1fr; /* Rớt cột phải xuống dưới */
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+  .sidebar {
+    order: 2;
+    margin-top: 1rem;
   }
 }
 
 @media (max-width: 768px) {
+  .container {
+    padding: 0 1rem;
+  }
+  
   .inline-filters {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 1rem;
+    padding-bottom: 10px;
   }
-  .hidden-mobile { display: none; }
-  .page-title { font-size: 1.5rem; }
+
+  .filter-tabs {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+
+  .filter-dropdowns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .ranking-list-container {
+    margin: 1rem 0 0;
+    overflow-x: auto;
+    border-top: 1px solid #f1f5f9;
+    border-radius: 4px;
+  }
+
+  .atp-flat-table {
+    min-width: 600px;
+  }
+
+  .hidden-mobile { display: none !important; }
+  
+  .page-title { 
+    font-size: 1.5rem; 
+    justify-content: center;
+  }
+  .page-title span { display: block; font-size: 1.1rem; opacity: 0.8; }
+
+  .col-rank { width: 50px; }
+  .player-ava { width: 38px; height: 38px; }
+  .player-name { font-size: 0.95rem; }
 }
 
 @media (max-width: 480px) {
-  .filter-dropdowns { flex-direction: column; width: 100%;}
-  :deep(.flat-select) { width: 100%; }
+  .filter-dropdowns { 
+    grid-template-columns: 1fr; 
+  }
+  
+  .title-row { margin-bottom: 1rem; }
+  
+  .atp-flat-table th, .atp-flat-table td {
+    padding: 0.6rem 0.3rem;
+  }
+  
+  .rank-num { font-size: 0.9rem; }
+  .points-val { font-size: 0.9rem; }
+  
+  .player-ava { width: 32px; height: 32px; }
+  .player-name { font-size: 0.85rem; }
+  
+  /* Chống tràn cho sidebar widget */
+  .ws-body { padding: 0.75rem; }
+  .match-summary { font-size: 0.65rem; }
 }
 </style>
