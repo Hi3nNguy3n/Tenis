@@ -30,7 +30,7 @@ const handleInput = (index, event) => {
 }
 
 const registerAccount = async () => {
-  const otpCode = otp.value.join('')
+  const otpCode = otp.value.join('').trim()
   if (otpCode.length !== 6) {
     ElMessage.warning(t('auth.valOtpRequired'))
     return
