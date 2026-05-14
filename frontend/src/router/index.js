@@ -27,7 +27,8 @@ const ForgotPasswordView = () => import('../views/auth/ForgotPasswordView.vue')
 
 const adminViewFactories = {
   dashboard: () => import('../views/admin/AdminDashboardView.vue'),
-  profile: () => import('../views/admin/AdminProfileView.vue'),
+/*   profile: () => import('../AdminProfileView.vue'),
+ */  
   tournaments: () => import('../views/admin/TournamentManagementView.vue'),
   registrations: () => import('../views/admin/RegistrationsQueueView.vue'),
   courts: () => import('../views/admin/CourtManagementView.vue'),
@@ -39,9 +40,10 @@ const adminViewFactories = {
   matches: () => import('../views/admin/MatchesView.vue'),
   placeholder: () => import('../views/admin/GenericAdminModuleView.vue'),
   ActivityLogsView: () => import('../views/admin/ActivityLogsView.vue'),
-  dailySchedule: () => import('../views/admin/AdminDailyScheduleView.vue'),
-  calendar: () => import('../views/admin/AdminCalendarView.vue'),
-  news: () => import('../views/admin/NewsManagementView.vue'),
+/*   dailySchedule: () => import('../views/admin/AdminDailyScheduleView.vue'),
+ */  
+/*   calendar: () => import('../views/admin/AdminCalendarView.vue'),
+ */  news: () => import('../views/admin/NewsManagementView.vue'),
   rankings: () => import('../views/admin/AdminRankingsView.vue'),
   mailCampaign: () => import('../views/admin/MailCampaignView.vue'),
   AdminCreateMatchView: () => import('../views/admin/AdminCreateMatchView.vue'),
@@ -141,12 +143,12 @@ const router = createRouter({
       name: 'rankings',
       component: RankingsView,
     },
-    {
+/*     {
       path: '/profile',
       name: 'profile',
       component: ProfileView,
       meta: { requiresAuth: true },
-    },
+    }, */
     {
       path: '/news',
       name: 'customer-news',
