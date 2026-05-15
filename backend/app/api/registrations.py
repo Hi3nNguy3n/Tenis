@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.db.database import get_db, SessionLocal
 from app.api.deps import get_current_user, get_current_admin
-from app.models.models import User, Registration, Tournament, Player, Payment
+from app.models.models import User, Registration, Tournament, Player, Payment, TournamentCategory
 from app.crud import crud_registration, crud_player
 from app.schemas import registration_schemas
 from app.core.qr_generator import generate_registration_qr
@@ -34,14 +34,26 @@ def get_my_registrations(
     if not player:
         return []
         
-    registrations_data = crud_registration.get_registrations_by_player(db, player.id)
+    from sqlalchemy import or_
+    registrations_data = db.query(Registration, Tournament, TournamentCategory).join(
+        Tournament, Registration.tournament_id == Tournament.id
+    ).outerjoin(
+        TournamentCategory, Registration.tournament_category_id == TournamentCategory.id
+    ).filter(
+        or_(
+            Registration.player_id == player.id,
+            Registration.partner_player_id == player.id
+        ),
+        Registration.deleted_at.is_(None)
+    ).all()
     
     response_items = []
-    for reg, tourn in registrations_data:
+    for reg, tourn, category in registrations_data:
         item = registration_schemas.RegistrationResponse.model_validate(reg)
         item.tournament_name = tourn.name
         item.location = tourn.location
         item.category_type = tourn.category_type
+        item.category_name = category.name if category else "Mặc định"
         item.entry_fee = float(tourn.entry_fee) if tourn.entry_fee else 0
         item.entry_fee_team = float(tourn.entry_fee_team) if tourn.entry_fee_team else 0
         item.tournament_date = tourn.start_date
@@ -79,14 +91,15 @@ def admin_get_all_registrations(
     results = crud_registration.get_all_registrations_admin(db)
     
     response_items = []
-    for reg, tourn, player, user in results:
+    for reg, tourn, player, user, category in results:
         item = registration_schemas.RegistrationResponse.model_validate(reg)
         item.tournament_name = tourn.name
         item.location = tourn.location
         item.player_name = user.full_name
-        item.tournament_date = tourn.start_date.isoformat() if tourn.start_date else None
-        item.registered_at = reg.registered_at.isoformat() if reg.registered_at else None
+        item.tournament_date = tourn.start_date
+        item.registered_at = reg.registered_at
         item.category_type = tourn.category_type
+        item.category_name = category.name if category else "Mặc định"
         item.entry_fee = float(tourn.entry_fee) if tourn.entry_fee else 0
         item.player_phone = user.phone
         item.player_email = user.email

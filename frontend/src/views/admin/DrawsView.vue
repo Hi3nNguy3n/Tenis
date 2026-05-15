@@ -22,9 +22,12 @@ const isLoading = ref(false)
 const generating = ref(false)
 const lastDrawSummary = ref(null)
 
+const selectedCategoryId = ref(null)
+
 // --- BIẾN CHO BỐC THĂM BAN ĐẦU ---
 const isDrawDialogOpen = ref(false)
 const drawForm = ref({
+  category_id: null,
   format_type: 'knockout',
   num_groups: 1
 })
@@ -33,11 +36,18 @@ const drawForm = ref({
 const isPlayoffDialogOpen = ref(false)
 const generatingPlayoff = ref(false)
 const playoffForm = ref({
+  category_id: null,
   advancers_per_group: 2
 })
 
-const openDrawDialog = () => isDrawDialogOpen.value = true
-const openPlayoffDialog = () => isPlayoffDialogOpen.value = true
+const openDrawDialog = () => {
+  drawForm.value.category_id = selectedCategoryId.value
+  isDrawDialogOpen.value = true
+}
+const openPlayoffDialog = () => {
+  playoffForm.value.category_id = selectedCategoryId.value
+  isPlayoffDialogOpen.value = true
+}
 
 const currentUserName = computed(() => {
   return authStore.profile?.full_name || authStore.user?.full_name || 'Admin'
@@ -50,6 +60,11 @@ const hasGroupStage = computed(() => {
 
 const currentTournament = computed(() => {
   return tournaments.value.find(t => t.id === selectedTournamentId.value) || null
+})
+
+const selectedCategory = computed(() => {
+  if (!selectedCategoryId.value || !currentTournament.value?.categories) return null
+  return currentTournament.value.categories.find(c => c.id === selectedCategoryId.value)
 })
 
 const canDraw = computed(() => {
@@ -135,7 +150,10 @@ const fetchMatches = async () => {
   }
   isLoading.value = true
   try {
-    const data = await tournamentService.getMatches(selectedTournamentId.value)
+    // API support category filtering
+    const url = `/api/tournaments/${selectedTournamentId.value}/matches` + 
+                (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : '')
+    const data = await apiClient.get(url)
     matches.value = data
   } catch (err) {
     ElMessage.error(t('admin.loadMatchesError') || 'Error loading brackets: ' + err.message)
@@ -147,30 +165,41 @@ const fetchMatches = async () => {
 
 // Xử lý khi chọn giải đấu khác từ dropdown
 const handleTournamentChange = (id) => {
-  router.push({ query: { ...route.query, tournamentId: id } })
+  selectedCategoryId.value = null // Reset category when tournament changes
+  router.push({ query: { ...route.query, tournamentId: id, categoryId: undefined } })
+}
+
+const handleCategoryChange = (catId) => {
+  router.push({ query: { ...route.query, categoryId: catId } })
 }
 
 // Chỉ theo dõi ID để cập nhật dữ liệu trận đấu
-watch(() => route.query.tournamentId, async (newId) => {
+watch(() => [route.query.tournamentId, route.query.categoryId], async ([newId, newCatId]) => {
   if (newId) {
     selectedTournamentId.value = parseInt(newId)
+    
+    // Auto-select first category if not specified
+    if (!newCatId && currentTournament.value?.categories?.length) {
+      selectedCategoryId.value = currentTournament.value.categories[0].id
+      handleCategoryChange(selectedCategoryId.value)
+      return
+    }
+    
+    selectedCategoryId.value = newCatId ? parseInt(newCatId) : null
     await fetchMatches()
   } else {
     selectedTournamentId.value = null
+    selectedCategoryId.value = null
     matches.value = []
   }
-})
+}, { immediate: true })
 
 onMounted(async () => {
   isLoading.value = true
   try {
     await fetchTournaments()
-    
-    const queryId = route.query.tournamentId
-    if (queryId) {
-      selectedTournamentId.value = parseInt(queryId)
-      await fetchMatches()
-    }
+    // Không tự động fill ID từ query để tránh gây bối rối cho người dùng, 
+    // buộc người dùng phải chọn giải đấu từ dropdown.
   } finally {
     isLoading.value = false
   }
@@ -200,29 +229,45 @@ onMounted(async () => {
               </div>
             </el-option>
           </el-select>
-          
-          <el-button v-if="hasGroupStage" type="danger" :disabled="!selectedTournamentId" :loading="generatingPlayoff" @click="openPlayoffDialog" class="saas-btn-action is-danger">
+
+          <!-- Category selector removed and moved to tabs below -->
+
+          <el-button v-if="hasGroupStage" type="danger" :disabled="!selectedTournamentId || !selectedCategoryId" :loading="generatingPlayoff" @click="openPlayoffDialog" class="saas-btn-action is-danger">
             <el-icon class="mr-1"><Finished /></el-icon> {{ $t('admin.finalizeGroups') }}
           </el-button>
-
-          <el-button type="primary" :disabled="!canDraw" :loading="generating" @click="openDrawDialog" class="saas-btn-action is-primary">
+          
+          <el-button type="primary" :disabled="!canDraw || !selectedCategoryId" :loading="generating" @click="openDrawDialog" class="saas-btn-action is-primary">
             <el-icon class="mr-1"><EditPen /></el-icon> {{ $t('admin.startNewDraw') }}
           </el-button>
         </div>
       </div>
     </section>
 
+    <!-- Tab chọn thể thức thi đấu -->
+    <section class="category-tabs-section" v-if="selectedTournamentId && currentTournament?.categories?.length">
+      <el-tabs v-model="selectedCategoryId" @tab-change="handleCategoryChange" class="draws-tabs-premium">
+        <el-tab-pane 
+          v-for="cat in currentTournament.categories" 
+          :key="cat.id" 
+          :label="cat.name.toUpperCase()" 
+          :name="cat.id"
+        />
+      </el-tabs>
+    </section>
+
     <section class="saas-draw-viewport" v-loading="isLoading">
-      <div v-if="!selectedTournamentId" class="saas-empty-state">
-        <div class="empty-hero">
-          <div class="hero-blob"></div>
-          <el-icon class="hero-icon"><Trophy /></el-icon>
-        </div>
-        <h3>BẮT ĐẦU QUẢN LÝ BỐC THĂM</h3>
-        <p class="empty-tip">Vui lòng chọn một giải đấu từ danh sách phía trên để bắt đầu bốc thăm hoặc xem nhánh đấu.</p>
-        <div class="empty-action-hint">
-          <el-icon><Search /></el-icon>
-          <span>Sử dụng bộ chọn giải đấu ở góc trên bên phải</span>
+      <div v-if="!selectedTournamentId" class="saas-empty-state-hero">
+        <div class="hero-content">
+          <div class="hero-visual">
+            <div class="visual-blob"></div>
+            <el-icon class="visual-icon"><Trophy /></el-icon>
+          </div>
+          <h2 class="hero-title">{{ t('admin.selectTournamentToStart') || 'CHỌN GIẢI ĐẤU ĐỂ BẮT ĐẦU' }}</h2>
+          <p class="hero-desc">Hệ thống đang sẵn sàng. Vui lòng chọn một giải đấu từ menu phía trên để thực hiện bóc thăm, quản lý sơ đồ nhánh đấu và lịch thi đấu.</p>
+          <div class="hero-hint">
+            <el-icon><Search /></el-icon>
+            <span>Sử dụng bộ chọn giải đấu ở thanh công cụ</span>
+          </div>
         </div>
       </div>
       <div v-else-if="matches.length === 0" class="saas-empty-state">
@@ -258,11 +303,17 @@ onMounted(async () => {
                   </div>
                   <div class="m-card-body">
                     <div class="team-row" :class="{ 'is-winner': m.winner_side === 'side_a' }">
-                      <span class="team-name">{{ m.p1_name || '---' }}</span>
+                      <div class="team-meta-stack">
+                        <span class="team-name">{{ m.p1_name || '---' }}</span>
+                        <span v-if="m.p1_partner_name" class="partner-subtext">& {{ m.p1_partner_name }}</span>
+                      </div>
                       <el-icon v-if="m.winner_side === 'side_a'" class="win-icon"><CircleCheckFilled /></el-icon>
                     </div>
                     <div class="team-row" :class="{ 'is-winner': m.winner_side === 'side_b' }">
-                      <span class="team-name">{{ m.p2_name || '---' }}</span>
+                      <div class="team-meta-stack">
+                        <span class="team-name">{{ m.p2_name || '---' }}</span>
+                        <span v-if="m.p2_partner_name" class="partner-subtext">& {{ m.p2_partner_name }}</span>
+                      </div>
                       <el-icon v-if="m.winner_side === 'side_b'" class="win-icon"><CircleCheckFilled /></el-icon>
                     </div>
                   </div>
@@ -302,10 +353,16 @@ onMounted(async () => {
                       </div>
                       <div class="m-card-body">
                         <div class="team-row compact" :class="{ 'is-winner': m.winner_side === 'side_a' }">
-                          <span class="team-name">{{ m.p1_name || '---' }}</span>
+                          <div class="team-meta-stack">
+                            <span class="team-name">{{ m.p1_name || '---' }}</span>
+                            <span v-if="m.p1_partner_name" class="partner-subtext mini">& {{ m.p1_partner_name }}</span>
+                          </div>
                         </div>
                         <div class="team-row compact" :class="{ 'is-winner': m.winner_side === 'side_b' }">
-                          <span class="team-name">{{ m.p2_name || '---' }}</span>
+                          <div class="team-meta-stack">
+                            <span class="team-name">{{ m.p2_name || '---' }}</span>
+                            <span v-if="m.p2_partner_name" class="partner-subtext mini">& {{ m.p2_partner_name }}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -323,6 +380,16 @@ onMounted(async () => {
 
   <el-dialog v-model="isDrawDialogOpen" :title="$t('admin.drawOptionsTitle')" width="450px" destroy-on-close>
     <el-form :model="drawForm" label-position="top">
+      <el-form-item :label="$t('admin.category')">
+        <el-select v-model="drawForm.category_id" style="width: 100%" placeholder="Chọn nội dung để bốc thăm">
+          <el-option 
+            v-for="cat in currentTournament?.categories" 
+            :key="cat.id" 
+            :label="cat.name" 
+            :value="cat.id" 
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item :label="$t('admin.formatType')">
         <el-radio-group v-model="drawForm.format_type">
           <el-radio value="knockout">{{ $t('admin.knockout') }}</el-radio>
@@ -342,6 +409,16 @@ onMounted(async () => {
 
   <el-dialog v-model="isPlayoffDialogOpen" :title="$t('admin.finalizePlayoffTitle')" width="450px" destroy-on-close>
     <el-form :model="playoffForm" label-position="top">
+      <el-form-item :label="$t('admin.category')">
+        <el-select v-model="playoffForm.category_id" style="width: 100%" placeholder="Chọn nội dung chốt bảng">
+          <el-option 
+            v-for="cat in currentTournament?.categories" 
+            :key="cat.id" 
+            :label="cat.name" 
+            :value="cat.id" 
+          />
+        </el-select>
+      </el-form-item>
       <div style="margin-bottom: 20px; color: #b91c1c; font-size: 0.9rem; background: #fef2f2; padding: 12px; border-radius: 8px;">
         {{ $t('admin.finalizePlayoffNote') }}
       </div>
@@ -416,7 +493,11 @@ onMounted(async () => {
 }
 
 .tournament-selector {
-  width: 280px;
+  width: 250px;
+}
+
+.category-selector {
+  width: 200px;
 }
 
 .saas-btn-action {
@@ -443,76 +524,28 @@ onMounted(async () => {
   box-shadow: 0 8px 15px rgba(0,0,0,0.1);
 }
 
-.saas-empty-state {
+.saas-empty-state-hero {
   background: white;
-  padding: 100px 20px;
+  min-height: 500px;
   border-radius: 32px;
-  border: 1px dashed #cbd5e1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.empty-hero {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  margin-bottom: 32px;
+  border: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
 }
 
-.hero-blob {
-  position: absolute;
-  inset: 0;
-  background: #eff6ff;
-  border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
-  animation: blobMorph 8s infinite alternate;
-  opacity: 0.6;
-}
+.hero-content { text-align: center; max-width: 500px; padding: 40px; }
+.hero-visual { position: relative; width: 140px; height: 140px; margin: 0 auto 32px; display: flex; align-items: center; justify-content: center; }
+.visual-blob { position: absolute; inset: 0; background: #eff6ff; border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; animation: blobMorph 8s infinite alternate; opacity: 0.6; }
+.visual-icon { font-size: 80px; color: #3b82f6; position: relative; z-index: 2; }
+.hero-title { font-size: 1.8rem; font-weight: 900; color: #0f172a; margin-bottom: 16px; letter-spacing: -0.02em; }
+.hero-desc { color: #64748b; font-size: 1.1rem; line-height: 1.6; margin-bottom: 32px; }
+.hero-hint { display: inline-flex; align-items: center; gap: 10px; padding: 12px 24px; background: #f8fafc; border-radius: 99px; color: #3b82f6; font-weight: 700; font-size: 0.9rem; border: 1px solid #e2e8f0; }
 
 @keyframes blobMorph {
   0% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; transform: scale(1); }
   100% { border-radius: 70% 30% 30% 70% / 70% 70% 30% 30%; transform: scale(1.1); }
-}
-
-.hero-icon {
-  font-size: 64px;
-  color: #3b82f6;
-  position: relative;
-  z-index: 2;
-}
-
-.saas-empty-state h3 {
-  font-size: 1.6rem;
-  font-weight: 900;
-  color: #1e293b;
-  margin: 0 0 12px;
-  letter-spacing: -0.02em;
-}
-
-.empty-tip {
-  color: #64748b;
-  font-size: 1.1rem;
-  max-width: 400px;
-  margin: 0 auto 24px;
-  line-height: 1.6;
-}
-
-.empty-action-hint {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 24px;
-  background: #f8fafc;
-  border-radius: 99px;
-  color: #3b82f6;
-  font-weight: 700;
-  font-size: 0.9rem;
-  border: 1px solid #e2e8f0;
 }
 
 /* STAGE BLOCKS */
@@ -765,8 +798,53 @@ onMounted(async () => {
     width: 100%;
     flex-wrap: wrap;
   }
-  .tournament-selector {
-    width: 100%;
-  }
+}
+
+.saas-tournament-selector { width: 380px; }
+
+.category-tabs-section {
+  background: white;
+  padding: 0 32px;
+  border-radius: 24px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+  border: 1px solid #f1f5f9;
+}
+
+:deep(.draws-tabs-premium) {
+  --el-tabs-header-height: 60px;
+}
+:deep(.draws-tabs-premium .el-tabs__nav-wrap::after) {
+  display: none;
+}
+:deep(.draws-tabs-premium .el-tabs__item) {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  padding: 0 32px;
+  transition: all 0.3s;
+}
+:deep(.draws-tabs-premium .el-tabs__item.is-active) {
+  color: #2563eb;
+  font-size: 0.9rem;
+}
+:deep(.draws-tabs-premium .el-tabs__active-bar) {
+  background-color: #2563eb;
+  height: 4px;
+  border-radius: 4px;
+}
+
+.team-meta-stack {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.partner-subtext {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+}
+.partner-subtext.mini {
+  font-size: 0.7rem;
 }
 </style>

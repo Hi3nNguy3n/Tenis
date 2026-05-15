@@ -14,6 +14,7 @@ const MatchesView = () => import('../views/customer/MatchesView.vue')
 const RankingsView = () => import('../views/customer/RankingsView.vue')
 const NewsView = () => import('../views/customer/tournaments/NewsView.vue')
 const NewsDetailView = () => import('../views/customer/tournaments/NewsDetailView.vue')
+const PlayerProfileView = () => import('../views/customer/PlayerProfileView.vue')
 
 // --- PROFILE & ACCOUNT ---
 const ProfileView = () => import('../views/customer/profile/ProfileView.vue')
@@ -127,6 +128,11 @@ const router = createRouter({
       path: '/players',
       name: 'players',
       component: PlayersView,
+    },
+    {
+      path: '/players/:id',
+      name: 'player-profile',
+      component: PlayerProfileView,
     },
     {
       path: '/challenges',

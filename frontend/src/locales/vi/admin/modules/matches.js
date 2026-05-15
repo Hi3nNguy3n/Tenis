@@ -87,4 +87,8 @@ export default {
   ongoingMatches: 'Trận đang đấu',
   scheduledMatches: 'Trận sắp đấu',
   completedMatches: 'Trận đã xong',
+  totalMatches: 'Tổng số trận',
+  loadTournamentsError: 'Lỗi tải danh sách giải đấu',
+  loadMatchesError: 'Lỗi tải danh sách trận đấu',
+  others: 'Khác',
 }

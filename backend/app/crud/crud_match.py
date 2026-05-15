@@ -1,17 +1,19 @@
 # backend/app/crud/crud_match.py
 from sqlalchemy.orm import Session
-from app.models.models import Match, Tournament, Court
+from app.models.models import Match, Tournament, Court, TournamentCategory
 from fastapi import HTTPException
 from datetime import datetime
 
-def get_list_matches(db: Session, tournament_id: int = None):
+def get_list_matches(db: Session, tournament_id: int = None, category_id: int = None):
     """
-    Truy vấn danh sách trận đấu, join với Tournament và Court để lấy tên cụ thể.
+    Truy vấn danh sách trận đấu, join với Tournament, Court và Category để lấy tên cụ thể.
     """
-    query = db.query(Match, Tournament, Court).outerjoin(
+    query = db.query(Match, Tournament, Court, TournamentCategory).outerjoin(
         Tournament, Match.tournament_id == Tournament.id
     ).outerjoin(
         Court, Match.court_id == Court.id
+    ).outerjoin(
+        TournamentCategory, Match.tournament_category_id == TournamentCategory.id
     )
     
     if tournament_id == 0:
@@ -20,6 +22,9 @@ def get_list_matches(db: Session, tournament_id: int = None):
     elif tournament_id is not None:
         # Lấy các trận thuộc giải đấu cụ thể
         query = query.filter(Match.tournament_id == tournament_id)
+        
+    if category_id is not None:
+        query = query.filter(Match.tournament_category_id == category_id)
         
     return query.all()
 

@@ -1,13 +1,14 @@
 # backend/app/crud/crud_tournament.py
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from typing import Optional, List, Dict, Any
 from sqlalchemy import func, desc, or_
 from fastapi import HTTPException
 from datetime import datetime
 import math
 import random
 
-from app.models.models import Tournament, Match, Registration, Player, User, Payment, Court, MailCampaign
-from app.schemas.tournament_schemas import TournamentCreate, TournamentUpdate
+from app.models.models import Tournament, Match, Registration, Player, User, Payment, Court, MailCampaign, TournamentCategory
+from app.schemas.tournament_schemas import TournamentCreate, TournamentUpdate, MatchScoreUpdate, MatchScheduleUpdate, GenerateDrawRequest
 from app.core.audit import log_action
 
 import io
@@ -29,10 +30,59 @@ def create_tournament(db: Session, tournament: TournamentCreate):
     db.add(db_tournament)
     db.commit()
     db.refresh(db_tournament)
+
+    # 3. TỰ ĐỘNG TẠO 1 CATEGORY MẶC ĐỊNH (Để dropdown không bị trống và hỗ trợ đa nội dung)
+    # Map sang Tiếng Việt cho thân thiện
+    gender_map = {"men": "Nam", "women": "Nữ", "mixed": "Nam Nữ"}
+    type_map = {"singles": "Đơn", "doubles": "Đôi"}
+    
+    gender_vn = gender_map.get(db_tournament.gender_division.lower(), db_tournament.gender_division)
+    type_vn = type_map.get(db_tournament.category_type.lower(), db_tournament.category_type)
+    
+    # Tên nội dung gọn gàng: "Đôi Nam Nữ", "Đơn Nam"...
+    category_name = f"{type_vn} {gender_vn}"
+    if db_tournament.gender_division.lower() == "mixed":
+        category_name = "Đôi Nam Nữ" # Đặc biệt cho Mixed Doubles
+
+    default_category = TournamentCategory(
+        tournament_id=db_tournament.id,
+        name=category_name,
+        category_type=f"{db_tournament.gender_division.lower()}_{db_tournament.category_type.lower()}",
+        max_participants=db_tournament.draw_size,
+        max_points=None
+    )
+    db.add(default_category)
+    db.commit()
+    
+    db.refresh(db_tournament)
     return db_tournament
 
+def delete_tournament_db(db: Session, tournament_id: int):
+    """Xóa toàn bộ giải đấu và các dữ liệu liên quan (Cascade manual)"""
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu để xóa.")
+
+    # 1. Xóa các trận đấu liên quan
+    db.query(Match).filter(Match.tournament_id == tournament_id).delete()
+    
+    # 2. Xóa các lượt đăng ký
+    db.query(Registration).filter(Registration.tournament_id == tournament_id).delete()
+    
+    # 3. Xóa các nội dung thi đấu
+    db.query(TournamentCategory).filter(TournamentCategory.tournament_id == tournament_id).delete()
+    
+    # 4. Xóa các chiến dịch email
+    db.query(MailCampaign).filter(MailCampaign.tournament_id == tournament_id).delete()
+
+    # 5. Cuối cùng mới xóa giải đấu
+    db.delete(tournament)
+    db.commit()
+    return {"message": "Đã xóa giải đấu thành công!", "id": tournament_id}
+
+
 def get_tournaments_with_counts(db: Session, skip: int = 0, limit: int = 10, status: str = None):
-    query = db.query(Tournament)
+    query = db.query(Tournament).options(joinedload(Tournament.categories))
     if status:
         query = query.filter(Tournament.status == status)
     
@@ -48,7 +98,7 @@ def get_tournaments_with_counts(db: Session, skip: int = 0, limit: int = 10, sta
     return tournaments
 
 def get_tournament_with_count(db: Session, tournament_id: int):
-    t = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    t = db.query(Tournament).options(joinedload(Tournament.categories)).filter(Tournament.id == tournament_id).first()
     if not t:
         raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu")
     
@@ -105,12 +155,15 @@ def update_tournament_info(db: Session, tournament_id: int, tournament_in: Tourn
     log_action(db, admin_id, "TOURNAMENT", "UPDATE", "Tournament", db_tour.id, None, {"name": db_tour.name}, "Cập nhật giải đấu")
     return db_tour
 
-def generate_knockout_draw(db: Session, tournament_id: int):
-    regs = db.query(Registration).filter(
+def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optional[int] = None):
+    query = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
         Registration.status.in_(["confirmed", "checked_in"]),
         Registration.deleted_at.is_(None)
-    ).all()
+    )
+    if category_id:
+        query = query.filter(Registration.tournament_category_id == category_id)
+    regs = query.all()
 
     if not regs:
         raise HTTPException(status_code=400, detail="Chưa có vận động viên nào được duyệt tham gia để tạo nhánh đấu.")
@@ -123,7 +176,10 @@ def generate_knockout_draw(db: Session, tournament_id: int):
 
     round_labels = {1: "FINAL", 2: "SF", 4: "QF", 8: "R16", 16: "R32", 32: "R64", 64: "R128"}
 
-    db.query(Match).filter(Match.tournament_id == tournament_id).delete()
+    match_del_query = db.query(Match).filter(Match.tournament_id == tournament_id, Match.stage_type == "knockout")
+    if category_id:
+        match_del_query = match_del_query.filter(Match.tournament_category_id == category_id)
+    match_del_query.delete()
     db.flush()
 
     matches_by_round = {}
@@ -134,7 +190,10 @@ def generate_knockout_draw(db: Session, tournament_id: int):
 
         for i in range(num_matches):
             m = Match(
-                tournament_id=tournament_id, stage_type="knockout", round_code=label,
+                tournament_id=tournament_id, 
+                tournament_category_id=category_id,
+                stage_type="knockout", 
+                round_code=label,
                 match_no=i + 1, status="pending", best_of_sets=3, elo_affected=True
             )
             db.add(m)
@@ -192,35 +251,52 @@ def generate_knockout_draw(db: Session, tournament_id: int):
         "rounds": rounds_needed
     }
 
-def get_tournament_matches_detail(db: Session, tournament_id: int):
-    matches = db.query(Match).filter(Match.tournament_id == tournament_id).order_by(Match.match_no).all()
+def get_tournament_matches_detail(db: Session, tournament_id: int, category_id: Optional[int] = None):
+    query = db.query(Match).filter(Match.tournament_id == tournament_id)
+    if category_id:
+        query = query.filter(Match.tournament_category_id == category_id)
+    
+    matches = query.order_by(Match.match_no).all()
     results = []
     for m in matches:
         p1_name = "Chưa xác định"
         p2_name = "Chưa xác định"
+        p1_partner_name = None
+        p2_partner_name = None
         
-        if m.side_a_registration_id:
-            reg_a = db.query(Registration).filter(Registration.id == m.side_a_registration_id).first()
-            if reg_a:
-                user = db.query(User).join(Player).filter(Player.id == reg_a.player_id).first()
-                p1_name = user.full_name if user else "VĐV"
-        
-        if m.side_b_registration_id:
-            reg_b = db.query(Registration).filter(Registration.id == m.side_b_registration_id).first()
-            if reg_b:
-                user = db.query(User).join(Player).filter(Player.id == reg_b.player_id).first()
-                p2_name = user.full_name if user else "VĐV"
+        reg_a = db.query(Registration).filter(Registration.id == m.side_a_registration_id).first() if m.side_a_registration_id else None
+        if reg_a:
+            user_a = db.query(User).join(Player).filter(Player.id == reg_a.player_id).first()
+            if user_a:
+                p1_name = user_a.full_name
+            p1_partner_name = reg_a.partner_name
+
+        reg_b = db.query(Registration).filter(Registration.id == m.side_b_registration_id).first() if m.side_b_registration_id else None
+        if reg_b:
+            user_b = db.query(User).join(Player).filter(Player.id == reg_b.player_id).first()
+            if user_b:
+                p2_name = user_b.full_name
+            p2_partner_name = reg_b.partner_name
                 
         results.append({
             "id": m.id, "round_code": m.round_code, "match_no": m.match_no,
-            "p1_name": p1_name, "p2_name": p2_name, "status": m.status,
+            "p1_name": p1_name, "p2_name": p2_name,
+            "p1_partner_name": p1_partner_name, "p2_partner_name": p2_partner_name,
+            "status": m.status,
             "court_id": m.court_id, 
             "start_time": m.start_time.isoformat() if m.start_time else None, 
-            "winner_side": m.winner_side
+            "winner_side": m.winner_side,
+            "referee_id": m.referee_id,
+            "referee_name": m.referee_name,
+            "referee_phone": m.referee_phone,
+            "score_summary": getattr(m, 'score_summary', None) or getattr(m, 'result_note', None),
+            "video_url": getattr(m, 'video_url', None),
+            "image_url": getattr(m, 'image_url', None),
+            "tournament_category_id": m.tournament_category_id
         })
     return results
 
-def schedule_match_db(db: Session, match_id: int, payload):
+def schedule_match_db(db: Session, match_id: int, payload: MatchScheduleUpdate):
     db_match = db.query(Match).filter(Match.id == match_id).first()
     if not db_match:
         raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu")
@@ -235,6 +311,10 @@ def schedule_match_db(db: Session, match_id: int, payload):
             
     db_match.court_id = payload.court_id
     db_match.start_time = payload.start_time
+    if payload.referee_id:
+        db_match.referee_id = payload.referee_id
+    db_match.referee_name = payload.referee_name
+    db_match.referee_phone = payload.referee_phone
     db.commit()
     return {"message": "Đã cập nhật lịch thi đấu"}
 
@@ -253,7 +333,9 @@ def get_all_matches_detail(db: Session):
         if not reg:
             return None
         user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == reg.player_id).first()
-        return user.full_name if user else None
+        if not user:
+            return None
+        return f"{user.full_name} - {reg.partner_name}" if reg.partner_name else user.full_name
 
     results = []
     for m, t, c in matches:
@@ -285,7 +367,7 @@ def get_all_matches_detail(db: Session):
         })
     return results
 
-def calculate_elo_and_update_match(db: Session, match_id: int, payload):
+def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchScoreUpdate):
     # 1. Tìm trận đấu và kiểm tra trạng thái
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match or match.status == "completed":
@@ -297,6 +379,10 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload):
         match.status = "completed"
         match.score_summary = payload.score
         match.winner_side = payload.winner_side
+        if payload.referee_id:
+            match.referee_id = payload.referee_id
+        match.referee_name = payload.referee_name
+        match.referee_phone = payload.referee_phone
         db.commit()
         return {"message": "Cập nhật tỷ số thành công (Không tính ELO)"}
 
@@ -336,28 +422,50 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload):
     if not winner_p or not loser_p:
         raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ vận động viên.")
 
-    # 5. THUẬT TOÁN ELO[cite: 33]
+    # 5. THUẬT TOÁN ELO
     K = 32
     Ra = winner_p.elo_points
     Rb = loser_p.elo_points
     E_winner = 1 / (1 + 10 ** ((Rb - Ra) / 400))
     elo_gain = round(K * (1 - E_winner))
     
-    # Cập nhật chỉ số cho người thắng
-    winner_p.elo_points += elo_gain
-    winner_p.wins += 1
-    winner_p.matches_played += 1
-    
-    # Cập nhật chỉ số cho người thua
-    loser_p.elo_points -= elo_gain
-    loser_p.losses += 1
-    loser_p.matches_played += 1
+    # Cập nhật chỉ số cho người thắng (và đồng đội nếu có)
+    def update_p_stats(p, gain, is_win):
+        p.elo_points += gain if is_win else -gain
+        if is_win: p.wins += 1
+        else: p.losses += 1
+        p.matches_played += 1
+
+    update_p_stats(winner_p, elo_gain, True)
+    update_p_stats(loser_p, elo_gain, False)
+
+    # Nếu là đánh đôi, cập nhật cho cả đồng đội
+    if match.tournament_id:
+        reg_win = db.query(Registration).filter(Registration.id == win_reg_id).first()
+        lose_reg_id = match.side_b_registration_id if payload.winner_side == "side_a" else match.side_a_registration_id
+        reg_lose = db.query(Registration).filter(Registration.id == lose_reg_id).first()
+        
+        if reg_win and reg_win.partner_player_id:
+            partner_win = db.query(Player).filter(Player.id == reg_win.partner_player_id).first()
+            if partner_win: update_p_stats(partner_win, elo_gain, True)
+            
+        if reg_lose and reg_lose.partner_player_id:
+            partner_lose = db.query(Player).filter(Player.id == reg_lose.partner_player_id).first()
+            if partner_lose: update_p_stats(partner_lose, elo_gain, False)
 
     # 6. Cập nhật thông tin trận đấu
     match.status = "completed"
     match.winner_side = payload.winner_side
     match.winner_registration_id = win_reg_id # Lưu reg_id nếu có
     match.result_note = payload.score
+    if payload.video_url is not None:
+        match.video_url = payload.video_url
+    if payload.image_url is not None:
+        match.image_url = payload.image_url
+    if payload.referee_id:
+        match.referee_id = payload.referee_id
+    match.referee_name = payload.referee_name
+    match.referee_phone = payload.referee_phone
 
     # 7. Xử lý logic thăng hạng nếu là trận đấu giải[cite: 33]
     message_suffix = ""
@@ -390,24 +498,59 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload):
     db.commit()
     return {"message": f"Cập nhật kết quả thành công! {message_suffix}"}
 
-def get_public_bracket_detail(db: Session, tournament_id: int):
-    matches = db.query(Match).filter(Match.tournament_id == tournament_id).all()
+def get_public_bracket_detail(db: Session, tournament_id: int, category_id: Optional[int] = None):
+    query = db.query(Match).filter(Match.tournament_id == tournament_id)
+    if category_id:
+        query = query.filter(Match.tournament_category_id == category_id)
+    matches = query.all()
     
-    def get_name(reg_id):
-        if not reg_id: return "Chưa xác định"
+    def get_player_data(reg_id):
+        if not reg_id: return {"name": "Chưa xác định", "user_id": None, "partner_name": None, "partner_user_id": None}
         reg = db.query(Registration).filter(Registration.id == reg_id).first()
-        if not reg: return "Chưa xác định"
+        if not reg: return {"name": "Chưa xác định", "user_id": None, "partner_name": None, "partner_user_id": None}
+        
         user = db.query(User).join(Player).filter(Player.id == reg.player_id).first()
-        return user.full_name if user else "Chưa xác định"
+        data = {
+            "name": user.full_name if user else "Chưa xác định",
+            "user_id": user.id if user else None,
+            "partner_name": None,
+            "partner_user_id": None
+        }
+        
+        if getattr(reg, "partner_player_id", None):
+            partner_user = db.query(User).join(Player).filter(Player.id == reg.partner_player_id).first()
+            if partner_user:
+                data["partner_name"] = partner_user.full_name
+                data["partner_user_id"] = partner_user.id
+        elif reg.partner_name: # Thêm logic fallback lấy partner_name từ registration nếu không có partner_player_id
+            data["partner_name"] = reg.partner_name
+                
+        return data
 
     results = []
     for m in matches:
+        p1_data = get_player_data(m.side_a_registration_id)
+        p2_data = get_player_data(m.side_b_registration_id)
+        
         results.append({
             "id": m.id, "match_no": m.match_no, "round_code": m.round_code,
-            "p1_name": get_name(m.side_a_registration_id),
-            "p2_name": get_name(m.side_b_registration_id),
+            "category_id": m.tournament_category_id,
+            "p1_name": p1_data["name"],
+            "p1_user_id": p1_data["user_id"],
+            "p1_partner_name": p1_data["partner_name"],
+            "p1_partner_user_id": p1_data["partner_user_id"],
+            
+            "p2_name": p2_data["name"],
+            "p2_user_id": p2_data["user_id"],
+            "p2_partner_name": p2_data["partner_name"],
+            "p2_partner_user_id": p2_data["partner_user_id"],
+            
             "winner_side": m.winner_side, "status": m.status,
-            "start_time": m.start_time, "score": m.result_note
+            "start_time": m.start_time, "score": m.result_note,
+            "video_url": getattr(m, "video_url", None),
+            "image_url": getattr(m, "image_url", None),
+            "referee_name": m.referee_name or (db.query(User.full_name).filter(User.id == m.referee_id).scalar() if m.referee_id else None),
+            "referee_phone": m.referee_phone
         })
     return results
 
@@ -492,7 +635,8 @@ def export_tournament_data_to_excel(db: Session, tournament_id: int):
         r = db.query(Registration).filter(Registration.id == reg_id).first()
         if not r: return "N/A"
         u = db.query(User).join(Player).filter(Player.id == r.player_id).first()
-        return u.full_name if u else "VĐV"
+        if not u: return "VĐV"
+        return f"{u.full_name} - {r.partner_name}" if r.partner_name else u.full_name
 
     for m in matches:
         p1_name = get_player_name(m.side_a_registration_id)
@@ -566,12 +710,13 @@ def save_mail_campaign(
     db.refresh(new_campaign)
     return new_campaign
 
-def generate_round_robin_draw(db: Session, tournament_id: int, num_groups: int = 1):
-    """Thuật toán chia bảng và tạo lịch thi đấu Vòng tròn"""
+def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int, num_groups: int = 1):
+    """Thuật toán chia bảng và tạo lịch thi đấu Vòng tròn cho từng nội dung"""
     
-    # 1. Lấy danh sách VĐV đã xác nhận tham gia
+    # 1. Lấy danh sách VĐV đã xác nhận tham gia trong nội dung này
     players = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
+        Registration.tournament_category_id == category_id,
         Registration.status == "confirmed",
         Registration.deleted_at.is_(None)
     ).all()
@@ -579,8 +724,11 @@ def generate_round_robin_draw(db: Session, tournament_id: int, num_groups: int =
     if len(players) < 2:
         raise HTTPException(status_code=400, detail="Cần ít nhất 2 VĐV đã duyệt để tạo lịch thi đấu vòng tròn.")
 
-    # 2. Xóa lịch thi đấu cũ (nếu có) để tạo lại
-    db.query(Match).filter(Match.tournament_id == tournament_id).delete()
+    # 2. Xóa lịch thi đấu cũ của nội dung này (nếu có) để tạo lại
+    db.query(Match).filter(
+        Match.tournament_id == tournament_id,
+        Match.tournament_category_id == category_id
+    ).delete()
     
     # Đảo lộn ngẫu nhiên VĐV trước khi bốc thăm
     random.shuffle(players) 
@@ -609,6 +757,7 @@ def generate_round_robin_draw(db: Session, tournament_id: int, num_groups: int =
                 if p1 is not None and p2 is not None:
                     new_match = Match(
                         tournament_id=tournament_id,
+                        tournament_category_id=category_id,
                         stage_type="group_stage",
                         group_id=group_id, # Lưu ID bảng vào đây
                         round_code=f"G{group_id}-R{round_num+1}", # Mã vòng: Bảng 1 - Vòng 1
@@ -627,13 +776,28 @@ def generate_round_robin_draw(db: Session, tournament_id: int, num_groups: int =
     db.commit()
     return {"message": f"Đã chia {num_groups} bảng và tạo lịch thi đấu vòng tròn thành công!"}
 
-def calculate_tournament_standings(db: Session, tournament_id: int):
-    """Hàm lõi tính điểm vòng tròn (Dùng chung cho cả API và Playoff)"""
-    matches = db.query(Match).filter(
+def calculate_tournament_standings(db: Session, tournament_id: int, category_id: Optional[int] = None):
+    """Hàm lõi tính điểm (Dùng cho cả Vòng tròn và Xếp hạng tổng thể)"""
+    # 1. Thử lấy các trận vòng bảng trước
+    query = db.query(Match).filter(
         Match.tournament_id == tournament_id,
         Match.stage_type == "group_stage",
         Match.status == "completed" 
-    ).all()
+    )
+    if category_id:
+        query = query.filter(Match.tournament_category_id == category_id)
+    
+    matches = query.all()
+
+    # 2. Nếu không có trận vòng bảng nào, lấy tất cả các trận đã xong của giải (cho Knockout/Playoff)
+    if not matches:
+        query = db.query(Match).filter(
+            Match.tournament_id == tournament_id,
+            Match.status == "completed"
+        )
+        if category_id:
+            query = query.filter(Match.tournament_category_id == category_id)
+        matches = query.all()
 
     standings = {}
 
@@ -641,7 +805,12 @@ def calculate_tournament_standings(db: Session, tournament_id: int):
         return int(val) if val is not None else 0
 
     for match in matches:
-        group = f"Bảng {match.group_id}"
+        # Xác định tên bảng
+        if match.stage_type == "group_stage" and match.group_id:
+            group = f"Bảng {match.group_id}"
+        else:
+            group = "Xếp hạng tổng thể"
+
         if group not in standings:
             standings[group] = {}
 
@@ -653,7 +822,7 @@ def calculate_tournament_standings(db: Session, tournament_id: int):
 
         for p_id in [p1_id, p2_id]:
             if p_id not in standings[group]:
-                user_record = db.query(User.full_name).join(
+                user_record = db.query(User.full_name, Registration.partner_name, Registration.partner_player_id, Registration.player_id, User.id).join(
                     Player, User.id == Player.user_id
                 ).join(
                     Registration, Player.id == Registration.player_id
@@ -662,9 +831,24 @@ def calculate_tournament_standings(db: Session, tournament_id: int):
                 ).first()
                 
                 player_name = user_record[0] if user_record else "Unknown"
+                partner_name = user_record[1] if user_record else None
+                partner_player_id = user_record[2] if user_record else None
+                # QUAN TRỌNG: player_id ở đây trả về User ID để link profile
+                player_id = user_record[4] if user_record else None
+                
+                # Nếu có mapping ID đồng đội, lấy User ID của đồng đội
+                partner_user_id = None
+                if partner_player_id:
+                    p_user = db.query(User.full_name, User.id).join(Player).filter(Player.id == partner_player_id).first()
+                    if p_user:
+                        partner_name = p_user[0]
+                        partner_user_id = p_user[1]
                     
                 standings[group][p_id] = {
                     "player_name": player_name, 
+                    "player_id": player_id,
+                    "partner_name": partner_name,
+                    "partner_player_id": partner_user_id,
                     "played": 0, "won": 0, "lost": 0, "points": 0,
                     "sets_won": 0, "sets_lost": 0, 
                     "games_won": 0, "games_lost": 0
@@ -721,11 +905,11 @@ def calculate_tournament_standings(db: Session, tournament_id: int):
 
     return result
 
-def generate_playoff_draw(db: Session, tournament_id: int, advancers_per_group: int = 2):
-    """Thuật toán tự động chốt vòng bảng và xếp cặp Playoff"""
+def generate_playoff_draw(db: Session, tournament_id: int, category_id: int, advancers_per_group: int = 2):
+    """Thuật toán tự động chốt vòng bảng và xếp cặp Playoff cho từng nội dung"""
     
-    # 1. Gọi hàm cục bộ tính Bảng xếp hạng để lấy Top VĐV
-    standings_data = calculate_tournament_standings(db=db, tournament_id=tournament_id)
+    # 1. Gọi hàm cục bộ tính Bảng xếp hạng để lấy Top VĐV của nội dung này
+    standings_data = calculate_tournament_standings(db=db, tournament_id=tournament_id, category_id=category_id)
     
     if not standings_data:
         raise ValueError("Chưa có trận vòng bảng nào hoàn thành. Vui lòng cập nhật tỷ số!")
@@ -767,17 +951,19 @@ def generate_playoff_draw(db: Session, tournament_id: int, advancers_per_group: 
     if not match_pairs:
         raise ValueError("Không thể tạo Playoff với số lượng này. Vui lòng kiểm tra lại.")
 
-    # 4. Ghi các trận Playoff vào Database
+    # 4. Ghi các trận Playoff vào Database cho nội dung này
     db.query(Match).filter(
         Match.tournament_id == tournament_id,
+        Match.tournament_category_id == category_id,
         Match.stage_type == "playoff"
     ).delete()
 
     for idx, pair in enumerate(match_pairs):
         new_match = Match(
             tournament_id=tournament_id,
+            tournament_category_id=category_id,
             stage_type="playoff",
-            round_code="SF" if len(match_pairs) > 1 else "F",
+            round_code="SF" if len(match_pairs) > 1 else "FINAL",
             match_no=idx + 1,
             side_a_registration_id=pair[0]["registration_id"],
             side_b_registration_id=pair[1]["registration_id"],

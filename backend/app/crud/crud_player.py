@@ -117,7 +117,11 @@ def get_matches_by_registrations(db: Session, reg_ids: list):
 
 def get_opponent_user_by_reg_id(db: Session, reg_id: int):
     if not reg_id: return None
-    return db.query(User).join(Player).join(Registration).filter(Registration.id == reg_id).first()
+    return db.query(User).join(
+        Player, Player.user_id == User.id
+    ).join(
+        Registration, Registration.player_id == Player.id
+    ).filter(Registration.id == reg_id).first()
 
 def search_players(db: Session, keyword: str, limit: int = 10):
     # Join Player với User để lấy cả 2 thông tin
@@ -135,21 +139,53 @@ def search_players(db: Session, keyword: str, limit: int = 10):
     return [
         {
             "id": u.id, 
+            "player_id": p.id,
             "full_name": u.full_name,
+            "phone": u.phone,
             "avatar_url": u.avatar_url,
             "level": p.skill_level
         } for p, u in results
     ]
 
 def get_player_by_id(db: Session, player_id: int):
-    # player_id ở đây bây giờ được hiểu là User ID
+    # player_id ở đây được hiểu là User ID để đồng bộ toàn hệ thống
     result = db.query(Player, User).join(User, Player.user_id == User.id).filter(User.id == player_id).first()
     if not result:
         return None
     p, u = result
+    
+    # Tính toán win rate
+    total = p.wins + p.losses
+    win_rate = round((p.wins / total * 100), 1) if total > 0 else 0
+    
+    # Tính toán thứ hạng
+    rank = db.query(Player).filter(
+        or_(
+            Player.elo_points > p.elo_points,
+            (Player.elo_points == p.elo_points) & (Player.wins > p.wins)
+        )
+    ).count() + 1
+    
     return {
-        "id": u.id,
-        "full_name": u.full_name,
-        "avatar_url": u.avatar_url,
-        "level": p.skill_level
+        "user": {
+            "id": u.id,
+            "full_name": u.full_name,
+            "email": u.email,
+            "phone": u.phone,
+            "avatar_url": u.avatar_url,
+            "province": u.province
+        },
+        "player_profile": {
+            "id": p.id,
+            "rank": rank,
+            "elo_points": p.elo_points,
+            "wins": p.wins,
+            "losses": p.losses,
+            "matches_played": p.matches_played,
+            "win_rate": win_rate,
+            "gender": p.gender,
+            "play_hand": p.play_hand,
+            "skill_level": p.skill_level,
+            "preferred_category": p.preferred_category
+        }
     }

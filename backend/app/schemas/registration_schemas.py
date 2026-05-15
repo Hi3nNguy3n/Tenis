@@ -1,7 +1,7 @@
 # backend/app/schemas/registration_schemas.py
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 from typing import List
 
 class TeamMember(BaseModel):
@@ -40,10 +40,11 @@ class RegistrationResponse(RegistrationBase):
     # Optional fields for display
     tournament_name: Optional[str] = None
     player_name: Optional[str] = None
+    category_name: Optional[str] = None
     location: Optional[str] = None
     
     # Detailed fields for "View Details"
-    tournament_date: Optional[datetime] = None
+    tournament_date: Optional[date] = None
     category_type: Optional[str] = None
     entry_fee: Optional[float] = None
     entry_fee_team: Optional[float] = None
