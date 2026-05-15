@@ -115,9 +115,27 @@ class Tournament(Base):
     entry_fee = Column(Numeric(15, 2))
     entry_fee_team = Column(Numeric(15, 2))
     max_participants = Column(Integer)
+    description = Column(Text) # Thông tin chi tiết, điều lệ giải đấu
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    categories = relationship("TournamentCategory", back_populates="tournament")
+
+
+class TournamentCategory(Base):
+    __tablename__ = "tournament_categories"
+    id = Column(BigInteger, primary_key=True, index=True)
+    tournament_id = Column(BigInteger, ForeignKey("tournaments.id"), index=True, nullable=False)
+    name = Column(String(150), nullable=False) # VD: Đôi Nam 1275, Đôi Nam Nữ 1200
+    category_type = Column(String(50), nullable=False) # VD: mens_doubles, mixed_doubles, mens_singles
+    max_points = Column(Integer) # VD: 1275
+    max_participants = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    tournament = relationship("Tournament", back_populates="categories")
+
 
 class Registration(Base):
     __tablename__ = "registrations"
@@ -138,6 +156,8 @@ class Registration(Base):
     partner_phone = Column(String(20))
     partner_email = Column(String(255))
     partner_user_id = Column(BigInteger, ForeignKey("users.id"), index=True)
+    partner_player_id = Column(BigInteger, ForeignKey("players.id"), index=True) # Map trực tiếp với Player profile
+    tournament_category_id = Column(BigInteger, ForeignKey("tournament_categories.id"), index=True) # Đăng ký vào nội dung nào
     team_members_data = Column(JSONB)
     deleted_at = Column(DateTime, index=True)
     qr_code_url = Column(String(255))
@@ -182,6 +202,7 @@ class Match(Base):
     __tablename__ = "matches"
     id = Column(BigInteger, primary_key=True, index=True)
     tournament_id = Column(BigInteger, ForeignKey("tournaments.id"), index=True, nullable=True)
+    tournament_category_id = Column(BigInteger, ForeignKey("tournament_categories.id"), index=True, nullable=True) # Trận đấu thuộc nội dung nào
     stage_type = Column(String(20), index=True, nullable=False)
     group_id = Column(BigInteger, index=True) # ID ảo quản lý group, không fk cứng để dễ linh động
     round_code = Column(String(100), index=True, nullable=False)
@@ -202,9 +223,13 @@ class Match(Base):
     updated_by = Column(BigInteger, ForeignKey("users.id"), index=True)
     next_match_id = Column(BigInteger, ForeignKey("matches.id"), index=True)
     live_stream_url = Column(String(500))
+    video_url = Column(String(500)) # Video highlight hoặc full match
+    image_url = Column(String(500)) # Hình ảnh nổi bật của trận
     win_reason = Column(String(50), index=True)
     elo_affected = Column(Boolean, default=True, index=True, nullable=False)
     referee_id = Column(BigInteger, ForeignKey("users.id"))
+    referee_name = Column(String(100), nullable=True)
+    referee_phone = Column(String(20), nullable=True)
     
     # Tỷ số trực tiếp theo Set (Phi chuẩn hóa)
     set1_a = Column(SmallInteger, nullable=True)

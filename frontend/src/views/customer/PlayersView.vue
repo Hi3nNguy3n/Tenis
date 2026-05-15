@@ -134,9 +134,11 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <button class="view-profile-btn">
-                  {{ t('players.viewProfile') }} <el-icon><Right /></el-icon>
-                </button>
+                <RouterLink :to="`/players/${p.player_id || p.id}`" class="view-profile-link">
+                  <button class="view-profile-btn">
+                    {{ t('players.viewProfile') }} <el-icon><Right /></el-icon>
+                  </button>
+                </RouterLink>
               </div>
             </div>
 

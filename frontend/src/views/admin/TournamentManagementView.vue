@@ -9,7 +9,7 @@ import {
   Message, Plus, Search, Refresh, Delete, 
   Edit, Trophy, DataAnalysis, Calendar as CalendarIcon, 
   User, Filter, EditPen, View, Download,
-  Share, Location as LocationIcon
+  Share, Location as LocationIcon, List
 } from '@element-plus/icons-vue'
 import { t, currentLocale } from '../../utils/locale'
 import { useRouter, useRoute } from 'vue-router'
@@ -127,12 +127,30 @@ const openCreateDialog = () => {
 
 const openEditDialog = (row) => {
   isEditMode.value = true
+  deletedCategoryIds.value = []
+  
+  // Sanitize categories on load
+  const sanitizedCategories = (row.categories || []).map(cat => {
+    const mapping = {
+      'mens_singles': 'Đơn Nam',
+      'mens_doubles': 'Đôi Nam',
+      'mixed_doubles': 'Đôi Nam Nữ',
+      'womens_doubles': 'Đôi Nữ'
+    }
+    // If name is empty or looks like a slug, fix it
+    if (!cat.name || cat.name.includes('_doubles') || cat.name.includes('_singles')) {
+      cat.name = mapping[cat.category_type] || cat.name || 'Nội dung mới'
+    }
+    return cat
+  })
+
   form.value = { 
     ...row,
     registration_open_at: row.registration_open_at ? new Date(row.registration_open_at).toISOString().slice(0, 19) : '',
     registration_close_at: row.registration_close_at ? new Date(row.registration_close_at).toISOString().slice(0, 19) : '',
     start_date: row.start_date || '',
     end_date: row.end_date || '',
+    categories: sanitizedCategories
   }
   isDialogOpen.value = true
 }
@@ -175,6 +193,16 @@ const saveTournament = async () => {
   isSaving.value = true
   try {
     const payload = { ...form.value }
+    
+    // Sync top-level metadata with the first category for consistency
+    if (payload.categories && payload.categories.length > 0) {
+      payload.category_type = payload.categories[0].category_type
+      // Guess gender division from category_type
+      if (payload.category_type.includes('mens')) payload.gender_division = 'Men'
+      else if (payload.category_type.includes('womens')) payload.gender_division = 'Women'
+      else if (payload.category_type.includes('mixed')) payload.gender_division = 'Mixed'
+    }
+
     const finalData = {
       name: payload.name,
       slug: payload.slug || payload.name.toLowerCase().replace(/ /g, '-'),
@@ -193,13 +221,36 @@ const saveTournament = async () => {
       entry_fee_team: payload.entry_fee_team,
     }
 
+    let tourId = form.value.id
     if (isEditMode.value) {
       await tournamentService.update(form.value.id, finalData)
       ElMessage.success(t('admin.updateSuccess'))
     } else {
-      await tournamentService.create(finalData)
+      const data = await tournamentService.create(finalData)
+      tourId = data.id
       ElMessage.success(t('admin.createSuccess'))
     }
+
+    // Sync Categories for both Create and Edit mode (MOVED OUTSIDE)
+    if (tourId && form.value.categories) {
+      // Handle deletions
+      for (const catId of deletedCategoryIds.value) {
+        try { await apiClient.delete(`/api/tournaments/categories/${catId}`) } catch(e) { console.error(e) }
+      }
+      deletedCategoryIds.value = []
+
+      // Handle Add/Update
+      for (const cat of form.value.categories) {
+        if (cat.id) {
+          // Update existing
+          await apiClient.put(`/api/tournaments/categories/${cat.id}`, cat)
+        } else {
+          // Add new
+          await apiClient.post(`/api/tournaments/${tourId}/categories`, cat)
+        }
+      }
+    }
+
     isDialogOpen.value = false
     loadTournaments()
     loadStats()
@@ -249,13 +300,46 @@ const goToMailCampaign = (tournamentId) => {
 }
 
 const createDefaultForm = () => ({
-  id: null, name: '', slug: '', status: 'draft', format_type: 'Singles',
-  draw_size: 32, category_type: 'Open', gender_division: 'Mixed',
+  id: null, name: '', slug: '', status: 'open', format_type: 'Singles',
+  draw_size: 32, category_type: 'mens_singles', gender_division: 'Mixed',
   location: '', surface_type: 'Hard', registration_open_at: '',
   registration_close_at: '', start_date: '', end_date: '',
   entry_fee: 100, entry_fee_team: 200,
+  categories: [
+    { name: 'Đôi Nam 1200', category_type: 'mens_doubles', max_points: 1200, max_participants: 32 }
+  ]
 })
 const form = ref(createDefaultForm())
+
+const deletedCategoryIds = ref([])
+
+const removeCategoryFromForm = (index) => {
+  const cat = form.value.categories[index]
+  if (cat.id) {
+    deletedCategoryIds.value.push(cat.id)
+  }
+  form.value.categories.splice(index, 1)
+}
+
+// Auto-fill category name based on type if empty
+watch(() => form.value.categories, (newCats) => {
+  if (!newCats) return
+  newCats.forEach(cat => {
+    if (!cat.name && cat.category_type) {
+      const mapping = {
+        'mens_singles': 'Đơn Nam',
+        'mens_doubles': 'Đôi Nam',
+        'mixed_doubles': 'Đôi Nam Nữ',
+        'womens_doubles': 'Đôi Nữ'
+      }
+      if (mapping[cat.category_type]) {
+        cat.name = mapping[cat.category_type]
+      }
+    }
+  })
+}, { deep: true })
+
+// Merged into Main Dialog
 
 onMounted(() => {
   loadTournaments()
@@ -356,7 +440,7 @@ onMounted(() => {
           </template>
         </el-table-column>
 
-        <el-table-column prop="category_type" :label="$t('admin.category')" width="140" />
+        <!-- REMOVED REDUNDANT CATEGORY TYPE COLUMN -->
         
         <el-table-column :label="$t('admin.drawSize')" width="100" align="center">
           <template #default="{ row }">
@@ -408,7 +492,7 @@ onMounted(() => {
             <h2>{{ selectedTournament.name }}</h2>
             <div class="hero-badges">
               <el-tag :type="selectedTournament.status === 'open' ? 'success' : 'info'" effect="dark">{{ selectedTournament.status.toUpperCase() }}</el-tag>
-              <el-tag type="warning" effect="light">{{ selectedTournament.category_type }}</el-tag>
+              <!-- REMOVED REDUNDANT CATEGORY TYPE TAG -->
             </div>
           </div>
         </div>
@@ -489,31 +573,13 @@ onMounted(() => {
             <el-icon><EditPen /></el-icon>
             <span>{{ $t('admin.tournamentFormat') }}</span>
           </div>
-          <el-row :gutter="20">
-            <el-col :span="8">
-              <el-form-item :label="$t('admin.category')">
-                <el-select v-model="form.category_type" style="width: 100%">
-                  <el-option v-for="c in categoryOptions" :key="c" :label="c" :value="c" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
-              <el-form-item :label="$t('admin.genderDivision')">
-                <el-select v-model="form.gender_division" style="width: 100%">
-                  <el-option label="Men" value="Men" />
-                  <el-option label="Women" value="Women" />
-                  <el-option label="Mixed" value="Mixed" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="8">
+            <el-col :span="12">
               <el-form-item :label="$t('admin.drawSize')" required>
                 <el-select v-model="form.draw_size" style="width: 100%">
                   <el-option v-for="s in drawSizeOptions" :key="s" :label="s" :value="s" />
                 </el-select>
               </el-form-item>
             </el-col>
-          </el-row>
         </div>
 
         <!-- Section: Location & Fees -->
@@ -577,6 +643,52 @@ onMounted(() => {
             </el-col>
           </el-row>
         </div>
+
+        <!-- Section: Categories (New) -->
+        <div class="form-section">
+          <div class="section-header">
+            <el-icon><List /></el-icon>
+            <span>Các nội dung thi đấu (Nam Nam, Nữ Nữ, Nam Nữ...)</span>
+          </div>
+          <div class="categories-inline-list">
+            <el-table :data="form.categories" size="small" border>
+              <el-table-column label="Tên nội dung">
+                <template #default="{ row }">
+                  <el-input v-model="row.name" size="small" placeholder="Ví dụ: Đôi Nam 1200" />
+                </template>
+              </el-table-column>
+              <el-table-column label="Loại hình" width="140">
+                <template #default="{ row }">
+                  <el-select v-model="row.category_type" size="small">
+                    <el-option label="Đơn Nam" value="mens_singles" />
+                    <el-option label="Đôi Nam" value="mens_doubles" />
+                    <el-option label="Đôi Nam Nữ" value="mixed_doubles" />
+                    <el-option label="Đôi Nữ" value="womens_doubles" />
+                    <!-- Fallback for legacy values -->
+                    <el-option v-if="row.category_type && !['mens_singles', 'mens_doubles', 'mixed_doubles', 'womens_doubles'].includes(row.category_type)" 
+                               :label="row.category_type" :value="row.category_type" />
+                  </el-select>
+                </template>
+              </el-table-column>
+              <el-table-column label="Điểm/Số người" width="180">
+                <template #default="{ row }">
+                  <div class="flex gap-1">
+                    <el-input-number v-model="row.max_points" :step="25" size="small" controls-position="right" placeholder="Pts" />
+                    <el-input-number v-model="row.max_participants" :step="2" size="small" controls-position="right" />
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column width="60" align="center">
+                <template #default="{ $index }">
+                  <el-button type="danger" link :icon="Delete" @click="removeCategoryFromForm($index)" :disabled="form.categories.length <= 1" />
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-button type="info" plain class="w-full mt-3" @click="form.categories.push({ name: '', category_type: 'mens_doubles', max_points: 1250, max_participants: 32 })">
+              <el-icon class="mr-1"><Plus /></el-icon> Thêm nội dung khác (Ví dụ: Đôi Nam 1300)
+            </el-button>
+          </div>
+        </div>
       </el-form>
       <template #footer>
         <div class="saas-dialog-footer">
@@ -587,6 +699,7 @@ onMounted(() => {
         </div>
       </template>
     </el-dialog>
+
   </div>
 </template>
 

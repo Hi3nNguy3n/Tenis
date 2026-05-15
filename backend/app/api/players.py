@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 
-from app.schemas.player_schemas import PlayerPublicResponse
+from app.schemas.player_schemas import PlayerPublicResponse, PlayerProfileDetailResponse
 
 from app.api.deps import get_current_admin
 from app.schemas.auth_schemas import RegisterRequest
@@ -103,7 +103,7 @@ def get_global_rankings(
 
         results.append({
             "rank": rank,
-            "player_id": p.id,
+            "player_id": u.id,
             "full_name": u.full_name,
             "avatar_url": u.avatar_url,
             "elo_points": p.elo_points,
@@ -179,8 +179,8 @@ def upload_avatar_to_cloudinary(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi khi tải ảnh lên Cloudinary: {str(e)}")
     
-@router.get("/{player_id}/history", dependencies=[Depends(get_current_admin)])
-def get_player_match_history_admin(
+@router.get("/{player_id}/history")
+def get_player_match_history_public(
     player_id: int, 
     db: Session = Depends(get_db)
 ):
@@ -225,8 +225,8 @@ def get_player_match_history_admin(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi truy vấn lịch sử: {str(e)}")
 
-@router.get("/{player_id}/tournaments", dependencies=[Depends(get_current_admin)])
-def get_player_tournaments_admin(
+@router.get("/{player_id}/tournaments")
+def get_player_tournaments_public(
     player_id: int, 
     db: Session = Depends(get_db)
 ):
@@ -312,7 +312,7 @@ def get_h2h_history(
     return results
 
 # 2. API Lấy hồ sơ công khai của 1 người
-@router.get("/{player_id}", response_model=PlayerPublicResponse)
+@router.get("/{player_id}", response_model=PlayerProfileDetailResponse)
 def get_public_profile(player_id: int, db: Session = Depends(get_db)):
     player_data = crud_player.get_player_by_id(db, player_id=player_id)
     if not player_data:

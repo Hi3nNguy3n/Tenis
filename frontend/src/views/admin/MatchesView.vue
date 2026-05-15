@@ -1,12 +1,12 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
-import { apiClient } from '../../services/apiClient'
+import { apiClient, MAIN_API_URL } from '../../services/apiClient'
 import { useAuthStore } from '../../stores/auth'
 import { ElMessage } from 'element-plus'
 import { 
   Calendar, Location, Trophy, Check, Edit, Plus, Delete,
   Timer, Monitor, SuccessFilled, VideoPlay, PieChart,
-  Refresh, Search, ArrowRight, User
+  Refresh, Search, ArrowRight, User, VideoCamera, Picture
 } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 
@@ -16,17 +16,24 @@ const selectedTournamentId = ref(null)
 const matches = ref([])
 const isLoading = ref(false)
 const courts = ref([])
+const referees = ref([])
+const isUploading = ref(false)
+const selectedCategoryId = ref('all')
 
 const showScheduleDialog = ref(false)
 const showScoreDialog = ref(false)
 
 const schedulingMatch = ref(null)
-const scheduleForm = ref({ court_id: null, start_time: '' })
+const scheduleForm = ref({ court_id: null, start_time: '', referee_name: '', referee_phone: '' })
 
 const scoringMatch = ref(null)
 const scoreForm = ref({ 
   winner_side: '',
-  sets: [{ side_a: 0, side_b: 0 }] 
+  sets: [{ side_a: 0, side_b: 0 }],
+  video_url: '',
+  image_url: '',
+  referee_name: '',
+  referee_phone: ''
 })
 
 const stats = computed(() => {
@@ -41,6 +48,15 @@ const stats = computed(() => {
     scheduled,
     completed
   }
+})
+
+const currentTournament = computed(() => {
+  return tournaments.value.find(t => t.id === selectedTournamentId.value) || null
+})
+
+const categories = computed(() => {
+  if (!currentTournament.value) return []
+  return currentTournament.value.categories || []
 })
 
 const groupedMatches = computed(() => {
@@ -77,14 +93,18 @@ const fetchCourts = async () => {
   } catch (err) { ElMessage.error(t('admin.loadCourtsError') || 'Error loading courts') }
 }
 
+
 const fetchMatches = async () => {
   if (selectedTournamentId.value === null || selectedTournamentId.value === '') return
   
   isLoading.value = true
   try {
-    const data = await apiClient.get('/api/matches/', {
-      params: { tournament_id: selectedTournamentId.value }
-    })
+    const params = { tournament_id: selectedTournamentId.value }
+    if (selectedCategoryId.value !== 'all') {
+      params.category_id = selectedCategoryId.value
+    }
+    
+    const data = await apiClient.get('/api/matches/', { params })
     matches.value = data
   } catch (err) { 
     ElMessage.error(t('admin.loadMatchesError')) 
@@ -97,6 +117,8 @@ const openScheduleDialog = (match) => {
   schedulingMatch.value = match
   scheduleForm.value.court_id = match.court_id
   scheduleForm.value.start_time = match.start_time || ''
+  scheduleForm.value.referee_name = match.referee_name || ''
+  scheduleForm.value.referee_phone = match.referee_phone || ''
   showScheduleDialog.value = true
 }
 
@@ -115,8 +137,27 @@ const handleSchedule = async () => {
 const openScoreDialog = (match) => {
   scoringMatch.value = match
   scoreForm.value.sets = [{ side_a: 0, side_b: 0 }]
-  scoreForm.value.winner_side = ''
+  scoreForm.value.winner_side = match.winner_side || ''
+  scoreForm.value.video_url = match.video_url || ''
+  scoreForm.value.image_url = match.image_url || ''
+  scoreForm.value.referee_name = match.referee_name || ''
+  scoreForm.value.referee_phone = match.referee_phone || ''
   showScoreDialog.value = true
+}
+
+const handleVideoSuccess = (res) => {
+  scoreForm.value.video_url = res.url
+  ElMessage.success("Tải video lên thành công!")
+}
+
+const handleImageSuccess = (res) => {
+  scoreForm.value.image_url = res.url
+  ElMessage.success("Tải ảnh lên thành công!")
+}
+
+const beforeUpload = (file) => {
+  isUploading.value = true
+  return true
 }
 
 const addSet = () => {
@@ -142,7 +183,11 @@ const handleUpdateScore = async () => {
   try {
     await apiClient.post(`/api/tournaments/matches/${scoringMatch.value.id}/score`, {
       score: formattedScore,
-      winner_side: scoreForm.value.winner_side
+      winner_side: scoreForm.value.winner_side,
+      video_url: scoreForm.value.video_url,
+      image_url: scoreForm.value.image_url,
+      referee_name: scoreForm.value.referee_name,
+      referee_phone: scoreForm.value.referee_phone
     })
     ElMessage.success(t('admin.scoreUpdateSuccess'))
     showScoreDialog.value = false
@@ -225,6 +270,18 @@ onMounted(() => {
         </el-select>
         <el-button :icon="Refresh" circle @click="fetchMatches" class="saas-icon-btn" />
       </div>
+
+      <div class="header-tabs-wrap" v-if="selectedTournamentId && categories.length > 0">
+        <el-tabs v-model="selectedCategoryId" @tab-change="fetchMatches" class="category-tabs-premium">
+          <el-tab-pane label="TẤT CẢ NỘI DUNG" name="all" />
+          <el-tab-pane 
+            v-for="cat in categories" 
+            :key="cat.id" 
+            :label="cat.name.toUpperCase()" 
+            :name="cat.id" 
+          />
+        </el-tabs>
+      </div>
     </div>
 
     <!-- Main Content Area -->
@@ -257,7 +314,12 @@ onMounted(() => {
           <div class="match-cards-grid">
             <div v-for="m in round.items" :key="m.id" class="match-card-saas" :class="{ 'is-finished': m.status === 'completed' }">
               <div class="match-card-header">
-                <span class="match-id">#{{ m.match_no || m.id }}</span>
+                <div class="header-meta-info">
+                  <span class="match-id">#{{ m.match_no || m.id }}</span>
+                  <el-tag v-if="m.category_name" size="small" effect="light" class="category-indicator-tag">
+                    {{ m.category_name }}
+                  </el-tag>
+                </div>
                 <div class="status-indicator" :class="`is-${getStatusType(m.status)}`">
                   <span class="dot"></span>
                   <span>{{ m.status.toUpperCase() }}</span>
@@ -268,7 +330,10 @@ onMounted(() => {
                 <div class="side-item" :class="{ 'is-winner': m.winner_side === 'side_a' }">
                   <div class="player-box">
                     <div class="avatar-mini"><el-icon><User /></el-icon></div>
-                    <span class="player-name">{{ m.p1_name || '...' }}</span>
+                    <div class="player-info-stack">
+                      <span class="player-name">{{ m.p1_name || '...' }}</span>
+                      <span v-if="m.p1_partner_name" class="partner-name-mini">& {{ m.p1_partner_name }}</span>
+                    </div>
                   </div>
                   <el-icon v-if="m.winner_side === 'side_a'" class="win-check"><SuccessFilled /></el-icon>
                 </div>
@@ -282,7 +347,10 @@ onMounted(() => {
                 <div class="side-item" :class="{ 'is-winner': m.winner_side === 'side_b' }">
                   <div class="player-box">
                     <div class="avatar-mini"><el-icon><User /></el-icon></div>
-                    <span class="player-name">{{ m.p2_name || '...' }}</span>
+                    <div class="player-info-stack">
+                      <span class="player-name">{{ m.p2_name || '...' }}</span>
+                      <span v-if="m.p2_partner_name" class="partner-name-mini">& {{ m.p2_partner_name }}</span>
+                    </div>
                   </div>
                   <el-icon v-if="m.winner_side === 'side_b'" class="win-check"><SuccessFilled /></el-icon>
                 </div>
@@ -338,6 +406,14 @@ onMounted(() => {
             class="saas-picker-premium"
            />
          </el-form-item>
+         <div class="referee-info-grid">
+           <el-form-item label="Tên trọng tài">
+             <el-input v-model="scheduleForm.referee_name" placeholder="Nhập tên trọng tài" />
+           </el-form-item>
+           <el-form-item label="SĐT trọng tài">
+             <el-input v-model="scheduleForm.referee_phone" placeholder="Nhập số điện thoại" />
+           </el-form-item>
+         </div>
        </el-form>
        <template #footer>
          <div class="saas-dialog-footer">
@@ -355,13 +431,19 @@ onMounted(() => {
                 <el-radio value="side_a" border class="winner-radio-premium">
                   <div class="radio-content">
                     <el-icon><User /></el-icon>
-                    <strong>{{ scoringMatch.p1_name }}</strong>
+                    <div class="winner-names">
+                       <strong>{{ scoringMatch.p1_name }}</strong>
+                       <small v-if="scoringMatch.p1_partner_name">& {{ scoringMatch.p1_partner_name }}</small>
+                    </div>
                   </div>
                 </el-radio>
                 <el-radio value="side_b" border class="winner-radio-premium">
                   <div class="radio-content">
                     <el-icon><User /></el-icon>
-                    <strong>{{ scoringMatch.p2_name }}</strong>
+                    <div class="winner-names">
+                       <strong>{{ scoringMatch.p2_name }}</strong>
+                       <small v-if="scoringMatch.p2_partner_name">& {{ scoringMatch.p2_partner_name }}</small>
+                    </div>
                   </div>
                 </el-radio>
              </el-radio-group>
@@ -383,6 +465,58 @@ onMounted(() => {
                    </div>
                    <el-button v-if="scoreForm.sets.length > 1" type="danger" :icon="Delete" circle plain link @click="removeSet(index)" />
                 </div>
+             </div>
+          </div>
+          <div class="media-management">
+             <span class="section-label">Thông tin bổ sung</span>
+             <div class="media-inputs">
+                <el-form label-position="top">
+                   <div class="referee-info-grid" style="margin-bottom: 10px;">
+                      <el-form-item label="Tên trọng tài">
+                        <el-input v-model="scoreForm.referee_name" placeholder="Tên trọng tài chính" />
+                      </el-form-item>
+                      <el-form-item label="SĐT trọng tài">
+                        <el-input v-model="scoreForm.referee_phone" placeholder="Số điện thoại" />
+                      </el-form-item>
+                   </div>
+
+                   <div class="upload-grid">
+                      <el-form-item label="Video trận đấu (Highlight)">
+                        <el-upload
+                          class="saas-upload"
+                          :action="`${MAIN_API_URL}/api/upload/image`"
+                          :headers="{ Authorization: `Bearer ${authStore.accessToken}` }"
+                          :on-success="handleVideoSuccess"
+                          :before-upload="beforeUpload"
+                          :show-file-list="false"
+                        >
+                          <el-button v-if="!scoreForm.video_url" type="primary" plain :icon="VideoCamera">Tải Video lên</el-button>
+                          <div v-else class="upload-result success">
+                             <el-icon><Check /></el-icon> <span>Đã có Video</span>
+                             <el-button link type="primary" @click.stop="scoreForm.video_url = ''">Thay đổi</el-button>
+                          </div>
+                        </el-upload>
+                        <el-input v-model="scoreForm.video_url" size="small" placeholder="Hoặc dán URL Youtube/Cloudinary" style="margin-top: 8px;" />
+                      </el-form-item>
+
+                      <el-form-item label="Ảnh kết quả / Trao giải">
+                        <el-upload
+                          class="saas-upload"
+                          :action="`${MAIN_API_URL}/api/upload/image`"
+                          :headers="{ Authorization: `Bearer ${authStore.accessToken}` }"
+                          :on-success="handleImageSuccess"
+                          :before-upload="beforeUpload"
+                          :show-file-list="false"
+                        >
+                          <el-button v-if="!scoreForm.image_url" type="success" plain :icon="Picture">Tải Ảnh lên</el-button>
+                          <div v-else class="upload-result success">
+                             <el-icon><Check /></el-icon> <span>Đã có Ảnh</span>
+                             <el-button link type="primary" @click.stop="scoreForm.image_url = ''">Thay đổi</el-button>
+                          </div>
+                        </el-upload>
+                      </el-form-item>
+                   </div>
+                </el-form>
              </div>
           </div>
        </div>
@@ -453,6 +587,34 @@ onMounted(() => {
 }
 
 .saas-tournament-selector { width: 380px; }
+
+.header-tabs-wrap {
+  margin-top: 10px;
+  width: 100%;
+}
+
+:deep(.category-tabs-premium) {
+  --el-tabs-header-height: 50px;
+}
+:deep(.category-tabs-premium .el-tabs__nav-wrap::after) {
+  height: 1px;
+  background-color: #f1f5f9;
+}
+:deep(.category-tabs-premium .el-tabs__item) {
+  font-weight: 800;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  letter-spacing: 0.05em;
+  padding: 0 24px;
+}
+:deep(.category-tabs-premium .el-tabs__item.is-active) {
+  color: #2563eb;
+}
+:deep(.category-tabs-premium .el-tabs__active-bar) {
+  background-color: #2563eb;
+  height: 3px;
+  border-radius: 3px;
+}
 
 :deep(.el-input__wrapper), :deep(.el-select__wrapper) {
   background-color: #f8fafc !important;
@@ -573,6 +735,16 @@ onMounted(() => {
 .match-card-header { display: flex; justify-content: space-between; align-items: center; }
 .match-id { font-family: 'JetBrains Mono', monospace; font-weight: 800; color: #94a3b8; font-size: 0.85rem; }
 
+.header-meta-info { display: flex; align-items: center; gap: 8px; }
+.category-indicator-tag { 
+  background-color: #f5f3ff !important; 
+  border-color: #ddd6fe !important; 
+  color: #7c3aed !important; 
+  font-weight: 800;
+  font-size: 0.65rem;
+  border-radius: 6px;
+}
+
 .status-indicator {
   display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 99px;
   font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em;
@@ -605,6 +777,10 @@ onMounted(() => {
   display: flex; align-items: center; justify-content: center; font-size: 14px; color: #94a3b8;
 }
 .player-name { font-weight: 800; color: #1e293b; font-size: 0.95rem; }
+.player-info-stack { display: flex; flex-direction: column; line-height: 1.2; }
+.partner-name-mini { font-size: 0.75rem; color: #64748b; font-weight: 500; }
+.winner-names { display: flex; flex-direction: column; text-align: left; line-height: 1.2; }
+.winner-names small { font-size: 0.75rem; color: #64748b; font-weight: 500; }
 .win-check { color: #10b981; font-size: 18px; }
 
 .vs-divider {
@@ -639,8 +815,9 @@ onMounted(() => {
 .saas-btn-primary.is-success { background: #10b981 !important; border: none !important; }
 
 /* Scoring Box */
-.scoring-box { display: flex; flex-direction: column; gap: 32px; padding: 10px 0; }
-.section-label { font-size: 0.85rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; display: block; }
+.winner-selection-premium, .sets-management, .media-management { display: flex; flex-direction: column; gap: 8px; }
+.section-label { font-size: 0.85rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; display: block; }
+.media-inputs { background: #f8fafc; padding: 16px; border-radius: 16px; border: 1px solid #e2e8f0; }
 
 .winner-grid-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
 .winner-radio-premium {
@@ -663,6 +840,12 @@ onMounted(() => {
 .vs-dash { font-weight: 900; color: #cbd5e1; }
 
 .mr-1 { margin-right: 4px; }
+
+.upload-grid, .referee-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px; border-top: 1px dashed #e2e8f0; padding-top: 15px; }
+.referee-info-grid { border-top: none; padding-top: 0; margin-top: 0; }
+.upload-result { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.85rem; }
+.upload-result.success { color: #059669; }
+.saas-upload { display: block; }
 
 @media (max-width: 768px) {
   .saas-stats-grid { grid-template-columns: 1fr 1fr; }

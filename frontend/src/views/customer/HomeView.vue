@@ -6,7 +6,7 @@ import { newsService } from '../../services/newsService'
 import { playerService } from '../../services/playerService'
 import { useAuthStore } from '../../stores/auth'
 import { currentLocale, t } from '../../utils/locale'
-import { Message, Check, Right, VideoPlay } from '@element-plus/icons-vue'
+import { Message, Check, Right, VideoPlay, Location } from '@element-plus/icons-vue'
 
 const authStore = useAuthStore()
 

@@ -266,6 +266,9 @@ const formatTime = (val) => {
               <div class="icon-box-premium p-blue"><el-icon><User /></el-icon></div>
               <div class="cell-meta">
                 <span class="cell-title">{{ row.player_name }}</span>
+                <span v-if="row.partner_name" class="cell-title" style="color: var(--blue-accent); font-size: 0.8rem;">
+                  + {{ row.partner_name }}
+                </span>
                 <span class="cell-subtitle">ID: #{{ row.player_id || '---' }}</span>
               </div>
             </div>
@@ -278,7 +281,7 @@ const formatTime = (val) => {
               <div class="icon-box-premium p-orange"><el-icon><Trophy /></el-icon></div>
               <div class="cell-meta">
                 <span class="cell-title">{{ row.tournament_name }}</span>
-                <span class="cell-subtitle">{{ row.category_type || 'N/A' }}</span>
+                <span class="cell-subtitle">{{ row.category_name || row.category_type || 'N/A' }}</span>
               </div>
             </div>
           </template>

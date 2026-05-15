@@ -60,6 +60,7 @@ export default {
   tournamentClosed: 'Giải đấu đã khép lại',
   live: 'LIVE',
   free: 'MIỄN PHÍ',
+  photos: 'Hình ảnh',
   loadingData: 'Đang tải dữ liệu...',
 
   // Registration
@@ -80,6 +81,7 @@ export default {
   athleteInfoTitle: 'Thông tin vận động viên',
   athleteInfoDesc: 'Vui lòng điền đầy đủ và chính xác thông tin để BTC sắp xếp lịch thi đấu.',
   partnerInfoTitle: 'Thông tin đồng đội (Đánh đôi)',
+  partnerSearch: 'Tìm kiếm đồng đội',
   partnerName: 'Họ và tên đồng đội',
   enterFullName: 'Nhập họ và tên...',
   phoneNumber: 'Số điện thoại liên hệ',
@@ -104,5 +106,7 @@ export default {
   singlesFormat: 'Đơn (Singles)',
   doublesFormat: 'Đôi (Doubles)',
   tournamentFee: 'Lệ phí giải',
-  freeFee: 'Miễn phí'
+  freeFee: 'Miễn phí',
+  selectCategory: 'Chọn nội dung thi đấu',
+  selectCategoryPlaceholder: 'Vui lòng chọn nội dung...'
 }

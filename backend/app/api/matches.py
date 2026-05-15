@@ -14,55 +14,53 @@ router = APIRouter()
 @router.get("/")
 def list_matches(
     tournament_id: int = Query(None),
+    category_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
-    match_records = crud_match.get_list_matches(db, tournament_id=tournament_id)
+    match_records = crud_match.get_list_matches(db, tournament_id=tournament_id, category_id=category_id)
     
     results = []
-    for m, t, c in match_records:
+    for m, t, c, cat in match_records:
         p1_name = "Chưa xác định"
         p2_name = "Chưa xác định"
+        p1_partner_name = None
+        p2_partner_name = None
         
-        # --- LOGIC TÌM TÊN VĐV (Đã fix cầu nối an toàn qua bảng Player) ---
+        # --- LOGIC TÌM TÊN VĐV ---
         if m.tournament_id: 
-            # 1. Trận đấu GIẢI (Tìm qua Registration -> Player -> User)
-            if m.side_a_registration_id:
-                reg_a = db.query(Registration).filter(Registration.id == m.side_a_registration_id).first()
-                if reg_a and reg_a.player_id:
-                    player_a = db.query(Player).filter(Player.id == reg_a.player_id).first()
-                    if player_a and player_a.user_id:
-                        user_a = db.query(User).filter(User.id == player_a.user_id).first()
-                        if user_a: p1_name = user_a.full_name
+            reg_a = db.query(Registration).filter(Registration.id == m.side_a_registration_id).first() if m.side_a_registration_id else None
+            if reg_a:
+                user_a = db.query(User).join(Player).filter(Player.id == reg_a.player_id).first()
+                if user_a: p1_name = user_a.full_name
+                p1_partner_name = reg_a.partner_name
                         
-            if m.side_b_registration_id:
-                reg_b = db.query(Registration).filter(Registration.id == m.side_b_registration_id).first()
-                if reg_b and reg_b.player_id:
-                    player_b = db.query(Player).filter(Player.id == reg_b.player_id).first()
-                    if player_b and player_b.user_id:
-                        user_b = db.query(User).filter(User.id == player_b.user_id).first()
-                        if user_b: p2_name = user_b.full_name
+            reg_b = db.query(Registration).filter(Registration.id == m.side_b_registration_id).first() if m.side_b_registration_id else None
+            if reg_b:
+                user_b = db.query(User).join(Player).filter(Player.id == reg_b.player_id).first()
+                if user_b: p2_name = user_b.full_name
+                p2_partner_name = reg_b.partner_name
         else: 
-            # 2. Trận GIAO HỮU (Tìm qua Player_id -> User)
-            if m.player_a_id:
-                player_a = db.query(Player).filter(Player.id == m.player_a_id).first()
-                if player_a:
-                    user_a = db.query(User).filter(User.id == player_a.user_id).first()
-                    if user_a: p1_name = user_a.full_name
+            # 2. Trận GIAO HỮU
+            player_a = db.query(Player).filter(Player.id == m.player_a_id).first() if m.player_a_id else None
+            if player_a:
+                user_a = db.query(User).filter(User.id == player_a.user_id).first()
+                if user_a: p1_name = user_a.full_name
                     
-            if m.player_b_id:
-                player_b = db.query(Player).filter(Player.id == m.player_b_id).first()
-                if player_b:
-                    user_b = db.query(User).filter(User.id == player_b.user_id).first()
-                    if user_b: p2_name = user_b.full_name
+            player_b = db.query(Player).filter(Player.id == m.player_b_id).first() if m.player_b_id else None
+            if player_b:
+                user_b = db.query(User).filter(User.id == player_b.user_id).first()
+                if user_b: p2_name = user_b.full_name
 
-        # --- BƯỚC XỬ LÝ TÊN HIỂN THỊ CỦA GIẢI / TRẬN ---
-        # Nếu có giải -> lấy tên giải. Nếu Giao hữu -> lấy round_code (tên custom Admin đặt)
         display_name = t.name if t else (m.round_code if m.round_code else "Trận Giao Hữu 1vs1")
 
-        # Đóng gói dữ liệu "All-in-one" (Dùng chung cho cả MatchesView và ScheduleView)
         results.append({
             "id": m.id,
             "tournament": display_name,
+            "category_name": cat.name if cat else "N/A",
+            "p1_name": p1_name,
+            "p2_name": p2_name,
+            "p1_partner_name": p1_partner_name,
+            "p2_partner_name": p2_partner_name,
             "court": c.court_name if c else "Chưa gán sân",
             "court_id": m.court_id,
             "tournament_start_date": t.start_date.isoformat() if t and t.start_date else None,
@@ -81,7 +79,12 @@ def list_matches(
             "match_no": m.match_no,
             "winner_side": m.winner_side,
             "p1_name": p1_name,
-            "p2_name": p2_name
+            "p2_name": p2_name,
+            "referee_id": m.referee_id,
+            "referee_name": m.referee_name,
+            "referee_phone": m.referee_phone,
+            "video_url": m.video_url,
+            "image_url": m.image_url
         })
     return results
 

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, ref } from 'vue'
+import { onMounted, computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTournamentStore } from '../../../stores/tournament'
 import { useAuthStore } from '../../../stores/auth'
@@ -12,7 +12,11 @@ import {
   User, 
   ArrowRight, 
   InfoFilled, 
-  Ticket 
+  Ticket,
+  VideoCamera,
+  Picture,
+  VideoPlay,
+  View
 } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../../utils/locale'
 
@@ -21,7 +25,8 @@ const router = useRouter()
 const tournamentStore = useTournamentStore()
 const authStore = useAuthStore()
 
-const tournamentId = route.params.id
+const tournamentId = computed(() => route.params.id)
+const tournament = computed(() => tournamentStore.currentTournament)
 
 const activeTab = ref('info')
 const publicMatches = ref([])
@@ -29,11 +34,68 @@ const loadingBracket = ref(false)
 const standingsData = ref([])
 const loadingStandings = ref(false)
 const isAlreadyRegistered = ref(false)
+const myRegistration = ref(null)
+const registrations = ref([])
+const loadingRegistrations = ref(false)
+const selectedCategoryId = ref(null)
+
+watch(tournamentId, async (newId) => {
+  if (newId) {
+    // Reset state
+    activeTab.value = 'info'
+    publicMatches.value = []
+    standingsData.value = []
+    registrations.value = []
+    selectedCategoryId.value = null
+    isAlreadyRegistered.value = false
+    
+    await tournamentStore.fetchTournamentById(newId)
+    
+    // Re-check registration
+    if (authStore.isAuthenticated) {
+      checkRegistration()
+    }
+  }
+}, { immediate: true })
+
+const checkRegistration = async () => {
+  try {
+    const myRegs = await apiClient.get('/api/registrations/my-registrations')
+    const exists = myRegs.find(r => r.tournament_id === parseInt(tournamentId.value) && r.status !== 'cancelled' && r.status !== 'rejected')
+    if (exists) {
+      isAlreadyRegistered.value = true
+      myRegistration.value = exists
+      // AUTO-SELECT THE REGISTERED CATEGORY BY DEFAULT
+      if (!selectedCategoryId.value) {
+        selectedCategoryId.value = exists.category_id
+      }
+    }
+  } catch (err) {
+    console.error("Lỗi kiểm tra đăng ký:", err)
+  }
+}
+
+const fetchRegistrations = async () => {
+  loadingRegistrations.value = true
+  try {
+    const url = `/api/tournaments/${tournamentId.value}/registrations` + 
+                (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : '')
+    const data = await apiClient.get(url)
+    registrations.value = data
+  } catch (err) {
+    console.error("Lỗi tải danh sách VĐV:", err)
+  } finally {
+    loadingRegistrations.value = false
+  }
+}
+
 
 const fetchStandings = async () => {
   loadingStandings.value = true
   try {
-    const data = await apiClient.get(`/api/tournaments/${tournamentId}/standings`)
+    const url = `/api/tournaments/${tournamentId.value}/standings` + 
+                (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : '')
+    const data = await apiClient.get(url)
     standingsData.value = data
   } catch (err) {
     console.error("Lỗi tải bảng xếp hạng:", err)
@@ -60,28 +122,12 @@ const isPastDeadline = computed(() => {
   return new Date() >= new Date(tournament.value.registration_close_at);
 });
 
-onMounted(async () => {
-  tournamentStore.fetchTournamentById(tournamentId)
-  fetchBracket()
-  fetchStandings()
-
-  if (authStore.isAuthenticated) {
-    try {
-      const myRegs = await apiClient.get('/api/registrations/my-registrations')
-      const exists = myRegs.find(r => r.tournament_id === parseInt(tournamentId) && r.status !== 'cancelled' && r.status !== 'rejected')
-      if (exists) {
-        isAlreadyRegistered.value = true
-      }
-    } catch (err) {
-      console.error("Lỗi kiểm tra đăng ký:", err)
-    }
-  }
-})
-
 const fetchBracket = async () => {
   loadingBracket.value = true
   try {
-    const data = await apiClient.get(`/api/tournaments/${tournamentId}/public-bracket`)
+    const url = `/api/tournaments/${tournamentId.value}/public-bracket` + 
+                (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : '')
+    const data = await apiClient.get(url)
     publicMatches.value = data
   } catch (err) {
     console.error("Không tải được sơ đồ nhánh đấu:", err)
@@ -90,78 +136,180 @@ const fetchBracket = async () => {
   }
 }
 
+// Watch category change to re-fetch data
+watch(selectedCategoryId, (newVal) => {
+  if (newVal) {
+    fetchBracket()
+    fetchStandings()
+    fetchRegistrations()
+  }
+}, { immediate: true })
+
+// Initialize first category if available from tournament data
+watch(() => tournament.value?.categories, (cats) => {
+  if (cats && cats.length > 0 && !selectedCategoryId.value) {
+    selectedCategoryId.value = cats[0].id
+  }
+}, { immediate: true })
+
+// RE-FETCH DATA ON TAB SWITCH (Fix blank list bug)
+watch(activeTab, (newTab) => {
+  if (!selectedCategoryId.value) return
+  
+  if (newTab === 'bracket' && publicMatches.value.length === 0) {
+    fetchBracket()
+  } else if (newTab === 'standings' && standingsData.value.length === 0) {
+    fetchStandings()
+  } else if (newTab === 'participants' && registrations.value.length === 0) {
+    fetchRegistrations()
+  }
+})
+
 const groupedMatches = computed(() => {
   const groups = {}
   publicMatches.value.forEach(m => {
     if (!groups[m.round_code]) groups[m.round_code] = []
     groups[m.round_code].push(m)
   })
-  const order = ['FINAL', 'SF', 'QF', 'R16', 'R32', 'R64']
+  const order = ['G1', 'G2', 'G3', 'R128', 'R64', 'R32', 'R16', 'QF', 'SF', 'F', 'FINAL']
   return Object.keys(groups)
-    .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+    .sort((a, b) => {
+      const idxA = order.indexOf(a)
+      const idxB = order.indexOf(b)
+      if (idxA === -1 && idxB === -1) return a.localeCompare(b)
+      if (idxA === -1) return 1
+      if (idxB === -1) return -1
+      return idxA - idxB
+    })
     .map(key => ({
       label: key,
       items: groups[key].sort((a, b) => a.match_no - b.match_no)
     }))
 })
 
-const tournament = computed(() => tournamentStore.currentTournament)
-
 const goToRegister = () => {
   if (!authStore.isAuthenticated) {
     router.push({ name: 'login', query: { redirect: route.fullPath } })
     return
   }
-  router.push({ name: 'tournament-register', params: { id: tournamentId } })
+  router.push({ name: 'tournament-register', params: { id: tournamentId.value } })
 }
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return t('tournaments.notUpdated')
-  return new Date(dateStr).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
+const formatDate = (val) => {
+  if (!val) return t('tournaments.notUpdated')
+  const d = new Date(val)
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    })
+  }
+  // Thử parse thủ công nếu là định dạng dd/mm/yyyy
+  if (typeof val === 'string' && val.includes('/')) {
+    const p = val.split(/[\/\s:]/)
+    if (p.length >= 3) {
+      const d2 = new Date(p[2], p[1]-1, p[0])
+      if (!isNaN(d2.getTime())) {
+        return d2.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        })
+      }
+    }
+  }
+  return t('tournaments.notUpdated')
+}
+
+const formatDateTime = (val) => {
+  if (!val) return '---'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return formatDate(val)
+  return d.toLocaleString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
   })
+}
+
+const selectedCategory = computed(() => {
+  if (!selectedCategoryId.value || !tournament.value?.categories) return null
+  return tournament.value.categories.find(c => c.id === selectedCategoryId.value)
+})
+
+const selectedCategoryName = computed(() => {
+  if (selectedCategory.value) return selectedCategory.value.name
+  if (tournament.value?.categories?.length > 0) return tournament.value.categories[0].name
+  return tournament.value?.category_type || '---'
+})
+
+const allMedia = computed(() => {
+  const media = []
+  publicMatches.value.forEach(m => {
+    if (m.video_url || m.image_url) {
+      media.push({
+        id: m.id,
+        match_label: `Trận #${m.match_no}`,
+        round_code: m.round_code,
+        p1_name: m.p1_name,
+        p2_name: m.p2_name,
+        video_url: m.video_url,
+        image_url: m.image_url
+      })
+    }
+  })
+  return media
+})
+
+const previewVisible = ref(false)
+const previewData = ref({ type: 'image', url: '', title: '' })
+
+const openPreview = (type, url, title) => {
+  previewData.value = { type, url, title }
+  previewVisible.value = true
 }
 </script>
 
 <template>
-  <div v-if="tournament" class="neo-tournament-page">
-    
-    <div class="neo-hero">
-      <div class="hero-glow glow-1"></div>
-      <div class="hero-glow glow-2"></div>
-      
-      <div class="container hero-inner">
-        <div class="hero-meta-top">
-          <span class="neo-badge" :class="tournament.status">
-            <span class="badge-dot"></span>
-            {{ tournament.status.toUpperCase() }}
-          </span>
-          <span class="tour-type">{{ tournament.category_type }}</span>
-        </div>
+  <div class="tournament-detail-root">
+    <div v-if="tournament" class="neo-tournament-page">
+      <div class="neo-hero">
+        <div class="hero-glow glow-1"></div>
+        <div class="hero-glow glow-2"></div>
         
-        <h1 class="hero-title">{{ tournament.name }}</h1>
-        
-        <div class="hero-details">
-          <div class="hd-item">
-            <el-icon><CalendarIcon /></el-icon>
-            <div>
-              <span class="hd-lbl">{{ t('tournaments.startDate') }}</span>
-              <span class="hd-val">{{ formatDate(tournament.start_date) }} - {{ formatDate(tournament.end_date) }}</span>
-            </div>
+        <div class="container hero-inner">
+          <div class="hero-meta-top">
+            <span class="neo-badge" :class="tournament.status">
+              <span class="badge-dot"></span>
+              {{ tournament.status.toUpperCase() }}
+            </span>
+            <span class="tour-type">{{ selectedCategoryName }}</span>
           </div>
-          <div class="hd-divider"></div>
-          <div class="hd-item">
-            <el-icon><Location /></el-icon>
-            <div>
-              <span class="hd-lbl">{{ t('tournaments.location') }}</span>
-              <span class="hd-val">{{ tournament.location || t('tournaments.notUpdated') }}</span>
+          
+          <h1 class="hero-title">{{ tournament.name }}</h1>
+          
+          <div class="hero-details">
+            <div class="hd-item">
+              <el-icon><CalendarIcon /></el-icon>
+              <div>
+                <span class="hd-lbl">{{ t('tournaments.startDate') }}</span>
+                <span class="hd-val">{{ formatDate(tournament.start_date) }} - {{ formatDate(tournament.end_date) }}</span>
+              </div>
+            </div>
+            <div class="hd-divider"></div>
+            <div class="hd-item">
+              <el-icon><Location /></el-icon>
+              <div>
+                <span class="hd-lbl">{{ t('tournaments.location') }}</span>
+                <span class="hd-val">{{ tournament.location || t('tournaments.notUpdated') }}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
     <div class="container main-overlap">
       <div class="neo-grid">
@@ -173,15 +321,20 @@ const formatDate = (dateStr) => {
               
               <el-tab-pane :label="t('tournaments.overview')" name="info">
                 <div class="bento-layout">
-                  <div class="bento-box box-sm">
+                  <div v-if="isAlreadyRegistered" class="bento-box box-sm registered-highlight">
+                    <el-icon class="bento-icon"><Check /></el-icon>
+                    <span class="bento-lbl">Nội dung bạn tham gia</span>
+                    <strong class="bento-val">{{ myRegistration?.category_name || 'Đã đăng ký' }}</strong>
+                  </div>
+                  <div class="bento-box box-sm" :class="{ 'viewing-highlight': !isAlreadyRegistered }">
                     <el-icon class="bento-icon"><User /></el-icon>
-                    <span class="bento-lbl">{{ t('tournaments.category') }}</span>
-                    <strong class="bento-val">{{ tournament.gender_division }}</strong>
+                    <span class="bento-lbl">Đang xem nội dung</span>
+                    <strong class="bento-val">{{ selectedCategoryName }}</strong>
                   </div>
                   <div class="bento-box box-sm">
                     <el-icon class="bento-icon"><Trophy /></el-icon>
-                    <span class="bento-lbl">{{ t('tournaments.format') }}</span>
-                    <strong class="bento-val">{{ tournament.format_type }}</strong>
+                    <span class="bento-lbl">Điểm giới hạn</span>
+                    <strong class="bento-val">{{ selectedCategory?.max_points || 'Open' }} Pts</strong>
                   </div>
                   
                   <div class="bento-box box-sm">
@@ -197,7 +350,8 @@ const formatDate = (dateStr) => {
 
                   <div class="bento-box box-lg">
                     <h3>{{ t('tournaments.aboutTournament') }}</h3>
-                    <p>
+                    <div class="tournament-description" v-if="tournament.description" v-html="tournament.description"></div>
+                    <p v-else>
                       {{ tournament.name }} {{ t('tournaments.tournamentDesc') }}
                     </p>
                     <div class="bento-highlight">
@@ -209,32 +363,93 @@ const formatDate = (dateStr) => {
               </el-tab-pane>
 
               <el-tab-pane :label="t('tournaments.bracket')" name="bracket">
-                <div v-loading="loadingBracket" class="neo-bracket-box">
+                <div v-if="tournament.categories?.length > 1" class="category-filter-wrap">
+                  <div class="filter-label">Chọn nội dung:</div>
+                  <el-radio-group v-model="selectedCategoryId" size="small">
+                    <el-radio-button v-for="cat in tournament.categories" :key="cat.id" :value="cat.id">
+                      {{ cat.name }}
+                    </el-radio-button>
+                  </el-radio-group>
+                </div>
+
+                <div v-loading="loadingBracket" class="bracket-viewport">
                   <div v-if="publicMatches.length === 0" class="empty-state">
                     <div class="es-icon">🎾</div>
                     <p>{{ t('tournaments.bracketNotDrawn') }}</p>
                   </div>
                   
-                  <div v-else class="neo-bracket-scroll">
-                    <div v-for="round in groupedMatches" :key="round.label" class="bracket-col" :class="{ 'is-group': round.label.includes('G') }">
-                      <h4 class="round-header">{{ round.label }}</h4>
-                      <div class="match-nodes">
-                        
-                        <div v-for="m in round.items" :key="m.id" class="match-node">
-                          <div class="node-player" :class="{ 'is-win': m.winner_side === 'side_a' }">
-                            <span class="n-name">{{ m.p1_name }}</span>
-                            <span class="n-score" v-if="m.score">{{ m.score.split('-')[0] || '' }}</span>
-                            <el-icon class="n-check" v-if="m.winner_side === 'side_a'"><Check /></el-icon>
-                          </div>
-                          <div class="node-divider"></div>
-                          <div class="node-player" :class="{ 'is-win': m.winner_side === 'side_b' }">
-                            <span class="n-name">{{ m.p2_name }}</span>
-                            <span class="n-score" v-if="m.score">{{ m.score.split('-')[1] || '' }}</span>
-                            <el-icon class="n-check" v-if="m.winner_side === 'side_b'"><Check /></el-icon>
-                          </div>
-                          <div class="node-status" v-if="!m.score && m.status !== 'completed'">{{ m.status === 'ongoing' ? t('tournaments.live') : t('tournaments.upcoming') }}</div>
+                  <div v-else class="neo-bracket-vertical">
+                    <div v-for="(round, index) in groupedMatches" :key="round.label" class="bracket-round-block">
+                      <div class="round-sticky-header">
+                        <div class="round-title-group">
+                          <span class="round-index">{{ index + 1 }}</span>
+                          <h4 class="round-title">{{ round.label }}</h4>
                         </div>
+                        <span class="round-count">{{ round.items.length }} {{ t('tournaments.matches') }}</span>
+                      </div>
+                      
+                      <div class="matches-vertical-grid">
+                        <div v-for="m in round.items" :key="m.id" class="match-node-v2">
+                          <div class="m-v2-header">
+                            <span class="m-v2-no">#{{ m.match_no }}</span>
+                            <span v-if="m.status === 'completed'" class="m-v2-status is-done">{{ t('tournaments.completed') || 'Đã xong' }}</span>
+                            <span v-else-if="m.status === 'ongoing'" class="m-v2-status is-live">{{ t('tournaments.live') }}</span>
+                            <span v-else class="m-v2-status">{{ t('tournaments.upcoming') }}</span>
+                          </div>
+                          
+                          <div class="m-v2-body">
+                            <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_a' }">
+                              <div class="p-info-wrapper">
+                                <div class="p-info">
+                                  <router-link :to="m.p1_user_id ? `/players/${m.p1_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p1_user_id}">
+                                    {{ m.p1_name || '???' }}
+                                  </router-link>
+                                  <el-icon v-if="m.winner_side === 'side_a'" class="p-win-icon"><Check /></el-icon>
+                                </div>
+                                <div v-if="m.p1_partner_name" class="p-partner">
+                                  & <router-link :to="m.p1_partner_user_id ? `/players/${m.p1_partner_user_id}` : '#'" class="p-partner-link" :class="{'no-link': !m.p1_partner_user_id}">
+                                    {{ m.p1_partner_name }}
+                                  </router-link>
+                                </div>
+                              </div>
+                              <span class="p-score" v-if="m.score && m.score.includes('-')">{{ m.score.split('-')[0] }}</span>
+                              <span class="p-score-note" v-else-if="m.score">{{ m.score }}</span>
+                            </div>
+                            
+                            <div class="m-v2-divider"></div>
+                            
+                            <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_b' }">
+                              <div class="p-info-wrapper">
+                                <div class="p-info">
+                                  <router-link :to="m.p2_user_id ? `/players/${m.p2_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p2_user_id}">
+                                    {{ m.p2_name || '???' }}
+                                  </router-link>
+                                  <el-icon v-if="m.winner_side === 'side_b'" class="p-win-icon"><Check /></el-icon>
+                                </div>
+                                <div v-if="m.p2_partner_name" class="p-partner">
+                                  & <router-link :to="m.p2_partner_user_id ? `/players/${m.p2_partner_user_id}` : '#'" class="p-partner-link" :class="{'no-link': !m.p2_partner_user_id}">
+                                    {{ m.p2_partner_name }}
+                                  </router-link>
+                                </div>
+                              </div>
+                              <span class="p-score" v-if="m.score && m.score.includes('-')">{{ m.score.split('-')[1] }}</span>
+                            </div>
 
+                            <div v-if="m.video_url || m.image_url || m.referee_name" class="m-v2-footer">
+                              <div v-if="m.referee_name" class="m-referee">
+                                <el-icon><User /></el-icon> <span>Trọng tài: {{ m.referee_name }}</span>
+                              </div>
+                              <div class="m-media-actions">
+                                <el-button v-if="m.video_url" link type="danger" size="small" @click="openPreview('video', m.video_url, `Highlight Trận #${m.match_no}`)">
+                                  <el-icon><VideoCamera /></el-icon> Video
+                                </el-button>
+                                <el-button v-if="m.image_url" link type="primary" size="small" @click="openPreview('image', m.image_url, `Ảnh Trận #${m.match_no}`)">
+                                  <el-icon><Picture /></el-icon> {{ t('tournaments.photos') || 'Ảnh' }}
+                                </el-button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -242,42 +457,67 @@ const formatDate = (dateStr) => {
               </el-tab-pane>
 
               <el-tab-pane :label="t('tournaments.standings')" name="standings">
-                <div v-loading="loadingStandings" class="neo-standings-box">
+                <div v-if="tournament.categories?.length > 1" class="category-filter-wrap">
+                  <div class="filter-label">Chọn nội dung:</div>
+                  <el-radio-group v-model="selectedCategoryId" size="small">
+                    <el-radio-button v-for="cat in tournament.categories" :key="cat.id" :value="cat.id">
+                      {{ cat.name }}
+                    </el-radio-button>
+                  </el-radio-group>
+                </div>
+                
+                <div v-loading="loadingStandings" class="standings-wrap">
                   <div v-if="standingsData.length === 0" class="empty-state">
                     <div class="es-icon">📊</div>
-                    <p>{{ t('tournaments.noGroupData') }}</p>
+                    <p>{{ t('tournaments.noGroupData') || 'Giải đấu đang diễn ra hoặc chưa có bảng xếp hạng vòng tròn.' }}</p>
+                    <p class="small-hint">Bảng xếp hạng chỉ hiển thị cho các giải đấu có giai đoạn Vòng Bảng.</p>
                   </div>
                   
-                  <div v-else>
-                    <div v-for="group in standingsData" :key="group.group_name" class="standings-group">
-                      <h3 class="sg-title">{{ group.group_name }}</h3>
+                  <div v-else class="standings-list">
+                    <div v-for="group in standingsData" :key="group.group_name" class="premium-group-card">
+                      <div class="pg-header">
+                        <div class="pg-accent"></div>
+                        <h3 class="pg-title">{{ group.group_name }}</h3>
+                      </div>
                       
-                      <div class="neo-table-wrapper">
-                        <table class="neo-table">
+                      <div class="pg-table-wrap">
+                        <table class="pg-table">
                           <thead>
                             <tr>
-                              <th class="text-center">#</th>
+                              <th class="col-rank">#</th>
                               <th>{{ t('tournaments.athlete') }}</th>
-                              <th class="text-center">{{ t('tournaments.matches') }}</th>
-                              <th class="text-center">{{ t('tournaments.winLoss') }}</th>
-                              <th class="text-center">{{ t('tournaments.setDiff') }}</th>
-                              <th class="text-center">{{ t('tournaments.gameDiff') }}</th>
-                              <th class="text-center">{{ t('tournaments.points') }}</th>
+                              <th class="text-center">W-L</th>
+                              <th class="text-center">+/-</th>
+                              <th class="text-center">PTS</th>
                             </tr>
                           </thead>
                           <tbody>
-                            <tr v-for="(row, idx) in group.rankings" :key="row.player_name">
-                              <td class="text-center rank-col">{{ idx + 1 }}</td>
-                              <td class="name-col"><strong>{{ row.player_name }}</strong></td>
-                              <td class="text-center">{{ row.played }}</td>
-                              <td class="text-center">{{ row.won }} - {{ row.lost }}</td>
-                              <td class="text-center" :class="{'text-green': row.set_diff > 0, 'text-red': row.set_diff < 0}">
-                                {{ row.set_diff > 0 ? '+' + row.set_diff : row.set_diff }}
+                            <tr v-for="(row, idx) in group.rankings" :key="row.player_name" :class="{ 'is-qualified': idx < 2 }">
+                              <td class="col-rank">
+                                <span class="rank-badge" :class="`rank-${idx + 1}`">{{ idx + 1 }}</span>
                               </td>
-                              <td class="text-center" :class="{'text-green': row.game_diff > 0, 'text-red': row.game_diff < 0}">
-                                {{ row.game_diff > 0 ? '+' + row.game_diff : row.game_diff }}
+                              <td class="col-player">
+                                <div class="player-stack">
+                                  <router-link :to="row.player_id ? `/players/${row.player_id}` : '#'" class="main-player">
+                                    {{ row.player_name }}
+                                  </router-link>
+                                  <span v-if="row.partner_name" class="partner-sep">&</span>
+                                  <router-link v-if="row.partner_name" :to="row.partner_player_id ? `/players/${row.partner_player_id}` : '#'" class="partner-name">
+                                    {{ row.partner_name }}
+                                  </router-link>
+                                </div>
                               </td>
-                              <td class="text-center pts-col">{{ row.points }}</td>
+                              <td class="text-center stat-cell">
+                                <span class="stat-win">{{ row.won }}</span> - <span class="stat-loss">{{ row.lost }}</span>
+                              </td>
+                              <td class="text-center diff-cell">
+                                <el-tooltip content="Hiệu số Game" placement="top">
+                                  <span :class="row.game_diff >= 0 ? 'pos' : 'neg'">{{ row.game_diff >= 0 ? '+' : '' }}{{ row.game_diff }}</span>
+                                </el-tooltip>
+                              </td>
+                              <td class="text-center pts-cell">
+                                <strong>{{ row.points }}</strong>
+                              </td>
                             </tr>
                           </tbody>
                         </table>
@@ -286,6 +526,91 @@ const formatDate = (dateStr) => {
                   </div>
                 </div>
               </el-tab-pane>
+
+              <el-tab-pane :label="t('tournaments.participants') || 'Danh sách VĐV'" name="participants">
+                <div v-if="tournament.categories?.length > 1" class="category-filter-wrap">
+                  <div class="filter-label">Chọn nội dung:</div>
+                  <el-radio-group v-model="selectedCategoryId" size="small">
+                    <el-radio-button v-for="cat in tournament.categories" :key="cat.id" :value="cat.id">
+                      {{ cat.name }}
+                    </el-radio-button>
+                  </el-radio-group>
+                </div>
+                
+                <div v-loading="loadingRegistrations" class="neo-participants-container">
+                  <div v-if="registrations.length === 0" class="empty-state">
+                    <div class="es-icon">👥</div>
+                    <p>{{ t('tournaments.noParticipants') || 'Chưa có vận động viên nào đăng ký.' }}</p>
+                  </div>
+                  
+                  <div v-else class="participants-grid">
+                    <div class="pg-table-wrap shadow-sm">
+                      <table class="pg-table">
+                        <thead>
+                          <tr>
+                            <th width="60" class="text-center">#</th>
+                            <th>{{ t('tournaments.athlete') }}</th>
+                            <th>{{ t('tournaments.category') }}</th>
+                            <th class="text-right">{{ t('tournaments.registrationTime') || 'Thời gian đăng ký' }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(reg, idx) in registrations" :key="reg.id">
+                            <td class="text-center"><span class="idx-badge">{{ idx + 1 }}</span></td>
+                            <td class="col-player">
+                              <div class="player-info-cell">
+                                <div class="player-main">
+                                  <router-link :to="`/players/${reg.player_id}`" class="name">{{ reg.player_name }}</router-link>
+                                  <span v-if="reg.player_skill" class="skill-tag">{{ reg.player_skill }}</span>
+                                </div>
+                                <div v-if="reg.partner_name" class="player-partner">
+                                  <span class="partner-label">Đồng đội:</span>
+                                  <span class="partner-name">{{ reg.partner_name }}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span class="category-text">{{ reg.category_name || (reg.registrant_type === 'team' ? 'Đôi' : 'Đơn') }}</span>
+                            </td>
+                            <td class="text-right time-cell">
+                              {{ formatDateTime(reg.registered_at) }}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane label="Media" name="media">
+                <div v-if="allMedia.length === 0" class="empty-state">
+                  <div class="es-icon">🎞️</div>
+                  <p>Giải đấu chưa có hình ảnh hoặc video highlight nào.</p>
+                </div>
+                <div v-else class="media-gallery-grid">
+                  <div v-for="item in allMedia" :key="item.id" class="media-item-card">
+                    <div class="media-preview">
+                      <img v-if="item.image_url" :src="item.image_url" :alt="item.match_label" />
+                      <div v-else class="video-placeholder">
+                        <el-icon><VideoCamera /></el-icon>
+                        <span>Video Highlight</span>
+                      </div>
+                      <div class="media-overlay">
+                        <div class="play-btn" @click="openPreview(item.video_url ? 'video' : 'image', item.video_url || item.image_url, item.match_label)">
+                          <el-icon v-if="item.video_url"><VideoPlay /></el-icon>
+                          <el-icon v-else><View /></el-icon>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="media-info">
+                      <h4 class="m-match-label">{{ item.match_label }}</h4>
+                      <p class="m-round-info">{{ item.round_code }} - {{ item.p1_name }} vs {{ item.p2_name }}</p>
+                    </div>
+                  </div>
+                </div>
+              </el-tab-pane>
+
             </el-tabs>
           </div>
         </div>
@@ -342,15 +667,41 @@ const formatDate = (dateStr) => {
       </div>
     </div>
   </div>
-  
-  <div v-else-if="tournamentStore.loading" class="neo-loading">
-    <div class="spinner-ring"></div>
-    <p>{{ t('tournaments.loadingData') }}</p>
+
+
+    <!-- Media Preview Dialog -->
+    <el-dialog
+      v-model="previewVisible"
+      :title="previewData.title"
+      width="80%"
+      destroy-on-close
+      class="media-preview-dialog"
+    >
+      <div class="preview-content">
+        <div v-if="previewData.type === 'video'" class="video-container">
+          <iframe 
+            v-if="previewData.url.includes('youtube.com') || previewData.url.includes('youtu.be')"
+            :src="previewData.url.replace('watch?v=', 'embed/')" 
+            frameborder="0" 
+            allowfullscreen
+            class="preview-video"
+          ></iframe>
+          <video v-else :src="previewData.url" controls autoplay class="preview-video"></video>
+        </div>
+        <div v-else class="image-container">
+          <el-image :src="previewData.url" fit="contain" class="preview-image" />
+        </div>
+      </div>
+    </el-dialog>
+
+    <div v-if="tournamentStore.loading && !tournament" class="neo-loading">
+      <div class="spinner-ring"></div>
+      <p>{{ t('tournaments.loadingData') }}</p>
+    </div>
   </div>
 </template>
 
 <style scoped>
-/* Giữ nguyên toàn bộ cấu trúc CSS gốc */
 .neo-tournament-page { --bg-body: #f1f5f9; --bg-surface: #ffffff; --hero-bg: #0f172a; --hero-glow-1: #3b82f6; --hero-glow-2: #10b981; --text-primary: #0f172a; --text-secondary: #475569; --text-muted: #94a3b8; --border-light: #e2e8f0; --accent: #2563eb; --accent-hover: #1d4ed8; --radius-xl: 24px; --radius-lg: 16px; --radius-md: 12px; background: var(--bg-body); min-height: 100vh; font-family: 'Inter', -apple-system, sans-serif; color: var(--text-primary); padding-bottom: 5rem; }
 .container { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
 .text-center { text-align: center; }
@@ -399,34 +750,74 @@ const formatDate = (dateStr) => {
 .neo-bracket-box { margin-top: 1.5rem; }
 .empty-state { text-align: center; padding: 4rem 0; color: var(--text-muted); }
 .es-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;}
-.neo-bracket-scroll { display: flex; gap: 30px; overflow-x: auto; padding: 10px 10px 20px; scrollbar-width: thin; }
-.bracket-col { min-width: 260px; display: flex; flex-direction: column; position: relative; }
-.round-header { text-align: center; font-size: 0.85rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 1.5rem; letter-spacing: 1px; }
-.match-nodes { display: flex; flex-direction: column; justify-content: space-around; flex-grow: 1; gap: 24px; }
-.match-node { background: white; border: 1px solid var(--border-light); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); position: relative; z-index: 2; transition: 0.2s; }
-.match-node:hover { border-color: var(--accent); box-shadow: 0 8px 20px rgba(37, 99, 235, 0.1); transform: translateY(-2px);}
-.node-player { display: flex; align-items: center; padding: 10px 14px; gap: 8px; }
-.node-player.is-win { background: #f8fafc; }
-.node-player.is-win .n-name { font-weight: 800; color: var(--text-primary); }
-.node-player.is-win .n-score { font-weight: 800; color: var(--accent); }
-.n-name { flex: 1; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
-.n-score { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); }
-.n-check { color: #10b981; font-weight: bold; font-size: 1rem;}
-.node-divider { height: 1px; background: var(--border-light); margin: 0 10px;}
-.node-status { text-align: center; font-size: 0.7rem; font-weight: 700; color: white; background: var(--text-muted); padding: 4px; border-radius: 0 0 10px 10px; }
-.bracket-col:not(:last-child):not(.is-group) .match-node::after { content: ''; position: absolute; right: -30px; top: 50%; width: 30px; border-top: 2px solid var(--border-light); z-index: 1; }
-.bracket-col:not(:first-child):not(.is-group) .match-node::before { content: ''; position: absolute; left: -30px; top: 50%; width: 30px; border-top: 2px solid var(--border-light); z-index: 1; }
-.neo-standings-box { margin-top: 1.5rem; }
-.standings-group { margin-bottom: 2.5rem; }
-.sg-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-bottom: 1rem;}
-.neo-table-wrapper { background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); overflow-x: auto; }
-.neo-table { width: 100%; border-collapse: collapse; }
-.neo-table th { background: var(--bg-body); padding: 12px 16px; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; border-bottom: 1px solid var(--border-light); text-align: left; }
-.neo-table td { padding: 12px 16px; font-size: 0.9rem; color: var(--text-secondary); border-bottom: 1px solid var(--border-light); }
-.neo-table tr:last-child td { border-bottom: none; }
-.name-col { color: var(--text-primary); }
-.rank-col { font-weight: 800; color: var(--text-muted); }
-.pts-col { font-weight: 800; font-size: 1.05rem; color: var(--accent); }
+.neo-bracket-vertical { display: flex; flex-direction: column; gap: 2.5rem; margin-top: 1.5rem; }
+.bracket-round-block { display: flex; flex-direction: column; gap: 1.5rem; }
+.round-sticky-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(15, 23, 42, 0.05); border: 1px solid #f1f5f9; position: sticky; top: 0; z-index: 5; margin-bottom: 1rem; }
+.round-title-group { display: flex; align-items: center; gap: 14px; }
+.round-index { width: 28px; height: 28px; background: var(--navy); color: white; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.8rem; font-weight: 800; }
+.round-title { margin: 0; font-size: 1rem; font-weight: 900; color: var(--navy); text-transform: uppercase; letter-spacing: 0.05em; }
+.round-count { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); background: white; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border-light); }
+.matches-vertical-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+.match-node-v2 { background: white; border: 1px solid var(--border-light); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03); transition: all 0.2s ease; }
+.match-node-v2:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06); }
+.m-v2-header { padding: 10px 16px; background: #fcfcfc; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+.m-v2-no { font-size: 0.75rem; font-weight: 800; color: var(--text-muted); font-family: monospace; }
+.m-v2-status { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; }
+.m-v2-status.is-done { background: #ecfdf5; color: #10b981; }
+.m-v2-status.is-live { background: #eff6ff; color: #3b82f6; animation: pulseFade 2s infinite; }
+@keyframes pulseFade { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+.m-v2-body { padding: 8px; }
+.m-v2-player { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 10px; transition: 0.2s; }
+.m-v2-player.is-win { background: #f0fdf4; }
+.p-info { display: flex; align-items: center; gap: 10px; }
+.p-name { font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); }
+.m-v2-player.is-win .p-name { color: #16a34a; font-weight: 800; }
+.p-win-icon { color: #10b981; font-size: 1rem; }
+.p-score { font-size: 1.1rem; font-weight: 800; color: var(--text-muted); min-width: 20px; text-align: center; }
+.m-v2-player.is-win .p-score { color: #10b981; }
+.m-v2-divider { height: 1px; background: #f1f5f9; margin: 4px 10px; }
+.p-info-wrapper { display: flex; flex-direction: column; gap: 2px; }
+.p-name-link { font-size: 0.9rem; font-weight: 700; color: var(--accent); text-decoration: none; transition: 0.2s; }
+.p-name-link:hover { text-decoration: underline; color: var(--navy); }
+.p-name-link.no-link, .p-partner-link.no-link { color: var(--text-secondary); pointer-events: none; }
+.p-partner { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; font-style: italic; display: flex; gap: 4px; }
+.p-partner-link { color: var(--text-muted); text-decoration: none; }
+.p-partner-link:hover { color: var(--accent); text-decoration: underline; }
+.m-v2-footer { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px; }
+.m-referee { font-size: 0.75rem; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.m-media-actions { display: flex; gap: 8px; }
+.media-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; text-decoration: none; transition: all 0.2s; }
+.media-btn.video { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
+.media-btn.video:hover { background: #dc2626; color: white; }
+.media-btn.image { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+.media-btn.image:hover { background: #2563eb; color: white; }
+.neo-standings-container { margin-top: 1.5rem; }
+.standings-list { display: flex; flex-direction: column; gap: 2rem; }
+.premium-group-card { background: white; border-radius: 20px; border: 1px solid #f1f5f9; padding: 24px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.02); }
+.pg-header { display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem; }
+.pg-accent { width: 4px; height: 20px; background: var(--hero-glow-2); border-radius: 4px; }
+.pg-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin: 0; text-transform: uppercase; letter-spacing: 0.05em; }
+.pg-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #f1f5f9; }
+.pg-table { width: 100%; border-collapse: collapse; min-width: 480px; }
+.pg-table th { background: #f8fafc; padding: 12px 16px; font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase; border-bottom: 2px solid #f1f5f9; text-align: left; }
+.pg-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.pg-table tr:last-child td { border-bottom: none; }
+.pg-table tr.is-qualified { background: #f0fdf440; }
+.col-rank { width: 50px; text-align: center; }
+.rank-badge { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 800; font-size: 0.75rem; background: #f1f5f9; color: #64748b; }
+.rank-1 { background: #fef3c7; color: #92400e; box-shadow: 0 0 0 2px #fde68a; }
+.rank-2 { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+.player-stack { display: flex; flex-direction: column; gap: 2px; }
+.main-player { font-weight: 700; color: var(--text-primary); text-decoration: none; font-size: 0.9rem; }
+.main-player:hover { color: var(--accent); text-decoration: underline; }
+.partner-name { font-size: 0.75rem; color: var(--text-muted); font-style: italic; }
+.stat-cell { font-weight: 600; color: #64748b; font-size: 0.85rem; }
+.stat-win { color: #16a34a; }
+.stat-loss { color: #dc2626; }
+.diff-cell { font-weight: 700; font-size: 0.85rem; }
+.diff-cell span.pos { color: #16a34a; }
+.diff-cell span.neg { color: #dc2626; }
+.pts-cell { color: var(--accent); font-size: 1.05rem; }
 .neo-col-sidebar { position: relative; }
 .sticky { position: sticky; top: 24px; }
 .neo-action-card { background: var(--bg-surface); border-radius: var(--radius-xl); padding: 2rem; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.1); border: 1px solid var(--border-light); }
@@ -454,7 +845,6 @@ const formatDate = (dateStr) => {
   .sticky { position: relative; top: 0; }
   .main-overlap { margin-top: -2rem; }
 }
-
 @media (max-width: 768px) { 
   .container { padding: 0 1rem; }
   .neo-hero { padding: 3.5rem 0 4.5rem; }
@@ -471,67 +861,121 @@ const formatDate = (dateStr) => {
   .bento-layout { grid-template-columns: 1fr; gap: 0.75rem; } 
   .box-lg { grid-column: auto; } 
   .neo-tabs-container { padding: 1rem; border-radius: var(--radius-lg); min-height: auto; }
-  
   .main-overlap { margin-top: -1.5rem; }
-
-  :deep(.neo-tabs .el-tabs__header) {
-    margin-bottom: 1rem;
+  .registered-highlight {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 1px solid #bbf7d0 !important;
   }
+  .registered-highlight .bento-icon { color: #22c55e; }
+  .registered-highlight .bento-val { color: #15803d; }
   
-  :deep(.neo-tabs .el-tabs__nav) {
-    display: flex;
-    width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
+  .viewing-highlight {
+    border: 1px solid var(--accent-light) !important;
   }
+  :deep(.neo-tabs .el-tabs__header) { margin-bottom: 1rem; }
+  :deep(.neo-tabs .el-tabs__nav) { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
   :deep(.neo-tabs .el-tabs__nav::-webkit-scrollbar) { display: none; }
-  
-  :deep(.neo-tabs .el-tabs__item) {
-    flex: 1;
-    text-align: center;
-    padding: 0 12px !important;
-    min-width: max-content;
-    font-size: 0.8rem;
-  }
-
-  .neo-table th, .neo-table td {
-    padding: 8px 6px;
-    font-size: 0.75rem;
-  }
-  
+  :deep(.neo-tabs .el-tabs__item) { flex: 1; text-align: center; padding: 0 12px !important; min-width: max-content; font-size: 0.8rem; }
+  .neo-table th, .neo-table td { padding: 8px 6px; font-size: 0.75rem; }
   .sg-title { font-size: 0.95rem; }
+  .matches-vertical-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .round-sticky-header { padding: 10px 15px; }
+  .round-title { font-size: 0.9rem; }
+  .m-v2-player { padding: 8px; }
+  .p-name { font-size: 0.85rem; }
+  .p-score { font-size: 1rem; }
+  .ac-progress-section { margin-bottom: 1.5rem; }
 }
-
 @media (max-width: 480px) {
   .hero-title { font-size: 1.5rem; }
   .neo-hero { padding: 2.5rem 0 4rem; }
   .neo-badge { font-size: 0.65rem; padding: 3px 8px; }
   .tour-type { font-size: 0.7rem; }
-  
   .main-overlap { margin-top: 0; }
   .neo-tabs-container { border-radius: 0; margin-left: -1rem; margin-right: -1rem; width: calc(100% + 2rem); }
-
   .bento-box { padding: 0.85rem; }
   .bento-val { font-size: 1rem; }
   .bento-icon { font-size: 1.25rem; }
-  
-  .neo-bracket-scroll {
-    gap: 12px;
-  }
-  
-  .bracket-col {
-    min-width: 200px;
-  }
-  
-  .neo-action-card {
-    padding: 1.25rem;
-    border-radius: var(--radius-lg);
-  }
-  
+  .neo-action-card { padding: 1.25rem; border-radius: var(--radius-lg); }
   .price-tag { font-size: 1.25rem; }
   .ac-header h2 { font-size: 1.1rem; }
   .ac-header { margin-bottom: 1.25rem; }
   .ac-progress-section { margin-bottom: 1.5rem; }
 }
+
+/* Participants Styles */
+.neo-participants-container { margin-top: 1.5rem; }
+.idx-badge { width: 24px; height: 24px; background: #f1f5f9; color: #64748b; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 800; font-size: 0.7rem; }
+.player-info-cell { display: flex; flex-direction: column; gap: 4px; }
+.player-main { display: flex; align-items: center; gap: 8px; }
+.player-main .name { font-weight: 700; color: var(--text-primary); text-decoration: none; font-size: 0.95rem; }
+.player-main .name:hover { color: var(--accent); text-decoration: underline; }
+.skill-tag { font-size: 0.65rem; background: #eff6ff; color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+.player-partner { font-size: 0.8rem; color: #64748b; display: flex; gap: 4px; }
+.partner-label { font-weight: 500; }
+.partner-name { font-weight: 600; color: #334155; }
+.type-tag { font-size: 0.7rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; }
+.type-tag.team { background: #fff7ed; color: #f97316; }
+.type-tag.player { background: #f1f5f9; color: #475569; }
+.time-cell { font-size: 0.8rem; color: #64748b; font-weight: 500; font-family: monospace; }
+.shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+.category-filter-wrap {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  padding: 15px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+.filter-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+:deep(.el-radio-button__inner) {
+  background: white !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid #e2e8f0 !important;
+  font-weight: 700;
+  transition: all 0.3s ease;
+}
+
+:deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: var(--accent) !important;
+  color: white !important;
+  border-color: var(--accent) !important;
+}
+
+.standings-wrap, .bracket-viewport {
+  margin-top: 10px;
+}
+
+/* Match Node Footer */
+.m-v2-footer { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px; }
+.m-referee { font-size: 0.75rem; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.m-media-actions { display: flex; gap: 8px; }
+.media-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; text-decoration: none; transition: all 0.2s; }
+.media-btn.video { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
+.media-btn.video:hover { background: #dc2626; color: white; }
+.media-btn.image { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+.media-btn.image:hover { background: #2563eb; color: white; }
+
+/* Media Gallery */
+.media-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; padding: 10px 0; }
+.media-item-card { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; transition: transform 0.3s; }
+.media-item-card:hover { transform: translateY(-5px); }
+.media-preview { position: relative; height: 180px; background: #0f172a; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.media-preview img { width: 100%; height: 100%; object-fit: cover; }
+.video-placeholder { color: #94a3b8; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.video-placeholder .el-icon { font-size: 2.5rem; }
+.media-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s; }
+.media-item-card:hover .media-overlay { opacity: 1; }
+.play-btn { width: 50px; height: 50px; background: white; color: #dc2626; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; text-decoration: none; }
+.media-info { padding: 15px; }
+.m-match-label { margin: 0 0 5px; font-size: 1rem; font-weight: 700; color: #1e293b; }
+.m-round-info { margin: 0; font-size: 0.8rem; color: #64748b; font-weight: 500; }
 </style>
