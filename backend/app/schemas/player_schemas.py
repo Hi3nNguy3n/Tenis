@@ -6,7 +6,7 @@ from datetime import date
 class PlayerUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = Field(None, max_length=15)
-    gender: Optional[str] = Field(None, description="nam, nu, khac")
+    gender: Optional[str] = Field(None, description="male, female, other")
     date_of_birth: Optional[date] = None
     province: Optional[str] = None       # Thêm trường này
     play_hand: Optional[str] = Field(None, description="right, left, both")

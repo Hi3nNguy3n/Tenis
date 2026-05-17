@@ -14,8 +14,8 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, description="Họ tên không được để trống")
     otp_code: str
     
-    # Regex: Bắt buộc bắt đầu bằng số 0, theo sau là 9 chữ số (Tổng 10 số)
-    phone: Optional[str] = Field(None, pattern=r"^0\d{9}$", description="Số điện thoại không hợp lệ")
+    # Regex: Bắt đầu bằng số 0, theo sau là 9-10 chữ số (Tổng 10-11 số)
+    phone: Optional[str] = Field(None, pattern=r"^0\d{9,10}$", description="Số điện thoại không hợp lệ")
     
     province: Optional[str] = None
     date_of_birth: Optional[date] = None

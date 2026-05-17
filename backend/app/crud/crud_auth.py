@@ -69,6 +69,8 @@ def create_user_and_player_transaction(db: Session, request: RegisterRequest, ro
 
         new_player = Player(
             user_id=new_user.id,
+            gender=request.gender,                         # ĐỒNG BỘ GIỚI TÍNH
+            date_of_birth=request.date_of_birth,           # ĐỒNG BỘ NGÀY SINH
             play_hand=request.play_hand,                   # BỔ SUNG TAY THUẬN
             skill_level=request.skill_level,               # BỔ SUNG TRÌNH ĐỘ
             preferred_category=request.preferred_category, # BỔ SUNG SỞ TRƯỜNG

@@ -11,6 +11,8 @@ def update_player_profile(db: Session, user: User, update_data: PlayerUpdate):
     if update_data.full_name: user.full_name = update_data.full_name
     if update_data.phone: user.phone = update_data.phone
     if update_data.province: user.province = update_data.province 
+    if update_data.gender: user.gender = update_data.gender
+    if update_data.date_of_birth: user.date_of_birth = update_data.date_of_birth
     
     # BỔ SUNG DÒNG NÀY ĐỂ LƯU AVATAR VÀO BẢNG USER
     if hasattr(update_data, 'avatar_url') and update_data.avatar_url is not None:
@@ -66,6 +68,8 @@ def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpd
         if update_data.full_name is not None: user.full_name = update_data.full_name
         if update_data.phone is not None: user.phone = update_data.phone
         if update_data.province is not None: user.province = update_data.province
+        if update_data.gender is not None: user.gender = update_data.gender
+        if update_data.date_of_birth is not None: user.date_of_birth = update_data.date_of_birth
         
         # BỔ SUNG: Cập nhật Ảnh đại diện & Trạng thái tài khoản
         if hasattr(update_data, 'avatar_url') and update_data.avatar_url is not None:
@@ -173,7 +177,9 @@ def get_player_by_id(db: Session, player_id: int):
             "email": u.email,
             "phone": u.phone,
             "avatar_url": u.avatar_url,
-            "province": u.province
+            "province": u.province,
+            "gender": u.gender,
+            "date_of_birth": u.date_of_birth
         },
         "player_profile": {
             "id": p.id,
@@ -183,7 +189,8 @@ def get_player_by_id(db: Session, player_id: int):
             "losses": p.losses,
             "matches_played": p.matches_played,
             "win_rate": win_rate,
-            "gender": p.gender,
+            "gender": p.gender or u.gender, # Fallback về user gender
+            "date_of_birth": p.date_of_birth or u.date_of_birth, # Fallback về user dob
             "play_hand": p.play_hand,
             "skill_level": p.skill_level,
             "preferred_category": p.preferred_category

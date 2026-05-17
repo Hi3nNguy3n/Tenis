@@ -100,6 +100,10 @@ export const useAuthStore = defineStore('auth', () => {
       email: data.user?.email || user.value?.email || '',
       full_name: data.user?.full_name || user.value?.full_name || '',
       avatar_url: data.user?.avatar_url || user.value?.avatar_url || '',
+      phone: data.user?.phone || user.value?.phone || '',
+      province: data.user?.province || user.value?.province || '',
+      gender: data.user?.gender || user.value?.gender || '',
+      date_of_birth: data.user?.date_of_birth || user.value?.date_of_birth || null,
       user_id: data.user?.id || user.value?.user_id || null,
       role_id: data.user?.role_id || roleId.value,
       account_type: data.user?.account_type || user.value?.account_type || 'user'

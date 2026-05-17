@@ -328,11 +328,18 @@ onMounted(() => {
 
               <div class="match-card-body">
                 <div class="side-item" :class="{ 'is-winner': m.winner_side === 'side_a' }">
-                  <div class="player-box">
-                    <div class="avatar-mini"><el-icon><User /></el-icon></div>
-                    <div class="player-info-stack">
+                  <div class="team-meta-container">
+                    <div class="player-unit">
+                      <el-avatar :size="24" :src="m.p1_avatar" class="avatar-mini">
+                        <el-icon><User /></el-icon>
+                      </el-avatar>
                       <span class="player-name">{{ m.p1_name || '...' }}</span>
-                      <span v-if="m.p1_partner_name" class="partner-name-mini">& {{ m.p1_partner_name }}</span>
+                    </div>
+                    <div v-if="m.p1_partner_name" class="player-unit">
+                      <el-avatar :size="24" :src="m.p1_partner_avatar" class="avatar-mini">
+                        <el-icon><User /></el-icon>
+                      </el-avatar>
+                      <span class="player-name">{{ m.p1_partner_name }}</span>
                     </div>
                   </div>
                   <el-icon v-if="m.winner_side === 'side_a'" class="win-check"><SuccessFilled /></el-icon>
@@ -345,11 +352,18 @@ onMounted(() => {
                 </div>
 
                 <div class="side-item" :class="{ 'is-winner': m.winner_side === 'side_b' }">
-                  <div class="player-box">
-                    <div class="avatar-mini"><el-icon><User /></el-icon></div>
-                    <div class="player-info-stack">
+                  <div class="team-meta-container">
+                    <div class="player-unit">
+                      <el-avatar :size="24" :src="m.p2_avatar" class="avatar-mini">
+                        <el-icon><User /></el-icon>
+                      </el-avatar>
                       <span class="player-name">{{ m.p2_name || '...' }}</span>
-                      <span v-if="m.p2_partner_name" class="partner-name-mini">& {{ m.p2_partner_name }}</span>
+                    </div>
+                    <div v-if="m.p2_partner_name" class="player-unit">
+                      <el-avatar :size="24" :src="m.p2_partner_avatar" class="avatar-mini">
+                        <el-icon><User /></el-icon>
+                      </el-avatar>
+                      <span class="player-name">{{ m.p2_partner_name }}</span>
                     </div>
                   </div>
                   <el-icon v-if="m.winner_side === 'side_b'" class="win-check"><SuccessFilled /></el-icon>
@@ -430,19 +444,29 @@ onMounted(() => {
              <el-radio-group v-model="scoreForm.winner_side" class="winner-grid-selector">
                 <el-radio value="side_a" border class="winner-radio-premium">
                   <div class="radio-content">
-                    <el-icon><User /></el-icon>
-                    <div class="winner-names">
-                       <strong>{{ scoringMatch.p1_name }}</strong>
-                       <small v-if="scoringMatch.p1_partner_name">& {{ scoringMatch.p1_partner_name }}</small>
+                    <div class="team-meta-container">
+                      <div class="player-unit">
+                        <el-avatar :size="20" :src="scoringMatch.p1_avatar"><el-icon><User /></el-icon></el-avatar>
+                        <strong>{{ scoringMatch.p1_name }}</strong>
+                      </div>
+                      <div v-if="scoringMatch.p1_partner_name" class="player-unit">
+                        <el-avatar :size="20" :src="scoringMatch.p1_partner_avatar"><el-icon><User /></el-icon></el-avatar>
+                        <strong>{{ scoringMatch.p1_partner_name }}</strong>
+                      </div>
                     </div>
                   </div>
                 </el-radio>
                 <el-radio value="side_b" border class="winner-radio-premium">
                   <div class="radio-content">
-                    <el-icon><User /></el-icon>
-                    <div class="winner-names">
-                       <strong>{{ scoringMatch.p2_name }}</strong>
-                       <small v-if="scoringMatch.p2_partner_name">& {{ scoringMatch.p2_partner_name }}</small>
+                    <div class="team-meta-container">
+                      <div class="player-unit">
+                        <el-avatar :size="20" :src="scoringMatch.p2_avatar"><el-icon><User /></el-icon></el-avatar>
+                        <strong>{{ scoringMatch.p2_name }}</strong>
+                      </div>
+                      <div v-if="scoringMatch.p2_partner_name" class="player-unit">
+                        <el-avatar :size="20" :src="scoringMatch.p2_partner_avatar"><el-icon><User /></el-icon></el-avatar>
+                        <strong>{{ scoringMatch.p2_partner_name }}</strong>
+                      </div>
                     </div>
                   </div>
                 </el-radio>
@@ -772,16 +796,11 @@ onMounted(() => {
 .side-item.is-winner { background: #f0fdf4; border-color: #10b981; }
 
 .player-box { display: flex; align-items: center; gap: 12px; }
-.avatar-mini {
-  width: 28px; height: 28px; border-radius: 50%; background: #f1f5f9;
-  display: flex; align-items: center; justify-content: center; font-size: 14px; color: #94a3b8;
-}
-.player-name { font-weight: 800; color: #1e293b; font-size: 0.95rem; }
-.player-info-stack { display: flex; flex-direction: column; line-height: 1.2; }
-.partner-name-mini { font-size: 0.75rem; color: #64748b; font-weight: 500; }
-.winner-names { display: flex; flex-direction: column; text-align: left; line-height: 1.2; }
-.winner-names small { font-size: 0.75rem; color: #64748b; font-weight: 500; }
-.win-check { color: #10b981; font-size: 18px; }
+.team-meta-container { display: flex; flex-direction: column; gap: 8px; flex-grow: 1; overflow: hidden; }
+.player-unit { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+.player-name { font-weight: 800; color: #1e293b; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar-mini { border: 1.5px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+.win-check { color: #10b981; font-size: 18px; flex-shrink: 0; }
 
 .vs-divider {
   display: flex; align-items: center; gap: 12px; padding: 4px 0;
@@ -821,13 +840,12 @@ onMounted(() => {
 
 .winner-grid-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
 .winner-radio-premium {
-  height: auto !important; padding: 16px !important; border-radius: 16px !important;
-  margin: 0 !important; width: 100%; display: flex; align-items: center; justify-content: center;
+  height: auto !important; padding: 20px 16px !important; border-radius: 20px !important;
+  margin: 0 !important; width: 100%; display: flex; align-items: flex-start;
 }
-.radio-content { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.radio-content .el-icon { font-size: 24px; color: #94a3b8; }
-:deep(.el-radio.is-bordered.is-checked) { background: #f0fdf4; border-color: #10b981; }
-:deep(.el-radio.is-bordered.is-checked) .radio-content .el-icon { color: #10b981; }
+.radio-content { display: flex; width: 100%; }
+:deep(.el-radio.is-bordered.is-checked) { background: #f0fdf4 !important; border-color: #10b981 !important; border-width: 2px; }
+:deep(.el-radio__label) { width: 100%; padding-left: 0; }
 
 .sets-header { display: flex; justify-content: space-between; align-items: center; }
 .sets-rows { display: flex; flex-direction: column; gap: 12px; }

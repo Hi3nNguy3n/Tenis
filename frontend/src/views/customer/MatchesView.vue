@@ -127,12 +127,18 @@ const fetchAllMatchesData = async (silent = false) => {
           : matchItem.status === 'ongoing' ? 'Live' : 'Scheduled',
         players: [
           {
-            name: matchItem.p1_name || matchItem.player_a || matchItem.player1 || t('matches.undetermined'),
+            name: matchItem.p1_name || t('matches.undetermined'),
+            avatar: matchItem.p1_avatar,
+            partner_name: matchItem.p1_partner_name,
+            partner_avatar: matchItem.p1_partner_avatar,
             winner: matchItem.winner_side === 'side_a',
             sets: matchItem.score ? matchItem.score.split(',').map(s => s.trim().split('-')[0]) : [],
           },
           {
-            name: matchItem.p2_name || matchItem.player_b || matchItem.player2 || t('matches.undetermined'),
+            name: matchItem.p2_name || t('matches.undetermined'),
+            avatar: matchItem.p2_avatar,
+            partner_name: matchItem.p2_partner_name,
+            partner_avatar: matchItem.p2_partner_avatar,
             winner: matchItem.winner_side === 'side_b',
             sets: matchItem.score ? matchItem.score.split(',').map(s => s.trim().split('-')[1]) : [],
           },
@@ -307,25 +313,24 @@ onUnmounted(() => {
                 </div>
 
                 <div class="col-players">
-                  <div class="p-line" :class="{ 'is-winner': match.players[0].winner }">
-                    <div class="p-identity">
-                      <span class="flag-mini"></span>
-                      <span class="p-name">{{ match.players[0].name }}</span>
-                      <el-icon v-if="match.players[0].winner" class="winner-tick"><Check /></el-icon>
+                  <div v-for="(pSide, idx) in match.players" :key="idx" class="p-line" :class="{ 'is-winner': pSide.winner }">
+                    <div class="team-meta-inline">
+                      <div class="player-unit-mini">
+                        <el-avatar :size="20" :src="pSide.avatar" class="mini-avatar">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="p-name">{{ pSide.name }}</span>
+                      </div>
+                      <div v-if="pSide.partner_name" class="player-unit-mini">
+                        <el-avatar :size="20" :src="pSide.partner_avatar" class="mini-avatar">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="p-name">{{ pSide.partner_name }}</span>
+                      </div>
+                      <el-icon v-if="pSide.winner" class="winner-tick"><Check /></el-icon>
                     </div>
                     <div class="p-score-wrap">
-                      <span v-for="(s, i) in match.players[0].sets" :key="i" class="p-score">{{ s }}</span>
-                    </div>
-                  </div>
-                  
-                  <div class="p-line" :class="{ 'is-winner': match.players[1].winner }">
-                    <div class="p-identity">
-                      <span class="flag-mini"></span>
-                      <span class="p-name">{{ match.players[1].name }}</span>
-                      <el-icon v-if="match.players[1].winner" class="winner-tick"><Check /></el-icon>
-                    </div>
-                    <div class="p-score-wrap">
-                      <span v-for="(s, i) in match.players[1].sets" :key="i" class="p-score">{{ s }}</span>
+                      <span v-for="(s, i) in pSide.sets" :key="i" class="p-score">{{ s }}</span>
                     </div>
                   </div>
                 </div>
@@ -604,13 +609,14 @@ onUnmounted(() => {
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
 
 /* Cột 2: Players */
-.col-players { flex: 1; padding: 0 2rem; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
-.p-line { display: flex; justify-content: space-between; align-items: center; }
-.p-identity { display: flex; align-items: center; gap: 10px; }
-.flag-mini { font-size: 1rem; }
-.p-name { font-size: 1rem; font-weight: 600; color: var(--text-muted); }
+.col-players { flex: 1; padding: 0 2rem; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+.p-line { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+.team-meta-inline { display: flex; align-items: center; gap: 12px; }
+.player-unit-mini { display: flex; align-items: center; gap: 8px; }
+.mini-avatar { border: 1px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.p-name { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); }
 .is-winner .p-name { color: var(--text-main); font-weight: 800; }
-.winner-tick { color: #10b981; font-weight: bold; font-size: 1.1rem;}
+.winner-tick { color: #10b981; font-weight: bold; font-size: 1.1rem; margin-left: 4px; }
 
 .p-score-wrap { display: flex; align-items: center; gap: 8px; }
 .p-score { 

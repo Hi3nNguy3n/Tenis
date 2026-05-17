@@ -59,6 +59,14 @@ const getStatusType = (status) => {
   if (status === 'pending') return 'warning'
   return 'info'
 }
+
+const formatGender = (gender) => {
+  if (!gender) return t('profile.notSpecified') || 'N/A'
+  const g = gender.toLowerCase()
+  if (g === 'male' || g === 'nam') return t('profile.male') || 'Nam'
+  if (g === 'female' || g === 'nữ' || g === 'nu') return t('profile.female') || 'Nữ'
+  return gender
+}
 </script>
 
 <template>
@@ -112,7 +120,7 @@ const getStatusType = (status) => {
           <div class="info-list">
             <div class="info-item">
               <label>{{ t('profile.gender') }}</label>
-              <span>{{ playerData.player_profile.gender === 'male' ? t('profile.male') : t('profile.female') }}</span>
+              <span>{{ formatGender(playerData.player_profile.gender) }}</span>
             </div>
             <div class="info-item">
               <label>{{ t('profile.playHand') }}</label>
@@ -156,7 +164,45 @@ const getStatusType = (status) => {
               
               <div class="match-detail">
                 <div class="m-tour">{{ match.tournament_name }}</div>
-                <div class="m-opp">vs {{ match.opponent }}</div>
+                
+                <div class="m-teams">
+                  <div class="team-unit">
+                    <div class="team-players">
+                      <div class="player-unit-tiny">
+                        <el-avatar :size="18" :src="match.my_team?.avatar" class="tiny-avatar">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="p-name">{{ match.my_team?.name }}</span>
+                      </div>
+                      <div v-if="match.my_team?.partner_name" class="player-unit-tiny">
+                        <el-avatar :size="18" :src="match.my_team?.partner_avatar" class="tiny-avatar">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="p-name">{{ match.my_team?.partner_name }}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <span class="vs-label">VS</span>
+
+                  <div class="team-unit">
+                    <div class="team-players">
+                      <div class="player-unit-tiny">
+                        <el-avatar :size="18" :src="match.opponent_team?.avatar" class="tiny-avatar">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="p-name">{{ match.opponent_team?.name }}</span>
+                      </div>
+                      <div v-if="match.opponent_team?.partner_name" class="player-unit-tiny">
+                        <el-avatar :size="18" :src="match.opponent_team?.partner_avatar" class="tiny-avatar">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="p-name">{{ match.opponent_team?.partner_name }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="m-meta">
                   <span>{{ match.round }}</span>
                   <span class="dot"></span>
@@ -442,10 +488,16 @@ const getStatusType = (status) => {
   padding: 0 1.5rem;
 }
 
-.m-tour { font-size: 1rem; font-weight: 800; color: var(--text); }
-.m-opp { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); margin: 2px 0; }
-.m-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
-.dot { width: 3px; height: 3px; background: currentColor; border-radius: 50%; }
+.m-tour { font-size: 0.85rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.m-teams { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.vs-label { font-size: 0.7rem; font-weight: 900; color: var(--text-muted); opacity: 0.5; }
+.team-players { display: flex; flex-direction: column; gap: 4px; }
+.player-unit-tiny { display: flex; align-items: center; gap: 6px; }
+.player-unit-tiny .p-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.tiny-avatar { border: 1px solid rgba(0,0,0,0.05); }
+
+.m-meta { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); }
+.dot { width: 3px; height: 3px; border-radius: 50%; background: #cbd5e1; }
 
 .score-pill {
   background: var(--primary);
