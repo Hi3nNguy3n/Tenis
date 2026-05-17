@@ -38,9 +38,13 @@ class RegistrationResponse(RegistrationBase):
     qr_code_url: Optional[str] = None
     
     # Optional fields for display
-    tournament_name: Optional[str] = None
     player_name: Optional[str] = None
+    user_id: Optional[int] = None
+    partner_name: Optional[str] = None
+    partner_user_id: Optional[int] = None
+    partner_avatar: Optional[str] = None
     category_name: Optional[str] = None
+    tournament_name: Optional[str] = None
     location: Optional[str] = None
     
     # Detailed fields for "View Details"
@@ -51,13 +55,6 @@ class RegistrationResponse(RegistrationBase):
     player_phone: Optional[str] = None
     player_email: Optional[str] = None
     player_skill: Optional[str] = None
-    
-    partner_name: Optional[str] = None
-    partner_phone: Optional[str] = None
-    partner_email: Optional[str] = None
-    partner_user_id: Optional[int] = None
-    team_members_data: Optional[List[TeamMember]] = None
-
     
     class Config:
         from_attributes = True

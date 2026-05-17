@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import cloudinary.uploader
 from typing import Optional
 
+from datetime import datetime, date
 from app.db.database import get_db
 from app.api.deps import get_current_user
 from app.models.models import User, Player, Match, Registration, Tournament
@@ -191,12 +192,25 @@ def get_player_match_history_public(
         results = []
         for m, t, c in matches_data:
             is_side_a = m.side_a_registration_id in reg_ids
-            opponent_reg_id = m.side_b_registration_id if is_side_a else m.side_a_registration_id
+            my_reg_id = m.side_a_registration_id if is_side_a else m.side_b_registration_id
+            opp_reg_id = m.side_b_registration_id if is_side_a else m.side_a_registration_id
             
-            opponent_name = "Đang chờ đối thủ"
-            if opponent_reg_id:
-                opp_user = crud_player.get_opponent_user_by_reg_id(db, opponent_reg_id)
-                opponent_name = opp_user.full_name if opp_user else "VĐV"
+            # Helper to get team info
+            def get_team_info(reg_id):
+                if not reg_id: return {"name": "TBA", "avatar": None, "partner_name": None, "partner_avatar": None}
+                reg = db.query(Registration).filter(Registration.id == reg_id).first()
+                if not reg: return {"name": "TBA", "avatar": None, "partner_name": None, "partner_avatar": None}
+                
+                u = db.query(User).join(Player).filter(Player.id == reg.player_id).first()
+                p_info = {"name": u.full_name if u else "VĐV", "avatar": u.avatar_url if u else None, "partner_name": reg.partner_name, "partner_avatar": None}
+                
+                if reg.partner_user_id:
+                    pu = db.query(User).filter(User.id == reg.partner_user_id).first()
+                    if pu: p_info["partner_avatar"] = pu.avatar_url
+                return p_info
+
+            my_team = get_team_info(my_reg_id)
+            opp_team = get_team_info(opp_reg_id)
 
             result_status = "Đang chờ"
             if m.status == "completed":
@@ -207,13 +221,14 @@ def get_player_match_history_public(
                 "id": m.id,
                 "tournament_name": t.name,
                 "round": m.round_code,
-                "opponent": opponent_name,
+                "my_team": my_team,
+                "opponent_team": opp_team,
+                "opponent": opp_team["name"], # Backward compatibility
                 "score": m.result_note or m.score_summary or "- / -",
                 "status": m.status,
                 "result_status": result_status,
                 "court": c.court_name if c else "N/A",
                 "time": m.start_time.strftime("%d/%m/%Y %H:%M") if m.start_time else "TBD",
-                # Breakdown scores
                 "sets": {
                     "set1": {"a": m.set1_a, "b": m.set1_b},
                     "set2": {"a": m.set2_a, "b": m.set2_b},
@@ -287,8 +302,14 @@ def get_h2h_history(
     ).all()
 
     all_matches = tour_matches + friendly_matches
-    # Sắp xếp theo ngày mới nhất
-    all_matches.sort(key=lambda x: x.match_date or x.start_time or datetime.min, reverse=True)
+    # Sắp xếp theo ngày mới nhất (Chuẩn hóa date thành datetime để so sánh)
+    def get_sort_key(m):
+        dt = m.start_time
+        if not dt and m.match_date:
+            dt = datetime.combine(m.match_date, datetime.min.time())
+        return dt or datetime.min
+
+    all_matches.sort(key=get_sort_key, reverse=True)
 
     results = []
     for m in all_matches:

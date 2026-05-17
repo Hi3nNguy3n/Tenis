@@ -9,7 +9,7 @@ import { t } from '../../utils/locale'
 import { 
   Trophy, Finished, EditPen, Menu,
   CircleCheckFilled, CircleCloseFilled,
-  Search, Refresh, Edit, Delete
+  Search, Refresh, Edit, Delete, Location, User
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -296,25 +296,52 @@ onMounted(async () => {
               <div class="lane-content">
                 <div v-for="m in round.items" :key="m.id" class="saas-match-card">
                   <div class="m-card-header">
-                    <span class="m-id">#{{ m.match_no }}</span>
+                    <div class="m-header-left">
+                      <span class="m-id">#{{ m.match_no }}</span>
+                      <span class="m-court-tag" v-if="m.court">
+                        <el-icon><Location /></el-icon> {{ m.court }}
+                      </span>
+                    </div>
                     <el-tag size="small" :type="m.status === 'completed' ? 'success' : 'warning'" effect="dark" class="m-status-tag">
                       {{ m.status?.toUpperCase() }}
                     </el-tag>
                   </div>
                   <div class="m-card-body">
                     <div class="team-row" :class="{ 'is-winner': m.winner_side === 'side_a' }">
-                      <div class="team-meta-stack">
-                        <span class="team-name">{{ m.p1_name || '---' }}</span>
-                        <span v-if="m.p1_partner_name" class="partner-subtext">& {{ m.p1_partner_name }}</span>
+                      <div class="team-meta-container">
+                        <div class="player-unit">
+                          <el-avatar :size="24" :src="m.p1_avatar" class="player-avatar-mini">
+                            <el-icon><User /></el-icon>
+                          </el-avatar>
+                          <span class="team-name">{{ m.p1_name || '---' }}</span>
+                        </div>
+                        <div v-if="m.p1_partner_name" class="player-unit">
+                          <el-avatar :size="24" :src="m.p1_partner_avatar" class="player-avatar-mini">
+                            <el-icon><User /></el-icon>
+                          </el-avatar>
+                          <span class="team-name">{{ m.p1_partner_name }}</span>
+                        </div>
                       </div>
-                      <el-icon v-if="m.winner_side === 'side_a'" class="win-icon"><CircleCheckFilled /></el-icon>
+                      <div class="team-score" v-if="m.score_a !== null">{{ m.score_a }}</div>
+                      <el-icon v-else-if="m.winner_side === 'side_a'" class="win-icon"><CircleCheckFilled /></el-icon>
                     </div>
                     <div class="team-row" :class="{ 'is-winner': m.winner_side === 'side_b' }">
-                      <div class="team-meta-stack">
-                        <span class="team-name">{{ m.p2_name || '---' }}</span>
-                        <span v-if="m.p2_partner_name" class="partner-subtext">& {{ m.p2_partner_name }}</span>
+                      <div class="team-meta-container">
+                        <div class="player-unit">
+                          <el-avatar :size="24" :src="m.p2_avatar" class="player-avatar-mini">
+                            <el-icon><User /></el-icon>
+                          </el-avatar>
+                          <span class="team-name">{{ m.p2_name || '---' }}</span>
+                        </div>
+                        <div v-if="m.p2_partner_name" class="player-unit">
+                          <el-avatar :size="24" :src="m.p2_partner_avatar" class="player-avatar-mini">
+                            <el-icon><User /></el-icon>
+                          </el-avatar>
+                          <span class="team-name">{{ m.p2_partner_name }}</span>
+                        </div>
                       </div>
-                      <el-icon v-if="m.winner_side === 'side_b'" class="win-icon"><CircleCheckFilled /></el-icon>
+                      <div class="team-score" v-if="m.score_b !== null">{{ m.score_b }}</div>
+                      <el-icon v-else-if="m.winner_side === 'side_b'" class="win-icon"><CircleCheckFilled /></el-icon>
                     </div>
                   </div>
                   <div class="m-card-footer" v-if="m.result_note || m.score_summary">
@@ -348,21 +375,50 @@ onMounted(async () => {
 
                     <div class="saas-match-card bracket-card">
                       <div class="m-card-header compact">
-                        <span class="m-id">#{{ m.match_no }}</span>
+                        <div class="m-header-left">
+                          <span class="m-id">#{{ m.match_no }}</span>
+                          <span class="m-court-tag" v-if="m.court">
+                            <el-icon><Location /></el-icon> {{ m.court }}
+                          </span>
+                        </div>
                         <span class="m-status-dot" :class="m.status"></span>
                       </div>
                       <div class="m-card-body">
+                        <!-- Side A -->
                         <div class="team-row compact" :class="{ 'is-winner': m.winner_side === 'side_a' }">
-                          <div class="team-meta-stack">
-                            <span class="team-name">{{ m.p1_name || '---' }}</span>
-                            <span v-if="m.p1_partner_name" class="partner-subtext mini">& {{ m.p1_partner_name }}</span>
+                          <div class="team-meta-container compact">
+                            <div class="player-unit compact">
+                              <el-avatar :size="18" :src="m.p1_avatar" class="player-avatar-mini">
+                                <el-icon><User /></el-icon>
+                              </el-avatar>
+                              <span class="team-name">{{ m.p1_name || '---' }}</span>
+                            </div>
+                            <div v-if="m.p1_partner_name" class="player-unit compact">
+                              <el-avatar :size="18" :src="m.p1_partner_avatar" class="player-avatar-mini">
+                                <el-icon><User /></el-icon>
+                              </el-avatar>
+                              <span class="team-name">{{ m.p1_partner_name }}</span>
+                            </div>
                           </div>
+                          <span class="team-score" v-if="m.score_a !== null">{{ m.score_a }}</span>
                         </div>
+                        <!-- Side B -->
                         <div class="team-row compact" :class="{ 'is-winner': m.winner_side === 'side_b' }">
-                          <div class="team-meta-stack">
-                            <span class="team-name">{{ m.p2_name || '---' }}</span>
-                            <span v-if="m.p2_partner_name" class="partner-subtext mini">& {{ m.p2_partner_name }}</span>
+                          <div class="team-meta-container compact">
+                            <div class="player-unit compact">
+                              <el-avatar :size="18" :src="m.p2_avatar" class="player-avatar-mini">
+                                <el-icon><User /></el-icon>
+                              </el-avatar>
+                              <span class="team-name">{{ m.p2_name || '---' }}</span>
+                            </div>
+                            <div v-if="m.p2_partner_name" class="player-unit compact">
+                              <el-avatar :size="18" :src="m.p2_partner_avatar" class="player-avatar-mini">
+                                <el-icon><User /></el-icon>
+                              </el-avatar>
+                              <span class="team-name">{{ m.p2_partner_name }}</span>
+                            </div>
                           </div>
+                          <span class="team-score" v-if="m.score_b !== null">{{ m.score_b }}</span>
                         </div>
                       </div>
                     </div>
@@ -662,6 +718,15 @@ onMounted(async () => {
   font-size: 18px;
 }
 
+.team-score {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  min-width: 24px;
+  text-align: center;
+}
+
 .m-card-footer {
   padding: 10px 16px;
   background: #f8fafc;
@@ -746,7 +811,8 @@ onMounted(async () => {
   flex-direction: column;
   justify-content: space-around;
   flex-grow: 1;
-  gap: 40px;
+  gap: 32px;
+  padding: 20px 0;
 }
 
 .bracket-match-node {
@@ -757,35 +823,64 @@ onMounted(async () => {
 
 .bracket-card {
   width: 100%;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  margin: 0 !important;
+  z-index: 2;
+}
+
+.m-header-left { display: flex; align-items: center; gap: 8px; }
+.m-court-tag {
+  font-size: 0.65rem; color: #64748b; background: #f8fafc;
+  padding: 2px 8px; border-radius: 6px; display: flex; align-items: center; gap: 4px;
+  font-weight: 700; border: 1px solid #f1f5f9;
 }
 
 .m-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #e2e8f0;
+  width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0;
 }
-
 .m-status-dot.completed { background: #16a34a; }
 .m-status-dot.scheduled { background: #2563eb; }
 .m-status-dot.pending { background: #f59e0b; }
 
-/* CONNECTORS */
+.team-meta-container { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; }
+.team-meta-container.compact { gap: 2px; }
+.player-unit { display: flex; align-items: center; gap: 8px; }
+.player-unit.compact { gap: 6px; }
+.player-avatar-mini { border: 1.5px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.08); flex-shrink: 0; }
+.team-name { font-size: 0.9rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.compact .team-name { font-size: 0.8rem; max-width: 110px; }
+.is-winner .team-name { color: #16a34a; }
+
+.side-score {
+  font-family: 'JetBrains Mono', monospace; font-weight: 800;
+  color: #0f172a; font-size: 0.9rem; min-width: 20px; text-align: right;
+}
+
+/* BRACKET CONNECTORS - BRANCHING SYSTEM */
 .connector-line-in {
-  position: absolute;
-  left: -40px;
-  width: 40px;
-  height: 2px;
-  background: #e2e8f0;
+  position: absolute; left: -40px; width: 40px; height: 2px; background: #cbd5e1;
 }
 
 .connector-line-out {
-  position: absolute;
-  right: -40px;
-  width: 40px;
-  height: 2px;
-  background: #e2e8f0;
+  position: absolute; right: -40px; width: 40px; background: transparent;
+}
+
+/* Traditional branching: Connect pair to next round */
+.bracket-match-node:nth-child(odd) .connector-line-out {
+  top: 50%;
+  height: calc(50% + 21px); 
+  border-top: 2px solid #cbd5e1;
+  border-right: 2px solid #cbd5e1;
+}
+
+.bracket-match-node:nth-child(even) .connector-line-out {
+  bottom: 50%;
+  height: calc(50% + 21px);
+  border-bottom: 2px solid #cbd5e1;
+  border-right: 2px solid #cbd5e1;
+}
+
+.bracket-column-lane:last-child .connector-line-out {
+  display: none;
 }
 
 @media (max-width: 1024px) {
@@ -794,57 +889,22 @@ onMounted(async () => {
     gap: 20px;
     align-items: flex-start;
   }
-  .control-cluster {
-    width: 100%;
-    flex-wrap: wrap;
-  }
 }
 
 .saas-tournament-selector { width: 380px; }
 
 .category-tabs-section {
-  background: white;
-  padding: 0 32px;
-  border-radius: 24px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
-  border: 1px solid #f1f5f9;
+  background: white; padding: 0 32px; border-radius: 24px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid #f1f5f9;
 }
 
-:deep(.draws-tabs-premium) {
-  --el-tabs-header-height: 60px;
-}
-:deep(.draws-tabs-premium .el-tabs__nav-wrap::after) {
-  display: none;
-}
 :deep(.draws-tabs-premium .el-tabs__item) {
-  font-weight: 800;
-  font-size: 0.85rem;
-  color: #94a3b8;
-  letter-spacing: 0.05em;
-  padding: 0 32px;
-  transition: all 0.3s;
+  font-weight: 800; font-size: 0.85rem; color: #94a3b8; padding: 0 32px;
 }
 :deep(.draws-tabs-premium .el-tabs__item.is-active) {
   color: #2563eb;
-  font-size: 0.9rem;
 }
 :deep(.draws-tabs-premium .el-tabs__active-bar) {
-  background-color: #2563eb;
-  height: 4px;
-  border-radius: 4px;
-}
-
-.team-meta-stack {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-.partner-subtext {
-  font-size: 0.75rem;
-  color: #64748b;
-  font-weight: 500;
-}
-.partner-subtext.mini {
-  font-size: 0.7rem;
+  background-color: #2563eb; height: 4px;
 }
 </style>

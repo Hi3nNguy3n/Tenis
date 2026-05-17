@@ -263,29 +263,66 @@ def get_tournament_matches_detail(db: Session, tournament_id: int, category_id: 
         p2_name = "Chưa xác định"
         p1_partner_name = None
         p2_partner_name = None
+        p1_user_id = None
+        p2_user_id = None
+        p1_avatar = None
+        p2_avatar = None
+        p1_partner_user_id = None
+        p1_partner_avatar = None
+        p2_partner_user_id = None
+        p2_partner_avatar = None
         
         reg_a = db.query(Registration).filter(Registration.id == m.side_a_registration_id).first() if m.side_a_registration_id else None
         if reg_a:
-            user_a = db.query(User).join(Player).filter(Player.id == reg_a.player_id).first()
-            if user_a:
-                p1_name = user_a.full_name
+            p_a = db.query(Player).filter(Player.id == reg_a.player_id).first()
+            if p_a:
+                p1_user_id = p_a.user_id
+                user_a = db.query(User).filter(User.id == p_a.user_id).first()
+                if user_a:
+                    p1_name = user_a.full_name
+                    p1_avatar = user_a.avatar_url
             p1_partner_name = reg_a.partner_name
+            p1_partner_user_id = reg_a.partner_user_id
+            if p1_partner_user_id:
+                user_partner_a = db.query(User).filter(User.id == p1_partner_user_id).first()
+                if user_partner_a:
+                    p1_partner_avatar = user_partner_a.avatar_url
+                    p1_partner_name = user_partner_a.full_name # Override with user name if available
 
         reg_b = db.query(Registration).filter(Registration.id == m.side_b_registration_id).first() if m.side_b_registration_id else None
         if reg_b:
-            user_b = db.query(User).join(Player).filter(Player.id == reg_b.player_id).first()
-            if user_b:
-                p2_name = user_b.full_name
+            p_b = db.query(Player).filter(Player.id == reg_b.player_id).first()
+            if p_b:
+                p2_user_id = p_b.user_id
+                user_b = db.query(User).filter(User.id == p_b.user_id).first()
+                if user_b:
+                    p2_name = user_b.full_name
+                    p2_avatar = user_b.avatar_url
             p2_partner_name = reg_b.partner_name
+            p2_partner_user_id = reg_b.partner_user_id
+            if p2_partner_user_id:
+                user_partner_b = db.query(User).filter(User.id == p2_partner_user_id).first()
+                if user_partner_b:
+                    p2_partner_avatar = user_partner_b.avatar_url
+                    p2_partner_name = user_partner_b.full_name # Override with user name if available
+        
+        court_name = db.query(Court.court_name).filter(Court.id == m.court_id).scalar() if m.court_id else None
                 
         results.append({
             "id": m.id, "round_code": m.round_code, "match_no": m.match_no,
             "p1_name": p1_name, "p2_name": p2_name,
-            "p1_partner_name": p1_partner_name, "p2_partner_name": p2_partner_name,
+            "p1_avatar": p1_avatar, "p2_avatar": p2_avatar,
+            "p1_partner_name": p1_partner_name, "p1_partner_user_id": p1_partner_user_id, "p1_partner_avatar": p1_partner_avatar,
+            "p2_partner_name": p2_partner_name, "p2_partner_user_id": p2_partner_user_id, "p2_partner_avatar": p2_partner_avatar,
             "status": m.status,
             "court_id": m.court_id, 
+            "court": court_name,
             "start_time": m.start_time.isoformat() if m.start_time else None, 
             "winner_side": m.winner_side,
+            "score_a": m.set1_a,
+            "score_b": m.set1_b,
+            "p1_user_id": p1_user_id,
+            "p2_user_id": p2_user_id,
             "referee_id": m.referee_id,
             "referee_name": m.referee_name,
             "referee_phone": m.referee_phone,
@@ -325,17 +362,33 @@ def get_all_matches_detail(db: Session):
         Court, Match.court_id == Court.id
     ).order_by(desc(Match.start_time)).all()
 
-    # Helper lấy tên VĐV từ registration_id
-    def get_player_name(reg_id):
+    # Helper lấy thông tin đầy đủ của team từ registration_id
+    def get_player_full_data(reg_id):
         if not reg_id:
-            return None
+            return {"name": None, "avatar": None, "partner_name": None, "partner_avatar": None}
         reg = db.query(Registration).filter(Registration.id == reg_id).first()
         if not reg:
-            return None
+            return {"name": None, "avatar": None, "partner_name": None, "partner_avatar": None}
+            
         user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == reg.player_id).first()
-        if not user:
-            return None
-        return f"{user.full_name} - {reg.partner_name}" if reg.partner_name else user.full_name
+        data = {
+            "name": user.full_name if user else None,
+            "avatar": user.avatar_url if user else None,
+            "partner_name": reg.partner_name,
+            "partner_avatar": None
+        }
+        
+        # Lấy avatar partner nếu có liên kết
+        if reg.partner_user_id:
+            p_user = db.query(User).filter(User.id == reg.partner_user_id).first()
+            if p_user:
+                data["partner_avatar"] = p_user.avatar_url
+        elif getattr(reg, "partner_player_id", None):
+            p_user = db.query(User).join(Player).filter(Player.id == reg.partner_player_id).first()
+            if p_user:
+                data["partner_avatar"] = p_user.avatar_url
+                
+        return data
 
     results = []
     for m, t, c in matches:
@@ -346,6 +399,9 @@ def get_all_matches_detail(db: Session):
             match_date = m.start_time.date()
         else:
             match_date = t.start_date
+
+        p1_data = get_player_full_data(m.side_a_registration_id)
+        p2_data = get_player_full_data(m.side_b_registration_id)
 
         results.append({
             "id": m.id,
@@ -360,8 +416,14 @@ def get_all_matches_detail(db: Session):
             "start_time": m.start_time.isoformat() if m.start_time else None,
             "start": m.start_time.strftime("%H:%M") if m.start_time else "--:--",
             "status": m.status,
-            "p1_name": get_player_name(m.side_a_registration_id),
-            "p2_name": get_player_name(m.side_b_registration_id),
+            "p1_name": p1_data["name"],
+            "p1_avatar": p1_data["avatar"],
+            "p1_partner_name": p1_data["partner_name"],
+            "p1_partner_avatar": p1_data["partner_avatar"],
+            "p2_name": p2_data["name"],
+            "p2_avatar": p2_data["avatar"],
+            "p2_partner_name": p2_data["partner_name"],
+            "p2_partner_avatar": p2_data["partner_avatar"],
             "winner_side": m.winner_side,
             "score": m.score_summary,
         })
@@ -505,24 +567,32 @@ def get_public_bracket_detail(db: Session, tournament_id: int, category_id: Opti
     matches = query.all()
     
     def get_player_data(reg_id):
-        if not reg_id: return {"name": "Chưa xác định", "user_id": None, "partner_name": None, "partner_user_id": None}
+        if not reg_id: return {"name": "Chưa xác định", "user_id": None, "avatar_url": None, "partner_name": None, "partner_user_id": None, "partner_avatar_url": None}
         reg = db.query(Registration).filter(Registration.id == reg_id).first()
-        if not reg: return {"name": "Chưa xác định", "user_id": None, "partner_name": None, "partner_user_id": None}
+        if not reg: return {"name": "Chưa xác định", "user_id": None, "avatar_url": None, "partner_name": None, "partner_user_id": None, "partner_avatar_url": None}
         
         user = db.query(User).join(Player).filter(Player.id == reg.player_id).first()
         data = {
             "name": user.full_name if user else "Chưa xác định",
             "user_id": user.id if user else None,
+            "avatar_url": user.avatar_url if user else None,
             "partner_name": None,
             "partner_user_id": None
         }
         
-        if getattr(reg, "partner_player_id", None):
+        if reg.partner_user_id:
+            partner_user = db.query(User).filter(User.id == reg.partner_user_id).first()
+            if partner_user:
+                data["partner_name"] = partner_user.full_name
+                data["partner_user_id"] = partner_user.id
+                data["partner_avatar_url"] = partner_user.avatar_url
+        elif getattr(reg, "partner_player_id", None):
             partner_user = db.query(User).join(Player).filter(Player.id == reg.partner_player_id).first()
             if partner_user:
                 data["partner_name"] = partner_user.full_name
                 data["partner_user_id"] = partner_user.id
-        elif reg.partner_name: # Thêm logic fallback lấy partner_name từ registration nếu không có partner_player_id
+                data["partner_avatar_url"] = partner_user.avatar_url
+        elif reg.partner_name: 
             data["partner_name"] = reg.partner_name
                 
         return data
@@ -532,21 +602,30 @@ def get_public_bracket_detail(db: Session, tournament_id: int, category_id: Opti
         p1_data = get_player_data(m.side_a_registration_id)
         p2_data = get_player_data(m.side_b_registration_id)
         
+        court_name = db.query(Court.court_name).filter(Court.id == m.court_id).scalar() if m.court_id else None
+
         results.append({
             "id": m.id, "match_no": m.match_no, "round_code": m.round_code,
             "category_id": m.tournament_category_id,
             "p1_name": p1_data["name"],
             "p1_user_id": p1_data["user_id"],
+            "p1_avatar": p1_data["avatar_url"],
             "p1_partner_name": p1_data["partner_name"],
             "p1_partner_user_id": p1_data["partner_user_id"],
+            "p1_partner_avatar": p1_data["partner_avatar_url"],
             
             "p2_name": p2_data["name"],
             "p2_user_id": p2_data["user_id"],
+            "p2_avatar": p2_data["avatar_url"],
             "p2_partner_name": p2_data["partner_name"],
             "p2_partner_user_id": p2_data["partner_user_id"],
+            "p2_partner_avatar": p2_data["partner_avatar_url"],
             
             "winner_side": m.winner_side, "status": m.status,
             "start_time": m.start_time, "score": m.result_note,
+            "score_a": m.set1_a,
+            "score_b": m.set1_b,
+            "court": court_name,
             "video_url": getattr(m, "video_url", None),
             "image_url": getattr(m, "image_url", None),
             "referee_name": m.referee_name or (db.query(User.full_name).filter(User.id == m.referee_id).scalar() if m.referee_id else None),
@@ -822,7 +901,15 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
 
         for p_id in [p1_id, p2_id]:
             if p_id not in standings[group]:
-                user_record = db.query(User.full_name, Registration.partner_name, Registration.partner_player_id, Registration.player_id, User.id).join(
+                user_record = db.query(
+                    User.full_name, 
+                    User.avatar_url,
+                    Registration.partner_name, 
+                    Registration.partner_player_id, 
+                    Registration.partner_user_id,
+                    Registration.player_id, 
+                    User.id
+                ).join(
                     Player, User.id == Player.user_id
                 ).join(
                     Registration, Player.id == Registration.player_id
@@ -831,23 +918,34 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
                 ).first()
                 
                 player_name = user_record[0] if user_record else "Unknown"
-                partner_name = user_record[1] if user_record else None
-                partner_player_id = user_record[2] if user_record else None
-                # QUAN TRỌNG: player_id ở đây trả về User ID để link profile
-                player_id = user_record[4] if user_record else None
+                player_avatar = user_record[1] if user_record else None
+                partner_name = user_record[2] if user_record else None
+                partner_player_id = user_record[3] if user_record else None
+                partner_user_id_reg = user_record[4] if user_record else None
+                player_user_id = user_record[6] if user_record else None
                 
                 # Nếu có mapping ID đồng đội, lấy User ID của đồng đội
-                partner_user_id = None
-                if partner_player_id:
-                    p_user = db.query(User.full_name, User.id).join(Player).filter(Player.id == partner_player_id).first()
+                partner_user_id = partner_user_id_reg
+                partner_avatar = None
+                
+                if partner_user_id:
+                    p_user = db.query(User).filter(User.id == partner_user_id).first()
                     if p_user:
-                        partner_name = p_user[0]
-                        partner_user_id = p_user[1]
+                        partner_name = p_user.full_name
+                        partner_avatar = p_user.avatar_url
+                elif partner_player_id:
+                    p_user = db.query(User).join(Player).filter(Player.id == partner_player_id).first()
+                    if p_user:
+                        partner_name = p_user.full_name
+                        partner_user_id = p_user.id
+                        partner_avatar = p_user.avatar_url
                     
                 standings[group][p_id] = {
                     "player_name": player_name, 
-                    "player_id": player_id,
+                    "player_avatar": player_avatar,
+                    "player_id": player_user_id,
                     "partner_name": partner_name,
+                    "partner_avatar": partner_avatar,
                     "partner_player_id": partner_user_id,
                     "played": 0, "won": 0, "lost": 0, "points": 0,
                     "sets_won": 0, "sets_lost": 0, 

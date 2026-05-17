@@ -426,15 +426,24 @@ def get_public_registrations(
     for reg, player, user, category in results:
         item = registration_schemas.RegistrationResponse.model_validate(reg)
         item.player_name = user.full_name
+        item.user_id = user.id
         item.player_phone = user.phone 
         item.player_skill = player.skill_level
         item.category_name = category.name if category else "Mặc định"
         
-        # Nếu có partner_player_id, lấy thêm tên partner từ User table
-        if reg.partner_player_id:
-            partner_user = db.query(User.full_name).join(Player).filter(Player.id == reg.partner_player_id).first()
-            if partner_user:
-                item.partner_name = partner_user[0]
+        # Lấy thông tin partner chi tiết (nếu có)
+        if reg.partner_user_id:
+            p_user = db.query(User).filter(User.id == reg.partner_user_id).first()
+            if p_user:
+                item.partner_name = p_user.full_name
+                item.partner_user_id = p_user.id
+                item.partner_avatar = p_user.avatar_url
+        elif reg.partner_player_id:
+            p_user = db.query(User).join(Player).filter(Player.id == reg.partner_player_id).first()
+            if p_user:
+                item.partner_name = p_user.full_name
+                item.partner_user_id = p_user.id
+                item.partner_avatar = p_user.avatar_url
 
         response_items.append(item)
         

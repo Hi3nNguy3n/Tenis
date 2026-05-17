@@ -125,7 +125,7 @@ const isPastDeadline = computed(() => {
 const fetchBracket = async () => {
   loadingBracket.value = true
   try {
-    const url = `/api/tournaments/${tournamentId.value}/public-bracket` + 
+    const url = `/api/tournaments/${tournamentId.value}/matches` + 
                 (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : '')
     const data = await apiClient.get(url)
     publicMatches.value = data
@@ -183,7 +183,7 @@ const groupedMatches = computed(() => {
     })
     .map(key => ({
       label: key,
-      items: groups[key].sort((a, b) => a.match_no - b.match_no)
+      items: [...groups[key]].sort((a, b) => (a.match_no || 0) - (b.match_no || 0))
     }))
 })
 
@@ -378,77 +378,99 @@ const openPreview = (type, url, title) => {
                     <p>{{ t('tournaments.bracketNotDrawn') }}</p>
                   </div>
                   
-                  <div v-else class="neo-bracket-vertical">
-                    <div v-for="(round, index) in groupedMatches" :key="round.label" class="bracket-round-block">
+                  <div v-else class="neo-bracket-horizontal">
+                    <div v-for="(round, roundIdx) in groupedMatches" :key="round.label" class="bracket-column">
                       <div class="round-sticky-header">
                         <div class="round-title-group">
-                          <span class="round-index">{{ index + 1 }}</span>
+                          <span class="round-index">{{ roundIdx + 1 }}</span>
                           <h4 class="round-title">{{ round.label }}</h4>
                         </div>
                         <span class="round-count">{{ round.items.length }} {{ t('tournaments.matches') }}</span>
                       </div>
                       
-                      <div class="matches-vertical-grid">
-                        <div v-for="m in round.items" :key="m.id" class="match-node-v2">
-                          <div class="m-v2-header">
-                            <span class="m-v2-no">#{{ m.match_no }}</span>
-                            <span v-if="m.status === 'completed'" class="m-v2-status is-done">{{ t('tournaments.completed') || 'Đã xong' }}</span>
-                            <span v-else-if="m.status === 'ongoing'" class="m-v2-status is-live">{{ t('tournaments.live') }}</span>
-                            <span v-else class="m-v2-status">{{ t('tournaments.upcoming') }}</span>
+                      <div class="matches-stack">
+                        <div v-for="m in round.items" :key="m.id" class="match-node-wrapper">
+                          <div class="connector-line-in" v-if="roundIdx > 0"></div>
+                          
+                          <div class="match-node-v2">
+                            <div class="m-v2-header">
+                              <div class="m-v2-header-left">
+                                <span class="m-v2-no">#{{ m.match_no }}</span>
+                                <span class="m-v2-court" v-if="m.court">
+                                  <el-icon><Location /></el-icon> {{ m.court }}
+                                </span>
+                              </div>
+                              <span v-if="m.status === 'completed'" class="m-v2-status is-done">{{ t('tournaments.completed') || 'Đã xong' }}</span>
+                              <span v-else-if="m.status === 'ongoing'" class="m-v2-status is-live">{{ t('tournaments.live') }}</span>
+                              <span v-else class="m-v2-status">{{ t('tournaments.upcoming') }}</span>
+                            </div>
+                            
+                            <div class="m-v2-body">
+                              <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_a' }">
+                                <div class="player-stack-v2">
+                                  <div class="p-mini-box">
+                                    <el-avatar :size="20" :src="m.p1_avatar" class="p-avatar-mini">
+                                      <el-icon><User /></el-icon>
+                                    </el-avatar>
+                                    <router-link :to="m.p1_user_id ? `/players/${m.p1_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p1_user_id}">
+                                      {{ m.p1_name || '???' }}
+                                    </router-link>
+                                    <el-icon v-if="m.winner_side === 'side_a'" class="p-win-icon"><Check /></el-icon>
+                                  </div>
+                                  <div v-if="m.p1_partner_name" class="p-mini-box">
+                                    <el-avatar :size="20" :src="m.p1_partner_avatar" class="p-avatar-mini">
+                                      <el-icon><User /></el-icon>
+                                    </el-avatar>
+                                    <router-link :to="m.p1_partner_user_id ? `/players/${m.p1_partner_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p1_partner_user_id}">
+                                      {{ m.p1_partner_name }}
+                                    </router-link>
+                                  </div>
+                                </div>
+                                <span class="p-score" v-if="m.score_a !== null && m.status === 'completed'">{{ m.score_a }}</span>
+                              </div>
+                              
+                              <div class="m-v2-divider"></div>
+                              
+                              <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_b' }">
+                                <div class="player-stack-v2">
+                                  <div class="p-mini-box">
+                                    <el-avatar :size="20" :src="m.p2_avatar" class="p-avatar-mini">
+                                      <el-icon><User /></el-icon>
+                                    </el-avatar>
+                                    <router-link :to="m.p2_user_id ? `/players/${m.p2_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p2_user_id}">
+                                      {{ m.p2_name || '???' }}
+                                    </router-link>
+                                    <el-icon v-if="m.winner_side === 'side_b'" class="p-win-icon"><Check /></el-icon>
+                                  </div>
+                                  <div v-if="m.p2_partner_name" class="p-mini-box">
+                                    <el-avatar :size="20" :src="m.p2_partner_avatar" class="p-avatar-mini">
+                                      <el-icon><User /></el-icon>
+                                    </el-avatar>
+                                    <router-link :to="m.p2_partner_user_id ? `/players/${m.p2_partner_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p2_partner_user_id}">
+                                      {{ m.p2_partner_name }}
+                                    </router-link>
+                                  </div>
+                                </div>
+                                <span class="p-score" v-if="m.score_b !== null && m.status === 'completed'">{{ m.score_b }}</span>
+                              </div>
+
+                              <div v-if="m.video_url || m.image_url || m.referee_name" class="m-v2-footer">
+                                <div v-if="m.referee_name" class="m-referee">
+                                  <el-icon><User /></el-icon> <span>Trọng tài: {{ m.referee_name }}</span>
+                                </div>
+                                <div class="m-media-actions">
+                                  <el-button v-if="m.video_url" link type="danger" size="small" @click="openPreview('video', m.video_url, `Highlight Trận #${m.match_no}`)">
+                                    <el-icon><VideoCamera /></el-icon> Video
+                                  </el-button>
+                                  <el-button v-if="m.image_url" link type="primary" size="small" @click="openPreview('image', m.image_url, `Ảnh Trận #${m.match_no}`)">
+                                    <el-icon><Picture /></el-icon> {{ t('tournaments.photos') || 'Ảnh' }}
+                                  </el-button>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                           
-                          <div class="m-v2-body">
-                            <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_a' }">
-                              <div class="p-info-wrapper">
-                                <div class="p-info">
-                                  <router-link :to="m.p1_user_id ? `/players/${m.p1_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p1_user_id}">
-                                    {{ m.p1_name || '???' }}
-                                  </router-link>
-                                  <el-icon v-if="m.winner_side === 'side_a'" class="p-win-icon"><Check /></el-icon>
-                                </div>
-                                <div v-if="m.p1_partner_name" class="p-partner">
-                                  & <router-link :to="m.p1_partner_user_id ? `/players/${m.p1_partner_user_id}` : '#'" class="p-partner-link" :class="{'no-link': !m.p1_partner_user_id}">
-                                    {{ m.p1_partner_name }}
-                                  </router-link>
-                                </div>
-                              </div>
-                              <span class="p-score" v-if="m.score && m.score.includes('-')">{{ m.score.split('-')[0] }}</span>
-                              <span class="p-score-note" v-else-if="m.score">{{ m.score }}</span>
-                            </div>
-                            
-                            <div class="m-v2-divider"></div>
-                            
-                            <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_b' }">
-                              <div class="p-info-wrapper">
-                                <div class="p-info">
-                                  <router-link :to="m.p2_user_id ? `/players/${m.p2_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p2_user_id}">
-                                    {{ m.p2_name || '???' }}
-                                  </router-link>
-                                  <el-icon v-if="m.winner_side === 'side_b'" class="p-win-icon"><Check /></el-icon>
-                                </div>
-                                <div v-if="m.p2_partner_name" class="p-partner">
-                                  & <router-link :to="m.p2_partner_user_id ? `/players/${m.p2_partner_user_id}` : '#'" class="p-partner-link" :class="{'no-link': !m.p2_partner_user_id}">
-                                    {{ m.p2_partner_name }}
-                                  </router-link>
-                                </div>
-                              </div>
-                              <span class="p-score" v-if="m.score && m.score.includes('-')">{{ m.score.split('-')[1] }}</span>
-                            </div>
-
-                            <div v-if="m.video_url || m.image_url || m.referee_name" class="m-v2-footer">
-                              <div v-if="m.referee_name" class="m-referee">
-                                <el-icon><User /></el-icon> <span>Trọng tài: {{ m.referee_name }}</span>
-                              </div>
-                              <div class="m-media-actions">
-                                <el-button v-if="m.video_url" link type="danger" size="small" @click="openPreview('video', m.video_url, `Highlight Trận #${m.match_no}`)">
-                                  <el-icon><VideoCamera /></el-icon> Video
-                                </el-button>
-                                <el-button v-if="m.image_url" link type="primary" size="small" @click="openPreview('image', m.image_url, `Ảnh Trận #${m.match_no}`)">
-                                  <el-icon><Picture /></el-icon> {{ t('tournaments.photos') || 'Ảnh' }}
-                                </el-button>
-                              </div>
-                            </div>
-                          </div>
+                          <div class="connector-line-out" v-if="roundIdx < groupedMatches.length - 1"></div>
                         </div>
                       </div>
                     </div>
@@ -497,14 +519,23 @@ const openPreview = (type, url, title) => {
                                 <span class="rank-badge" :class="`rank-${idx + 1}`">{{ idx + 1 }}</span>
                               </td>
                               <td class="col-player">
-                                <div class="player-stack">
-                                  <router-link :to="row.player_id ? `/players/${row.player_id}` : '#'" class="main-player">
-                                    {{ row.player_name }}
-                                  </router-link>
-                                  <span v-if="row.partner_name" class="partner-sep">&</span>
-                                  <router-link v-if="row.partner_name" :to="row.partner_player_id ? `/players/${row.partner_player_id}` : '#'" class="partner-name">
-                                    {{ row.partner_name }}
-                                  </router-link>
+                                <div class="player-stack-premium">
+                                  <div class="player-unit-row">
+                                    <el-avatar :size="24" :src="row.player_avatar" class="unit-avatar">
+                                      <el-icon><User /></el-icon>
+                                    </el-avatar>
+                                    <router-link :to="row.player_id ? `/players/${row.player_id}` : '#'" class="main-player">
+                                      {{ row.player_name }}
+                                    </router-link>
+                                  </div>
+                                  <div v-if="row.partner_name" class="player-unit-row">
+                                    <el-avatar :size="24" :src="row.partner_avatar" class="unit-avatar">
+                                      <el-icon><User /></el-icon>
+                                    </el-avatar>
+                                    <router-link :to="row.partner_player_id ? `/players/${row.partner_player_id}` : '#'" class="partner-name">
+                                      {{ row.partner_name }}
+                                    </router-link>
+                                  </div>
                                 </div>
                               </td>
                               <td class="text-center stat-cell">
@@ -558,14 +589,25 @@ const openPreview = (type, url, title) => {
                           <tr v-for="(reg, idx) in registrations" :key="reg.id">
                             <td class="text-center"><span class="idx-badge">{{ idx + 1 }}</span></td>
                             <td class="col-player">
-                              <div class="player-info-cell">
-                                <div class="player-main">
-                                  <router-link :to="`/players/${reg.player_id}`" class="name">{{ reg.player_name }}</router-link>
-                                  <span v-if="reg.player_skill" class="skill-tag">{{ reg.player_skill }}</span>
+                              <div class="teams-display-premium">
+                                <div class="player-item-mini">
+                                  <el-avatar :size="32" :src="reg.player_avatar" class="player-avatar">
+                                    <el-icon><User /></el-icon>
+                                  </el-avatar>
+                                  <div class="player-meta">
+                                    <router-link :to="`/players/${reg.user_id}`" class="name">{{ reg.player_name }}</router-link>
+                                    <span v-if="reg.player_skill" class="skill-tag">{{ reg.player_skill }}</span>
+                                  </div>
                                 </div>
-                                <div v-if="reg.partner_name" class="player-partner">
-                                  <span class="partner-label">Đồng đội:</span>
-                                  <span class="partner-name">{{ reg.partner_name }}</span>
+                                <div v-if="reg.partner_name" class="team-divider">&</div>
+                                <div v-if="reg.partner_name" class="player-item-mini">
+                                  <el-avatar :size="32" :src="reg.partner_avatar" class="player-avatar">
+                                    <el-icon><User /></el-icon>
+                                  </el-avatar>
+                                  <div class="player-meta">
+                                    <router-link v-if="reg.partner_user_id" :to="`/players/${reg.partner_user_id}`" class="name">{{ reg.partner_name }}</router-link>
+                                    <span v-else class="name">{{ reg.partner_name }}</span>
+                                  </div>
                                 </div>
                               </div>
                             </td>
@@ -747,42 +789,150 @@ const openPreview = (type, url, title) => {
 .bento-highlight { background: white; padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 4px; }
 .bento-highlight strong { font-size: 0.85rem; color: var(--text-primary);}
 .bento-highlight span { font-size: 0.9rem; color: var(--accent); font-weight: 600;}
-.neo-bracket-box { margin-top: 1.5rem; }
+.bracket-viewport {
+  margin-top: 10px;
+  overflow-x: auto;
+  padding: 20px 0;
+}
+
+.neo-bracket-horizontal {
+  display: flex;
+  gap: 60px;
+  padding: 20px;
+  min-width: max-content;
+}
+
+.bracket-column {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.round-sticky-header {
+  margin-bottom: 24px;
+  background: #f8fafc;
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.round-title-group { display: flex; align-items: center; gap: 10px; }
+.round-index { 
+  background: var(--text-primary); 
+  color: white; 
+  width: 24px; 
+  height: 24px; 
+  border-radius: 6px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-size: 0.75rem; 
+  font-weight: 800; 
+}
+.round-title { margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; }
+.round-count { font-size: 0.75rem; color: #64748b; font-weight: 600; }
+
+.matches-stack {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  flex-grow: 1;
+  gap: 30px;
+}
+
+.match-node-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.match-node-v2 {
+  width: 100%;
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 2;
+}
+
+.match-node-v2:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1); border-color: var(--accent-light); }
+
+.m-v2-header { padding: 10px 16px; background: #f8fafc; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+.m-v2-header-left { display: flex; align-items: center; gap: 12px; }
+.m-v2-no { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; color: #94a3b8; }
+.m-v2-court { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #64748b; background: #e2e8f0; padding: 2px 8px; border-radius: 4px; }
+.m-v2-status { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; }
+.m-v2-status.is-done { background: #dcfce7; color: #16a34a; }
+.m-v2-status.is-live { background: #fee2e2; color: #dc2626; animation: pulse 2s infinite; }
+
+.m-v2-body { padding: 8px 0; }
+.m-v2-player { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; transition: all 0.2s; position: relative; }
+.m-v2-player.is-win { background: #f0fdf4; }
+.p-info-wrapper { display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden; }
+.p-avatar-mini { border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.p-info { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+.p-name-link { font-weight: 700; color: #1e293b; text-decoration: none; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p-name-link.no-link { pointer-events: none; }
+.p-win-icon { color: #22c55e; font-size: 0.9rem; flex-shrink: 0; }
+.p-partner { font-size: 0.7rem; color: #64748b; font-style: italic; white-space: nowrap; }
+.p-score { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 800; color: #0f172a; min-width: 24px; text-align: center; }
+.m-v2-divider { height: 1px; background: #f1f5f9; margin: 0 16px; }
+
+/* Connector lines */
+.connector-line-in {
+  position: absolute;
+  left: -40px;
+  width: 40px;
+  height: 1px;
+  background: #cbd5e1;
+}
+
+.connector-line-out {
+  position: absolute;
+  right: -40px;
+  width: 40px;
+  height: 1px;
+  background: #cbd5e1;
+}
+
+.matches-stack > .match-node-wrapper:nth-child(even) .connector-line-out {
+  height: calc(50% + 15px);
+  top: 50%;
+  border-left: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  width: 40px;
+  background: transparent;
+}
+
+.matches-stack > .match-node-wrapper:nth-child(odd) .connector-line-out {
+  height: calc(50% + 15px);
+  bottom: 50%;
+  border-left: 1px solid #cbd5e1;
+  border-top: 1px solid #cbd5e1;
+  width: 40px;
+  background: transparent;
+}
+
 .empty-state { text-align: center; padding: 4rem 0; color: var(--text-muted); }
 .es-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;}
-.neo-bracket-vertical { display: flex; flex-direction: column; gap: 2.5rem; margin-top: 1.5rem; }
-.bracket-round-block { display: flex; flex-direction: column; gap: 1.5rem; }
-.round-sticky-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: white; border-radius: 16px; box-shadow: 0 4px 15px rgba(15, 23, 42, 0.05); border: 1px solid #f1f5f9; position: sticky; top: 0; z-index: 5; margin-bottom: 1rem; }
-.round-title-group { display: flex; align-items: center; gap: 14px; }
-.round-index { width: 28px; height: 28px; background: var(--navy); color: white; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 0.8rem; font-weight: 800; }
-.round-title { margin: 0; font-size: 1rem; font-weight: 900; color: var(--navy); text-transform: uppercase; letter-spacing: 0.05em; }
-.round-count { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); background: white; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--border-light); }
-.matches-vertical-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
-.match-node-v2 { background: white; border: 1px solid var(--border-light); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03); transition: all 0.2s ease; }
-.match-node-v2:hover { border-color: var(--accent); transform: translateY(-3px); box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06); }
-.m-v2-header { padding: 10px 16px; background: #fcfcfc; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
-.m-v2-no { font-size: 0.75rem; font-weight: 800; color: var(--text-muted); font-family: monospace; }
-.m-v2-status { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; }
-.m-v2-status.is-done { background: #ecfdf5; color: #10b981; }
-.m-v2-status.is-live { background: #eff6ff; color: #3b82f6; animation: pulseFade 2s infinite; }
-@keyframes pulseFade { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-.m-v2-body { padding: 8px; }
-.m-v2-player { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 10px; transition: 0.2s; }
-.m-v2-player.is-win { background: #f0fdf4; }
-.p-info { display: flex; align-items: center; gap: 10px; }
-.p-name { font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); }
-.m-v2-player.is-win .p-name { color: #16a34a; font-weight: 800; }
-.p-win-icon { color: #10b981; font-size: 1rem; }
-.p-score { font-size: 1.1rem; font-weight: 800; color: var(--text-muted); min-width: 20px; text-align: center; }
-.m-v2-player.is-win .p-score { color: #10b981; }
-.m-v2-divider { height: 1px; background: #f1f5f9; margin: 4px 10px; }
-.p-info-wrapper { display: flex; flex-direction: column; gap: 2px; }
-.p-name-link { font-size: 0.9rem; font-weight: 700; color: var(--accent); text-decoration: none; transition: 0.2s; }
-.p-name-link:hover { text-decoration: underline; color: var(--navy); }
-.p-name-link.no-link, .p-partner-link.no-link { color: var(--text-secondary); pointer-events: none; }
-.p-partner { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; font-style: italic; display: flex; gap: 4px; }
-.p-partner-link { color: var(--text-muted); text-decoration: none; }
-.p-partner-link:hover { color: var(--accent); text-decoration: underline; }
+.player-stack-v2 { display: flex; flex-direction: column; gap: 6px; flex: 1; overflow: hidden; padding: 4px 0; }
+.p-mini-box { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+.p-name-link { font-size: 0.85rem; font-weight: 700; color: var(--navy); text-decoration: none; transition: 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.p-name-link:hover { color: var(--accent); }
+.p-name-link.no-link { pointer-events: none; color: #64748b; }
+
+.teams-display-premium { display: flex; align-items: center; gap: 16px; }
+.player-item-mini { display: flex; align-items: center; gap: 10px; }
+.player-meta { display: flex; flex-direction: column; line-height: 1.2; }
+.player-meta .name { font-weight: 700; color: var(--navy); text-decoration: none; font-size: 0.9rem; }
+.player-meta .name:hover { color: var(--accent); }
+.team-divider { font-weight: 900; color: #cbd5e1; font-size: 1.2rem; margin: 0 4px; }
 .m-v2-footer { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px; }
 .m-referee { font-size: 0.75rem; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 4px; }
 .m-media-actions { display: flex; gap: 8px; }
@@ -807,10 +957,11 @@ const openPreview = (type, url, title) => {
 .rank-badge { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; font-weight: 800; font-size: 0.75rem; background: #f1f5f9; color: #64748b; }
 .rank-1 { background: #fef3c7; color: #92400e; box-shadow: 0 0 0 2px #fde68a; }
 .rank-2 { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-.player-stack { display: flex; flex-direction: column; gap: 2px; }
-.main-player { font-weight: 700; color: var(--text-primary); text-decoration: none; font-size: 0.9rem; }
-.main-player:hover { color: var(--accent); text-decoration: underline; }
-.partner-name { font-size: 0.75rem; color: var(--text-muted); font-style: italic; }
+.player-stack-premium { display: flex; flex-direction: column; gap: 8px; }
+.player-unit-row { display: flex; align-items: center; gap: 10px; }
+.unit-avatar { border: 1.5px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+.main-player, .partner-name { font-weight: 700; color: var(--navy); text-decoration: none; font-size: 0.9rem; }
+.main-player:hover, .partner-name:hover { color: var(--accent); }
 .stat-cell { font-weight: 600; color: #64748b; font-size: 0.85rem; }
 .stat-win { color: #16a34a; }
 .stat-loss { color: #dc2626; }
@@ -838,6 +989,11 @@ const openPreview = (type, url, title) => {
 .neo-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
 .spinner-ring { width: 48px; height: 48px; border: 4px solid var(--border-light); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
 @media (max-width: 1024px) { 
   .neo-grid { grid-template-columns: 1fr; gap: 1.5rem; } 
   .neo-col-sidebar { order: 2; } 

@@ -9,6 +9,9 @@ from app.core.cloudinary_setup import init_cloudinary
 from app.core.tasks import start_scheduler
 import logging
 
+from app.db.database import engine
+from app.models.models import Base
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,12 +38,26 @@ app.add_middleware(
 @app.exception_handler(OperationalError)
 async def db_connection_exception_handler(request: Request, exc: OperationalError):
     logger.error(f"DATABASE CONNECTION LOST: {exc}")
-    # Đảm bảo trả về header CORS ngay cả khi có lỗi DB
     return JSONResponse(
         status_code=503,
         content={
             "detail": "DATABASE_ERROR", 
-            "message": "Không thể kết nối đến máy chủ cơ sở dữ liệu. Vui lòng kiểm tra lại cấu hình kết nối (IPWhitelist, pg_hba.conf, firewall)."
+            "message": "Không thể kết nối đến máy chủ cơ sở dữ liệu. Vui lòng kiểm tra lại cấu hình kết nối."
+        },
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Credentials": "true"
+        }
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"GLOBAL ERROR: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "INTERNAL_SERVER_ERROR",
+            "message": f"Đã xảy ra lỗi hệ thống: {str(exc)}"
         },
         headers={
             "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
@@ -53,6 +70,15 @@ async def startup_event():
     print("\n" + "="*50)
     print("[INIT] Dang khoi tao ket noi Cloudinary...")
     init_cloudinary()
+    
+    # THÊM ĐOẠN NÀY ĐỂ TỰ ĐỘNG TẠO BẢNG
+    print("[INIT] Dang dong bo cau truc Database...")
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("[SUCCESS] Tao cau truc bang thanh cong!")
+    except Exception as e:
+        print(f"[ERROR] Loi tao bang: {e}")
+    # ----------------------------------------
     
     print("[INIT] Dang kiem tra va khoi tao du lieu mau (Seed Data)...")
     try:
@@ -67,7 +93,6 @@ async def startup_event():
     
     print("[SUCCESS] API Server da san sang phuc vu!")
     print("="*50 + "\n")
-
 # --- ROUTERS ---
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(players.router, prefix="/api/players", tags=["Players"])
