@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { playerService } from '../../services/playerService'
 import apiClient from '../../services/apiClient' 
@@ -15,6 +15,61 @@ const isSaving = ref(false)
 const search = ref('')
 const skillFilter = ref('')
 const statusFilter = ref('')
+
+const createErrors = ref({
+  email: '',
+  phone: ''
+})
+
+const editErrors = ref({
+  phone: ''
+})
+
+const validateEmail = (email) => {
+  if (!email) return 'Email không được để trống'
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) return 'Vui lòng nhập đúng định dạng email '
+  return ''
+}
+
+const validatePhone = (phone) => {
+  if (!phone) return 'Số điện thoại không được để trống'
+  const cleaned = phone.replace(/[\s\-\(\)]/g, '')
+  if (!cleaned.startsWith('0')) return 'Số điện thoại phải bắt đầu bằng số 0'
+  if (cleaned.length !== 10) return 'Số điện thoại phải nhập đủ 10 chữ số'
+  const phoneRegex = /^0[35789][0-9]{8}$/
+  if (!phoneRegex.test(cleaned)) return 'Số điện thoại không hợp lệ'
+  return ''
+}
+
+const removeVietnameseTones = (str) => {
+  if (!str) return ''
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+}
+
+const filteredPlayers = computed(() => {
+  if (!search.value.trim()) {
+    return players.value
+  }
+  const searchNormalized = removeVietnameseTones(search.value.trim())
+  return players.value.filter(player => {
+    const fullNameNormalized = removeVietnameseTones(player.user?.full_name || '')
+    const emailNormalized = removeVietnameseTones(player.user?.email || '')
+    const phoneNormalized = removeVietnameseTones(player.user?.phone || '')
+    return fullNameNormalized.includes(searchNormalized) || 
+           emailNormalized.includes(searchNormalized) || 
+           phoneNormalized.includes(searchNormalized)
+  })
+})
+
+const disabledDate = (time) => {
+  return time.getTime() > Date.now()
+}
 
 const isEditDialogVisible = ref(false)
 const editForm = ref({
@@ -81,7 +136,6 @@ const fetchPlayers = async () => {
   loading.value = true
   try {
     const params = {
-      search: search.value.trim(),
       skill: skillFilter.value || undefined,
       status: statusFilter.value || undefined
     }
@@ -96,7 +150,7 @@ const fetchPlayers = async () => {
 
 // Debounced search watcher for all filters
 let filterTimeout = null
-watch([search, skillFilter, statusFilter], () => {
+watch([skillFilter, statusFilter], () => {
   if (filterTimeout) clearTimeout(filterTimeout)
   filterTimeout = setTimeout(() => {
     fetchPlayers()
@@ -111,6 +165,7 @@ watch(() => route.path, (newPath) => {
 })
 
 const openEditDialog = (player) => {
+  editErrors.value = { phone: '' }
   editForm.value = {
     id: player.id,
     full_name: player.user.full_name,
@@ -129,6 +184,7 @@ const openEditDialog = (player) => {
 }
 
 const openCreateDialog = () => {
+  createErrors.value = { email: '', phone: '' }
   createForm.value = { 
     full_name: '', email: '', password: '', phone: '', 
     gender: 'male', play_hand: 'right', account_type: 'user', 
@@ -140,13 +196,23 @@ const openCreateDialog = () => {
 }
 
 const handleCreatePlayer = async () => {
-  if (!createForm.value.full_name || !createForm.value.email || !createForm.value.password) {
-    ElMessage.warning('Vui lòng điền đủ Họ tên, Email và Mật khẩu!')
+  createErrors.value.email = validateEmail(createForm.value.email)
+  createErrors.value.phone = validatePhone(createForm.value.phone)
+
+  if (!createForm.value.full_name || !createForm.value.password) {
+    ElMessage.warning('Vui lòng điền đủ Họ tên và Mật khẩu!')
     return
   }
+
+  if (createErrors.value.email || createErrors.value.phone) {
+    ElMessage.error('Vui lòng sửa các lỗi trong form trước khi lưu!')
+    return
+  }
+
   isCreating.value = true
   try {
     const payload = { ...createForm.value }
+    payload.phone = payload.phone.replace(/[\s\-\(\)]/g, '')
     if (!payload.date_of_birth) payload.date_of_birth = null
 
     await apiClient.post('/api/players/admin-create', payload)
@@ -161,9 +227,17 @@ const handleCreatePlayer = async () => {
 }
 
 const handleUpdatePlayer = async () => {
+  editErrors.value.phone = validatePhone(editForm.value.phone)
+
+  if (editErrors.value.phone) {
+    ElMessage.error('Vui lòng sửa các lỗi trong form trước khi lưu!')
+    return
+  }
+
   isSaving.value = true
   try {
     const payload = { ...editForm.value }
+    payload.phone = payload.phone.replace(/[\s\-\(\)]/g, '')
     if (!payload.date_of_birth) payload.date_of_birth = null
 
     await playerService.update(payload.id, payload)
@@ -295,7 +369,7 @@ const getRegStatusType = (status) => {
     <!-- Data Table Section -->
     <div class="saas-content">
       <el-table 
-        :data="players" 
+        :data="filteredPlayers" 
         v-loading="loading" 
         class="saas-table"
         :header-cell-style="{ background: 'transparent', color: '#64748b', fontWeight: '700', borderBottom: '2px solid #f1f5f9' }"
@@ -396,9 +470,9 @@ const getRegStatusType = (status) => {
 
         <el-row :gutter="24">
           <el-col :span="12"><el-form-item :label="$t('admin.fullName')"><el-input v-model="createForm.full_name" placeholder="Ví dụ: Nguyễn Văn A" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item :label="$t('admin.email')"><el-input v-model="createForm.email" placeholder="email@example.com" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.email')" :error="createErrors.email"><el-input v-model="createForm.email" placeholder="email@example.com" @input="createErrors.email = ''" @blur="createErrors.email = validateEmail(createForm.email)" /></el-form-item></el-col>
           <el-col :span="12"><el-form-item :label="$t('admin.password')"><el-input v-model="createForm.password" type="password" show-password /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item :label="$t('admin.phone')"><el-input v-model="createForm.phone" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.phone')" :error="createErrors.phone"><el-input v-model="createForm.phone" placeholder="Ví dụ: 0987654321" @input="createErrors.phone = ''" @blur="createErrors.phone = validatePhone(createForm.phone)" /></el-form-item></el-col>
           <el-col :span="8">
             <el-form-item :label="$t('admin.skillLevel')">
               <el-select v-model="createForm.skill_level" style="width: 100%">
@@ -418,7 +492,7 @@ const getRegStatusType = (status) => {
           <el-col :span="12"><el-form-item :label="$t('admin.province')"><el-input v-model="createForm.province" /></el-form-item></el-col>
           <el-col :span="12">
             <el-form-item :label="$t('admin.dob')">
-              <el-date-picker v-model="createForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker v-model="createForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" :disabled-date="disabledDate" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -445,7 +519,7 @@ const getRegStatusType = (status) => {
 
         <el-row :gutter="24">
           <el-col :span="12"><el-form-item :label="$t('admin.fullName')"><el-input v-model="editForm.full_name" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item :label="$t('admin.phone')"><el-input v-model="editForm.phone" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.phone')" :error="editErrors.phone"><el-input v-model="editForm.phone" @input="editErrors.phone = ''" @blur="editErrors.phone = validatePhone(editForm.phone)" /></el-form-item></el-col>
           <el-col :span="8">
             <el-form-item :label="$t('admin.skillLevel')">
               <el-select v-model="editForm.skill_level" style="width: 100%">
@@ -465,7 +539,7 @@ const getRegStatusType = (status) => {
           <el-col :span="12"><el-form-item :label="$t('admin.province')"><el-input v-model="editForm.province" /></el-form-item></el-col>
           <el-col :span="12">
             <el-form-item :label="$t('admin.dob')">
-              <el-date-picker v-model="editForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" />
+              <el-date-picker v-model="editForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" :disabled-date="disabledDate" />
             </el-form-item>
           </el-col>
           <el-col :span="12">

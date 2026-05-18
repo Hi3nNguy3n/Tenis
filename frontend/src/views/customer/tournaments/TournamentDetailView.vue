@@ -372,6 +372,11 @@ const openPreview = (type, url, title) => {
                   </el-radio-group>
                 </div>
 
+                <div v-if="publicMatches.length > 0" class="bracket-scroll-hint">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>Vuốt ngang để xem các vòng đấu khác ↔</span>
+                </div>
+
                 <div v-loading="loadingBracket" class="bracket-viewport">
                   <div v-if="publicMatches.length === 0" class="empty-state">
                     <div class="es-icon">🎾</div>
@@ -708,6 +713,37 @@ const openPreview = (type, url, title) => {
 
       </div>
     </div>
+
+    <!-- Mobile Sticky Registration Bar -->
+    <div class="mobile-sticky-action-bar" v-if="tournament">
+      <div class="ms-inner">
+        <div class="ms-info">
+          <span class="ms-label">{{ t('tournaments.entryFee') || 'Lệ phí:' }}</span>
+          <strong class="ms-price">
+            {{ tournament.entry_fee ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(tournament.entry_fee) : t('tournaments.free') }}
+          </strong>
+        </div>
+        <div class="ms-btn-wrap">
+          <button 
+            v-if="isRegistrationOpen"
+            class="neo-btn-primary ms-btn" 
+            @click="goToRegister" 
+            :disabled="isAlreadyRegistered || tournament.current_participants >= (tournament.max_participants || tournament.draw_size)"
+            :class="{ 'is-disabled': isAlreadyRegistered || tournament.current_participants >= (tournament.max_participants || tournament.draw_size) }"
+          >
+            <span v-if="isAlreadyRegistered">{{ t('tournaments.alreadyRegistered') || 'Đã ghi danh' }}</span>
+            <span v-else-if="tournament.current_participants >= (tournament.max_participants || tournament.draw_size)">{{ t('tournaments.fullyBooked') || 'Đã hết slot' }}</span>
+            <span v-else>{{ t('tournaments.registerNow') || 'Đăng ký ngay' }}</span>
+          </button>
+          <div v-else class="ms-status-text">
+            <span v-if="isPastDeadline">{{ t('tournaments.registrationExpired') || 'Hết hạn' }}</span>
+            <span v-else-if="tournament.status === 'draft'">{{ t('tournaments.registrationNotOpen') || 'Chưa mở' }}</span>
+            <span v-else>{{ t('tournaments.tournamentClosed') || 'Đã đóng' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 
@@ -789,10 +825,28 @@ const openPreview = (type, url, title) => {
 .bento-highlight { background: white; padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 4px; }
 .bento-highlight strong { font-size: 0.85rem; color: var(--text-primary);}
 .bento-highlight span { font-size: 0.9rem; color: var(--accent); font-weight: 600;}
+.bracket-scroll-hint {
+  display: none;
+}
 .bracket-viewport {
   margin-top: 10px;
   overflow-x: auto;
   padding: 20px 0;
+  -webkit-overflow-scrolling: touch;
+}
+.bracket-viewport::-webkit-scrollbar {
+  height: 6px;
+}
+.bracket-viewport::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+.bracket-viewport::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+.bracket-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.4);
 }
 
 .neo-bracket-horizontal {
@@ -947,7 +1001,7 @@ const openPreview = (type, url, title) => {
 .pg-header { display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem; }
 .pg-accent { width: 4px; height: 20px; background: var(--hero-glow-2); border-radius: 4px; }
 .pg-title { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin: 0; text-transform: uppercase; letter-spacing: 0.05em; }
-.pg-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #f1f5f9; }
+.pg-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #f1f5f9; -webkit-overflow-scrolling: touch; }
 .pg-table { width: 100%; border-collapse: collapse; min-width: 480px; }
 .pg-table th { background: #f8fafc; padding: 12px 16px; font-size: 0.7rem; font-weight: 800; color: #64748b; text-transform: uppercase; border-bottom: 2px solid #f1f5f9; text-align: left; }
 .pg-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
@@ -1016,7 +1070,7 @@ const openPreview = (type, url, title) => {
   .hd-divider { display: none; } 
   .bento-layout { grid-template-columns: 1fr; gap: 0.75rem; } 
   .box-lg { grid-column: auto; } 
-  .neo-tabs-container { padding: 1rem; border-radius: var(--radius-lg); min-height: auto; }
+  .neo-tabs-container { padding: 1rem; border-radius: var(--radius-lg); min-height: auto; max-width: 100vw; overflow: hidden; }
   .main-overlap { margin-top: -1.5rem; }
   .registered-highlight {
     background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
@@ -1029,9 +1083,13 @@ const openPreview = (type, url, title) => {
     border: 1px solid var(--accent-light) !important;
   }
   :deep(.neo-tabs .el-tabs__header) { margin-bottom: 1rem; }
-  :deep(.neo-tabs .el-tabs__nav) { display: flex; width: 100%; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
-  :deep(.neo-tabs .el-tabs__nav::-webkit-scrollbar) { display: none; }
-  :deep(.neo-tabs .el-tabs__item) { flex: 1; text-align: center; padding: 0 12px !important; min-width: max-content; font-size: 0.8rem; }
+  :deep(.neo-tabs .el-tabs__nav-wrap) { overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+  :deep(.neo-tabs .el-tabs__nav-wrap::-webkit-scrollbar) { display: none !important; }
+  :deep(.neo-tabs .el-tabs__nav-wrap.is-scrollable) { padding: 0 !important; }
+  :deep(.neo-tabs .el-tabs__nav-prev), :deep(.neo-tabs .el-tabs__nav-next) { display: none !important; }
+  :deep(.neo-tabs .el-tabs__nav-scroll) { overflow: visible !important; }
+  :deep(.neo-tabs .el-tabs__nav) { display: flex; flex-wrap: nowrap; width: max-content; }
+  :deep(.neo-tabs .el-tabs__item) { flex: none !important; text-align: center; padding: 0 16px !important; min-width: max-content; font-size: 0.85rem; }
   .neo-table th, .neo-table td { padding: 8px 6px; font-size: 0.75rem; }
   .sg-title { font-size: 0.95rem; }
   .matches-vertical-grid { grid-template-columns: 1fr; gap: 1rem; }
@@ -1041,6 +1099,79 @@ const openPreview = (type, url, title) => {
   .p-name { font-size: 0.85rem; }
   .p-score { font-size: 1rem; }
   .ac-progress-section { margin-bottom: 1.5rem; }
+  
+  /* Responsive Bracket draw & filter on mobile */
+  .category-filter-wrap {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px;
+    overflow: hidden;
+  }
+  .category-filter-wrap .filter-label {
+    text-align: center;
+  }
+  .category-filter-wrap :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    width: 100%;
+  }
+  .category-filter-wrap :deep(.el-radio-button) {
+    flex-shrink: 0;
+  }
+  .category-filter-wrap :deep(.el-radio-group::-webkit-scrollbar) { display: none; }
+  .bracket-scroll-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #eff6ff;
+    color: var(--accent);
+    padding: 6px 12px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    border: 1px solid #dbeafe;
+    animation: pulseHint 2s infinite ease-in-out;
+  }
+  @keyframes pulseHint {
+    0%, 100% { opacity: 0.9; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.02); }
+  }
+  .bracket-viewport {
+    scroll-snap-type: x mandatory;
+  }
+  .neo-bracket-horizontal {
+    gap: 30px;
+    padding: 10px;
+  }
+  .bracket-column {
+    width: 250px;
+    scroll-snap-align: center;
+  }
+  .connector-line-in {
+    left: -20px;
+    width: 20px;
+  }
+  .connector-line-out {
+    right: -20px;
+    width: 20px;
+  }
+  .matches-stack > .match-node-wrapper:nth-child(even) .connector-line-out {
+    width: 20px;
+    border-left: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+  }
+  .matches-stack > .match-node-wrapper:nth-child(odd) .connector-line-out {
+    width: 20px;
+    border-left: 1px solid #cbd5e1;
+    border-top: 1px solid #cbd5e1;
+  }
 }
 @media (max-width: 480px) {
   .hero-title { font-size: 1.5rem; }
@@ -1048,7 +1179,7 @@ const openPreview = (type, url, title) => {
   .neo-badge { font-size: 0.65rem; padding: 3px 8px; }
   .tour-type { font-size: 0.7rem; }
   .main-overlap { margin-top: 0; }
-  .neo-tabs-container { border-radius: 0; margin-left: -1rem; margin-right: -1rem; width: calc(100% + 2rem); }
+  .neo-tabs-container { border-radius: 0; margin-left: -1rem; margin-right: -1rem; width: calc(100% + 2rem); max-width: 100vw; overflow: hidden; }
   .bento-box { padding: 0.85rem; }
   .bento-val { font-size: 1rem; }
   .bento-icon { font-size: 1.25rem; }
@@ -1134,4 +1265,82 @@ const openPreview = (type, url, title) => {
 .media-info { padding: 15px; }
 .m-match-label { margin: 0 0 5px; font-size: 1rem; font-weight: 700; color: #1e293b; }
 .m-round-info { margin: 0; font-size: 0.8rem; color: #64748b; font-weight: 500; }
+
+/* Premium Sticky Mobile Registration Bar */
+.mobile-sticky-action-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-sticky-action-bar {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.08);
+    padding: 12px 24px;
+    z-index: 999;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  
+  .ms-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 600px;
+    margin: 0 auto;
+    gap: 16px;
+  }
+  
+  .ms-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .ms-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  
+  .ms-price {
+    font-size: 1.1rem;
+    color: var(--accent);
+    font-weight: 800;
+  }
+  
+  .ms-btn-wrap {
+    flex: 1;
+    max-width: 200px;
+  }
+  
+  .ms-btn {
+    width: 100%;
+    padding: 10px 16px !important;
+    font-size: 0.85rem !important;
+    font-weight: 700 !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2) !important;
+  }
+  
+  .ms-status-text {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 8px 12px;
+    background: #f1f5f9;
+    border-radius: var(--radius-md);
+  }
+  
+  .neo-tournament-page {
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
 </style>

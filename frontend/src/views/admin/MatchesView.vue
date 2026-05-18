@@ -830,8 +830,8 @@ onMounted(() => {
 
 .saas-dialog-footer { display: flex; gap: 12px; justify-content: flex-end; }
 .saas-btn-secondary { border-radius: 12px !important; padding: 20px 24px !important; font-weight: 600; }
-.saas-btn-primary { border-radius: 12px !important; padding: 20px 32px !important; font-weight: 800; }
-.saas-btn-primary.is-success { background: #10b981 !important; border: none !important; }
+.saas-btn-primary { border-radius: 12px !important; padding: 20px 32px !important; font-weight: 800; color: #fff !important; }
+.saas-btn-primary.is-success { background: #10b981 !important; border: none !important; color: #fff !important; }
 
 /* Scoring Box */
 .winner-selection-premium, .sets-management, .media-management { display: flex; flex-direction: column; gap: 8px; }
