@@ -250,25 +250,27 @@ onMounted(() => {
     </div>
 
     <!-- Header & Action Bar -->
-    <div class="saas-header">
-      <div class="header-left">
-        <div class="operation-badge">
-          <el-icon class="mr-1"><Monitor /></el-icon>
-          <span>Match Control</span>
+    <div class="saas-header-card">
+      <div class="header-top-row">
+        <div class="header-left">
+          <div class="operation-badge">
+            <el-icon class="mr-1"><Monitor /></el-icon>
+            <span>Match Control</span>
+          </div>
+          <el-select 
+            v-model="selectedTournamentId" 
+            :placeholder="$t('admin.selectTournamentOpsPlaceholder')" 
+            size="large" 
+            @change="fetchMatches" 
+            filterable 
+            class="saas-tournament-selector"
+          >
+            <template #prefix><el-icon><Trophy /></el-icon></template>
+            <el-option :label="$t('admin.friendlyMatchesLabel')" :value="0" />
+            <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+          <el-button :icon="Refresh" circle @click="fetchMatches" class="saas-icon-btn" />
         </div>
-        <el-select 
-          v-model="selectedTournamentId" 
-          :placeholder="$t('admin.selectTournamentOpsPlaceholder')" 
-          size="large" 
-          @change="fetchMatches" 
-          filterable 
-          class="saas-tournament-selector"
-        >
-          <template #prefix><el-icon><Trophy /></el-icon></template>
-          <el-option :label="$t('admin.friendlyMatchesLabel')" :value="0" />
-          <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id" />
-        </el-select>
-        <el-button :icon="Refresh" circle @click="fetchMatches" class="saas-icon-btn" />
       </div>
 
       <div class="header-tabs-wrap" v-if="selectedTournamentId && categories.length > 0">
@@ -601,8 +603,29 @@ onMounted(() => {
 .stat-value { margin: 4px 0 0; font-size: 1.8rem; font-weight: 800; color: #0f172a; }
 
 /* Header & Action Bar */
-.saas-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.header-left { display: flex; align-items: center; gap: 12px; }
+.saas-header-card {
+  background: #fff;
+  border: 1px solid #f1f5f9;
+  border-radius: 24px;
+  padding: 24px 24px 12px 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
 
 .operation-badge {
   background: #fef2f2; color: #dc2626; padding: 8px 16px; border-radius: 12px;
@@ -613,8 +636,9 @@ onMounted(() => {
 .saas-tournament-selector { width: 380px; }
 
 .header-tabs-wrap {
-  margin-top: 10px;
+  margin-top: 4px;
   width: 100%;
+  min-width: 0; /* Constraint to prevent stretching parent and allow tabs horizontal scrolling */
 }
 
 :deep(.category-tabs-premium) {
@@ -867,7 +891,7 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .saas-stats-grid { grid-template-columns: 1fr 1fr; }
-  .saas-header { flex-direction: column; align-items: stretch; }
+  .saas-header-card { padding: 16px 16px 8px 16px; }
   .saas-tournament-selector { width: 100%; }
   .match-cards-grid { grid-template-columns: 1fr; }
   .winner-grid-selector { grid-template-columns: 1fr; }

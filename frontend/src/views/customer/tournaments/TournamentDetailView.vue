@@ -806,8 +806,9 @@ const openPreview = (type, url, title) => {
 .hd-val { font-size: 0.95rem; font-weight: 600; color: white; }
 .hd-divider { width: 1px; height: 30px; background: rgba(255,255,255,0.2); }
 .main-overlap { position: relative; z-index: 10; margin-top: -4rem; }
-.neo-grid { display: grid; grid-template-columns: 1fr 360px; gap: 2rem; align-items: start; }
-.neo-tabs-container { background: var(--bg-surface); border-radius: var(--radius-xl); padding: 2rem; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); min-height: 500px; }
+.neo-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 2rem; align-items: start; }
+.neo-col-main { min-width: 0; width: 100%; }
+.neo-tabs-container { background: var(--bg-surface); border-radius: var(--radius-xl); padding: 2rem; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); min-height: 500px; overflow: hidden; }
 :deep(.neo-tabs .el-tabs__nav-wrap::after) { display: none; }
 :deep(.neo-tabs .el-tabs__nav) { background: var(--bg-body); padding: 4px; border-radius: 12px; }
 :deep(.neo-tabs .el-tabs__item) { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); height: 40px; line-height: 40px; padding: 0 20px !important; border-radius: 8px; transition: 0.3s; }

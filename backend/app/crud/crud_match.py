@@ -34,6 +34,18 @@ def create_manual_match(db, match_data):
     if match_data.side_a_id == match_data.side_b_id:
         raise ValueError("VĐV A và VĐV B không được trùng nhau!")
 
+    # Check trùng đối với đấu đôi
+    side_a2_id = getattr(match_data, 'side_a2_id', None)
+    side_b2_id = getattr(match_data, 'side_b2_id', None)
+    match_type = getattr(match_data, 'match_type', 'singles') or 'singles'
+
+    if match_type == "doubles":
+        if not side_a2_id or not side_b2_id:
+            raise ValueError("Đấu đôi yêu cầu phải chọn đồng đội cho cả 2 bên!")
+        all_players = [match_data.side_a_id, side_a2_id, match_data.side_b_id, side_b2_id]
+        if len(set(all_players)) < 4:
+            raise ValueError("Các vận động viên trong trận đấu đôi không được trùng nhau!")
+
     # === BƯỚC MỚI: GHÉP NGÀY VÀ GIỜ THÀNH TIMESTAMP ===
     final_start_time = None
     if match_data.match_date and match_data.start_time:
@@ -55,6 +67,9 @@ def create_manual_match(db, match_data):
         
         player_a_id=match_data.side_a_id,
         player_b_id=match_data.side_b_id,
+        player_a2_id=side_a2_id,
+        player_b2_id=side_b2_id,
+        match_type=match_type,
 
         match_date=match_data.match_date,
         

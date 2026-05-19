@@ -125,6 +125,7 @@ const fetchAllMatchesData = async (silent = false) => {
         status: matchItem.status === 'completed'
           ? 'Finished'
           : matchItem.status === 'ongoing' ? 'Live' : 'Scheduled',
+        video_url: matchItem.video_url,
         players: [
           {
             name: matchItem.p1_name || t('matches.undetermined'),
@@ -207,7 +208,15 @@ const toggleGroup = (tId) => {
 const openTournamentDetail = (id) => router.push(`/tournaments/${id}`)
 const openReplay = (tId, match) => {
   if (match.status === 'Scheduled') { ElMessage.info(t('matches.noReplayYet')); return }
-  router.push(`/tournaments/${tId}`)
+  if (match.video_url) {
+    window.open(match.video_url, '_blank')
+    return
+  }
+  if (tId && tId !== 'unknown' && isNaN(tId) === false) {
+    router.push(`/tournaments/${tId}`)
+  } else {
+    ElMessage.info(t('matches.noReplayYet'))
+  }
 }
 const openStats = () => router.push('/rankings')
 const openNewsDetail = (slug) => { if (slug) router.push(`/news/${slug}`) }

@@ -138,7 +138,7 @@ def generate_draw(tournament_id: int, request: tournament_schemas.GenerateDrawRe
         if request.format_type == "round_robin":
             return crud_tournament.generate_round_robin_draw(db, tournament_id, request.category_id, request.num_groups)
         else:
-            return crud_tournament.generate_knockout_draw(db, tournament_id, request.category_id) 
+            return crud_tournament.generate_knockout_draw(db, tournament_id, request.category_id, request.draw_size) 
             
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -249,6 +249,48 @@ def read_tournament_matches(
 @audit_log(module="MATCH", action="UPDATE", event_name="Gán lịch và phân sân thi đấu")
 def schedule_match(match_id: int, payload: tournament_schemas.MatchScheduleUpdate, db: Session = Depends(get_db)):
     return crud_tournament.schedule_match_db(db, match_id, payload)
+
+# 8.5 GHÉP CẶP THI ĐẤU THỦ CÔNG (ADMIN ONLY)
+@router.put("/matches/{match_id}/assign-players", dependencies=[Depends(get_current_admin)])
+@audit_log(module="MATCH", action="ASSIGN_PLAYERS", event_name="Ghép cặp thi đấu thủ công")
+def assign_match_players(match_id: int, payload: tournament_schemas.AssignMatchPlayersRequest, db: Session = Depends(get_db)):
+    from app.models.models import Match
+    from fastapi import HTTPException
+    from sqlalchemy import or_
+    
+    match = db.query(Match).filter(Match.id == match_id).first()
+    if not match:
+        raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu")
+        
+    # 1. Validation: Không thể tự đối đầu với chính mình
+    if payload.side_a_registration_id and payload.side_a_registration_id == payload.side_b_registration_id:
+        raise HTTPException(status_code=400, detail="Không thể xếp một VĐV/cặp đấu tự đối đầu với chính mình.")
+        
+    # 2. Validation: VĐV đã được gán ở trận đấu khác trong cùng nhánh đấu Knockout
+    if match.stage_type == "knockout":
+        for reg_id, side_name in [(payload.side_a_registration_id, "Bên A"), (payload.side_b_registration_id, "Bên B")]:
+            if reg_id:
+                already_assigned = db.query(Match).filter(
+                    Match.tournament_id == match.tournament_id,
+                    Match.tournament_category_id == match.tournament_category_id,
+                    Match.stage_type == "knockout",
+                    Match.id != match.id,
+                    or_(
+                        Match.side_a_registration_id == reg_id,
+                        Match.side_b_registration_id == reg_id
+                    )
+                ).first()
+                if already_assigned:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Cặp đấu/VĐV được chọn ở {side_name} đã được xếp lịch ở trận số #{already_assigned.match_no}."
+                    )
+    
+    match.side_a_registration_id = payload.side_a_registration_id
+    match.side_b_registration_id = payload.side_b_registration_id
+    
+    db.commit()
+    return {"message": "Đã ghép cặp thi đấu thành công"}
 
 # 9. LẤY TẤT CẢ TRẬN ĐẤU (PUBLIC - hiển thị trên trang Lịch thi đấu)
 @router.get("/matches/all")
@@ -413,7 +455,7 @@ def get_public_registrations(
         TournamentCategory, Registration.tournament_category_id == TournamentCategory.id
     ).filter(
         Registration.tournament_id == tournament_id,
-        Registration.status.in_(["confirmed", "paid", "checked_in"]),
+        Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
         Registration.deleted_at.is_(None)
     )
     

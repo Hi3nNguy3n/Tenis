@@ -13,7 +13,13 @@ const selectedOpponent = ref(null)
 const searchQuery = ref('')
 
 const showChallengeDialog = ref(false)
-const challengeForm = ref({ date: '', notes: '' })
+const challengeForm = ref({ 
+  date: '', 
+  notes: '',
+  match_type: 'singles',
+  challenger_partner_id: null,
+  challenged_partner_id: null
+})
 
 const showH2HDialog = ref(false)
 const h2hHistory = ref([])
@@ -35,6 +41,33 @@ const filteredPlayers = computed(() => {
   return result
 })
 
+const myPlayer = computed(() => {
+  if (!players.value || !Array.isArray(players.value)) return null
+  return players.value.find(p => p.full_name === authStore.user?.full_name)
+})
+const myPlayerId = computed(() => myPlayer.value?.player_id || null)
+
+const myPartnerOptions = computed(() => {
+  if (!players.value || !Array.isArray(players.value)) return []
+  return players.value.filter(p => {
+    const isMe = p.player_id === myPlayerId.value
+    const isOpponent = p.player_id === selectedOpponent.value?.player_id
+    const isAdmin = p.full_name?.toLowerCase().includes('admin')
+    return !isMe && !isOpponent && !isAdmin
+  })
+})
+
+const opponentPartnerOptions = computed(() => {
+  if (!players.value || !Array.isArray(players.value)) return []
+  return players.value.filter(p => {
+    const isMe = p.player_id === myPlayerId.value
+    const isOpponent = p.player_id === selectedOpponent.value?.player_id
+    const isMyPartner = p.player_id === challengeForm.value.challenger_partner_id
+    const isAdmin = p.full_name?.toLowerCase().includes('admin')
+    return !isMe && !isOpponent && !isMyPartner && !isAdmin
+  })
+})
+
 const loadPlayers = async () => {
   isLoading.value = true
   try {
@@ -54,20 +87,43 @@ const loadPlayers = async () => {
 
 const openChallenge = (p) => {
   selectedOpponent.value = p
+  challengeForm.value = { 
+    date: '', 
+    notes: '', 
+    match_type: 'singles',
+    challenger_partner_id: null,
+    challenged_partner_id: null
+  }
   showChallengeDialog.value = true
 }
 
 const sendChallengeRequest = async () => {
   if (!challengeForm.value.date) return ElMessage.warning(t('challenges.selectDateWarning'))
+  
+  if (challengeForm.value.match_type === 'doubles') {
+    if (!challengeForm.value.challenger_partner_id || !challengeForm.value.challenged_partner_id) {
+      return ElMessage.warning('Vui lòng chọn đầy đủ đồng đội cho cả hai bên khi thách đấu đôi!')
+    }
+  }
+
   try {
     await apiClient.post('/api/challenges/', {
       challenged_id: selectedOpponent.value.player_id,
       proposed_date: challengeForm.value.date,
-      notes: challengeForm.value.notes
+      notes: challengeForm.value.notes,
+      match_type: challengeForm.value.match_type,
+      challenger_partner_id: challengeForm.value.match_type === 'doubles' ? challengeForm.value.challenger_partner_id : null,
+      challenged_partner_id: challengeForm.value.match_type === 'doubles' ? challengeForm.value.challenged_partner_id : null
     })
     ElMessage.success(t('challenges.requestSentSuccess'))
     showChallengeDialog.value = false
-    challengeForm.value = { date: '', notes: '' }
+    challengeForm.value = { 
+      date: '', 
+      notes: '',
+      match_type: 'singles',
+      challenger_partner_id: null,
+      challenged_partner_id: null
+    }
   } catch (err) { 
     const errorMsg = err.response?.data?.detail || t('challenges.requestSendError')
     ElMessage.error(errorMsg) 
@@ -257,6 +313,47 @@ onMounted(loadPlayers)
         </div>
 
         <el-form label-position="top" class="atp-form">
+          <el-form-item label="Hình thức thi đấu">
+            <el-radio-group v-model="challengeForm.match_type" size="default" style="width: 100%; display: flex; margin-bottom: 10px;">
+              <el-radio-button label="singles" style="flex: 1; text-align: center;">Đấu đơn (1vs1)</el-radio-button>
+              <el-radio-button label="doubles" style="flex: 1; text-align: center;">Đấu đôi (2vs2)</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+
+          <div v-if="challengeForm.match_type === 'doubles'" class="doubles-select-section" style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px dashed #cbd5e1; margin-bottom: 15px;">
+            <el-form-item label="Đồng đội của bạn" required style="margin-bottom: 10px;">
+              <el-select 
+                v-model="challengeForm.challenger_partner_id" 
+                placeholder="Chọn đồng đội của bạn" 
+                filterable
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="p in myPartnerOptions"
+                  :key="p.player_id"
+                  :label="p.full_name + ' (ELO: ' + (p.elo_points || 1000) + ')'"
+                  :value="p.player_id"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="Đồng đội của đối thủ" required style="margin-bottom: 0;">
+              <el-select 
+                v-model="challengeForm.challenged_partner_id" 
+                placeholder="Chọn đồng đội của đối thủ" 
+                filterable
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="p in opponentPartnerOptions"
+                  :key="p.player_id"
+                  :label="p.full_name + ' (ELO: ' + (p.elo_points || 1000) + ')'"
+                  :value="p.player_id"
+                />
+              </el-select>
+            </el-form-item>
+          </div>
+
           <el-form-item :label="t('challenges.proposedDate')">
             <el-date-picker 
               v-model="challengeForm.date" 

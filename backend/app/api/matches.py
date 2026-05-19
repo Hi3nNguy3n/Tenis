@@ -61,7 +61,21 @@ def list_matches(
                     p2_name = user_b.full_name
                     p2_avatar = user_b.avatar_url
 
-        display_name = t.name if t else (m.round_code if m.round_code else "Trận Giao Hữu 1vs1")
+            # Giao hữu đấu đôi:
+            if m.player_a2_id:
+                player_a2 = db.query(Player).filter(Player.id == m.player_a2_id).first()
+                if player_a2:
+                    user_a2 = db.query(User).filter(User.id == player_a2.user_id).first()
+                    if user_a2:
+                        p1_partner_name = user_a2.full_name
+            if m.player_b2_id:
+                player_b2 = db.query(Player).filter(Player.id == m.player_b2_id).first()
+                if player_b2:
+                    user_b2 = db.query(User).filter(User.id == player_b2.user_id).first()
+                    if user_b2:
+                        p2_partner_name = user_b2.full_name
+
+        display_name = t.name if t else (m.round_code if m.round_code else ("Trận Giao Hữu 2vs2" if m.match_type == "doubles" else "Trận Giao Hữu 1vs1"))
 
         results.append({
             "id": m.id,
@@ -93,22 +107,29 @@ def list_matches(
             "round_code": m.round_code,
             "match_no": m.match_no,
             "winner_side": m.winner_side,
-            "p1_name": p1_name,
-            "p2_name": p2_name,
             "referee_id": m.referee_id,
             "referee_name": m.referee_name,
             "referee_phone": m.referee_phone,
             "video_url": m.video_url,
-            "image_url": m.image_url
+            "image_url": m.image_url,
+            
+            "match_type": m.match_type or "singles",
+            "player_a_id": m.player_a_id,
+            "player_b_id": m.player_b_id,
+            "player_a2_id": m.player_a2_id,
+            "player_b2_id": m.player_b2_id
         })
     return results
 
 # 1. TẠO KHUÔN DỮ LIỆU (SCHEMA)
 class MatchCreate(BaseModel):
     tournament_id: Optional[int] = None # <--- Chuyển thành Optional
-    match_name: Optional[str] = "Giao hữu 1vs1"
+    match_name: Optional[str] = "Giao hữu"
     side_a_id: int 
     side_b_id: int
+    side_a2_id: Optional[int] = None
+    side_b2_id: Optional[int] = None
+    match_type: Optional[str] = "singles" # singles hoặc doubles
     court_id: Optional[int] = None
     match_date: Optional[date] = None
     start_time: Optional[time] = None

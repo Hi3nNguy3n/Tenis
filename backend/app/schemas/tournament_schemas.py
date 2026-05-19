@@ -81,6 +81,11 @@ class GenerateDrawRequest(BaseModel):
     category_id: int
     format_type: str = "knockout" # Hoặc "round_robin"
     num_groups: int = 1           # Số bảng đấu
+    draw_size: Optional[int] = None # Kích thước nhánh đấu (8, 16, 32...)
+    
+class AssignMatchPlayersRequest(BaseModel):
+    side_a_registration_id: Optional[int] = None
+    side_b_registration_id: Optional[int] = None
 
 class MatchScheduleUpdate(BaseModel):
     court_id: int

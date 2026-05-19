@@ -28,6 +28,9 @@ const form = ref({
   match_name: '',
   side_a_id: null,
   side_b_id: null,
+  side_a2_id: null,
+  side_b2_id: null,
+  match_type: 'singles', // 'singles' or 'doubles'
   court_id: null,
   match_date: '',
   start_time: '',
@@ -65,6 +68,9 @@ const fetchInitialData = async () => {
 const selectChallenge = (c) => {
   form.value.side_a_id = c.side_a_id
   form.value.side_b_id = c.side_b_id
+  form.value.side_a2_id = c.side_a2_id || null
+  form.value.side_b2_id = c.side_b2_id || null
+  form.value.match_type = c.match_type || 'singles'
   form.value.match_date = c.proposed_date
   form.value.match_name = c.match_name
   form.value.challenge_id = c.id
@@ -76,6 +82,12 @@ const selectChallenge = (c) => {
 const submitMatch = async () => {
   if (!form.value.side_a_id || !form.value.side_b_id || !form.value.court_id || !form.value.start_time) {
     return ElMessage.warning(t('admin.fillAllFields'))
+  }
+
+  if (form.value.match_type === 'doubles') {
+    if (!form.value.side_a2_id || !form.value.side_b2_id) {
+      return ElMessage.warning('Vui lòng chọn đầy đủ đồng đội cho cả 2 bên khi tạo trận đấu đôi!')
+    }
   }
 
   submitting.value = true
@@ -99,6 +111,17 @@ const submitMatch = async () => {
 
 const playerA = computed(() => playersList.value.find(p => p.id === form.value.side_a_id))
 const playerB = computed(() => playersList.value.find(p => p.id === form.value.side_b_id))
+const playerA2 = computed(() => playersList.value.find(p => p.id === form.value.side_a2_id))
+const playerB2 = computed(() => playersList.value.find(p => p.id === form.value.side_b2_id))
+
+const getAvailablePlayers = (excludeIds) => {
+  return playersList.value.filter(p => !excludeIds.includes(p.id))
+}
+
+const sideAOptions = computed(() => getAvailablePlayers([form.value.side_b_id, form.value.side_a2_id, form.value.side_b2_id].filter(Boolean)))
+const sideBOptions = computed(() => getAvailablePlayers([form.value.side_a_id, form.value.side_a2_id, form.value.side_b2_id].filter(Boolean)))
+const sideA2Options = computed(() => getAvailablePlayers([form.value.side_a_id, form.value.side_b_id, form.value.side_b2_id].filter(Boolean)))
+const sideB2Options = computed(() => getAvailablePlayers([form.value.side_a_id, form.value.side_b_id, form.value.side_a2_id].filter(Boolean)))
 
 onMounted(fetchInitialData)
 </script>
@@ -184,16 +207,23 @@ onMounted(fetchInitialData)
                   </div>
                 </div>
 
-                <div class="saas-form-grid">
-                  <el-form-item :label="$t('admin.tournamentLabel')" class="span-1">
+                <div class="saas-form-grid triple" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 20px;">
+                  <el-form-item :label="$t('admin.tournamentLabel')">
                     <el-select v-model="form.tournament_id" placeholder="Chọn giải đấu (không bắt buộc)" class="w-full" clearable filterable>
                       <template #prefix><el-icon><Trophy /></el-icon></template>
                       <el-option v-for="t in tournamentsList" :key="t.id" :label="t.name" :value="t.id" />
                     </el-select>
                   </el-form-item>
                   
-                  <el-form-item :label="$t('admin.matchNameLabel')" class="span-1">
+                  <el-form-item :label="$t('admin.matchNameLabel')">
                     <el-input v-model="form.match_name" :placeholder="$t('admin.matchNamePlaceholder')" />
+                  </el-form-item>
+
+                  <el-form-item label="Thể thức trận đấu">
+                    <el-radio-group v-model="form.match_type" size="default" style="width: 100%; display: flex;">
+                      <el-radio-button label="singles" style="flex: 1; text-align: center;">Đơn (1vs1)</el-radio-button>
+                      <el-radio-button label="doubles" style="flex: 1; text-align: center;">Đôi (2vs2)</el-radio-button>
+                    </el-radio-group>
                   </el-form-item>
                 </div>
 
@@ -201,20 +231,42 @@ onMounted(fetchInitialData)
                 <div class="saas-pairing-arena">
                   <div class="arena-column">
                     <span class="column-label">SIDE A</span>
-                    <el-select v-model="form.side_a_id" placeholder="Chọn VĐV A" filterable class="w-full arena-select">
+                    <el-select v-model="form.side_a_id" placeholder="Chọn VĐV A" filterable class="w-full arena-select" style="margin-bottom: 12px;">
                       <template #prefix><el-icon><User /></el-icon></template>
-                      <el-option v-for="p in playersList" :key="p.id" :label="p.full_name" :value="p.id">
+                      <el-option v-for="p in sideAOptions" :key="p.id" :label="p.full_name" :value="p.id">
                         <div class="p-opt-saas">
                           <span>{{ p.full_name }}</span>
                           <el-tag size="small" type="info">ELO: {{ p.elo_points }}</el-tag>
                         </div>
                       </el-option>
                     </el-select>
-                    <div class="player-indicator" v-if="playerA">
-                      <el-avatar :size="48" class="saas-avatar-premium">{{ playerA.full_name.charAt(0) }}</el-avatar>
-                      <div class="pi-info">
-                        <strong>{{ playerA.full_name }}</strong>
-                        <span>{{ playerA.elo_points }} ELO</span>
+
+                    <div v-if="form.match_type === 'doubles'">
+                      <el-select v-model="form.side_a2_id" placeholder="Chọn Đồng đội VĐV A" filterable class="w-full arena-select" style="margin-bottom: 12px;">
+                        <template #prefix><el-icon><User /></el-icon></template>
+                        <el-option v-for="p in sideA2Options" :key="p.id" :label="p.full_name" :value="p.id">
+                          <div class="p-opt-saas">
+                            <span>{{ p.full_name }}</span>
+                            <el-tag size="small" type="info">ELO: {{ p.elo_points }}</el-tag>
+                          </div>
+                        </el-option>
+                      </el-select>
+                    </div>
+
+                    <div class="player-indicators-group" style="display: flex; flex-direction: column; gap: 8px;">
+                      <div class="player-indicator" v-if="playerA">
+                        <el-avatar :size="48" class="saas-avatar-premium">{{ playerA.full_name.charAt(0) }}</el-avatar>
+                        <div class="pi-info">
+                          <strong>{{ playerA.full_name }}</strong>
+                          <span>{{ playerA.elo_points }} ELO (A1)</span>
+                        </div>
+                      </div>
+                      <div class="player-indicator" v-if="form.match_type === 'doubles' && playerA2">
+                        <el-avatar :size="48" class="saas-avatar-premium" style="background: #ecf5ff; color: #409eff;">{{ playerA2.full_name.charAt(0) }}</el-avatar>
+                        <div class="pi-info">
+                          <strong>{{ playerA2.full_name }}</strong>
+                          <span>{{ playerA2.elo_points }} ELO (A2)</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -225,21 +277,43 @@ onMounted(fetchInitialData)
 
                   <div class="arena-column">
                     <span class="column-label">SIDE B</span>
-                    <el-select v-model="form.side_b_id" placeholder="Chọn VĐV B" filterable class="w-full arena-select">
+                    <el-select v-model="form.side_b_id" placeholder="Chọn VĐV B" filterable class="w-full arena-select" style="margin-bottom: 12px;">
                       <template #prefix><el-icon><User /></el-icon></template>
-                      <el-option v-for="p in playersList" :key="p.id" :label="p.full_name" :value="p.id">
+                      <el-option v-for="p in sideBOptions" :key="p.id" :label="p.full_name" :value="p.id">
                         <div class="p-opt-saas">
                           <span>{{ p.full_name }}</span>
                           <el-tag size="small" type="info">ELO: {{ p.elo_points }}</el-tag>
                         </div>
                       </el-option>
                     </el-select>
-                    <div class="player-indicator reverse" v-if="playerB">
-                      <div class="pi-info">
-                        <strong>{{ playerB.full_name }}</strong>
-                        <span>{{ playerB.elo_points }} ELO</span>
+
+                    <div v-if="form.match_type === 'doubles'">
+                      <el-select v-model="form.side_b2_id" placeholder="Chọn Đồng đội VĐV B" filterable class="w-full arena-select" style="margin-bottom: 12px;">
+                        <template #prefix><el-icon><User /></el-icon></template>
+                        <el-option v-for="p in sideB2Options" :key="p.id" :label="p.full_name" :value="p.id">
+                          <div class="p-opt-saas">
+                            <span>{{ p.full_name }}</span>
+                            <el-tag size="small" type="info">ELO: {{ p.elo_points }}</el-tag>
+                          </div>
+                        </el-option>
+                      </el-select>
+                    </div>
+
+                    <div class="player-indicators-group" style="display: flex; flex-direction: column; gap: 8px;">
+                      <div class="player-indicator reverse" v-if="playerB">
+                        <div class="pi-info">
+                          <strong>{{ playerB.full_name }}</strong>
+                          <span>{{ playerB.elo_points }} ELO (B1)</span>
+                        </div>
+                        <el-avatar :size="48" class="saas-avatar-premium">{{ playerB.full_name.charAt(0) }}</el-avatar>
                       </div>
-                      <el-avatar :size="48" class="saas-avatar-premium">{{ playerB.full_name.charAt(0) }}</el-avatar>
+                      <div class="player-indicator reverse" v-if="form.match_type === 'doubles' && playerB2">
+                        <div class="pi-info">
+                          <strong>{{ playerB2.full_name }}</strong>
+                          <span>{{ playerB2.elo_points }} ELO (B2)</span>
+                        </div>
+                        <el-avatar :size="48" class="saas-avatar-premium" style="background: #fdf2f2; color: #f56c6c;">{{ playerB2.full_name.charAt(0) }}</el-avatar>
+                      </div>
                     </div>
                   </div>
                 </div>

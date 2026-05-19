@@ -157,9 +157,9 @@ const formatGender = (gender) => {
           </div>
 
           <div class="match-list">
-            <div v-for="match in matchHistory" :key="match.id" class="match-item" :class="match.result_status.toLowerCase()">
+            <div v-for="match in matchHistory" :key="match.id" class="match-item" :class="match.result_status === 'THẮNG' ? 'thắng' : (match.result_status === 'THUA' ? 'thua' : 'đang-chờ')">
               <div class="match-res">
-                <span class="res-tag">{{ match.result_status === 'THẮNG' ? 'WIN' : 'LOSS' }}</span>
+                <span class="res-tag">{{ match.result_status === 'THẮNG' ? 'WIN' : (match.result_status === 'THUA' ? 'LOSS' : 'TBD') }}</span>
               </div>
               
               <div class="match-detail">
@@ -482,6 +482,7 @@ const formatGender = (gender) => {
 
 .match-item.thắng .res-tag { background: #dcfce7; color: var(--win); }
 .match-item.thua .res-tag { background: #fee2e2; color: var(--loss); }
+.match-item.đang-chờ .res-tag { background: #e2e8f0; color: var(--text-muted); }
 
 .match-detail {
   flex: 1;

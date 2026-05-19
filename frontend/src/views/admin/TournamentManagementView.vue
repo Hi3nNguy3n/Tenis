@@ -301,12 +301,12 @@ const goToMailCampaign = (tournamentId) => {
 
 const createDefaultForm = () => ({
   id: null, name: '', slug: '', status: 'open', format_type: 'Singles',
-  draw_size: 32, category_type: 'mens_singles', gender_division: 'Mixed',
+  draw_size: 32, category_type: 'mens_singles', gender_division: 'Men',
   location: '', surface_type: 'Hard', registration_open_at: '',
   registration_close_at: '', start_date: '', end_date: '',
-  entry_fee: 100, entry_fee_team: 200,
+  entry_fee: 100000, entry_fee_team: 200000,
   categories: [
-    { name: 'Đôi Nam 1200', category_type: 'mens_doubles', max_points: 1200, max_participants: 32 }
+    { name: 'Đơn Nam', category_type: 'mens_singles', max_points: 1200, max_participants: 32 }
   ]
 })
 const form = ref(createDefaultForm())

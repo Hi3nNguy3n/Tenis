@@ -26,10 +26,22 @@ const selectedCategoryId = ref(null)
 
 // --- BIẾN CHO BỐC THĂM BAN ĐẦU ---
 const isDrawDialogOpen = ref(false)
+const drawSizeOptions = [2, 4, 8, 16, 32, 64]
 const drawForm = ref({
   category_id: null,
   format_type: 'knockout',
-  num_groups: 1
+  num_groups: 1,
+  draw_size: 16
+})
+
+// --- BIẾN GÁN VĐV (GHÉP CẶP THỦ CÔNG) ---
+const tournamentRegistrations = ref([])
+const assignDialogVisible = ref(false)
+const assigning = ref(false)
+const currentAssignMatch = ref(null)
+const assignForm = ref({
+  side_a_registration_id: null,
+  side_b_registration_id: null
 })
 
 // --- BIẾN CHO VÒNG PLAYOFF ---
@@ -92,7 +104,7 @@ const confirmGenerateDraw = async () => {
     const response = await apiClient.post(`/api/tournaments/${selectedTournamentId.value}/generate-draw`, drawForm.value)
     lastDrawSummary.value = { message: response.message } 
     ElMessage.success(response.message || t('admin.drawSuccess'))
-    await fetchMatches()
+    await fetchMatchesAndRegistrations()
   } catch (err) {
     const errorMsg = err.response?.data?.detail || err.message
     ElMessage.error(t('admin.drawError') + ': ' + errorMsg)
@@ -109,7 +121,7 @@ const confirmGeneratePlayoff = async () => {
   try {
     const response = await apiClient.post(`/api/tournaments/${selectedTournamentId.value}/generate-playoffs`, playoffForm.value)
     ElMessage.success(response.message || t('admin.playoffSuccess'))
-    await fetchMatches() 
+    await fetchMatchesAndRegistrations() 
   } catch (err) {
     const errorMsg = err.response?.data?.detail || err.message
     ElMessage.error(t('admin.playoffError') + ': ' + errorMsg)
@@ -142,26 +154,82 @@ const groupedMatches = computed(() => {
 const groupRounds = computed(() => groupedMatches.value.filter(r => r.roundCode.includes('G')))
 const knockoutRounds = computed(() => groupedMatches.value.filter(r => !r.roundCode.includes('G')))
 
-// Tải dữ liệu các trận đấu
-const fetchMatches = async () => {
+// Tải dữ liệu các trận đấu và đăng ký
+const fetchMatchesAndRegistrations = async () => {
   if (!selectedTournamentId.value) {
     matches.value = []
+    tournamentRegistrations.value = []
     return
   }
   isLoading.value = true
   try {
-    // API support category filtering
-    const url = `/api/tournaments/${selectedTournamentId.value}/matches` + 
-                (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : '')
-    const data = await apiClient.get(url)
-    matches.value = data
+    const p1 = apiClient.get(`/api/tournaments/${selectedTournamentId.value}/matches` + 
+                (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : ''))
+    const p2 = apiClient.get(`/api/tournaments/${selectedTournamentId.value}/registrations` + 
+                (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : ''))
+    
+    const [matchData, regData] = await Promise.all([p1, p2])
+    matches.value = matchData
+    tournamentRegistrations.value = regData || []
   } catch (err) {
     ElMessage.error(t('admin.loadMatchesError') || 'Error loading brackets: ' + err.message)
     matches.value = []
+    tournamentRegistrations.value = []
   } finally {
     isLoading.value = false
   }
 }
+
+// Mở modal ghép cặp thủ công
+const openAssignDialog = (m) => {
+  currentAssignMatch.value = m
+  // Tìm side_a và side_b registration id (hiện tại Matches list API đang trả về gì? Nó chưa trả về registration_id)
+  // API Matches trả về player_a_id, player_b_id nhưng Lịch thi đấu cần registration_id 
+  // Vì danh sách này lấy từ get_tournament_matches_detail, API matches có side_a_registration_id
+  assignForm.value.side_a_registration_id = m.side_a_registration_id || null
+  assignForm.value.side_b_registration_id = m.side_b_registration_id || null
+  assignDialogVisible.value = true
+}
+
+const getAvailableRegistrations = (excludeMatchId, currentSelectedId, otherSideSelectedId) => {
+  return tournamentRegistrations.value.filter(r => {
+    if (r.id === currentSelectedId) return true
+    if (r.id === otherSideSelectedId) return false // Cấm chọn trùng 1 người cho 2 bên
+    
+    // Kiểm tra xem VĐV này đã bị gán ở trận khác chưa (chỉ áp dụng với knockout)
+    const isAssignedElsewhere = matches.value.some(m => {
+      if (m.id === excludeMatchId) return false
+      if (m.stage_type === 'knockout') {
+        return m.side_a_registration_id === r.id || m.side_b_registration_id === r.id
+      }
+      return false
+    })
+    return !isAssignedElsewhere
+  })
+}
+
+const confirmAssignPlayers = async () => {
+  if (!currentAssignMatch.value) return
+  
+  // Validation phía Client: Không cho phép chọn cùng 1 VĐV cho cả 2 bên
+  if (assignForm.value.side_a_registration_id && assignForm.value.side_a_registration_id === assignForm.value.side_b_registration_id) {
+    ElMessage.error("Không thể xếp 2 bên thi đấu là cùng một người/cặp đấu!")
+    return
+  }
+
+  assigning.value = true
+  try {
+    await apiClient.put(`/api/tournaments/matches/${currentAssignMatch.value.id}/assign-players`, assignForm.value)
+    ElMessage.success("Ghép cặp thi đấu thành công!")
+    assignDialogVisible.value = false
+    await fetchMatchesAndRegistrations()
+  } catch (err) {
+    ElMessage.error("Lỗi ghép cặp: " + (err.response?.data?.detail || err.message))
+  } finally {
+    assigning.value = false
+  }
+}
+
 
 // Xử lý khi chọn giải đấu khác từ dropdown
 const handleTournamentChange = (id) => {
@@ -186,11 +254,12 @@ watch(() => [route.query.tournamentId, route.query.categoryId], async ([newId, n
     }
     
     selectedCategoryId.value = newCatId ? parseInt(newCatId) : null
-    await fetchMatches()
+    await fetchMatchesAndRegistrations()
   } else {
     selectedTournamentId.value = null
     selectedCategoryId.value = null
     matches.value = []
+    tournamentRegistrations.value = []
   }
 }, { immediate: true })
 
@@ -302,9 +371,14 @@ onMounted(async () => {
                         <el-icon><Location /></el-icon> {{ m.court }}
                       </span>
                     </div>
-                    <el-tag size="small" :type="m.status === 'completed' ? 'success' : 'warning'" effect="dark" class="m-status-tag">
-                      {{ m.status?.toUpperCase() }}
-                    </el-tag>
+                    <div class="m-header-right" style="display: flex; gap: 8px; align-items: center">
+                      <el-button type="primary" size="small" circle plain @click="openAssignDialog(m)" v-if="m.status === 'pending' || m.status === 'scheduled'">
+                        <el-icon><Edit /></el-icon>
+                      </el-button>
+                      <el-tag size="small" :type="m.status === 'completed' ? 'success' : 'warning'" effect="dark" class="m-status-tag">
+                        {{ m.status?.toUpperCase() }}
+                      </el-tag>
+                    </div>
                   </div>
                   <div class="m-card-body">
                     <div class="team-row" :class="{ 'is-winner': m.winner_side === 'side_a' }">
@@ -381,7 +455,12 @@ onMounted(async () => {
                             <el-icon><Location /></el-icon> {{ m.court }}
                           </span>
                         </div>
-                        <span class="m-status-dot" :class="m.status"></span>
+                        <div class="m-header-right" style="display: flex; gap: 8px; align-items: center">
+                          <el-button type="primary" size="small" circle plain @click="openAssignDialog(m)" v-if="m.status === 'pending' || m.status === 'scheduled'" style="padding: 4px; min-height: unset">
+                            <el-icon><Edit /></el-icon>
+                          </el-button>
+                          <span class="m-status-dot" :class="m.status"></span>
+                        </div>
                       </div>
                       <div class="m-card-body">
                         <!-- Side A -->
@@ -434,6 +513,25 @@ onMounted(async () => {
       </div>
     </section>
 
+  <el-dialog v-model="assignDialogVisible" title="Ghép cặp thi đấu" width="450px" destroy-on-close>
+    <el-form label-position="top">
+      <el-form-item label="Bên A (Side A)">
+        <el-select v-model="assignForm.side_a_registration_id" placeholder="Chọn VĐV A" clearable filterable style="width: 100%">
+          <el-option v-for="r in getAvailableRegistrations(currentAssignMatch?.id, assignForm.side_a_registration_id, assignForm.side_b_registration_id)" :key="r.id" :label="r.player_name + (r.partner_name ? ' & ' + r.partner_name : '')" :value="r.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Bên B (Side B)">
+        <el-select v-model="assignForm.side_b_registration_id" placeholder="Chọn VĐV B" clearable filterable style="width: 100%">
+          <el-option v-for="r in getAvailableRegistrations(currentAssignMatch?.id, assignForm.side_b_registration_id, assignForm.side_a_registration_id)" :key="r.id" :label="r.player_name + (r.partner_name ? ' & ' + r.partner_name : '')" :value="r.id" />
+        </el-select>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="assignDialogVisible = false">{{ $t('admin.cancel') }}</el-button>
+      <el-button type="primary" :loading="assigning" @click="confirmAssignPlayers">Lưu ghép cặp</el-button>
+    </template>
+  </el-dialog>
+
   <el-dialog v-model="isDrawDialogOpen" :title="$t('admin.drawOptionsTitle')" width="450px" destroy-on-close>
     <el-form :model="drawForm" label-position="top">
       <el-form-item :label="$t('admin.category')">
@@ -451,6 +549,12 @@ onMounted(async () => {
           <el-radio value="knockout">{{ $t('admin.knockout') }}</el-radio>
           <el-radio value="round_robin">{{ $t('admin.roundRobin') }}</el-radio>
         </el-radio-group>
+      </el-form-item>
+      <el-form-item v-if="drawForm.format_type === 'knockout'" :label="$t('admin.drawSize', 'Quy mô bốc thăm')">
+        <el-select v-model="drawForm.draw_size" style="width: 100%">
+          <el-option v-for="s in drawSizeOptions" :key="s" :label="s" :value="s" />
+        </el-select>
+        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Chọn số lượng vận động viên tối đa của khung nhánh (để trống ô sẽ cho phép tự ghép cặp theo số lượng đăng ký)</div>
       </el-form-item>
       <el-form-item v-if="drawForm.format_type === 'round_robin'" :label="$t('admin.numGroups')">
         <el-input-number v-model="drawForm.num_groups" :min="1" :max="16" />

@@ -249,6 +249,9 @@ class Match(Base):
 
     player_a_id = Column(Integer, ForeignKey("players.id"), nullable=True)
     player_b_id = Column(Integer, ForeignKey("players.id"), nullable=True)
+    player_a2_id = Column(Integer, ForeignKey("players.id"), nullable=True)
+    player_b2_id = Column(Integer, ForeignKey("players.id"), nullable=True)
+    match_type = Column(String(30), default="singles", nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -259,6 +262,9 @@ class MatchChallenge(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     challenger_id = Column(BigInteger, ForeignKey("players.id"), nullable=False) # Người thách
     challenged_id = Column(BigInteger, ForeignKey("players.id"), nullable=False) # Người bị thách
+    challenger_partner_id = Column(BigInteger, ForeignKey("players.id"), nullable=True) # Đồng đội người thách
+    challenged_partner_id = Column(BigInteger, ForeignKey("players.id"), nullable=True) # Đồng đội người bị thách
+    match_type = Column(String(30), default="singles", nullable=True)
     
     proposed_date = Column(Date, nullable=False) # Ngày dự kiến
     notes = Column(Text) # Lời nhắn (VD: 2 set cafe nhé)

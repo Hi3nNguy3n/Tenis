@@ -104,7 +104,29 @@ def get_player_rankings(db: Session, category: str = None, province: str = None)
 # --- CÁC HÀM PHỤ TRỢ CHO LỊCH SỬ THI ĐẤU ---
 def get_player_registrations(db: Session, player_id: int):
     reg_ids = db.query(Registration.id).filter(Registration.player_id == player_id).all()
-    return [r[0] for r in reg_ids]
+    # Tìm cả các lượt đăng ký mà người chơi này là partner (đồng đội)
+    partner_regs = db.query(Registration.id).filter(Registration.partner_player_id == player_id).all()
+    all_regs = list(set([r[0] for r in reg_ids] + [r[0] for r in partner_regs]))
+    return all_regs
+
+def get_all_player_matches(db: Session, player_id: int, reg_ids: list):
+    query = db.query(Match, Tournament, Court).outerjoin(
+        Tournament, Match.tournament_id == Tournament.id
+    ).outerjoin(
+        Court, Match.court_id == Court.id
+    )
+    
+    conditions = [
+        Match.player_a_id == player_id,
+        Match.player_b_id == player_id,
+        Match.player_a2_id == player_id,
+        Match.player_b2_id == player_id
+    ]
+    if reg_ids:
+        conditions.append(Match.side_a_registration_id.in_(reg_ids))
+        conditions.append(Match.side_b_registration_id.in_(reg_ids))
+        
+    return query.filter(or_(*conditions)).order_by(desc(Match.start_time), desc(Match.created_at)).all()
 
 def get_matches_by_registrations(db: Session, reg_ids: list):
     if not reg_ids: return []

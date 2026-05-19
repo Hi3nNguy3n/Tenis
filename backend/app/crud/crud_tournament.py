@@ -30,31 +30,6 @@ def create_tournament(db: Session, tournament: TournamentCreate):
     db.add(db_tournament)
     db.commit()
     db.refresh(db_tournament)
-
-    # 3. TỰ ĐỘNG TẠO 1 CATEGORY MẶC ĐỊNH (Để dropdown không bị trống và hỗ trợ đa nội dung)
-    # Map sang Tiếng Việt cho thân thiện
-    gender_map = {"men": "Nam", "women": "Nữ", "mixed": "Nam Nữ"}
-    type_map = {"singles": "Đơn", "doubles": "Đôi"}
-    
-    gender_vn = gender_map.get(db_tournament.gender_division.lower(), db_tournament.gender_division)
-    type_vn = type_map.get(db_tournament.category_type.lower(), db_tournament.category_type)
-    
-    # Tên nội dung gọn gàng: "Đôi Nam Nữ", "Đơn Nam"...
-    category_name = f"{type_vn} {gender_vn}"
-    if db_tournament.gender_division.lower() == "mixed":
-        category_name = "Đôi Nam Nữ" # Đặc biệt cho Mixed Doubles
-
-    default_category = TournamentCategory(
-        tournament_id=db_tournament.id,
-        name=category_name,
-        category_type=f"{db_tournament.gender_division.lower()}_{db_tournament.category_type.lower()}",
-        max_participants=db_tournament.draw_size,
-        max_points=None
-    )
-    db.add(default_category)
-    db.commit()
-    
-    db.refresh(db_tournament)
     return db_tournament
 
 def delete_tournament_db(db: Session, tournament_id: int):
@@ -155,21 +130,22 @@ def update_tournament_info(db: Session, tournament_id: int, tournament_in: Tourn
     log_action(db, admin_id, "TOURNAMENT", "UPDATE", "Tournament", db_tour.id, None, {"name": db_tour.name}, "Cập nhật giải đấu")
     return db_tour
 
-def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optional[int] = None):
+def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optional[int] = None, draw_size: Optional[int] = None):
     query = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
-        Registration.status.in_(["confirmed", "checked_in"]),
+        Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
         Registration.deleted_at.is_(None)
     )
     if category_id:
         query = query.filter(Registration.tournament_category_id == category_id)
     regs = query.all()
 
-    if not regs:
-        raise HTTPException(status_code=400, detail="Chưa có vận động viên nào được duyệt tham gia để tạo nhánh đấu.")
+    # Tính count từ draw_size nếu có, nếu không lấy theo số lượng đăng ký
+    count = draw_size if draw_size and draw_size > 0 else len(regs)
     
-    random.shuffle(regs)
-    count = len(regs)
+    if count == 0:
+        raise HTTPException(status_code=400, detail="Không có dữ liệu số lượng VĐV hoặc draw size.")
+    
     rounds_needed = math.ceil(math.log2(count))
     if rounds_needed == 0: rounds_needed = 1
     total_slots = 2 ** rounds_needed 
@@ -209,45 +185,17 @@ def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optiona
             current_round[i].next_match_id = next_round[parent_match_index].id
 
     first_round_matches = matches_by_round[rounds_needed]
-    slots = [None] * total_slots
-    for i in range(count):
-        slots[i] = regs[i]
 
-    slot_idx = 0
+    # KHÔNG GÁN NGẪU NHIÊN NỮA -> Admin tự ghép cặp bằng tay
     for m in first_round_matches:
-        reg_a = slots[slot_idx]
-        reg_b = slots[slot_idx + 1]
-        slot_idx += 2
+        m.side_a_registration_id = None
+        m.side_b_registration_id = None
 
-        m.side_a_registration_id = reg_a.id if reg_a else None
-        m.side_b_registration_id = reg_b.id if reg_b else None
-
-        if reg_a and not reg_b:
-            m.status = "completed"
-            m.winner_side = "side_a"
-            m.winner_registration_id = reg_a.id
-            m.result_note = "BYE"
-        elif not reg_a and reg_b:
-            m.status = "completed"
-            m.winner_side = "side_b"
-            m.winner_registration_id = reg_b.id
-            m.result_note = "BYE"
-
-    db.commit()
-
-    for m in first_round_matches:
-        if m.status == "completed" and m.next_match_id and m.winner_registration_id:
-            next_m = db.query(Match).filter(Match.id == m.next_match_id).first()
-            if next_m:
-                if m.match_no % 2 != 0:
-                    next_m.side_a_registration_id = m.winner_registration_id
-                else:
-                    next_m.side_b_registration_id = m.winner_registration_id
     db.commit()
 
     return {
-        "message": "Tuyệt vời! Đã tạo xong sơ đồ thi đấu.", 
-        "total_players": count,
+        "message": "Đã tạo khung nhánh đấu thành công. Vui lòng tự ghép cặp thi đấu bằng tay.", 
+        "total_slots": total_slots,
         "rounds": rounds_needed
     }
 
@@ -356,38 +304,57 @@ def schedule_match_db(db: Session, match_id: int, payload: MatchScheduleUpdate):
     return {"message": "Đã cập nhật lịch thi đấu"}
 
 def get_all_matches_detail(db: Session):
-    matches = db.query(Match, Tournament, Court).join(
+    matches = db.query(Match, Tournament, Court).outerjoin(
         Tournament, Match.tournament_id == Tournament.id
     ).outerjoin(
         Court, Match.court_id == Court.id
     ).order_by(desc(Match.start_time)).all()
 
-    # Helper lấy thông tin đầy đủ của team từ registration_id
-    def get_player_full_data(reg_id):
-        if not reg_id:
-            return {"name": None, "avatar": None, "partner_name": None, "partner_avatar": None}
-        reg = db.query(Registration).filter(Registration.id == reg_id).first()
-        if not reg:
-            return {"name": None, "avatar": None, "partner_name": None, "partner_avatar": None}
-            
-        user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == reg.player_id).first()
-        data = {
-            "name": user.full_name if user else None,
-            "avatar": user.avatar_url if user else None,
-            "partner_name": reg.partner_name,
-            "partner_avatar": None
-        }
-        
-        # Lấy avatar partner nếu có liên kết
-        if reg.partner_user_id:
-            p_user = db.query(User).filter(User.id == reg.partner_user_id).first()
-            if p_user:
-                data["partner_avatar"] = p_user.avatar_url
-        elif getattr(reg, "partner_player_id", None):
-            p_user = db.query(User).join(Player).filter(Player.id == reg.partner_player_id).first()
-            if p_user:
-                data["partner_avatar"] = p_user.avatar_url
+    # Helper lấy thông tin đầy đủ của team từ match và side
+    def get_match_players_data(m, side):
+        if side == "a":
+            reg_id = m.side_a_registration_id
+            p_id = m.player_a_id
+            p2_id = m.player_a2_id
+        else:
+            reg_id = m.side_b_registration_id
+            p_id = m.player_b_id
+            p2_id = m.player_b2_id
+
+        data = {"name": None, "avatar": None, "partner_name": None, "partner_avatar": None}
+
+        # Cách 1: Qua registration (cho giải đấu)
+        if reg_id:
+            reg = db.query(Registration).filter(Registration.id == reg_id).first()
+            if reg:
+                user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == reg.player_id).first()
+                data["name"] = user.full_name if user else None
+                data["avatar"] = user.avatar_url if user else None
+                data["partner_name"] = reg.partner_name
                 
+                if reg.partner_user_id:
+                    p_user = db.query(User).filter(User.id == reg.partner_user_id).first()
+                    if p_user:
+                        data["partner_avatar"] = p_user.avatar_url
+                elif getattr(reg, "partner_player_id", None):
+                    p_user = db.query(User).join(Player).filter(Player.id == reg.partner_player_id).first()
+                    if p_user:
+                        data["partner_avatar"] = p_user.avatar_url
+            return data
+
+        # Cách 2: Qua direct player_id (cho trận giao hữu/thách đấu)
+        if p_id:
+            user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == p_id).first()
+            if user:
+                data["name"] = user.full_name
+                data["avatar"] = user.avatar_url
+
+        if p2_id:
+            user2 = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == p2_id).first()
+            if user2:
+                data["partner_name"] = user2.full_name
+                data["partner_avatar"] = user2.avatar_url
+
         return data
 
     results = []
@@ -398,18 +365,18 @@ def get_all_matches_detail(db: Session):
         elif m.start_time:
             match_date = m.start_time.date()
         else:
-            match_date = t.start_date
+            match_date = t.start_date if t else None
 
-        p1_data = get_player_full_data(m.side_a_registration_id)
-        p2_data = get_player_full_data(m.side_b_registration_id)
+        p1_data = get_match_players_data(m, "a")
+        p2_data = get_match_players_data(m, "b")
 
         results.append({
             "id": m.id,
-            "tournament_id": t.id,
-            "tournament": t.name,
-            "tournament_start_date": t.start_date.isoformat() if t.start_date else None,
-            "tournament_end_date": t.end_date.isoformat() if t.end_date else None,
-            "location": t.location or "Vietnam",
+            "tournament_id": t.id if t else None,
+            "tournament": t.name if t else "Giao hữu tự do",
+            "tournament_start_date": t.start_date.isoformat() if t and t.start_date else None,
+            "tournament_end_date": t.end_date.isoformat() if t and t.end_date else None,
+            "location": (t.location if t else None) or "Saigon Tennis Club",
             "round_code": m.round_code,
             "court": c.court_name if c else "Chưa gán sân",
             "date": match_date.isoformat() if match_date else None,
@@ -426,6 +393,7 @@ def get_all_matches_detail(db: Session):
             "p2_partner_avatar": p2_data["partner_avatar"],
             "winner_side": m.winner_side,
             "score": m.score_summary,
+            "video_url": getattr(m, 'video_url', None),
         })
     return results
 
@@ -796,7 +764,7 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
     players = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
         Registration.tournament_category_id == category_id,
-        Registration.status == "confirmed",
+        Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
         Registration.deleted_at.is_(None)
     ).all()
 
@@ -809,8 +777,8 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
         Match.tournament_category_id == category_id
     ).delete()
     
-    # Đảo lộn ngẫu nhiên VĐV trước khi bốc thăm
-    random.shuffle(players) 
+    # Bỏ chọn ngẫu nhiên để hỗ trợ bốc thăm / sắp xếp thủ công (theo danh sách đã duyệt)
+    # random.shuffle(players) 
 
     # 3. Chia đều VĐV vào các bảng
     # Mẹo Python: players[i::num_groups] sẽ chia đều mảng thành các phần bằng nhau
