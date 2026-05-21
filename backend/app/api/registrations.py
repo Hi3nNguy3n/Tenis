@@ -52,6 +52,7 @@ def get_my_registrations(
         item = registration_schemas.RegistrationResponse.model_validate(reg)
         item.tournament_name = tourn.name
         item.location = tourn.location
+        item.category_id = reg.tournament_category_id
         item.category_type = tourn.category_type
         item.category_name = category.name if category else "Mặc định"
         item.entry_fee = float(tourn.entry_fee) if tourn.entry_fee else 0
@@ -98,6 +99,7 @@ def admin_get_all_registrations(
         item.player_name = user.full_name
         item.tournament_date = tourn.start_date
         item.registered_at = reg.registered_at
+        item.category_id = reg.tournament_category_id
         item.category_type = tourn.category_type
         item.category_name = category.name if category else "Mặc định"
         item.entry_fee = float(tourn.entry_fee) if tourn.entry_fee else 0

@@ -194,17 +194,8 @@ const openAssignDialog = (m) => {
 const getAvailableRegistrations = (excludeMatchId, currentSelectedId, otherSideSelectedId) => {
   return tournamentRegistrations.value.filter(r => {
     if (r.id === currentSelectedId) return true
-    if (r.id === otherSideSelectedId) return false // Cấm chọn trùng 1 người cho 2 bên
-    
-    // Kiểm tra xem VĐV này đã bị gán ở trận khác chưa (chỉ áp dụng với knockout)
-    const isAssignedElsewhere = matches.value.some(m => {
-      if (m.id === excludeMatchId) return false
-      if (m.stage_type === 'knockout') {
-        return m.side_a_registration_id === r.id || m.side_b_registration_id === r.id
-      }
-      return false
-    })
-    return !isAssignedElsewhere
+    if (r.id === otherSideSelectedId) return false
+    return true
   })
 }
 

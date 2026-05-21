@@ -18,7 +18,7 @@ const tournamentId = route.params.id
 
 const step = ref(1) 
 const isSubmitting = ref(false)
-const isAlreadyRegistered = ref(false) 
+const myRegistrations = ref([])
 const otpCode = ref('')
 
 const safeFormatDate = (dateStr) => {
@@ -39,6 +39,10 @@ const userEmail = computed(() => authStore.user?.email || '')
 const selectedCategory = computed(() => {
   if (!selectedCategoryId.value || !tournament.value?.categories) return null
   return tournament.value.categories.find(c => c.id === selectedCategoryId.value)
+})
+
+const isAlreadyRegistered = computed(() => {
+  return myRegistrations.value.some(r => r.category_id === selectedCategoryId.value)
 })
 
 const formatCategoryLabel = (type) => type === 'Singles' ? t('tournaments.singlesFormat') : t('tournaments.doublesFormat')
@@ -83,10 +87,7 @@ onMounted(async () => {
 
     try {
       const myRegs = await apiClient.get('/api/registrations/my-registrations')
-      const exists = myRegs.find(r => r.tournament_id === parseInt(tid) && r.status !== 'cancelled' && r.status !== 'rejected')
-      if (exists) {
-        isAlreadyRegistered.value = true 
-      }
+      myRegistrations.value = myRegs.filter(r => r.tournament_id === parseInt(tid) && r.status !== 'cancelled' && r.status !== 'rejected')
     } catch (err) {
       console.error(err)
     }
@@ -266,6 +267,24 @@ const submitRegistration = async () => {
     <div class="container neo-grid">
       
       <main class="main-column">
+        <div v-if="tournament?.categories?.length > 1" class="neo-card category-switch-card fade-in">
+          <div class="neo-form-item">
+            <label>{{ t('tournaments.selectCategory') || 'Chọn nội dung thi đấu' }} <span class="required">*</span></label>
+            <el-select v-model="selectedCategoryId" class="w-full" placeholder="Chọn nội dung">
+              <el-option 
+                v-for="cat in tournament?.categories" 
+                :key="cat.id" 
+                :label="cat.name" 
+                :value="cat.id"
+              >
+                <div class="flex justify-between">
+                  <span>{{ cat.name }}</span>
+                  <span class="text-xs text-muted">{{ cat.max_points ? `${cat.max_points} pts` : '' }}</span>
+                </div>
+              </el-option>
+            </el-select>
+          </div>
+        </div>
         
         <div v-if="isAlreadyRegistered" class="neo-card alert-card fade-in">
           <div class="card-icon warning"><el-icon><WarningFilled /></el-icon></div>
@@ -289,23 +308,7 @@ const submitRegistration = async () => {
             <div class="card-body">
               <!-- CHỌN NỘI DUNG THI ĐẤU -->
               <!-- Chọn nội dung thi đấu (Chỉ hiện nếu có > 1 category) -->
-              <div v-if="tournament?.categories?.length > 1" class="neo-form-item mb-6">
-                <label>{{ t('tournaments.selectCategory') || 'Chọn nội dung thi đấu' }} <span class="required">*</span></label>
-                <el-select v-model="selectedCategoryId" class="w-full" placeholder="Chọn nội dung">
-                  <el-option 
-                    v-for="cat in tournament?.categories" 
-                    :key="cat.id" 
-                    :label="cat.name" 
-                    :value="cat.id"
-                  >
-                    <div class="flex justify-between">
-                      <span>{{ cat.name }}</span>
-                      <span class="text-xs text-muted">{{ cat.max_points ? `${cat.max_points} pts` : '' }}</span>
-                    </div>
-                  </el-option>
-                </el-select>
-              </div>
-              <div v-else-if="tournament?.categories?.length === 1" class="selected-category-banner mb-6">
+              <div v-if="tournament?.categories?.length === 1" class="selected-category-banner mb-6">
                 <div class="scb-label">{{ t('tournaments.category') || 'Nội dung thi đấu' }}</div>
                 <div class="scb-value">{{ tournament.categories[0].name }}</div>
               </div>
@@ -534,6 +537,7 @@ const submitRegistration = async () => {
   .notch.right { right: -11px; }
 }
 .neo-card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 10px 40px rgba(0,0,0,0.04); overflow: hidden; }
+.category-switch-card { padding: 1.25rem 2rem; margin-bottom: 1rem; }
 .card-header { padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); }
 .ch-title { display: flex; align-items: center; gap: 10px; margin-bottom: 6px;}
 .ch-icon { font-size: 1.4rem; color: var(--blue-accent); }

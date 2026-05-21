@@ -256,8 +256,6 @@ def schedule_match(match_id: int, payload: tournament_schemas.MatchScheduleUpdat
 def assign_match_players(match_id: int, payload: tournament_schemas.AssignMatchPlayersRequest, db: Session = Depends(get_db)):
     from app.models.models import Match
     from fastapi import HTTPException
-    from sqlalchemy import or_
-    
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match:
         raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu")
@@ -265,27 +263,6 @@ def assign_match_players(match_id: int, payload: tournament_schemas.AssignMatchP
     # 1. Validation: Không thể tự đối đầu với chính mình
     if payload.side_a_registration_id and payload.side_a_registration_id == payload.side_b_registration_id:
         raise HTTPException(status_code=400, detail="Không thể xếp một VĐV/cặp đấu tự đối đầu với chính mình.")
-        
-    # 2. Validation: VĐV đã được gán ở trận đấu khác trong cùng nhánh đấu Knockout
-    if match.stage_type == "knockout":
-        for reg_id, side_name in [(payload.side_a_registration_id, "Bên A"), (payload.side_b_registration_id, "Bên B")]:
-            if reg_id:
-                already_assigned = db.query(Match).filter(
-                    Match.tournament_id == match.tournament_id,
-                    Match.tournament_category_id == match.tournament_category_id,
-                    Match.stage_type == "knockout",
-                    Match.id != match.id,
-                    or_(
-                        Match.side_a_registration_id == reg_id,
-                        Match.side_b_registration_id == reg_id
-                    )
-                ).first()
-                if already_assigned:
-                    raise HTTPException(
-                        status_code=400, 
-                        detail=f"Cặp đấu/VĐV được chọn ở {side_name} đã được xếp lịch ở trận số #{already_assigned.match_no}."
-                    )
-    
     match.side_a_registration_id = payload.side_a_registration_id
     match.side_b_registration_id = payload.side_b_registration_id
     
@@ -471,6 +448,7 @@ def get_public_registrations(
         item.user_id = user.id
         item.player_phone = user.phone 
         item.player_skill = player.skill_level
+        item.category_id = reg.tournament_category_id
         item.category_name = category.name if category else "Mặc định"
         
         # Lấy thông tin partner chi tiết (nếu có)
@@ -489,4 +467,4 @@ def get_public_registrations(
 
         response_items.append(item)
         
-    return response_items
+    return response_items

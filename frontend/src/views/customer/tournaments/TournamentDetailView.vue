@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { onMounted, computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTournamentStore } from '../../../stores/tournament'
@@ -28,26 +28,35 @@ const authStore = useAuthStore()
 const tournamentId = computed(() => route.params.id)
 const tournament = computed(() => tournamentStore.currentTournament)
 
-const activeTab = ref('info')
+const activeTab = ref('bracket')
 const publicMatches = ref([])
 const loadingBracket = ref(false)
 const standingsData = ref([])
 const loadingStandings = ref(false)
-const isAlreadyRegistered = ref(false)
 const myRegistration = ref(null)
+const myRegistrations = ref([])
 const registrations = ref([])
 const loadingRegistrations = ref(false)
 const selectedCategoryId = ref(null)
+const isAlreadyRegistered = computed(() => Boolean(myRegistration.value))
+const hasHtmlContent = (value) => /<\/?[a-z][\s\S]*>/i.test(value || '')
+
+const renderTournamentDescription = (value) => {
+  if (!value) return ''
+  if (hasHtmlContent(value)) return value
+  return value.replace(/\r\n/g, '\n').replace(/\n/g, '<br>')
+}
 
 watch(tournamentId, async (newId) => {
   if (newId) {
     // Reset state
-    activeTab.value = 'info'
+    activeTab.value = 'bracket'
     publicMatches.value = []
     standingsData.value = []
     registrations.value = []
     selectedCategoryId.value = null
-    isAlreadyRegistered.value = false
+    myRegistration.value = null
+    myRegistrations.value = []
     
     await tournamentStore.fetchTournamentById(newId)
     
@@ -61,20 +70,16 @@ watch(tournamentId, async (newId) => {
 const checkRegistration = async () => {
   try {
     const myRegs = await apiClient.get('/api/registrations/my-registrations')
-    const exists = myRegs.find(r => r.tournament_id === parseInt(tournamentId.value) && r.status !== 'cancelled' && r.status !== 'rejected')
-    if (exists) {
-      isAlreadyRegistered.value = true
-      myRegistration.value = exists
-      // AUTO-SELECT THE REGISTERED CATEGORY BY DEFAULT
-      if (!selectedCategoryId.value) {
-        selectedCategoryId.value = exists.category_id
-      }
-    }
+    myRegistrations.value = myRegs.filter(r => r.tournament_id === parseInt(tournamentId.value) && r.status !== 'cancelled' && r.status !== 'rejected')
+    syncCurrentRegistration()
   } catch (err) {
     console.error("Lỗi kiểm tra đăng ký:", err)
   }
 }
 
+const syncCurrentRegistration = () => {
+  myRegistration.value = myRegistrations.value.find(r => r.category_id === selectedCategoryId.value) || null
+}
 const fetchRegistrations = async () => {
   loadingRegistrations.value = true
   try {
@@ -122,6 +127,11 @@ const isPastDeadline = computed(() => {
   return new Date() >= new Date(tournament.value.registration_close_at);
 });
 
+const isTournamentFull = computed(() => {
+  if (!tournament.value) return false
+  return tournament.value.current_participants >= (tournament.value.max_participants || tournament.value.draw_size)
+})
+
 const fetchBracket = async () => {
   loadingBracket.value = true
   try {
@@ -139,6 +149,7 @@ const fetchBracket = async () => {
 // Watch category change to re-fetch data
 watch(selectedCategoryId, (newVal) => {
   if (newVal) {
+    syncCurrentRegistration()
     fetchBracket()
     fetchStandings()
     fetchRegistrations()
@@ -156,7 +167,7 @@ watch(() => tournament.value?.categories, (cats) => {
 watch(activeTab, (newTab) => {
   if (!selectedCategoryId.value) return
   
-  if (newTab === 'bracket' && publicMatches.value.length === 0) {
+  if ((newTab === 'bracket' || newTab === 'schedule' || newTab === 'media') && publicMatches.value.length === 0) {
     fetchBracket()
   } else if (newTab === 'standings' && standingsData.value.length === 0) {
     fetchStandings()
@@ -257,19 +268,61 @@ const allMedia = computed(() => {
         p1_name: m.p1_name,
         p2_name: m.p2_name,
         video_url: m.video_url,
-        image_url: m.image_url
+        image_url: m.image_url,
+        match: m
       })
     }
   })
   return media
 })
 
-const previewVisible = ref(false)
-const previewData = ref({ type: 'image', url: '', title: '' })
+const scheduledMatches = computed(() => {
+  return [...publicMatches.value].sort((a, b) => {
+    const timeA = a.start_time ? new Date(a.start_time).getTime() : Number.MAX_SAFE_INTEGER
+    const timeB = b.start_time ? new Date(b.start_time).getTime() : Number.MAX_SAFE_INTEGER
+    if (timeA !== timeB) return timeA - timeB
+    return (a.match_no || 0) - (b.match_no || 0)
+  })
+})
 
-const openPreview = (type, url, title) => {
-  previewData.value = { type, url, title }
+const isAdvanceMatch = (match) => {
+  if (match.status !== 'completed') return false
+  return Boolean(match.winner_side) && (!match.p1_user_id || !match.p2_user_id)
+}
+
+const getMatchStatusLabel = (match) => {
+  if (isAdvanceMatch(match)) return 'Vào vòng tiếp'
+  if (match.status === 'completed') return t('tournaments.completed') || 'Hoàn thành'
+  if (match.status === 'ongoing') return t('tournaments.live') || 'Live'
+  if (match.status === 'scheduled') return t('tournaments.upcoming') || 'Sắp đánh'
+  return 'Chưa xếp lịch'
+}
+
+const getMatchStatusClass = (match) => {
+  if (isAdvanceMatch(match)) return 'is-advance'
+  if (match.status === 'completed') return 'is-done'
+  if (match.status === 'ongoing') return 'is-live'
+  if (match.status === 'scheduled') return 'is-upcoming'
+  return ''
+}
+
+const previewVisible = ref(false)
+const previewData = ref({ type: 'image', url: '', title: '', match: null })
+
+const openPreview = (type, url, title, matchObj = null) => {
+  previewData.value = { type, url, title, match: matchObj }
   previewVisible.value = true
+}
+
+const parseSets = (scoreSummary) => {
+  if (!scoreSummary) return []
+  return scoreSummary.split(',').map(s => {
+    const parts = s.trim().split('-')
+    return {
+      a: parts[0] || '0',
+      b: parts[1] || '0'
+    }
+  })
 }
 </script>
 
@@ -350,7 +403,7 @@ const openPreview = (type, url, title) => {
 
                   <div class="bento-box box-lg">
                     <h3>{{ t('tournaments.aboutTournament') }}</h3>
-                    <div class="tournament-description" v-if="tournament.description" v-html="tournament.description"></div>
+                    <div class="tournament-description" v-if="tournament.description" v-html="renderTournamentDescription(tournament.description)"></div>
                     <p v-else>
                       {{ tournament.name }} {{ t('tournaments.tournamentDesc') }}
                     </p>
@@ -401,13 +454,11 @@ const openPreview = (type, url, title) => {
                             <div class="m-v2-header">
                               <div class="m-v2-header-left">
                                 <span class="m-v2-no">#{{ m.match_no }}</span>
-                                <span class="m-v2-court" v-if="m.court">
-                                  <el-icon><Location /></el-icon> {{ m.court }}
+                                <span class="m-v2-court">
+                                  <el-icon><Location /></el-icon> {{ m.court || 'Chưa gán sân' }}
                                 </span>
                               </div>
-                              <span v-if="m.status === 'completed'" class="m-v2-status is-done">{{ t('tournaments.completed') || 'Đã xong' }}</span>
-                              <span v-else-if="m.status === 'ongoing'" class="m-v2-status is-live">{{ t('tournaments.live') }}</span>
-                              <span v-else class="m-v2-status">{{ t('tournaments.upcoming') }}</span>
+                              <span class="m-v2-status" :class="getMatchStatusClass(m)">{{ getMatchStatusLabel(m) }}</span>
                             </div>
                             
                             <div class="m-v2-body">
@@ -431,7 +482,14 @@ const openPreview = (type, url, title) => {
                                     </router-link>
                                   </div>
                                 </div>
-                                <span class="p-score" v-if="m.score_a !== null && m.status === 'completed'">{{ m.score_a }}</span>
+                                <div class="score-container-v2" v-if="m.status === 'completed'">
+                                  <div class="set-scores-wrap" v-if="m.score_summary">
+                                    <span v-for="(set, sIdx) in parseSets(m.score_summary)" :key="sIdx" class="set-score-pill" :class="{ 'is-set-win': Number(set.a) > Number(set.b) }">
+                                      {{ set.a }}
+                                    </span>
+                                  </div>
+                                  <span class="p-score" v-else-if="m.score_a !== null">{{ m.score_a }}</span>
+                                </div>
                               </div>
                               
                               <div class="m-v2-divider"></div>
@@ -456,18 +514,26 @@ const openPreview = (type, url, title) => {
                                     </router-link>
                                   </div>
                                 </div>
-                                <span class="p-score" v-if="m.score_b !== null && m.status === 'completed'">{{ m.score_b }}</span>
+                                <div class="score-container-v2" v-if="m.status === 'completed'">
+                                  <div class="set-scores-wrap" v-if="m.score_summary">
+                                    <span v-for="(set, sIdx) in parseSets(m.score_summary)" :key="sIdx" class="set-score-pill" :class="{ 'is-set-win': Number(set.b) > Number(set.a) }">
+                                      {{ set.b }}
+                                    </span>
+                                  </div>
+                                  <span class="p-score" v-else-if="m.score_b !== null">{{ m.score_b }}</span>
+                                </div>
                               </div>
-
+                              
                               <div v-if="m.video_url || m.image_url || m.referee_name" class="m-v2-footer">
-                                <div v-if="m.referee_name" class="m-referee">
-                                  <el-icon><User /></el-icon> <span>Trọng tài: {{ m.referee_name }}</span>
+                                <div v-if="m.referee_name" class="m-referee-badge">
+                                  <span class="referee-icon">⚖️</span>
+                                  <span class="referee-name">{{ m.referee_name }}</span>
                                 </div>
                                 <div class="m-media-actions">
-                                  <el-button v-if="m.video_url" link type="danger" size="small" @click="openPreview('video', m.video_url, `Highlight Trận #${m.match_no}`)">
+                                  <el-button v-if="m.video_url" class="media-btn video-btn" size="small" @click="openPreview('video', m.video_url, `Highlight Trận #${m.match_no}`, m)">
                                     <el-icon><VideoCamera /></el-icon> Video
                                   </el-button>
-                                  <el-button v-if="m.image_url" link type="primary" size="small" @click="openPreview('image', m.image_url, `Ảnh Trận #${m.match_no}`)">
+                                  <el-button v-if="m.image_url" class="media-btn image-btn" size="small" @click="openPreview('image', m.image_url, `Ảnh Trận #${m.match_no}`, m)">
                                     <el-icon><Picture /></el-icon> {{ t('tournaments.photos') || 'Ảnh' }}
                                   </el-button>
                                 </div>
@@ -476,6 +542,61 @@ const openPreview = (type, url, title) => {
                           </div>
                           
                           <div class="connector-line-out" v-if="roundIdx < groupedMatches.length - 1"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane label="LỊCH THI ĐẤU" name="schedule">
+                <div v-if="tournament.categories?.length > 1" class="category-filter-wrap">
+                  <div class="filter-label">Chọn nội dung:</div>
+                  <el-radio-group v-model="selectedCategoryId" size="small">
+                    <el-radio-button v-for="cat in tournament.categories" :key="cat.id" :value="cat.id">
+                      {{ cat.name }}
+                    </el-radio-button>
+                  </el-radio-group>
+                </div>
+
+                <div v-loading="loadingBracket" class="schedule-panel">
+                  <div v-if="scheduledMatches.length === 0" class="empty-state">
+                    <div class="es-icon">🎾</div>
+                    <p>Chưa có lịch thi đấu cho nội dung này.</p>
+                  </div>
+
+                  <div v-else class="schedule-list">
+                    <div v-for="m in scheduledMatches" :key="m.id" class="schedule-row" :class="getMatchStatusClass(m)">
+                      <div class="schedule-time">
+                        <strong>{{ m.start_time ? formatDateTime(m.start_time) : 'Chưa xếp giờ' }}</strong>
+                        <span>{{ m.court || 'Chưa gán sân' }}</span>
+                      </div>
+
+                      <div class="schedule-match">
+                        <div class="schedule-title">
+                          <span>#{{ m.match_no }}</span>
+                          <strong>{{ m.round_code }}</strong>
+                          <span class="m-v2-status" :class="getMatchStatusClass(m)">{{ getMatchStatusLabel(m) }}</span>
+                        </div>
+
+                        <div class="schedule-sides">
+                          <div class="schedule-side" :class="{ 'is-win': m.winner_side === 'side_a' }">
+                            <span>{{ m.p1_name || 'Chưa xác định' }}</span>
+                            <small v-if="m.p1_partner_name">{{ m.p1_partner_name }}</small>
+                          </div>
+                          <div class="schedule-score" v-if="m.status === 'completed'">
+                            <template v-if="m.score_summary">{{ m.score_summary }}</template>
+                            <template v-else>{{ m.score_a ?? '-' }} - {{ m.score_b ?? '-' }}</template>
+                          </div>
+                          <div class="schedule-score" v-else>VS</div>
+                          <div class="schedule-side" :class="{ 'is-win': m.winner_side === 'side_b' }">
+                            <span>{{ m.p2_name || 'Chưa xác định' }}</span>
+                            <small v-if="m.p2_partner_name">{{ m.p2_partner_name }}</small>
+                          </div>
+                        </div>
+
+                        <div v-if="m.referee_name" class="schedule-meta">
+                          Trọng tài: <strong>{{ m.referee_name }}</strong>
                         </div>
                       </div>
                     </div>
@@ -644,7 +765,7 @@ const openPreview = (type, url, title) => {
                         <span>Video Highlight</span>
                       </div>
                       <div class="media-overlay">
-                        <div class="play-btn" @click="openPreview(item.video_url ? 'video' : 'image', item.video_url || item.image_url, item.match_label)">
+                        <div class="play-btn" @click="openPreview(item.video_url ? 'video' : 'image', item.video_url || item.image_url, item.match_label, item.match)">
                           <el-icon v-if="item.video_url"><VideoPlay /></el-icon>
                           <el-icon v-else><View /></el-icon>
                         </div>
@@ -688,11 +809,10 @@ const openPreview = (type, url, title) => {
                 <button 
                   class="neo-btn-primary" 
                   @click="goToRegister" 
-                  :disabled="isAlreadyRegistered || tournament.current_participants >= (tournament.max_participants || tournament.draw_size)"
-                  :class="{ 'is-disabled': isAlreadyRegistered || tournament.current_participants >= (tournament.max_participants || tournament.draw_size) }"
+                  :disabled="isTournamentFull"
+                  :class="{ 'is-disabled': isTournamentFull }"
                 >
-                  <span v-if="isAlreadyRegistered"><el-icon><Check /></el-icon> {{ t('tournaments.alreadyRegistered') }}</span>
-                  <span v-else-if="tournament.current_participants >= (tournament.max_participants || tournament.draw_size)">{{ t('tournaments.fullyBooked') }}</span>
+                  <span v-if="isTournamentFull">{{ t('tournaments.fullyBooked') }}</span>
                   <span v-else>{{ t('tournaments.registerNow') }} <el-icon><ArrowRight /></el-icon></span>
                 </button>
               </template>
@@ -728,11 +848,10 @@ const openPreview = (type, url, title) => {
             v-if="isRegistrationOpen"
             class="neo-btn-primary ms-btn" 
             @click="goToRegister" 
-            :disabled="isAlreadyRegistered || tournament.current_participants >= (tournament.max_participants || tournament.draw_size)"
-            :class="{ 'is-disabled': isAlreadyRegistered || tournament.current_participants >= (tournament.max_participants || tournament.draw_size) }"
+            :disabled="isTournamentFull"
+            :class="{ 'is-disabled': isTournamentFull }"
           >
-            <span v-if="isAlreadyRegistered">{{ t('tournaments.alreadyRegistered') || 'Đã ghi danh' }}</span>
-            <span v-else-if="tournament.current_participants >= (tournament.max_participants || tournament.draw_size)">{{ t('tournaments.fullyBooked') || 'Đã hết slot' }}</span>
+            <span v-if="isTournamentFull">{{ t('tournaments.fullyBooked') || 'Đã hết slot' }}</span>
             <span v-else>{{ t('tournaments.registerNow') || 'Đăng ký ngay' }}</span>
           </button>
           <div v-else class="ms-status-text">
@@ -751,23 +870,109 @@ const openPreview = (type, url, title) => {
     <el-dialog
       v-model="previewVisible"
       :title="previewData.title"
-      width="80%"
+      width="85%"
       destroy-on-close
-      class="media-preview-dialog"
+      class="media-preview-dialog-v2"
     >
-      <div class="preview-content">
-        <div v-if="previewData.type === 'video'" class="video-container">
-          <iframe 
-            v-if="previewData.url.includes('youtube.com') || previewData.url.includes('youtu.be')"
-            :src="previewData.url.replace('watch?v=', 'embed/')" 
-            frameborder="0" 
-            allowfullscreen
-            class="preview-video"
-          ></iframe>
-          <video v-else :src="previewData.url" controls autoplay class="preview-video"></video>
+      <div class="preview-layout">
+        <!-- Left: Media Player Column -->
+        <div class="preview-media-col">
+          <div v-if="previewData.type === 'video'" class="video-container">
+            <iframe 
+              v-if="previewData.url.includes('youtube.com') || previewData.url.includes('youtu.be')"
+              :src="previewData.url.replace('watch?v=', 'embed/')" 
+              frameborder="0" 
+              allowfullscreen
+              class="preview-video"
+            ></iframe>
+            <video v-else :src="previewData.url" controls autoplay class="preview-video"></video>
+          </div>
+          <div v-else class="image-container">
+            <el-image :src="previewData.url" fit="contain" class="preview-image" />
+          </div>
         </div>
-        <div v-else class="image-container">
-          <el-image :src="previewData.url" fit="contain" class="preview-image" />
+
+        <!-- Right: Match Info Metadata Column -->
+        <div v-if="previewData.match" class="preview-info-col">
+          <div class="info-header">
+            <span class="info-badge">Trận #{{ previewData.match.match_no }}</span>
+            <span class="info-stage">{{ previewData.match.round_code }}</span>
+          </div>
+
+          <h4 class="info-title">Đấu thủ & Kết quả</h4>
+
+          <!-- Match Card -->
+          <div class="preview-match-card">
+            <!-- Side A -->
+            <div class="preview-side" :class="{ 'is-winner': previewData.match.winner_side === 'side_a' }">
+              <div class="side-players-list">
+                <div class="player-row">
+                  <el-avatar :size="24" :src="previewData.match.p1_avatar" class="info-avatar">
+                    <el-icon><User /></el-icon>
+                  </el-avatar>
+                  <span class="info-name">{{ previewData.match.p1_name || '???' }}</span>
+                </div>
+                <div v-if="previewData.match.p1_partner_name" class="player-row">
+                  <el-avatar :size="24" :src="previewData.match.p1_partner_avatar" class="info-avatar">
+                    <el-icon><User /></el-icon>
+                  </el-avatar>
+                  <span class="info-name">{{ previewData.match.p1_partner_name }}</span>
+                </div>
+              </div>
+              <div class="side-score" v-if="previewData.match.status === 'completed'">
+                {{ previewData.match.score_a !== null ? previewData.match.score_a : '-' }}
+              </div>
+              <el-icon v-if="previewData.match.winner_side === 'side_a'" class="side-win-crown"><Check /></el-icon>
+            </div>
+
+            <div class="preview-vs-divider">VS</div>
+
+            <!-- Side B -->
+            <div class="preview-side" :class="{ 'is-winner': previewData.match.winner_side === 'side_b' }">
+              <div class="side-players-list">
+                <div class="player-row">
+                  <el-avatar :size="24" :src="previewData.match.p2_avatar" class="info-avatar">
+                    <el-icon><User /></el-icon>
+                  </el-avatar>
+                  <span class="info-name">{{ previewData.match.p2_name || '???' }}</span>
+                </div>
+                <div v-if="previewData.match.p2_partner_name" class="player-row">
+                  <el-avatar :size="24" :src="previewData.match.p2_partner_avatar" class="info-avatar">
+                    <el-icon><User /></el-icon>
+                  </el-avatar>
+                  <span class="info-name">{{ previewData.match.p2_partner_name }}</span>
+                </div>
+              </div>
+              <div class="side-score" v-if="previewData.match.status === 'completed'">
+                {{ previewData.match.score_b !== null ? previewData.match.score_b : '-' }}
+              </div>
+              <el-icon v-if="previewData.match.winner_side === 'side_b'" class="side-win-crown"><Check /></el-icon>
+            </div>
+          </div>
+
+          <!-- Metadata details list -->
+          <div class="preview-meta-details">
+            <div class="meta-item" v-if="previewData.match.score_summary">
+              <span class="meta-label">Tỉ số Set:</span>
+              <div class="meta-value score-highlight">{{ previewData.match.score_summary }}</div>
+            </div>
+            
+            <div class="meta-item">
+              <span class="meta-label">Sân đấu:</span>
+              <div class="meta-value">
+                <el-icon><Location /></el-icon>
+                <span>{{ previewData.match.court || 'Chưa gán sân' }}</span>
+              </div>
+            </div>
+
+            <div class="meta-item" v-if="previewData.match.referee_name">
+              <span class="meta-label">Trọng tài:</span>
+              <div class="meta-value">
+                <el-icon><User /></el-icon>
+                <span>{{ previewData.match.referee_name }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </el-dialog>
@@ -814,6 +1019,12 @@ const openPreview = (type, url, title) => {
 :deep(.neo-tabs .el-tabs__item) { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); height: 40px; line-height: 40px; padding: 0 20px !important; border-radius: 8px; transition: 0.3s; }
 :deep(.neo-tabs .el-tabs__item.is-active) { background: white; color: var(--text-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 :deep(.neo-tabs .el-tabs__active-bar) { display: none; }
+:deep(.neo-tabs #tab-bracket) { order: 1; }
+:deep(.neo-tabs #tab-schedule) { order: 2; }
+:deep(.neo-tabs #tab-info) { order: 3; }
+:deep(.neo-tabs #tab-standings) { order: 4; }
+:deep(.neo-tabs #tab-participants) { order: 5; }
+:deep(.neo-tabs #tab-media) { order: 6; }
 .bento-layout { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-top: 1.5rem; }
 .bento-box { background: var(--bg-body); border-radius: var(--radius-lg); padding: 1.5rem; border: 1px solid var(--border-light); }
 .box-sm { display: flex; flex-direction: column; gap: 8px; }
@@ -925,6 +1136,41 @@ const openPreview = (type, url, title) => {
 .m-v2-status { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; }
 .m-v2-status.is-done { background: #dcfce7; color: #16a34a; }
 .m-v2-status.is-live { background: #fee2e2; color: #dc2626; animation: pulse 2s infinite; }
+.m-v2-status.is-upcoming { background: #fef3c7; color: #92400e; }
+.m-v2-status.is-advance { background: #e0f2fe; color: #0369a1; }
+
+.schedule-panel { margin-top: 10px; }
+.schedule-list { display: flex; flex-direction: column; gap: 12px; }
+.schedule-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+.schedule-row.is-done { border-left-color: #22c55e; }
+.schedule-row.is-live { border-left-color: #ef4444; }
+.schedule-row.is-upcoming { border-left-color: #f59e0b; }
+.schedule-row.is-advance { border-left-color: #0ea5e9; }
+.schedule-time { display: flex; flex-direction: column; gap: 6px; color: #475569; }
+.schedule-time strong { color: #0f172a; font-size: 0.9rem; }
+.schedule-time span { font-size: 0.8rem; font-weight: 700; }
+.schedule-match { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.schedule-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.schedule-title > span:first-child { color: #94a3b8; font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+.schedule-title strong { color: #0f172a; font-size: 0.9rem; }
+.schedule-sides { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.schedule-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #eef2f7; }
+.schedule-side span { font-weight: 800; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-side small { color: #64748b; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-side.is-win { background: #f0fdf4; border-color: #bbf7d0; }
+.schedule-side.is-win span { color: #15803d; }
+.schedule-score { min-width: 48px; text-align: center; font-weight: 900; color: #2563eb; font-family: 'JetBrains Mono', monospace; }
+.schedule-meta { font-size: 0.8rem; color: #64748b; }
 
 .m-v2-body { padding: 8px 0; }
 .m-v2-player { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; transition: all 0.2s; position: relative; }
@@ -1099,6 +1345,9 @@ const openPreview = (type, url, title) => {
   .m-v2-player { padding: 8px; }
   .p-name { font-size: 0.85rem; }
   .p-score { font-size: 1rem; }
+  .schedule-row { grid-template-columns: 1fr; gap: 12px; padding: 12px; }
+  .schedule-sides { grid-template-columns: 1fr; }
+  .schedule-score { text-align: left; }
   .ac-progress-section { margin-bottom: 1.5rem; }
   
   /* Responsive Bracket draw & filter on mobile */
@@ -1243,14 +1492,57 @@ const openPreview = (type, url, title) => {
 }
 
 /* Match Node Footer */
-.m-v2-footer { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px; }
-.m-referee { font-size: 0.75rem; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 4px; }
-.m-media-actions { display: flex; gap: 8px; }
-.media-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; text-decoration: none; transition: all 0.2s; }
-.media-btn.video { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
-.media-btn.video:hover { background: #dc2626; color: white; }
-.media-btn.image { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
-.media-btn.image:hover { background: #2563eb; color: white; }
+.m-v2-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px; }
+.score-container-v2 { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.set-scores-wrap { display: flex; gap: 3px; }
+.set-score-pill { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; font-size: 0.75rem; font-weight: 800; color: #475569; background: #f1f5f9; border-radius: 4px; border: 1px solid #e2e8f0; transition: all 0.2s ease; }
+.set-score-pill.is-set-win { background: #22c55e; color: white; border-color: #22c55e; }
+.m-referee-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: #475569; width: fit-content; }
+.referee-icon { font-size: 0.8rem; }
+.referee-name { color: #0f172a; font-weight: 700; }
+.m-media-actions { display: flex; gap: 8px; margin-top: 2px; }
+.media-btn { border-radius: 8px !important; font-weight: 700 !important; font-size: 0.75rem !important; padding: 6px 12px !important; height: 28px !important; transition: all 0.2s ease !important; }
+.video-btn { background: #fef2f2 !important; color: #ef4444 !important; border: 1px solid #fee2e2 !important; }
+.video-btn:hover { background: #ef4444 !important; color: white !important; border-color: #ef4444 !important; }
+.image-btn { background: #eff6ff !important; color: #3b82f6 !important; border: 1px solid #dbeafe !important; }
+.image-btn:hover { background: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }
+
+/* Media Dialog Split Layout */
+.media-preview-dialog-v2 { border-radius: 16px !important; overflow: hidden; }
+.media-preview-dialog-v2 :deep(.el-dialog__header) { padding: 20px 24px 10px !important; border-bottom: 1px solid #e2e8f0; }
+.media-preview-dialog-v2 :deep(.el-dialog__title) { font-weight: 800; font-size: 1.2rem; color: #0f172a; }
+.media-preview-dialog-v2 :deep(.el-dialog__body) { padding: 24px !important; }
+.preview-layout { display: grid; grid-template-columns: 2.2fr 1fr; gap: 24px; }
+@media (max-width: 992px) { .preview-layout { grid-template-columns: 1fr; } }
+.preview-media-col { background: #0f172a; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 380px; box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6); border: 1px solid #1e293b; }
+.video-container, .image-container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+.preview-video { width: 100%; aspect-ratio: 16/9; border: none; max-height: 480px; }
+.preview-image { width: 100%; max-height: 480px; object-fit: contain; }
+.preview-info-col { display: flex; flex-direction: column; gap: 20px; background: #f8fafc; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; }
+.info-header { display: flex; align-items: center; justify-content: space-between; }
+.info-badge { background: #eff6ff; color: #2563eb; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; }
+.info-stage { background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; }
+.info-title { font-size: 1rem; font-weight: 800; color: #0f172a; margin: 5px 0 0; text-transform: uppercase; letter-spacing: 0.05em; }
+.preview-match-card { display: flex; flex-direction: column; gap: 12px; background: white; border-radius: 12px; padding: 16px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+.preview-side { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-radius: 8px; background: #f8fafc; transition: all 0.2s ease; border: 1px solid transparent; }
+.preview-side.is-winner { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.side-players-list { display: flex; flex-direction: column; gap: 6px; }
+.player-row { display: flex; align-items: center; gap: 8px; }
+.info-avatar { border: 1px solid #e2e8f0; }
+.info-name { font-size: 0.85rem; font-weight: 700; color: #334155; }
+.preview-side.is-winner .info-name { color: #15803d; }
+.side-score { font-size: 1.25rem; font-weight: 800; color: #64748b; margin-left: auto; padding-right: 8px; }
+.preview-side.is-winner .side-score { color: #16a34a; }
+.side-win-crown { color: #16a34a; font-weight: 900; font-size: 1.1rem; }
+.preview-vs-divider { text-align: center; font-weight: 800; font-size: 0.75rem; color: #94a3b8; position: relative; }
+.preview-vs-divider::before, .preview-vs-divider::after { content: ''; position: absolute; top: 50%; width: 40%; height: 1px; background: #e2e8f0; }
+.preview-vs-divider::before { left: 0; }
+.preview-vs-divider::after { right: 0; }
+.preview-meta-details { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+.meta-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
+.meta-label { font-weight: 600; color: #64748b; }
+.meta-value { font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; }
+.meta-value.score-highlight { background: #1e293b; color: white; padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; }
 
 /* Media Gallery */
 .media-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; padding: 10px 0; }

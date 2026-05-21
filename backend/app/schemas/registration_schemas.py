@@ -36,6 +36,7 @@ class RegistrationResponse(RegistrationBase):
     hold_expires_at: Optional[datetime] = None
     registered_at: datetime
     qr_code_url: Optional[str] = None
+    category_id: Optional[int] = None
     
     # Optional fields for display
     player_name: Optional[str] = None

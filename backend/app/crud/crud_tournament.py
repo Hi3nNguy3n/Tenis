@@ -258,6 +258,8 @@ def get_tournament_matches_detail(db: Session, tournament_id: int, category_id: 
                 
         results.append({
             "id": m.id, "round_code": m.round_code, "match_no": m.match_no,
+            "side_a_registration_id": m.side_a_registration_id,
+            "side_b_registration_id": m.side_b_registration_id,
             "p1_name": p1_name, "p2_name": p2_name,
             "p1_avatar": p1_avatar, "p2_avatar": p2_avatar,
             "p1_partner_name": p1_partner_name, "p1_partner_user_id": p1_partner_user_id, "p1_partner_avatar": p1_partner_avatar,
@@ -437,7 +439,33 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchSco
 
     # 3. Kiểm tra tính đầy đủ của 2 vận động viên
     if not p1_id or not p2_id:
-        raise HTTPException(status_code=400, detail="Trận đấu phải có đủ 2 VĐV mới tính được điểm Elo.")
+        # Nếu thiếu 1 bên (lẻ đội, thắng bye), ta chỉ cập nhật kết quả mà không tính ELO
+        match.status = "completed"
+        match.winner_side = payload.winner_side
+        win_reg_id = match.side_a_registration_id if payload.winner_side == "side_a" else match.side_b_registration_id
+        match.winner_registration_id = win_reg_id
+        match.result_note = payload.score
+        if payload.video_url is not None:
+            match.video_url = payload.video_url
+        if payload.image_url is not None:
+            match.image_url = payload.image_url
+        if payload.referee_id:
+            match.referee_id = payload.referee_id
+        match.referee_name = payload.referee_name
+        match.referee_phone = payload.referee_phone
+        
+        # Tự động đẩy người thắng vào trận đấu tiếp theo trong sơ đồ
+        if match.tournament_id and match.next_match_id:
+            next_m = db.query(Match).filter(Match.id == match.next_match_id).first()
+            if next_m:
+                if match.match_no % 2 != 0:
+                    next_m.side_a_registration_id = win_reg_id
+                else:
+                    next_m.side_b_registration_id = win_reg_id
+        
+        db.commit()
+        return {"message": "Cập nhật tỷ số thành công cho trận đấu lẻ (Thắng bye/Lẻ đội)!"}
+
 
     # 4. Xác định ai thắng ai thua dựa trên payload gửi lên
     win_p_id = p1_id if payload.winner_side == "side_a" else p2_id

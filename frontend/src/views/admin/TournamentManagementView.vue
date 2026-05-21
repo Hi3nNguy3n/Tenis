@@ -28,6 +28,22 @@ const statusOptions = computed(() => [
   { label: t('admin.finished'), value: 'finished' },
 ])
 
+const hasHtmlContent = (value) => /<\/?[a-z][\s\S]*>/i.test(value || '')
+
+const normalizeTournamentDescription = (value) => {
+  if (!value) return ''
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (hasHtmlContent(trimmed)) return trimmed
+  return trimmed.replace(/\r\n/g, '\n').replace(/\n/g, '<br>')
+}
+
+const renderTournamentDescription = (value) => {
+  if (!value) return ''
+  if (hasHtmlContent(value)) return value
+  return value.replace(/\r\n/g, '\n').replace(/\n/g, '<br>')
+}
+
 const search = ref('')
 const statusFilter = ref('')
 const formatFilter = ref('')
@@ -150,6 +166,7 @@ const openEditDialog = (row) => {
     registration_close_at: row.registration_close_at ? new Date(row.registration_close_at).toISOString().slice(0, 19) : '',
     start_date: row.start_date || '',
     end_date: row.end_date || '',
+    description: row.description || '',
     categories: sanitizedCategories
   }
   isDialogOpen.value = true
@@ -219,6 +236,7 @@ const saveTournament = async () => {
       surface_type: payload.surface_type,
       entry_fee: payload.entry_fee,
       entry_fee_team: payload.entry_fee_team,
+      description: normalizeTournamentDescription(payload.description),
     }
 
     let tourId = form.value.id
@@ -304,7 +322,7 @@ const createDefaultForm = () => ({
   draw_size: 32, category_type: 'mens_singles', gender_division: 'Men',
   location: '', surface_type: 'Hard', registration_open_at: '',
   registration_close_at: '', start_date: '', end_date: '',
-  entry_fee: 100000, entry_fee_team: 200000,
+  entry_fee: 100000, entry_fee_team: 200000, description: '',
   categories: [
     { name: 'Đơn Nam', category_type: 'mens_singles', max_points: 1200, max_participants: 32 }
   ]
@@ -524,6 +542,11 @@ onMounted(() => {
               <div class="info-item"><span>{{ $t('admin.startDate') }}</span><strong>{{ selectedTournament.start_date }}</strong></div>
             </div>
           </div>
+
+          <div v-if="selectedTournament.description" class="info-section">
+            <h4>Nội dung giải đấu</h4>
+            <div class="info-richtext" v-html="renderTournamentDescription(selectedTournament.description)"></div>
+          </div>
         </div>
       </div>
     </el-drawer>
@@ -612,6 +635,25 @@ onMounted(() => {
               </el-form-item>
             </el-col>
           </el-row>
+        </div>
+
+        <div class="form-section">
+          <div class="section-header">
+            <el-icon><Edit /></el-icon>
+            <span>Nội dung hiển thị cho trang giải đấu</span>
+          </div>
+          <el-form-item label="Thông tin / điều lệ / mô tả giải đấu">
+            <el-input
+              v-model="form.description"
+              type="textarea"
+              :rows="8"
+              resize="vertical"
+              placeholder="Nhập thông tin giới thiệu, điều lệ, lưu ý thi đấu, cơ cấu nội dung hoặc các hướng dẫn dành cho vận động viên..."
+            />
+          </el-form-item>
+          <p class="form-help-text">
+            Có thể nhập nội dung thường nhiều dòng. Hệ thống sẽ tự hiển thị xuống dòng ở trang chi tiết giải đấu.
+          </p>
         </div>
 
         <!-- Section: Registration & Schedule -->
@@ -914,6 +956,16 @@ onMounted(() => {
 .info-item span { display: block; font-size: 0.75rem; color: #475569; margin-bottom: 4px; font-weight: 600; }
 .info-item strong { font-size: 1rem; color: #0f172a; }
 .text-green { color: #059669 !important; }
+.info-richtext {
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 20px;
+  padding: 20px;
+  color: #334155;
+  line-height: 1.7;
+}
+.info-richtext :deep(p:first-child) { margin-top: 0; }
+.info-richtext :deep(p:last-child) { margin-bottom: 0; }
 
 /* Dialog & Form Redesign */
 .saas-dialog { 
@@ -936,6 +988,13 @@ onMounted(() => {
 
 .form-section:last-child {
   margin-bottom: 0;
+}
+
+.form-help-text {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .section-header {

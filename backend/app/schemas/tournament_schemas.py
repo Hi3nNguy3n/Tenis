@@ -60,6 +60,7 @@ class TournamentUpdate(BaseModel):
     entry_fee: Optional[float] = None
     entry_fee_team: Optional[float] = None
     max_participants: Optional[int] = None
+    description: Optional[str] = None
 
 class TournamentResponse(TournamentBase):
     id: int

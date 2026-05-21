@@ -17,7 +17,8 @@ const matches = ref([])
 const isLoading = ref(false)
 const courts = ref([])
 const referees = ref([])
-const isUploading = ref(false)
+const isUploadingVideo = ref(false)
+const isUploadingImage = ref(false)
 const selectedCategoryId = ref('all')
 
 const showScheduleDialog = ref(false)
@@ -145,19 +146,36 @@ const openScoreDialog = (match) => {
   showScoreDialog.value = true
 }
 
+const beforeVideoUpload = (file) => {
+  isUploadingVideo.value = true
+  return true
+}
+
+const beforeImageUpload = (file) => {
+  isUploadingImage.value = true
+  return true
+}
+
 const handleVideoSuccess = (res) => {
+  isUploadingVideo.value = false
   scoreForm.value.video_url = res.url
   ElMessage.success("Tải video lên thành công!")
 }
 
 const handleImageSuccess = (res) => {
+  isUploadingImage.value = false
   scoreForm.value.image_url = res.url
   ElMessage.success("Tải ảnh lên thành công!")
 }
 
-const beforeUpload = (file) => {
-  isUploading.value = true
-  return true
+const handleVideoError = (err) => {
+  isUploadingVideo.value = false
+  ElMessage.error("Tải video thất bại. Vui lòng thử lại!")
+}
+
+const handleImageError = (err) => {
+  isUploadingImage.value = false
+  ElMessage.error("Tải ảnh thất bại. Vui lòng thử lại!")
 }
 
 const addSet = () => {
@@ -513,10 +531,13 @@ onMounted(() => {
                           :action="`${MAIN_API_URL}/api/upload/image`"
                           :headers="{ Authorization: `Bearer ${authStore.accessToken}` }"
                           :on-success="handleVideoSuccess"
-                          :before-upload="beforeUpload"
+                          :on-error="handleVideoError"
+                          :before-upload="beforeVideoUpload"
                           :show-file-list="false"
                         >
-                          <el-button v-if="!scoreForm.video_url" type="primary" plain :icon="VideoCamera">Tải Video lên</el-button>
+                          <el-button v-if="!scoreForm.video_url" type="primary" plain :icon="VideoCamera" :loading="isUploadingVideo">
+                            {{ isUploadingVideo ? 'Đang tải video...' : 'Tải Video lên' }}
+                          </el-button>
                           <div v-else class="upload-result success">
                              <el-icon><Check /></el-icon> <span>Đã có Video</span>
                              <el-button link type="primary" @click.stop="scoreForm.video_url = ''">Thay đổi</el-button>
@@ -531,10 +552,13 @@ onMounted(() => {
                           :action="`${MAIN_API_URL}/api/upload/image`"
                           :headers="{ Authorization: `Bearer ${authStore.accessToken}` }"
                           :on-success="handleImageSuccess"
-                          :before-upload="beforeUpload"
+                          :on-error="handleImageError"
+                          :before-upload="beforeImageUpload"
                           :show-file-list="false"
                         >
-                          <el-button v-if="!scoreForm.image_url" type="success" plain :icon="Picture">Tải Ảnh lên</el-button>
+                          <el-button v-if="!scoreForm.image_url" type="success" plain :icon="Picture" :loading="isUploadingImage">
+                            {{ isUploadingImage ? 'Đang tải ảnh...' : 'Tải Ảnh lên' }}
+                          </el-button>
                           <div v-else class="upload-result success">
                              <el-icon><Check /></el-icon> <span>Đã có Ảnh</span>
                              <el-button link type="primary" @click.stop="scoreForm.image_url = ''">Thay đổi</el-button>
