@@ -38,7 +38,9 @@ const editForm = ref({
   date_of_birth: '',
   province: '',
   play_hand: '',
-  bio: ''
+  bio: '',
+  height_cm: null,
+  weight_kg: null
 })
 
 // --- LOGIC THÁCH ĐẤU ---
@@ -105,7 +107,9 @@ onMounted(async () => {
         date_of_birth: profileData?.player_profile?.date_of_birth || authStore.user.date_of_birth,
         province: authStore.user.province || '',
         play_hand: profileData?.player_profile?.play_hand || '',
-        bio: profileData?.player_profile?.bio || ''
+        bio: profileData?.player_profile?.bio || '',
+        height_cm: profileData?.player_profile?.height_cm || null,
+        weight_kg: profileData?.player_profile?.weight_kg || null
       }
     }
 
@@ -135,7 +139,9 @@ const startEdit = () => {
     date_of_birth: authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth || '',
     province: authStore.user?.province || '',
     play_hand: authStore.profile?.player_profile?.play_hand || '',
-    bio: authStore.profile?.player_profile?.bio || ''
+    bio: authStore.profile?.player_profile?.bio || '',
+    height_cm: authStore.profile?.player_profile?.height_cm || null,
+    weight_kg: authStore.profile?.player_profile?.weight_kg || null
   }
   isEditing.value = true
 }
@@ -326,6 +332,8 @@ const selectTab = (tab) => {
                 <div class="display-item"><label>{{ t('profile.dob') }}</label><p>{{ authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth ? new Date(authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US') : t('profile.notUpdated') }}</p></div>
                 <div class="display-item"><label>{{ t('profile.province') }}</label><p>{{ authStore.user?.province || t('profile.notUpdated') }}</p></div>
                 <div class="display-item"><label>{{ t('profile.playHand') }}</label><p>{{ authStore.profile?.player_profile?.play_hand === 'right' ? t('profile.right') : authStore.profile?.player_profile?.play_hand === 'left' ? t('profile.left') : authStore.profile?.player_profile?.play_hand === 'both' ? t('profile.both') : t('profile.notUpdated') }}</p></div>
+                <div class="display-item"><label>{{ t('profile.height') }}</label><p>{{ authStore.profile?.player_profile?.height_cm ? `${authStore.profile.player_profile.height_cm} cm` : t('profile.notUpdated') }}</p></div>
+                <div class="display-item"><label>{{ t('profile.weight') }}</label><p>{{ authStore.profile?.player_profile?.weight_kg ? `${authStore.profile.player_profile.weight_kg} kg` : t('profile.notUpdated') }}</p></div>
                 <div class="display-item display-item-wide"><label>{{ t('profile.bio') }}</label><p class="bio-copy">{{ authStore.profile?.player_profile?.bio || t('profile.bioEmpty') }}</p></div>
               </div>
 
@@ -354,6 +362,12 @@ const selectTab = (tab) => {
                       <el-option :label="t('profile.left')" value="left" />
                       <el-option :label="t('profile.both')" value="both" />
                     </el-select>
+                  </el-form-item>
+                  <el-form-item :label="t('profile.height')">
+                    <el-input-number v-model="editForm.height_cm" :min="80" :max="250" :step="1" controls-position="right" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item :label="t('profile.weight')">
+                    <el-input-number v-model="editForm.weight_kg" :min="25" :max="250" :step="1" controls-position="right" style="width: 100%" />
                   </el-form-item>
                   <el-form-item :label="t('profile.bio')" class="form-item-wide">
                     <el-input

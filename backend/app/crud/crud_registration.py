@@ -135,7 +135,10 @@ def get_registrations_by_player(db: Session, player_id: int):
     return db.query(Registration, Tournament).join(
         Tournament, Registration.tournament_id == Tournament.id
     ).filter(
-        Registration.player_id == player_id,
+        or_(
+            Registration.player_id == player_id,
+            Registration.partner_player_id == player_id
+        ),
         Registration.deleted_at.is_(None)
     ).all()
 

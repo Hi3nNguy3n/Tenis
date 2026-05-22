@@ -192,6 +192,8 @@ const tabs = [
             <div class="detail-item"><label>{{ t('profile.province') }}</label><p>{{ user.province || t('profile.notUpdated') }}</p></div>
             <div class="detail-item"><label>{{ t('profile.playHand') }}</label><p>{{ formatPlayHand(profile.play_hand) }}</p></div>
             <div class="detail-item"><label>{{ t('profile.phone') }}</label><p>{{ user.phone || t('profile.notUpdated') }}</p></div>
+            <div class="detail-item"><label>{{ t('profile.height') }}</label><p>{{ profile.height_cm ? `${profile.height_cm} cm` : t('profile.notUpdated') }}</p></div>
+            <div class="detail-item"><label>{{ t('profile.weight') }}</label><p>{{ profile.weight_kg ? `${profile.weight_kg} kg` : t('profile.notUpdated') }}</p></div>
           </div>
         </section>
 
@@ -283,9 +285,9 @@ const tabs = [
 
 <style scoped>
 .player-profile-page {
-  --navy: #050052;
-  --navy-2: #10146d;
-  --cyan: #0077b6;
+  --navy: #12355b;
+  --navy-2: #28537a;
+  --cyan: #2f80a7;
   --lime: #c6ff4a;
   --ink: #05052f;
   --muted: #64748b;
@@ -305,7 +307,7 @@ const tabs = [
 .profile-hero {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(90deg, var(--navy) 0%, var(--navy) 54%, #4ea7ca 100%);
+  background: linear-gradient(90deg, #12355b 0%, #244f76 56%, #74b8cf 100%);
   color: #fff;
   padding: 30px 0 0;
 }
@@ -314,9 +316,9 @@ const tabs = [
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(5, 0, 82, 0.96), rgba(5, 0, 82, 0.72) 55%, rgba(13, 73, 137, 0.18)),
+    linear-gradient(90deg, rgba(18, 53, 91, 0.88), rgba(32, 75, 112, 0.66) 55%, rgba(116, 184, 207, 0.16)),
     url('/src/assets/hero_bg.png') center/cover;
-  opacity: 0.9;
+  opacity: 0.82;
 }
 
 .hero-inner {
@@ -395,11 +397,11 @@ const tabs = [
 
 .score-panel {
   width: min(100%, 820px);
-  border: 1px solid rgba(0, 166, 224, 0.55);
+  border: 1px solid rgba(90, 177, 210, 0.42);
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 34px;
-  background: rgba(5, 0, 82, 0.62);
+  background: rgba(18, 53, 91, 0.56);
   backdrop-filter: blur(8px);
 }
 
@@ -426,7 +428,7 @@ const tabs = [
 .score-grid {
   display: grid;
   grid-template-columns: 120px repeat(4, 1fr);
-  border-top: 1px solid rgba(0, 166, 224, 0.45);
+  border-top: 1px solid rgba(90, 177, 210, 0.36);
 }
 
 .score-label,
@@ -436,7 +438,7 @@ const tabs = [
   flex-direction: column;
   justify-content: center;
   padding: 12px 18px;
-  border-right: 1px solid rgba(0, 166, 224, 0.45);
+  border-right: 1px solid rgba(90, 177, 210, 0.36);
 }
 
 .score-label {
@@ -473,7 +475,7 @@ const tabs = [
 
 .profile-tabs button {
   border: 0;
-  background: #0f749c;
+  background: #2f80a7;
   color: #fff;
   min-width: 112px;
   padding: 17px 22px;
@@ -483,7 +485,7 @@ const tabs = [
 
 .profile-tabs button.active {
   background: #fff;
-  color: #006398;
+  color: #2f6f92;
 }
 
 .content-grid {
@@ -529,7 +531,7 @@ const tabs = [
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #006398;
+  color: #2f6f92;
   font-size: 0.82rem;
   font-weight: 800;
   text-decoration: none;
@@ -546,7 +548,7 @@ const tabs = [
   display: block;
   width: 70px;
   height: 3px;
-  background: #0077b6;
+  background: #2f80a7;
   margin: 12px 0 26px;
 }
 
@@ -670,7 +672,7 @@ const tabs = [
 }
 
 .stats-board .el-icon {
-  color: #0077b6;
+  color: #2f80a7;
   font-size: 1.4rem;
 }
 
@@ -712,7 +714,7 @@ const tabs = [
 
 .featured-news span,
 .news-mini-row small {
-  color: #0077b6;
+  color: #2f80a7;
   font-size: 0.72rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -742,7 +744,7 @@ const tabs = [
   height: 42px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: rgba(5, 0, 82, 0.72);
+  background: rgba(18, 53, 91, 0.72);
   color: #fff;
   display: flex;
   align-items: center;

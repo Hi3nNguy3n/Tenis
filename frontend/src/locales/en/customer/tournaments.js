@@ -49,6 +49,7 @@ export default {
   gameDiff: 'Game Diff',
   points: 'Pts',
   entryTicket: 'Entry Ticket',
+  entryFee: 'Entry Fee',
   registeredCount: 'Registered',
   registrationCloseAt: 'Registration closes at:',
   alreadyRegistered: 'Registered',

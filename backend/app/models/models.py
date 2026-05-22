@@ -68,6 +68,8 @@ class Player(Base):
     losses = Column(Integer, default=0, nullable=False)
     matches_played = Column(Integer, default=0, nullable=False)
     bio = Column(Text)
+    height_cm = Column(Integer)
+    weight_kg = Column(Integer)
     date_of_birth = Column(Date)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

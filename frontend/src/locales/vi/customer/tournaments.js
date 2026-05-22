@@ -49,6 +49,7 @@ export default {
   gameDiff: 'HS Game',
   points: 'Điểm',
   entryTicket: 'Vé Tham Dự',
+  entryFee: 'Lệ phí',
   registeredCount: 'Số lượng đăng ký',
   registrationCloseAt: 'Đóng đăng ký vào:',
   alreadyRegistered: 'Đã ghi danh',

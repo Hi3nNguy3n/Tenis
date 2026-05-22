@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import datetime, date
 from app.db.database import get_db
 from app.api.deps import get_current_user
-from app.models.models import User, Player, Match, Registration, Tournament
+from app.models.models import User, Player, Match, Registration, Tournament, TournamentCategory
 from app.schemas.player_schemas import PlayerUpdate
 from app.core.audit import audit_log
 from app.crud import crud_player # Import tầng CRUD mới cấu trúc
@@ -331,10 +331,15 @@ def get_player_tournaments_public(
         
         results = []
         for reg, tourn in registrations:
+            category = db.query(TournamentCategory).filter(TournamentCategory.id == reg.tournament_category_id).first() if reg.tournament_category_id else None
             results.append({
                 "id": reg.id,
                 "tournament_id": tourn.id,
                 "tournament_name": tourn.name,
+                "registrant_type": reg.registrant_type,
+                "category_id": reg.tournament_category_id,
+                "category_name": category.name if category else None,
+                "category_type": category.category_type if category else tourn.category_type,
                 "status": reg.status,
                 "payment_status": reg.payment_status,
                 "registered_at": reg.registered_at.strftime("%d/%m/%Y %H:%M") if reg.registered_at else "N/A"

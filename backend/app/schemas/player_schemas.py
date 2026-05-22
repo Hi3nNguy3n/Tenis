@@ -13,6 +13,8 @@ class PlayerUpdate(BaseModel):
     skill_level: Optional[str] = None
     preferred_category: Optional[str] = None
     bio: Optional[str] = Field(None, max_length=3000)
+    height_cm: Optional[int] = Field(None, ge=80, le=250)
+    weight_kg: Optional[int] = Field(None, ge=25, le=250)
 
     avatar_url: Optional[str] = None 
     is_active: Optional[bool] = None
@@ -48,6 +50,8 @@ class PlayerProfileSummary(BaseModel):
     skill_level: Optional[str] = None
     preferred_category: Optional[str] = None
     bio: Optional[str] = None
+    height_cm: Optional[int] = None
+    weight_kg: Optional[int] = None
 
 class PlayerProfileDetailResponse(BaseModel):
     user: UserSummary
