@@ -7,8 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal
 from app.models.models import MailCampaign, Tournament, Registration, Player, User
-from app.api.auth import conf
-from fastapi_mail import FastMail, MessageSchema, MessageType
+from app.core.mail import send_bulk_email
 from app.crud import crud_tournament
 
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +36,6 @@ async def process_pending_emails():
             return
         if not pending_campaigns:
             return
-        fm = FastMail(conf)
         for campaign in pending_campaigns:
             try:
                 tournament = db.query(Tournament).filter(Tournament.id == campaign.tournament_id).first()
@@ -50,8 +48,7 @@ async def process_pending_emails():
                     campaign.status = 'failed'
                     continue
                 subject = f'{campaign.subject} - {tournament.name}'
-                message = MessageSchema(subject=subject, recipients=[], bcc=bcc_emails, body=f'{campaign.message}', subtype=MessageType.html)
-                await fm.send_message(message)
+                await send_bulk_email(bcc_emails=bcc_emails, subject=subject, html_content=f'{campaign.message}')
                 campaign.status = 'sent'
                 campaign.sent_at = now
             except Exception as e:

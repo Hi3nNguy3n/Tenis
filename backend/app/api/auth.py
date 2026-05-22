@@ -1,77 +1,36 @@
 # backend/app/api/auth.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import random
-import httpx
 
-from app.core.config import settings
 from app.db.redis_client import get_redis
 from app.db.database import get_db
 from app.schemas.auth_schemas import SendOTPRequest, RegisterRequest, LoginRequest, TokenResponse
 from app.core.security import verify_password, create_access_token
+from app.core.mail import send_email
 from app.crud import crud_auth
 from app.api.deps import get_current_user
 from app.models.models import User
 router = APIRouter()
-# --- THÊM ĐOẠN NÀY VÀO DƯỚI CÁC DÒNG IMPORT ---
-# Phục hồi lại cấu hình cũ để các file khác (tournaments, v.v.) không bị sập khi import
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
-
-conf = ConnectionConfig(
-    MAIL_USERNAME=settings.MAIL_USERNAME,
-    MAIL_PASSWORD=settings.MAIL_PASSWORD,
-    MAIL_FROM=settings.MAIL_FROM,
-    MAIL_PORT=settings.MAIL_PORT,
-    MAIL_SERVER=settings.MAIL_SERVER,
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
-)
-# ---------------------------------------------router = APIRouter()
-
-# ==========================================
-# HÀM HỖ TRỢ: GỬI MAIL QUA BREVO API
-# ==========================================
-async def send_email_via_brevo(email_to: str, subject: str, html_content: str):
-    """Hàm gọi API của Brevo để gửi email (Dùng chung cho cả Đăng ký và Quên MK)"""
-    url = "https://api.brevo.com/v3/smtp/email"
-    headers = {
-        "accept": "application/json",
-        "api-key": settings.BREVO_API_KEY,
-        "content-type": "application/json"
-    }
-    payload = {
-        "sender": {"email": settings.MAIL_FROM, "name": "Saigon Tennis Tours"},
-        "to": [{"email": email_to}],
-        "subject": subject,
-        "htmlContent": html_content
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, headers=headers, json=payload)
-        
-    if response.status_code not in [200, 201, 202]:
-        print(f"[BREVO ERROR]: {response.text}")
-        raise HTTPException(
-            status_code=500, 
-            detail="Không thể gửi email lúc này. Vui lòng thử lại sau."
-        )
 
 # ==========================================
 # 1. API GỬI OTP ĐĂNG KÝ
 # ==========================================
 @router.post("/send-otp")
-async def send_otp(request: SendOTPRequest, r = Depends(get_redis)):
+async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
+    email_key = request.email.lower().strip()
+    if crud_auth.get_user_by_email(db, email_key):
+        raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
+
     # Tạo mã OTP ngẫu nhiên
     otp_code = str(random.randint(100000, 999999))
     
     # Lưu OTP vào Redis với thời hạn 300s (5 phút)
-    email_key = request.email.lower().strip()
     print(f"[DEBUG SEND OTP]: Key='otp:{email_key}', Value='{otp_code}'")
     r.setex(f"otp:{email_key}", 300, otp_code) 
     
-    # Gửi email qua Brevo
+    # Gửi email qua SMTP/app password
     subject = "Mã xác nhận OTP - Saigon Tennis Tours"
     html_content = f"""
     <div style="font-family: Arial, sans-serif; padding: 20px;">
@@ -81,7 +40,7 @@ async def send_otp(request: SendOTPRequest, r = Depends(get_redis)):
         <p>Mã này sẽ hết hạn sau 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>
     </div>
     """
-    await send_email_via_brevo(email_to=request.email, subject=subject, html_content=html_content)
+    await send_email(email_to=request.email, subject=subject, html_content=html_content)
     
     return {"message": "Mã OTP đã được gửi đến email của bạn!"}
 
@@ -92,6 +51,9 @@ async def send_otp(request: SendOTPRequest, r = Depends(get_redis)):
 def register(request: RegisterRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
     # Kiểm tra OTP trong Redis
     email_key = request.email.lower().strip()
+    if crud_auth.get_user_by_email(db, email_key):
+        raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
+
     cached_otp = r.get(f"otp:{email_key}")
     
     # Xử lý trường hợp cached_otp là kiểu bytes (tùy cấu hình Redis)
@@ -107,11 +69,14 @@ def register(request: RegisterRequest, db: Session = Depends(get_db), r = Depend
     
     try:
         user = crud_auth.create_user_and_player_transaction(db, request, role.id)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi DB: {str(e)}")
     
     # Dùng xong xóa OTP
-    r.delete(f"otp:{request.email}")
+    r.delete(f"otp:{email_key}")
     return {"message": "Đăng ký thành công", "user_id": user.id}
 
 # ==========================================
@@ -162,7 +127,7 @@ async def forgot_password(request: SendOTPRequest, db: Session = Depends(get_db)
         <p>Mã có hiệu lực trong 10 phút. Vui lòng không cung cấp mã này cho bất kỳ ai.</p>
     </div>
     """
-    await send_email_via_brevo(email_to=request.email, subject=subject, html_content=html_content)
+    await send_email(email_to=request.email, subject=subject, html_content=html_content)
     
     return {"message": "Mã khôi phục đã được gửi tới email của bạn."}
 

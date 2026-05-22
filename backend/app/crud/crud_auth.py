@@ -6,7 +6,8 @@ from app.schemas.auth_schemas import RegisterRequest
 from app.core.security import get_password_hash
 
 def get_user_by_email(db: Session, email: str):
-    return db.query(User).filter(User.email == email).first()
+    normalized_email = email.lower().strip()
+    return db.query(User).filter(User.email == normalized_email).first()
 
 def get_user_by_id(db: Session, user_id: int):
     return db.query(User).filter(User.id == user_id).first()
@@ -52,7 +53,7 @@ def get_valid_otp(db: Session, email: str, otp_code: str):
 def create_user_and_player_transaction(db: Session, request: RegisterRequest, role_id: int):
     try:
         new_user = User(
-            email=request.email,
+            email=request.email.lower().strip(),
             password_hash=get_password_hash(request.password),
             full_name=request.full_name,
             account_type=request.account_type or "user",
