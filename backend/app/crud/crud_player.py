@@ -25,6 +25,7 @@ def update_player_profile(db: Session, user: User, update_data: PlayerUpdate):
         if update_data.play_hand: player.play_hand = update_data.play_hand
         if update_data.skill_level: player.skill_level = update_data.skill_level
         if update_data.preferred_category: player.preferred_category = update_data.preferred_category
+        if update_data.bio is not None: player.bio = update_data.bio
 
     db.commit()
     db.refresh(user)
@@ -83,6 +84,7 @@ def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpd
     if update_data.play_hand is not None: player.play_hand = update_data.play_hand
     if update_data.skill_level is not None: player.skill_level = update_data.skill_level
     if update_data.preferred_category is not None: player.preferred_category = update_data.preferred_category
+    if update_data.bio is not None: player.bio = update_data.bio
 
     db.commit()
     db.refresh(player)
@@ -215,6 +217,7 @@ def get_player_by_id(db: Session, player_id: int):
             "date_of_birth": p.date_of_birth or u.date_of_birth, # Fallback về user dob
             "play_hand": p.play_hand,
             "skill_level": p.skill_level,
-            "preferred_category": p.preferred_category
+            "preferred_category": p.preferred_category,
+            "bio": p.bio
         }
     }

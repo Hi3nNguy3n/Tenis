@@ -12,6 +12,7 @@ class PlayerUpdate(BaseModel):
     play_hand: Optional[str] = Field(None, description="right, left, both")
     skill_level: Optional[str] = None
     preferred_category: Optional[str] = None
+    bio: Optional[str] = Field(None, max_length=3000)
 
     avatar_url: Optional[str] = None 
     is_active: Optional[bool] = None
@@ -46,6 +47,7 @@ class PlayerProfileSummary(BaseModel):
     play_hand: Optional[str] = None
     skill_level: Optional[str] = None
     preferred_category: Optional[str] = None
+    bio: Optional[str] = None
 
 class PlayerProfileDetailResponse(BaseModel):
     user: UserSummary

@@ -37,7 +37,8 @@ const editForm = ref({
   gender: '',
   date_of_birth: '',
   province: '',
-  play_hand: ''
+  play_hand: '',
+  bio: ''
 })
 
 // --- LOGIC THÁCH ĐẤU ---
@@ -103,7 +104,8 @@ onMounted(async () => {
         gender: profileData?.player_profile?.gender || authStore.user.gender,
         date_of_birth: profileData?.player_profile?.date_of_birth || authStore.user.date_of_birth,
         province: authStore.user.province || '',
-        play_hand: profileData?.player_profile?.play_hand || ''
+        play_hand: profileData?.player_profile?.play_hand || '',
+        bio: profileData?.player_profile?.bio || ''
       }
     }
 
@@ -125,7 +127,16 @@ onMounted(async () => {
 })
 
 const startEdit = () => {
-  editForm.value = { ...authStore.user }
+  editForm.value = {
+    full_name: authStore.user?.full_name || '',
+    email: authStore.user?.email || '',
+    phone: authStore.user?.phone || '',
+    gender: authStore.profile?.player_profile?.gender || authStore.user?.gender || '',
+    date_of_birth: authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth || '',
+    province: authStore.user?.province || '',
+    play_hand: authStore.profile?.player_profile?.play_hand || '',
+    bio: authStore.profile?.player_profile?.bio || ''
+  }
   isEditing.value = true
 }
 
@@ -150,6 +161,9 @@ const handleUpdate = async () => {
   try {
     const data = await playerService.updateMe(editForm.value)
     authStore.user = { ...authStore.user, ...editForm.value }
+    if (authStore.profile?.player_profile) {
+      authStore.profile.player_profile = { ...authStore.profile.player_profile, ...editForm.value }
+    }
     isEditing.value = false
     ElMessage.success(t('profile.updateSuccess'))
   } catch (error) {
@@ -312,6 +326,7 @@ const selectTab = (tab) => {
                 <div class="display-item"><label>{{ t('profile.dob') }}</label><p>{{ authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth ? new Date(authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US') : t('profile.notUpdated') }}</p></div>
                 <div class="display-item"><label>{{ t('profile.province') }}</label><p>{{ authStore.user?.province || t('profile.notUpdated') }}</p></div>
                 <div class="display-item"><label>{{ t('profile.playHand') }}</label><p>{{ authStore.profile?.player_profile?.play_hand === 'right' ? t('profile.right') : authStore.profile?.player_profile?.play_hand === 'left' ? t('profile.left') : authStore.profile?.player_profile?.play_hand === 'both' ? t('profile.both') : t('profile.notUpdated') }}</p></div>
+                <div class="display-item display-item-wide"><label>{{ t('profile.bio') }}</label><p class="bio-copy">{{ authStore.profile?.player_profile?.bio || t('profile.bioEmpty') }}</p></div>
               </div>
 
               <!-- Edit Mode -->
@@ -339,6 +354,16 @@ const selectTab = (tab) => {
                       <el-option :label="t('profile.left')" value="left" />
                       <el-option :label="t('profile.both')" value="both" />
                     </el-select>
+                  </el-form-item>
+                  <el-form-item :label="t('profile.bio')" class="form-item-wide">
+                    <el-input
+                      v-model="editForm.bio"
+                      type="textarea"
+                      :rows="6"
+                      maxlength="3000"
+                      show-word-limit
+                      :placeholder="t('profile.bioPlaceholder')"
+                    />
                   </el-form-item>
                 </div>
                 
@@ -705,6 +730,18 @@ const selectTab = (tab) => {
 }
 .display-item label { font-size: 0.7rem; color: var(--profile-muted); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 0.5rem; letter-spacing: 0.05em;}
 .display-item p { font-size: 1rem; font-weight: 600; color: var(--profile-text); margin: 0; word-break: break-all; }
+.display-item-wide,
+.form-item-wide {
+  grid-column: 1 / -1;
+}
+.bio-copy {
+  max-width: 760px;
+  line-height: 1.75;
+  white-space: pre-line;
+  word-break: normal !important;
+  color: #334155 !important;
+  font-weight: 500 !important;
+}
 
 /* Nút Bấm */
 .btn-atp-outline {
