@@ -2,6 +2,7 @@
 import { onMounted, ref, computed } from 'vue'
 import { apiClient, MAIN_API_URL } from '../../services/apiClient'
 import { useAuthStore } from '../../stores/auth'
+import { getStoredAccessToken, getStoredTokenType } from '../../utils/authStorage'
 import { ElMessage } from 'element-plus'
 import { 
   Calendar, Location, Trophy, Check, Edit, Plus, Delete,
@@ -20,6 +21,14 @@ const referees = ref([])
 const isUploadingVideo = ref(false)
 const isUploadingImage = ref(false)
 const selectedCategoryId = ref('all')
+
+const uploadHeaders = computed(() => {
+  const accessToken = authStore.accessToken || getStoredAccessToken()
+  const tokenType = authStore.tokenType || getStoredTokenType() || 'Bearer'
+  if (!accessToken) return {}
+  const normalizedType = tokenType.charAt(0).toUpperCase() + tokenType.slice(1).toLowerCase()
+  return { Authorization: `${normalizedType} ${accessToken}` }
+})
 
 const showScheduleDialog = ref(false)
 const showScoreDialog = ref(false)
@@ -462,7 +471,7 @@ onMounted(() => {
           <div class="winner-selection-premium">
              <p class="section-label">{{ $t('admin.whoIsWinner') }}</p>
              <el-radio-group v-model="scoreForm.winner_side" class="winner-grid-selector">
-                <el-radio value="side_a" border class="winner-radio-premium">
+                <el-radio :value="'side_a'" border class="winner-radio-premium">
                   <div class="radio-content">
                     <div class="team-meta-container">
                       <div class="player-unit">
@@ -476,7 +485,7 @@ onMounted(() => {
                     </div>
                   </div>
                 </el-radio>
-                <el-radio value="side_b" border class="winner-radio-premium">
+                <el-radio :value="'side_b'" border class="winner-radio-premium">
                   <div class="radio-content">
                     <div class="team-meta-container">
                       <div class="player-unit">
@@ -529,7 +538,7 @@ onMounted(() => {
                         <el-upload
                           class="saas-upload"
                           :action="`${MAIN_API_URL}/api/upload/image`"
-                          :headers="{ Authorization: `Bearer ${authStore.accessToken}` }"
+                          :headers="uploadHeaders"
                           :on-success="handleVideoSuccess"
                           :on-error="handleVideoError"
                           :before-upload="beforeVideoUpload"
@@ -550,7 +559,7 @@ onMounted(() => {
                         <el-upload
                           class="saas-upload"
                           :action="`${MAIN_API_URL}/api/upload/image`"
-                          :headers="{ Authorization: `Bearer ${authStore.accessToken}` }"
+                          :headers="uploadHeaders"
                           :on-success="handleImageSuccess"
                           :on-error="handleImageError"
                           :before-upload="beforeImageUpload"

@@ -90,14 +90,19 @@ onMounted(async () => {
           <h2>{{ t('players.featuredPlayers') }}</h2>
         </div>
         <div class="featured-scroll">
-          <div v-for="(p, i) in recentWinners" :key="'featured-'+p.id" class="featured-card">
+          <RouterLink
+            v-for="(p, i) in recentWinners"
+            :key="'featured-'+(p.player_id || p.id)"
+            :to="`/players/${p.player_id || p.id}`"
+            class="featured-card"
+          >
             <div class="featured-avatar">
               <img :src="p.avatar_url" alt="" referrerpolicy="no-referrer" />
               <div class="rank-ring"><span>#{{ i + 1 }}</span></div>
             </div>
             <h4 class="featured-name">{{ p.full_name }}</h4>
             <p class="featured-pts">{{ p.elo_points }} {{ t('players.points') }}</p>
-          </div>
+          </RouterLink>
         </div>
       </section>
 
@@ -339,6 +344,8 @@ onMounted(async () => {
   align-items: center;
   min-width: 100px;
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
   transition: transform 0.2s;
 }
 .featured-card:hover { transform: translateY(-5px); }

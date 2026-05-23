@@ -1,12 +1,14 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import { Trophy, Check, ArrowRight } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 
 const rankings = ref([])
+const finalMatches = ref([])
 const isLoading = ref(true)
+const activeRankingTab = ref('Singles')
 
 const filters = ref({
   category: '',
@@ -41,6 +43,19 @@ const buildFilterOptions = (items = []) => {
   categoryOptions.value = [...categorySet].sort((a, b) => a.localeCompare(b))
 }
 
+const fetchFinalMatches = async () => {
+  try {
+    const response = await apiClient.get('/api/matches/')
+    const matches = Array.isArray(response) ? response : []
+    finalMatches.value = matches.filter((match) => {
+      const round = String(match.round_code || '').toUpperCase()
+      return round === 'FINAL' || round === 'F' || round.includes('CHUNG KET') || round.includes('CHUNG KẾT')
+    })
+  } catch (error) {
+    finalMatches.value = []
+  }
+}
+
 const fetchRankings = async () => {
   isLoading.value = true
   try {
@@ -72,11 +87,136 @@ const fetchRankings = async () => {
     isLoading.value = false
   }
 }
+
+const doublesRankings = computed(() => {
+  const sorted = [...rankings.value].sort((a, b) => (a.rank || 0) - (b.rank || 0))
+  const pairs = []
+  for (let index = 0; index < sorted.length; index += 2) {
+    const first = sorted[index]
+    const second = sorted[index + 1]
+    if (!first || !second) continue
+    const totalMatches = (first.matches_played || 0) + (second.matches_played || 0)
+    const totalWins = (first.wins || 0) + (second.wins || 0)
+    pairs.push({
+      rank: pairs.length + 1,
+      player_id: `pair-${first.player_id}-${second.player_id}`,
+      full_name: `${first.full_name} / ${second.full_name}`,
+      avatar_url: first.avatar_url,
+      partner_avatar_url: second.avatar_url,
+      partner_name: second.full_name,
+      skill_level: `${first.skill_level || 'N/A'} / ${second.skill_level || 'N/A'}`,
+      elo_points: (first.elo_points || 0) + (second.elo_points || 0),
+      matches_played: totalMatches,
+      win_rate: totalMatches ? Math.round((totalWins / totalMatches) * 1000) / 10 : 0,
+      isDoublesPair: true
+    })
+  }
+  return pairs
+})
+
+const raceToFinalsRankings = computed(() => {
+  const playerMap = new Map()
+  const ensurePlayer = (name, avatar = null) => {
+    if (!name || name.includes('ChÆ°a') || name.includes('Chưa') || name === 'N/A') return null
+    if (!playerMap.has(name)) {
+      const ranking = rankings.value.find(player => player.full_name === name)
+      playerMap.set(name, {
+        rank: 0,
+        player_id: ranking?.player_id || `finalist-${name}`,
+        full_name: name,
+        avatar_url: avatar || ranking?.avatar_url,
+        skill_level: ranking?.skill_level || 'N/A',
+        elo_points: 0,
+        matches_played: ranking?.matches_played || 0,
+        win_rate: ranking?.win_rate || 0,
+        finals_count: 0,
+        titles_count: 0,
+        isRaceRow: true
+      })
+    }
+    return playerMap.get(name)
+  }
+
+  finalMatches.value.forEach((match) => {
+    const finalists = [
+      [match.p1_name, match.p1_avatar],
+      [match.p1_partner_name, null],
+      [match.p2_name, match.p2_avatar],
+      [match.p2_partner_name, null]
+    ]
+    finalists.forEach(([name, avatar]) => {
+      const row = ensurePlayer(name, avatar)
+      if (row) row.finals_count += 1
+    })
+
+    const winnerNames = match.winner_side === 'side_a'
+      ? [[match.p1_name, match.p1_avatar], [match.p1_partner_name, null]]
+      : match.winner_side === 'side_b'
+        ? [[match.p2_name, match.p2_avatar], [match.p2_partner_name, null]]
+        : []
+    winnerNames.forEach(([name, avatar]) => {
+      const row = ensurePlayer(name, avatar)
+      if (row) row.titles_count += 1
+    })
+  })
+
+  return [...playerMap.values()]
+    .sort((a, b) => {
+      if (b.finals_count !== a.finals_count) return b.finals_count - a.finals_count
+      if (b.titles_count !== a.titles_count) return b.titles_count - a.titles_count
+      return (b.matches_played || 0) - (a.matches_played || 0)
+    })
+    .map((row, index) => ({
+      ...row,
+      rank: index + 1,
+      elo_points: row.finals_count,
+      matches_played: row.titles_count
+    }))
+})
+
+const displayedRankings = computed(() => {
+  if (activeRankingTab.value === 'Doubles') return doublesRankings.value
+  if (activeRankingTab.value === 'Race') return raceToFinalsRankings.value
+  return rankings.value
+})
+
+const rankingTableLabels = computed(() => {
+  if (activeRankingTab.value === 'Doubles') {
+    return {
+      player: 'Cặp vận động viên',
+      points: 'Tổng điểm',
+      matches: 'Tổng trận',
+      winRate: 'Tỉ lệ thắng'
+    }
+  }
+  if (activeRankingTab.value === 'Race') {
+    return {
+      player: 'Vận động viên',
+      points: 'Vào chung kết',
+      matches: 'Vô địch',
+      winRate: 'Tỉ lệ thắng'
+    }
+  }
+  return {
+    player: t('rankings.player'),
+    points: t('rankings.points'),
+    matches: t('rankings.matches'),
+    winRate: t('rankings.winRate')
+  }
+})
+
+const setRankingTab = (tab) => {
+  activeRankingTab.value = tab
+  if (tab === 'Singles') filters.value.category = ''
+  if (tab === 'Doubles') filters.value.category = ''
+}
 // TỰ ĐỘNG LỌC LẠI KHI NGƯỜI DÙNG CHỌN MENU THẢ XUỐNG
 watch(filters, () => {
   fetchRankings()
 }, { deep: true })
-onMounted(fetchRankings)
+onMounted(async () => {
+  await Promise.all([fetchRankings(), fetchFinalMatches()])
+})
 </script>
 
 <template>
@@ -99,9 +239,9 @@ onMounted(fetchRankings)
 
           <div class="inline-filters">
             <div class="filter-tabs">
-              <span class="f-tab active">{{ t('rankings.singlesTab') }}</span>
-              <span class="f-tab">{{ t('rankings.doublesTab') }}</span>
-              <span class="f-tab">{{ t('rankings.raceToFinals') }}</span>
+              <span class="f-tab" :class="{ active: activeRankingTab === 'Singles' }" @click="setRankingTab('Singles')">{{ t('rankings.singlesTab') }}</span>
+              <span class="f-tab" :class="{ active: activeRankingTab === 'Doubles' }" @click="setRankingTab('Doubles')">{{ t('rankings.doublesTab') }}</span>
+              <span class="f-tab" :class="{ active: activeRankingTab === 'Race' }" @click="setRankingTab('Race')">{{ t('rankings.raceToFinals') }}</span>
             </div>
 
             <div class="filter-dropdowns">
@@ -140,7 +280,7 @@ onMounted(fetchRankings)
         </div>
 
         <div class="ranking-list-container" v-loading="isLoading">
-          <div v-if="rankings.length === 0" class="empty-state">
+          <div v-if="displayedRankings.length === 0" class="empty-state">
             <el-empty :description="t('common.noData') || t('rankings.noDataDesc')" />
           </div>
 
@@ -148,23 +288,30 @@ onMounted(fetchRankings)
             <thead>
               <tr>
                 <th class="col-rank">{{ t('rankings.rank') }}</th>
-                <th class="col-player">{{ t('rankings.player') }}</th>
+                <th class="col-player">{{ rankingTableLabels.player }}</th>
                 <th class="col-level hidden-mobile text-center">{{ t('rankings.level') }}</th>
-                <th class="col-pts text-center">{{ t('rankings.points') }}</th>
-                <th class="col-matches hidden-mobile text-center">{{ t('rankings.matches') }}</th>
-                <th class="col-winrate hidden-mobile text-center">{{ t('rankings.winRate') }}</th>
+                <th class="col-pts text-center">{{ rankingTableLabels.points }}</th>
+                <th class="col-matches hidden-mobile text-center">{{ rankingTableLabels.matches }}</th>
+                <th class="col-winrate hidden-mobile text-center">{{ rankingTableLabels.winRate }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="player in rankings" :key="player.player_id">
+              <tr v-for="player in displayedRankings" :key="player.player_id">
                 <td class="col-rank">
                   <span class="rank-num">{{ player.rank }}</span>
                 </td>
                 <td class="col-player">
-                  <div class="player-info-cell">
-                    <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" referrerpolicy="no-referrer" />
-                    <span class="flag-mini"></span>
-                    <strong class="player-name">{{ player.full_name }}</strong>
+                  <div class="player-info-cell" :class="{ 'is-pair': player.isDoublesPair }">
+                    <div class="avatar-stack" v-if="player.isDoublesPair">
+                      <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" referrerpolicy="no-referrer" />
+                      <img :src="player.partner_avatar_url || `https://ui-avatars.com/api/?name=${player.partner_name}`" class="player-ava partner-ava" referrerpolicy="no-referrer" />
+                    </div>
+                    <img v-else :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" referrerpolicy="no-referrer" />
+                    <div class="player-name-block">
+                      <strong class="player-name">{{ player.full_name }}</strong>
+                      <span v-if="player.isDoublesPair" class="pair-note">Ghép từ hạng {{ (player.rank - 1) * 2 + 1 }} và {{ (player.rank - 1) * 2 + 2 }}</span>
+                      <span v-if="player.isRaceRow" class="pair-note">{{ player.titles_count }} danh hiệu chung kết</span>
+                    </div>
                   </div>
                 </td>
                 <td class="col-level hidden-mobile text-center">
@@ -414,6 +561,29 @@ onMounted(fetchRankings)
   gap: 12px;
 }
 
+.player-info-cell.is-pair {
+  gap: 14px;
+}
+
+.avatar-stack {
+  position: relative;
+  width: 68px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.avatar-stack .player-ava {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.avatar-stack .partner-ava {
+  left: 28px;
+}
+
 .player-ava {
   width: 44px;
   height: 44px;
@@ -424,10 +594,23 @@ onMounted(fetchRankings)
 
 .flag-mini { font-size: 0.9rem; }
 
+.player-name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .player-name {
   font-size: 1.05rem;
   color: #002855;
   font-weight: 700;
+}
+
+.pair-note {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
 }
 
 .col-level { font-size: 0.9rem; color: #475569; }

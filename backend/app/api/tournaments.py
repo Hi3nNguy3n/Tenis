@@ -138,7 +138,7 @@ def generate_draw(tournament_id: int, request: tournament_schemas.GenerateDrawRe
         if request.format_type == "round_robin":
             return crud_tournament.generate_round_robin_draw(db, tournament_id, request.category_id, request.num_groups)
         else:
-            return crud_tournament.generate_knockout_draw(db, tournament_id, request.category_id, request.draw_size) 
+            return crud_tournament.generate_knockout_draw(db, tournament_id, request.category_id, request.draw_size, request.round_names)
             
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -270,6 +270,66 @@ def assign_match_players(match_id: int, payload: tournament_schemas.AssignMatchP
     return {"message": "Đã ghép cặp thi đấu thành công"}
 
 # 9. LẤY TẤT CẢ TRẬN ĐẤU (PUBLIC - hiển thị trên trang Lịch thi đấu)
+@router.post("/{tournament_id}/matches/manual", dependencies=[Depends(get_current_admin)])
+@audit_log(module="MATCH", action="CREATE", event_name="Thêm trận thủ công vào nhánh")
+def create_manual_match(tournament_id: int, payload: tournament_schemas.ManualMatchCreate, db: Session = Depends(get_db)):
+    return crud_tournament.create_manual_match_db(db, tournament_id, payload)
+
+@router.put("/matches/{match_id}/admin-update", dependencies=[Depends(get_current_admin)])
+@audit_log(module="MATCH", action="UPDATE", event_name="Điều hành trận đấu từ trang nhánh")
+def update_match_from_draw(match_id: int, payload: tournament_schemas.AdminMatchUpdate, db: Session = Depends(get_db)):
+    current_match = db.query(Match).filter(Match.id == match_id).first()
+    is_already_completed = current_match.status == "completed" if current_match else False
+
+    if payload.status == "completed" and payload.score and payload.winner_side and not is_already_completed:
+        match = current_match
+        if match:
+            if payload.side_a_registration_id is not None:
+                match.side_a_registration_id = payload.side_a_registration_id
+            if payload.side_b_registration_id is not None:
+                match.side_b_registration_id = payload.side_b_registration_id
+            db.flush()
+        score_payload = tournament_schemas.MatchScoreUpdate(
+            score=payload.score,
+            winner_side=payload.winner_side,
+            video_url=payload.video_url,
+            image_url=payload.image_url,
+            referee_name=payload.referee_name,
+            referee_phone=payload.referee_phone,
+        )
+        result = crud_tournament.calculate_elo_and_update_match(db, match_id, score_payload)
+        match = db.query(Match).filter(Match.id == match_id).first()
+        if match:
+            if payload.round_code is not None:
+                match.round_code = payload.round_code
+            if payload.match_no is not None:
+                match.match_no = payload.match_no
+            if payload.stage_type is not None:
+                match.stage_type = payload.stage_type
+            if payload.side_a_registration_id is not None:
+                match.side_a_registration_id = payload.side_a_registration_id
+            if payload.side_b_registration_id is not None:
+                match.side_b_registration_id = payload.side_b_registration_id
+            if payload.court_id is not None:
+                match.court_id = payload.court_id
+            if payload.start_time is not None:
+                match.start_time = payload.start_time
+            if payload.live_stream_url is not None:
+                match.live_stream_url = payload.live_stream_url
+            if "next_match_id" in payload.model_fields_set:
+                match.next_match_id = payload.next_match_id
+            if "advance_note" in payload.model_fields_set:
+                match.win_reason = payload.advance_note or None
+            db.commit()
+        return result
+
+    return crud_tournament.update_match_admin_db(db, match_id, payload)
+
+@router.delete("/matches/{match_id}", dependencies=[Depends(get_current_admin)])
+@audit_log(module="MATCH", action="DELETE", event_name="Xoa khung tran dau tu trang nhanh")
+def delete_match_from_draw(match_id: int, db: Session = Depends(get_db)):
+    return crud_tournament.delete_match_from_draw_db(db, match_id)
+
 @router.get("/matches/all")
 def read_all_matches(db: Session = Depends(get_db)):
     return crud_tournament.get_all_matches_detail(db)

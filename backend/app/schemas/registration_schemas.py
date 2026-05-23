@@ -25,6 +25,14 @@ class RegistrationBase(BaseModel):
 class RegistrationCreate(RegistrationBase):
     pass
 
+class AdminAddTournamentRegistrationRequest(BaseModel):
+    category_id: int
+    player_id: int
+    partner_player_id: Optional[int] = None
+    notes: Optional[str] = None
+    mark_paid: bool = False
+    check_in: bool = False
+
 class RegistrationResponse(RegistrationBase):
     id: int
     tournament_id: int

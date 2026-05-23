@@ -200,7 +200,7 @@ const goToOTP = async () => {
       partner_name: partnerName
     })
 
-    await authService.sendOtp(userEmail.value)
+    await authService.sendOtp(userEmail.value, 'tournament_registration')
     ElMessage.success(`${t('tournaments.otpSentAlert')} ${userEmail.value}`)
     step.value = 2
   } catch (err) {

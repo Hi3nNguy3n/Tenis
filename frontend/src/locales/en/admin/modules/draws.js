@@ -1,4 +1,5 @@
 export default {
+  selectTournamentToStart: 'Select a tournament to start',
   drawingMatrix: 'Tournament Draws & Brackets',
   drawingMatrixDesc: 'Seed management center, draw processing, and playoff bracket finalization.',
   selectTournamentPlaceholder: '-- Select Tournament --',

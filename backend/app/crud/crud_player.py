@@ -1,7 +1,7 @@
 # backend/app/crud/crud_player.py
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, desc
-from app.models.models import Player, User, Match, Registration, Tournament, Court
+from app.models.models import Player, User, Match, Registration, Tournament, Court, Role
 from app.schemas.player_schemas import PlayerUpdate
 
 def get_player_by_user_id(db: Session, user_id: int):
@@ -97,8 +97,12 @@ def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpd
     return player
 
 def get_player_rankings(db: Session, category: str = None, province: str = None):
-    query = db.query(Player, User).join(User, Player.user_id == User.id).filter(
-        User.is_active == True
+    query = db.query(Player, User).join(User, Player.user_id == User.id).outerjoin(
+        Role, User.role_id == Role.id
+    ).filter(
+        User.is_active == True,
+        User.account_type != "admin",
+        or_(Role.id.is_(None), Role.role_key != "admin")
     )
     if category:
         query = query.filter(Player.preferred_category == category)

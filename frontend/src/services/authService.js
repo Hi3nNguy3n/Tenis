@@ -1,8 +1,8 @@
 import apiClient from './apiClient'
 
 export const authService = {
-  sendOtp(email) {
-    return apiClient.post('/api/auth/send-otp', { email }, { useChatApi: false })
+  sendOtp(email, purpose = 'signup') {
+    return apiClient.post('/api/auth/send-otp', { email, purpose }, { useChatApi: false })
   },
 
   register(payload) {

@@ -83,6 +83,7 @@ class GenerateDrawRequest(BaseModel):
     format_type: str = "knockout" # Hoặc "round_robin"
     num_groups: int = 1           # Số bảng đấu
     draw_size: Optional[int] = None # Kích thước nhánh đấu (8, 16, 32...)
+    round_names: Optional[List[str]] = None
     
 class AssignMatchPlayersRequest(BaseModel):
     side_a_registration_id: Optional[int] = None
@@ -103,6 +104,41 @@ class MatchScoreUpdate(BaseModel):
     referee_id: Optional[int] = None
     referee_name: Optional[str] = None
     referee_phone: Optional[str] = None
+
+class ManualMatchCreate(BaseModel):
+    category_id: Optional[int] = None
+    stage_type: str = "knockout"
+    round_code: str = "Vong moi"
+    match_no: Optional[int] = None
+    side_a_registration_id: Optional[int] = None
+    side_b_registration_id: Optional[int] = None
+    status: str = "pending"
+    court_id: Optional[int] = None
+    start_time: Optional[datetime] = None
+    referee_name: Optional[str] = None
+    referee_phone: Optional[str] = None
+    live_stream_url: Optional[str] = None
+    next_match_id: Optional[int] = None
+    source_match_ids: Optional[List[int]] = None
+
+class AdminMatchUpdate(BaseModel):
+    round_code: Optional[str] = None
+    match_no: Optional[int] = None
+    stage_type: Optional[str] = None
+    side_a_registration_id: Optional[int] = None
+    side_b_registration_id: Optional[int] = None
+    status: Optional[str] = None
+    score: Optional[str] = None
+    winner_side: Optional[str] = None
+    court_id: Optional[int] = None
+    start_time: Optional[datetime] = None
+    referee_name: Optional[str] = None
+    referee_phone: Optional[str] = None
+    live_stream_url: Optional[str] = None
+    video_url: Optional[str] = None
+    image_url: Optional[str] = None
+    next_match_id: Optional[int] = None
+    advance_note: Optional[str] = None
 
 class PlayoffRequest(BaseModel):
     category_id: int

@@ -20,7 +20,11 @@ router = APIRouter()
 @router.post("/send-otp")
 async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
     email_key = request.email.lower().strip()
-    if crud_auth.get_user_by_email(db, email_key):
+    purpose = (request.purpose or "signup").strip().lower()
+    existing_user = crud_auth.get_user_by_email(db, email_key)
+    if purpose != "signup" and not existing_user:
+        raise HTTPException(status_code=404, detail="Email khong ton tai trong he thong.")
+    if purpose == "signup" and existing_user:
         raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
 
     # Tạo mã OTP ngẫu nhiên

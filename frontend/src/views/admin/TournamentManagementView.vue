@@ -57,6 +57,23 @@ const selectedTournament = ref(null)
 const isDetailDrawerOpen = ref(false)
 const isExporting = ref(false)
 const isSendingMail = ref(false)
+const isAddPlayerDialogOpen = ref(false)
+const isAddingPlayer = ref(false)
+const playerSearchLoading = ref(false)
+const partnerSearchLoading = ref(false)
+const adminRegistrationTournament = ref(null)
+const selectedPlayer = ref(null)
+const selectedPartner = ref(null)
+const adminPlayerSearchText = ref('')
+const adminPartnerSearchText = ref('')
+const adminRegistrationForm = ref({
+  category_id: null,
+  player_id: null,
+  partner_player_id: null,
+  notes: '',
+  mark_paid: false,
+  check_in: false
+})
 
 // Pagination
 const currentPage = ref(1)
@@ -175,6 +192,112 @@ const openEditDialog = (row) => {
 const selectTournament = (row) => {
   selectedTournament.value = row
   isDetailDrawerOpen.value = true
+}
+
+const adminSelectedCategory = computed(() => {
+  if (!adminRegistrationTournament.value?.categories || !adminRegistrationForm.value.category_id) return null
+  return adminRegistrationTournament.value.categories.find(c => c.id === adminRegistrationForm.value.category_id) || null
+})
+
+const adminRegistrationIsDoubles = computed(() => {
+  return adminSelectedCategory.value?.category_type?.includes('doubles')
+})
+
+const formatPlayerOption = (player) => {
+  const meta = [player.phone, player.level].filter(Boolean).join(' · ')
+  return meta ? `${player.full_name} - ${meta}` : player.full_name
+}
+
+const querySearchPlayers = async (queryString, cb) => {
+  if (!queryString || queryString.length < 2) return cb([])
+  playerSearchLoading.value = true
+  try {
+    const data = await apiClient.get(`/api/players/search?keyword=${encodeURIComponent(queryString)}`)
+    cb((data || []).map(p => ({ ...p, value: formatPlayerOption(p) })))
+  } catch (err) {
+    cb([])
+  } finally {
+    playerSearchLoading.value = false
+  }
+}
+
+const querySearchPartners = async (queryString, cb) => {
+  if (!queryString || queryString.length < 2) return cb([])
+  partnerSearchLoading.value = true
+  try {
+    const data = await apiClient.get(`/api/players/search?keyword=${encodeURIComponent(queryString)}`)
+    cb((data || []).filter(p => p.player_id !== adminRegistrationForm.value.player_id).map(p => ({ ...p, value: formatPlayerOption(p) })))
+  } catch (err) {
+    cb([])
+  } finally {
+    partnerSearchLoading.value = false
+  }
+}
+
+const openAddPlayerDialog = (row) => {
+  adminRegistrationTournament.value = row
+  selectedPlayer.value = null
+  selectedPartner.value = null
+  adminPlayerSearchText.value = ''
+  adminPartnerSearchText.value = ''
+  adminRegistrationForm.value = {
+    category_id: row.categories?.[0]?.id || null,
+    player_id: null,
+    partner_player_id: null,
+    notes: '',
+    mark_paid: false,
+    check_in: false
+  }
+  isAddPlayerDialogOpen.value = true
+}
+
+const handleSelectAdminPlayer = (player) => {
+  selectedPlayer.value = player
+  adminPlayerSearchText.value = player.value
+  adminRegistrationForm.value.player_id = player.player_id
+  if (adminRegistrationForm.value.partner_player_id === player.player_id) {
+    selectedPartner.value = null
+    adminPartnerSearchText.value = ''
+    adminRegistrationForm.value.partner_player_id = null
+  }
+}
+
+const handleSelectAdminPartner = (player) => {
+  selectedPartner.value = player
+  adminPartnerSearchText.value = player.value
+  adminRegistrationForm.value.partner_player_id = player.player_id
+}
+
+const resetAdminPartner = () => {
+  selectedPartner.value = null
+  adminPartnerSearchText.value = ''
+  adminRegistrationForm.value.partner_player_id = null
+}
+
+watch(() => adminRegistrationForm.value.category_id, () => {
+  if (!adminRegistrationIsDoubles.value) resetAdminPartner()
+})
+
+const submitAdminAddPlayer = async () => {
+  if (!adminRegistrationTournament.value) return
+  if (!adminRegistrationForm.value.category_id) return ElMessage.warning('Vui lòng chọn nội dung thi đấu.')
+  if (!adminRegistrationForm.value.player_id) return ElMessage.warning('Vui lòng chọn vận động viên.')
+  if (adminRegistrationIsDoubles.value && !adminRegistrationForm.value.partner_player_id) {
+    return ElMessage.warning('Nội dung đôi cần chọn đồng đội.')
+  }
+
+  isAddingPlayer.value = true
+  try {
+    await apiClient.post(`/api/registrations/admin/tournaments/${adminRegistrationTournament.value.id}/add-player`, adminRegistrationForm.value)
+    ElMessage.success('Đã thêm vận động viên vào giải đấu.')
+    isAddPlayerDialogOpen.value = false
+    await loadTournaments()
+    await loadStats()
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || err.message || 'Không thể thêm vận động viên.')
+  } finally {
+    isAddingPlayer.value = false
+  }
 }
 
 const validateTournamentForm = () => {
@@ -468,9 +591,12 @@ onMounted(() => {
 
         <el-table-column prop="start_date" :label="$t('admin.startDate')" width="140" />
 
-        <el-table-column :label="$t('admin.action')" width="150" fixed="right" align="center">
+        <el-table-column :label="$t('admin.action')" width="190" fixed="right" align="center">
           <template #default="{ row }">
             <div class="saas-row-actions" @click.stop>
+              <el-tooltip content="Thêm VĐV">
+                <el-button size="small" circle @click="openAddPlayerDialog(row)" class="saas-icon-btn is-add-player"><el-icon><Plus /></el-icon></el-button>
+              </el-tooltip>
               <el-tooltip :content="$t('admin.edit')">
                 <el-button size="small" circle @click="openEditDialog(row)" class="saas-icon-btn"><el-icon><EditPen /></el-icon></el-button>
               </el-tooltip>
@@ -550,6 +676,117 @@ onMounted(() => {
         </div>
       </div>
     </el-drawer>
+
+    <el-dialog
+      v-model="isAddPlayerDialogOpen"
+      title="Thêm vận động viên vào giải đấu"
+      width="620px"
+      class="saas-dialog"
+      destroy-on-close
+    >
+      <div v-if="adminRegistrationTournament" class="admin-registration-panel">
+        <div class="admin-registration-hero">
+          <div class="tournament-icon"><el-icon><Trophy /></el-icon></div>
+          <div>
+            <h3>{{ adminRegistrationTournament.name }}</h3>
+            <p>{{ adminRegistrationTournament.location || 'N/A' }}</p>
+          </div>
+        </div>
+
+        <el-form label-position="top" class="saas-form">
+          <el-form-item label="Nội dung thi đấu" required>
+            <el-select v-model="adminRegistrationForm.category_id" style="width: 100%">
+              <el-option
+                v-for="cat in adminRegistrationTournament.categories || []"
+                :key="cat.id"
+                :label="cat.name"
+                :value="cat.id"
+              >
+                <div class="category-option-row">
+                  <span>{{ cat.name }}</span>
+                  <small>{{ cat.category_type }}</small>
+                </div>
+              </el-option>
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="Vận động viên" required>
+            <el-autocomplete
+              v-model="adminPlayerSearchText"
+              :fetch-suggestions="querySearchPlayers"
+              :trigger-on-focus="false"
+              placeholder="Nhập tên vận động viên..."
+              clearable
+              class="w-full"
+              @select="handleSelectAdminPlayer"
+              @clear="selectedPlayer = null; adminPlayerSearchText = ''; adminRegistrationForm.player_id = null"
+            >
+              <template #suffix>
+                <el-icon v-if="playerSearchLoading"><Search /></el-icon>
+              </template>
+              <template #default="{ item }">
+                <div class="player-suggest-row">
+                  <div class="suggest-avatar">{{ item.full_name?.charAt(0) }}</div>
+                  <div>
+                    <strong>{{ item.full_name }}</strong>
+                    <span>{{ [item.phone, item.level].filter(Boolean).join(' · ') || 'Chưa có thông tin' }}</span>
+                  </div>
+                </div>
+              </template>
+            </el-autocomplete>
+          </el-form-item>
+
+          <el-form-item v-if="adminRegistrationIsDoubles" label="Đồng đội" required>
+            <el-autocomplete
+              v-model="adminPartnerSearchText"
+              :fetch-suggestions="querySearchPartners"
+              :trigger-on-focus="false"
+              placeholder="Nhập tên đồng đội..."
+              clearable
+              class="w-full"
+              @select="handleSelectAdminPartner"
+              @clear="resetAdminPartner"
+            >
+              <template #suffix>
+                <el-icon v-if="partnerSearchLoading"><Search /></el-icon>
+              </template>
+              <template #default="{ item }">
+                <div class="player-suggest-row">
+                  <div class="suggest-avatar">{{ item.full_name?.charAt(0) }}</div>
+                  <div>
+                    <strong>{{ item.full_name }}</strong>
+                    <span>{{ [item.phone, item.level].filter(Boolean).join(' · ') || 'Chưa có thông tin' }}</span>
+                  </div>
+                </div>
+              </template>
+            </el-autocomplete>
+          </el-form-item>
+
+          <el-form-item label="Ghi chú">
+            <el-input
+              v-model="adminRegistrationForm.notes"
+              type="textarea"
+              :rows="3"
+              placeholder="Ví dụ: Admin thêm trực tiếp, đã xác nhận qua điện thoại..."
+            />
+          </el-form-item>
+
+          <div class="admin-registration-options">
+            <el-checkbox v-model="adminRegistrationForm.mark_paid">Đánh dấu đã thanh toán</el-checkbox>
+            <el-checkbox v-model="adminRegistrationForm.check_in">Thanh toán và check-in luôn</el-checkbox>
+          </div>
+        </el-form>
+      </div>
+
+      <template #footer>
+        <div class="saas-dialog-footer">
+          <el-button @click="isAddPlayerDialogOpen = false" class="saas-btn-secondary">{{ $t('admin.cancel') }}</el-button>
+          <el-button type="primary" :loading="isAddingPlayer" @click="submitAdminAddPlayer" class="saas-btn-primary">
+            Thêm vào giải
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- Dialog: Create/Edit -->
     <el-dialog
@@ -919,6 +1156,84 @@ onMounted(() => {
 
 .saas-icon-btn.is-delete:hover { background: #ef4444 !important; border-color: #ef4444 !important; }
 .saas-icon-btn.is-view:hover { background: #3b82f6 !important; border-color: #3b82f6 !important; }
+.saas-icon-btn.is-add-player:hover { background: #10b981 !important; border-color: #10b981 !important; }
+
+.admin-registration-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-registration-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+}
+
+.admin-registration-hero h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.admin-registration-hero p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.category-option-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.category-option-row small {
+  color: #94a3b8;
+}
+
+.player-suggest-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.suggest-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+
+.player-suggest-row strong,
+.player-suggest-row span {
+  display: block;
+}
+
+.player-suggest-row span {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.admin-registration-options {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border-radius: 12px;
+}
 
 /* Drawer */
 .saas-drawer-content { display: flex; flex-direction: column; gap: 32px; padding: 0 8px; }

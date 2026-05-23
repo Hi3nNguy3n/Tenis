@@ -198,6 +198,140 @@ const groupedMatches = computed(() => {
     }))
 })
 
+const getRoundSortIndex = (roundLabel) => {
+  const label = String(roundLabel || '').toUpperCase()
+  if (/^G\d+$/.test(label)) return Number(label.slice(1))
+  if (/VONG\s*\d+|VÒNG\s*\d+|ROUND\s*\d+/i.test(label)) {
+    const num = Number(label.match(/\d+/)?.[0] || 0)
+    return num || 999
+  }
+  const order = {
+    R128: 1,
+    R64: 2,
+    R32: 3,
+    R16: 4,
+    QF: 5,
+    SF: 6,
+    F: 7,
+    FINAL: 7
+  }
+  return order[label] || 999
+}
+
+const bracketRounds = computed(() => {
+  const layoutMatches = publicMatches.value
+  const hasTreeLinks = layoutMatches.some(m => m.next_match_id)
+  if (!hasTreeLinks) return groupedMatches.value
+
+  const matchMap = new Map(layoutMatches.map(m => [m.id, m]))
+  const depthMemo = new Map()
+
+  const getDepth = (match) => {
+    if (!match) return 0
+    if (depthMemo.has(match.id)) return depthMemo.get(match.id)
+    const next = match.next_match_id ? matchMap.get(match.next_match_id) : null
+    const depth = next ? getDepth(next) + 1 : 0
+    depthMemo.set(match.id, depth)
+    return depth
+  }
+
+  const groups = new Map()
+  layoutMatches.forEach(match => {
+    const depth = getDepth(match)
+    if (!groups.has(depth)) groups.set(depth, [])
+    groups.get(depth).push(match)
+  })
+
+  return [...groups.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([depth, items], index) => {
+      const sortedItems = [...items].sort((a, b) => {
+        const orderA = getRoundSortIndex(a.round_code)
+        const orderB = getRoundSortIndex(b.round_code)
+        if (orderA !== orderB) return orderA - orderB
+        return (a.match_no || 0) - (b.match_no || 0)
+      })
+
+      return {
+        id: depth,
+        label: sortedItems[0]?.round_code || `${t('tournaments.round') || 'Round'} ${index + 1}`,
+        items: sortedItems
+      }
+    })
+})
+
+const bracketLayout = computed(() => {
+  const rounds = bracketRounds.value
+  if (!rounds.length) {
+    return { width: 0, height: 0, nodes: [], lines: [], rounds: [] }
+  }
+
+  const cardWidth = 360
+  const cardHeight = 282
+  const colGap = 104
+  const rowGap = 64
+  const headerHeight = 54
+  const leftPad = 24
+  const topPad = 12
+
+  const positionById = new Map()
+  const nodes = []
+
+  rounds.forEach((round, roundIdx) => {
+    const x = leftPad + roundIdx * (cardWidth + colGap)
+    const parentSlots = new Map()
+
+    if (roundIdx > 0) {
+      rounds[roundIdx - 1].items.forEach(prevMatch => {
+        if (!prevMatch.next_match_id) return
+        if (!parentSlots.has(prevMatch.next_match_id)) parentSlots.set(prevMatch.next_match_id, [])
+        parentSlots.get(prevMatch.next_match_id).push(positionById.get(prevMatch.id))
+      })
+    }
+
+    round.items.forEach((match, index) => {
+      const childPositions = parentSlots.get(match.id)?.filter(Boolean) || []
+      const baseY = topPad + headerHeight + index * (cardHeight + rowGap)
+      const linkedY = childPositions.length
+        ? (Math.min(...childPositions.map(p => p.y)) + Math.max(...childPositions.map(p => p.y))) / 2
+        : baseY
+      const y = Math.max(topPad + headerHeight, linkedY)
+      const position = { id: match.id, roundIdx, x, y, match }
+      positionById.set(match.id, position)
+      nodes.push(position)
+    })
+  })
+
+  const lines = []
+  nodes.forEach(node => {
+    if (!node.match.next_match_id) return
+    const target = positionById.get(node.match.next_match_id)
+    if (!target) return
+    const startX = node.x + cardWidth
+    const startY = node.y + cardHeight / 2
+    const endX = target.x
+    const endY = target.y + cardHeight / 2
+    const midX = startX + Math.max(36, (endX - startX) / 2)
+    lines.push({
+      id: `${node.id}-${target.id}`,
+      points: `${startX},${startY} ${midX},${startY} ${midX},${endY} ${endX},${endY}`
+    })
+  })
+
+  const width = leftPad * 2 + rounds.length * cardWidth + Math.max(0, rounds.length - 1) * colGap
+  const height = Math.max(
+    320,
+    topPad + headerHeight + Math.max(...nodes.map(node => node.y + cardHeight), 0) + 24
+  )
+  const roundHeaders = rounds.map((round, index) => ({
+    ...round,
+    x: leftPad + index * (cardWidth + colGap),
+    y: topPad
+  }))
+
+  return { width, height, nodes, lines, rounds: roundHeaders, cardWidth, cardHeight }
+})
+
 const goToRegister = () => {
   if (!authStore.isAuthenticated) {
     router.push({ name: 'login', query: { redirect: route.fullPath } })
@@ -260,13 +394,14 @@ const selectedCategoryName = computed(() => {
 const allMedia = computed(() => {
   const media = []
   publicMatches.value.forEach(m => {
-    if (m.video_url || m.image_url) {
+    if (m.video_url || m.image_url || m.live_stream_url) {
       media.push({
         id: m.id,
         match_label: `Trận #${m.match_no}`,
         round_code: m.round_code,
         p1_name: m.p1_name,
         p2_name: m.p2_name,
+        live_stream_url: m.live_stream_url,
         video_url: m.video_url,
         image_url: m.image_url,
         match: m
@@ -306,12 +441,31 @@ const getMatchStatusClass = (match) => {
   return ''
 }
 
+const hasMatchMeta = (match) => {
+  return Boolean(match?.start_time || match?.advance_note || match?.referee_name || match?.live_stream_url || match?.video_url || match?.image_url || match?.score_summary)
+}
+
 const previewVisible = ref(false)
 const previewData = ref({ type: 'image', url: '', title: '', match: null })
 
 const openPreview = (type, url, title, matchObj = null) => {
   previewData.value = { type, url, title, match: matchObj }
   previewVisible.value = true
+}
+
+const getVideoEmbedUrl = (url) => {
+  if (!url) return ''
+  if (url.includes('youtube.com/embed/')) return url
+  if (url.includes('youtube.com/watch?v=')) return url.replace('watch?v=', 'embed/')
+  if (url.includes('youtube.com/live/')) {
+    const id = url.split('/live/')[1]?.split(/[?&]/)[0]
+    return id ? `https://www.youtube.com/embed/${id}` : url
+  }
+  if (url.includes('youtu.be/')) {
+    const id = url.split('youtu.be/')[1]?.split(/[?&]/)[0]
+    return id ? `https://www.youtube.com/embed/${id}` : url
+  }
+  return url
 }
 
 const parseSets = (scoreSummary) => {
@@ -364,7 +518,7 @@ const parseSets = (scoreSummary) => {
         </div>
       </div>
 
-    <div class="container main-overlap">
+    <div class="container main-overlap detail-wide-shell">
       <div class="neo-grid">
         
         <div class="neo-col-main">
@@ -436,21 +590,52 @@ const parseSets = (scoreSummary) => {
                     <p>{{ t('tournaments.bracketNotDrawn') }}</p>
                   </div>
                   
-                  <div v-else class="neo-bracket-horizontal">
-                    <div v-for="(round, roundIdx) in groupedMatches" :key="round.label" class="bracket-column">
-                      <div class="round-sticky-header">
-                        <div class="round-title-group">
-                          <span class="round-index">{{ roundIdx + 1 }}</span>
-                          <h4 class="round-title">{{ round.label }}</h4>
-                        </div>
-                        <span class="round-count">{{ round.items.length }} {{ t('tournaments.matches') }}</span>
+                  <div
+                    v-else
+                    class="neo-bracket-tree"
+                    :style="{ width: `${bracketLayout.width}px`, height: `${bracketLayout.height}px` }"
+                  >
+                    <svg
+                      class="bracket-lines"
+                      :width="bracketLayout.width"
+                      :height="bracketLayout.height"
+                      :viewBox="`0 0 ${bracketLayout.width} ${bracketLayout.height}`"
+                      aria-hidden="true"
+                    >
+                      <polyline
+                        v-for="line in bracketLayout.lines"
+                        :key="line.id"
+                        :points="line.points"
+                        class="bracket-link"
+                      />
+                    </svg>
+
+                    <div
+                      v-for="(round, roundIdx) in bracketLayout.rounds"
+                      :key="round.id"
+                      class="round-sticky-header tree-round-header"
+                      :style="{ left: `${round.x}px`, top: `${round.y}px`, width: `${bracketLayout.cardWidth}px` }"
+                    >
+                      <div class="round-title-group">
+                        <span class="round-index">{{ roundIdx + 1 }}</span>
+                        <h4 class="round-title">{{ round.label }}</h4>
                       </div>
-                      
-                      <div class="matches-stack">
-                        <div v-for="m in round.items" :key="m.id" class="match-node-wrapper">
-                          <div class="connector-line-in" v-if="roundIdx > 0"></div>
-                          
-                          <div class="match-node-v2">
+                      <span class="round-count">{{ round.items.length }} {{ t('tournaments.matches') }}</span>
+                    </div>
+
+                    <div
+                      v-for="node in bracketLayout.nodes"
+                      :key="node.id"
+                      class="match-node-wrapper tree-node"
+                      :style="{
+                        left: `${node.x}px`,
+                        top: `${node.y}px`,
+                        width: `${bracketLayout.cardWidth}px`,
+                        height: `${bracketLayout.cardHeight}px`
+                      }"
+                    >
+                      <template v-for="m in [node.match]" :key="m.id">
+                          <div class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
                             <div class="m-v2-header">
                               <div class="m-v2-header-left">
                                 <span class="m-v2-no">#{{ m.match_no }}</span>
@@ -459,6 +644,14 @@ const parseSets = (scoreSummary) => {
                                 </span>
                               </div>
                               <span class="m-v2-status" :class="getMatchStatusClass(m)">{{ getMatchStatusLabel(m) }}</span>
+                            </div>
+                            <div class="m-v2-meta-strip" v-if="m.start_time || m.score_summary || m.advance_note">
+                              <span v-if="m.start_time" class="match-meta-chip">
+                                <el-icon><CalendarIcon /></el-icon>
+                                {{ formatDateTime(m.start_time) }}
+                              </span>
+                              <span v-if="m.score_summary" class="match-score-chip">{{ m.score_summary }}</span>
+                              <span v-if="m.advance_note" class="match-advance-chip">{{ m.advance_note }}</span>
                             </div>
                             
                             <div class="m-v2-body">
@@ -524,26 +717,33 @@ const parseSets = (scoreSummary) => {
                                 </div>
                               </div>
                               
-                              <div v-if="m.video_url || m.image_url || m.referee_name" class="m-v2-footer">
-                                <div v-if="m.referee_name" class="m-referee-badge">
-                                  <span class="referee-icon">⚖️</span>
+                              <div v-if="m.referee_name || m.advance_note || m.live_stream_url || m.video_url || m.image_url" class="m-v2-footer">
+                                <div v-if="m.referee_name" class="m-referee-badge" :title="`${m.referee_name}${m.referee_phone ? ' - ' + m.referee_phone : ''}`">
+                                  <span class="referee-icon">TT</span>
                                   <span class="referee-name">{{ m.referee_name }}</span>
+                                  <span v-if="m.referee_phone" class="referee-phone">{{ m.referee_phone }}</span>
                                 </div>
                                 <div class="m-media-actions">
-                                  <el-button v-if="m.video_url" class="media-btn video-btn" size="small" @click="openPreview('video', m.video_url, `Highlight Trận #${m.match_no}`, m)">
-                                    <el-icon><VideoCamera /></el-icon> Video
-                                  </el-button>
-                                  <el-button v-if="m.image_url" class="media-btn image-btn" size="small" @click="openPreview('image', m.image_url, `Ảnh Trận #${m.match_no}`, m)">
-                                    <el-icon><Picture /></el-icon> {{ t('tournaments.photos') || 'Ảnh' }}
-                                  </el-button>
+                                  <el-tooltip v-if="m.live_stream_url" content="Livestream" placement="top">
+                                    <button class="media-icon-btn live-btn" type="button" @click.stop="openPreview('video', m.live_stream_url, `Livestream Trận #${m.match_no}`, m)">
+                                      <el-icon><VideoPlay /></el-icon>
+                                    </button>
+                                  </el-tooltip>
+                                  <el-tooltip v-if="m.video_url" content="Video highlight" placement="top">
+                                    <button class="media-icon-btn video-btn" type="button" @click.stop="openPreview('video', m.video_url, `Highlight Trận #${m.match_no}`, m)">
+                                      <el-icon><VideoCamera /></el-icon>
+                                    </button>
+                                  </el-tooltip>
+                                  <el-tooltip v-if="m.image_url" content="Ảnh trận đấu" placement="top">
+                                    <button class="media-icon-btn image-btn" type="button" @click.stop="openPreview('image', m.image_url, `Ảnh Trận #${m.match_no}`, m)">
+                                      <el-icon><Picture /></el-icon>
+                                    </button>
+                                  </el-tooltip>
                                 </div>
                               </div>
                             </div>
                           </div>
-                          
-                          <div class="connector-line-out" v-if="roundIdx < groupedMatches.length - 1"></div>
-                        </div>
-                      </div>
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -762,11 +962,11 @@ const parseSets = (scoreSummary) => {
                       <img v-if="item.image_url" :src="item.image_url" :alt="item.match_label" />
                       <div v-else class="video-placeholder">
                         <el-icon><VideoCamera /></el-icon>
-                        <span>Video Highlight</span>
+                        <span>{{ item.live_stream_url ? 'Livestream' : 'Video Highlight' }}</span>
                       </div>
                       <div class="media-overlay">
-                        <div class="play-btn" @click="openPreview(item.video_url ? 'video' : 'image', item.video_url || item.image_url, item.match_label, item.match)">
-                          <el-icon v-if="item.video_url"><VideoPlay /></el-icon>
+                        <div class="play-btn" @click="openPreview((item.video_url || item.live_stream_url) ? 'video' : 'image', item.video_url || item.live_stream_url || item.image_url, item.match_label, item.match)">
+                          <el-icon v-if="item.video_url || item.live_stream_url"><VideoPlay /></el-icon>
                           <el-icon v-else><View /></el-icon>
                         </div>
                       </div>
@@ -880,7 +1080,7 @@ const parseSets = (scoreSummary) => {
           <div v-if="previewData.type === 'video'" class="video-container">
             <iframe 
               v-if="previewData.url.includes('youtube.com') || previewData.url.includes('youtu.be')"
-              :src="previewData.url.replace('watch?v=', 'embed/')" 
+              :src="getVideoEmbedUrl(previewData.url)"
               frameborder="0" 
               allowfullscreen
               class="preview-video"
@@ -1011,9 +1211,10 @@ const parseSets = (scoreSummary) => {
 .hd-val { font-size: 0.95rem; font-weight: 600; color: white; }
 .hd-divider { width: 1px; height: 30px; background: rgba(255,255,255,0.2); }
 .main-overlap { position: relative; z-index: 10; margin-top: -4rem; }
-.neo-grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 2rem; align-items: start; }
+.detail-wide-shell { width: min(100% - 48px, 1680px); max-width: none; }
+.neo-grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(280px, 1fr); gap: 2rem; align-items: start; }
 .neo-col-main { min-width: 0; width: 100%; }
-.neo-tabs-container { background: var(--bg-surface); border-radius: var(--radius-xl); padding: 2rem; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); min-height: 500px; overflow: hidden; }
+.neo-tabs-container { background: var(--bg-surface); border-radius: 24px; padding: 2rem; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); min-height: 620px; overflow: hidden; }
 :deep(.neo-tabs .el-tabs__nav-wrap::after) { display: none; }
 :deep(.neo-tabs .el-tabs__nav) { background: var(--bg-body); padding: 4px; border-radius: 12px; }
 :deep(.neo-tabs .el-tabs__item) { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); height: 40px; line-height: 40px; padding: 0 20px !important; border-radius: 8px; transition: 0.3s; }
@@ -1061,18 +1262,26 @@ const parseSets = (scoreSummary) => {
   background: rgba(0, 0, 0, 0.4);
 }
 
-.neo-bracket-horizontal {
-  display: flex;
-  gap: 60px;
-  padding: 20px;
+.neo-bracket-tree {
+  position: relative;
   min-width: max-content;
+  padding: 0;
 }
 
-.bracket-column {
-  display: flex;
-  flex-direction: column;
-  width: 280px;
-  flex-shrink: 0;
+.bracket-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+}
+
+.bracket-link {
+  fill: none;
+  stroke: #cbd5e1;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .round-sticky-header {
@@ -1084,6 +1293,12 @@ const parseSets = (scoreSummary) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.tree-round-header {
+  position: absolute;
+  margin-bottom: 0;
+  z-index: 3;
 }
 
 .round-title-group { display: flex; align-items: center; gap: 10px; }
@@ -1102,22 +1317,20 @@ const parseSets = (scoreSummary) => {
 .round-title { margin: 0; font-size: 0.95rem; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; }
 .round-count { font-size: 0.75rem; color: #64748b; font-weight: 600; }
 
-.matches-stack {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  flex-grow: 1;
-  gap: 30px;
-}
-
 .match-node-wrapper {
-  position: relative;
+  position: absolute;
   display: flex;
   align-items: center;
+  z-index: 2;
+}
+
+.match-node-wrapper.tree-node {
+  align-items: stretch;
 }
 
 .match-node-v2 {
   width: 100%;
+  height: 100%;
   background: white;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
@@ -1125,19 +1338,26 @@ const parseSets = (scoreSummary) => {
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 2;
+  display: flex;
+  flex-direction: column;
 }
 
 .match-node-v2:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1); border-color: var(--accent-light); }
 
-.m-v2-header { padding: 10px 16px; background: #f8fafc; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
-.m-v2-header-left { display: flex; align-items: center; gap: 12px; }
+.m-v2-header { min-height: 42px; padding: 8px 12px; background: #f8fafc; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-shrink: 0; }
+.m-v2-header-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .m-v2-no { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 700; color: #94a3b8; }
-.m-v2-court { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #64748b; background: #e2e8f0; padding: 2px 8px; border-radius: 4px; }
-.m-v2-status { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; }
+.m-v2-court { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 190px; font-size: 0.68rem; font-weight: 800; color: #64748b; background: #e2e8f0; padding: 3px 8px; border-radius: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-v2-status { flex-shrink: 0; font-size: 0.62rem; font-weight: 900; text-transform: uppercase; padding: 4px 8px; border-radius: 8px; background: #f1f5f9; color: #64748b; }
 .m-v2-status.is-done { background: #dcfce7; color: #16a34a; }
 .m-v2-status.is-live { background: #fee2e2; color: #dc2626; animation: pulse 2s infinite; }
 .m-v2-status.is-upcoming { background: #fef3c7; color: #92400e; }
 .m-v2-status.is-advance { background: #e0f2fe; color: #0369a1; }
+.m-v2-meta-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px 0; flex-shrink: 0; }
+.match-meta-chip, .match-score-chip, .match-advance-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 5px 8px; border-radius: 9px; background: #eff6ff; color: #2563eb; font-size: 0.68rem; font-weight: 900; }
+.match-meta-chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.match-score-chip { background: #f0fdf4; color: #16a34a; font-family: 'JetBrains Mono', monospace; }
+.match-advance-chip { background: #fff7ed; color: #c2410c; }
 
 .schedule-panel { margin-top: 10px; }
 .schedule-list { display: flex; flex-direction: column; gap: 12px; }
@@ -1172,8 +1392,8 @@ const parseSets = (scoreSummary) => {
 .schedule-score { min-width: 48px; text-align: center; font-weight: 900; color: #2563eb; font-family: 'JetBrains Mono', monospace; }
 .schedule-meta { font-size: 0.8rem; color: #64748b; }
 
-.m-v2-body { padding: 8px 0; }
-.m-v2-player { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; transition: all 0.2s; position: relative; }
+.m-v2-body { padding: 8px 0 10px; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.m-v2-player { display: flex; justify-content: space-between; align-items: center; min-height: 50px; padding: 7px 12px; transition: all 0.2s; position: relative; }
 .m-v2-player.is-win { background: #f0fdf4; }
 .p-info-wrapper { display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden; }
 .p-avatar-mini { border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -1183,48 +1403,13 @@ const parseSets = (scoreSummary) => {
 .p-win-icon { color: #22c55e; font-size: 0.9rem; flex-shrink: 0; }
 .p-partner { font-size: 0.7rem; color: #64748b; font-style: italic; white-space: nowrap; }
 .p-score { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 800; color: #0f172a; min-width: 24px; text-align: center; }
-.m-v2-divider { height: 1px; background: #f1f5f9; margin: 0 16px; }
-
-/* Connector lines */
-.connector-line-in {
-  position: absolute;
-  left: -40px;
-  width: 40px;
-  height: 1px;
-  background: #cbd5e1;
-}
-
-.connector-line-out {
-  position: absolute;
-  right: -40px;
-  width: 40px;
-  height: 1px;
-  background: #cbd5e1;
-}
-
-.matches-stack > .match-node-wrapper:nth-child(even) .connector-line-out {
-  height: calc(50% + 15px);
-  top: 50%;
-  border-left: 1px solid #cbd5e1;
-  border-bottom: 1px solid #cbd5e1;
-  width: 40px;
-  background: transparent;
-}
-
-.matches-stack > .match-node-wrapper:nth-child(odd) .connector-line-out {
-  height: calc(50% + 15px);
-  bottom: 50%;
-  border-left: 1px solid #cbd5e1;
-  border-top: 1px solid #cbd5e1;
-  width: 40px;
-  background: transparent;
-}
+.m-v2-divider { height: 1px; background: #f1f5f9; margin: 0 12px; flex-shrink: 0; }
 
 .empty-state { text-align: center; padding: 4rem 0; color: var(--text-muted); }
 .es-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;}
-.player-stack-v2 { display: flex; flex-direction: column; gap: 6px; flex: 1; overflow: hidden; padding: 4px 0; }
-.p-mini-box { display: flex; align-items: center; gap: 8px; overflow: hidden; }
-.p-name-link { font-size: 0.85rem; font-weight: 700; color: var(--navy); text-decoration: none; transition: 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.player-stack-v2 { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; overflow: hidden; padding: 2px 0; }
+.p-mini-box { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; }
+.p-name-link { font-size: 0.84rem; font-weight: 800; color: var(--navy); text-decoration: none; transition: 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
 .p-name-link:hover { color: var(--accent); }
 .p-name-link.no-link { pointer-events: none; color: #64748b; }
 
@@ -1234,9 +1419,14 @@ const parseSets = (scoreSummary) => {
 .player-meta .name { font-weight: 700; color: var(--navy); text-decoration: none; font-size: 0.9rem; }
 .player-meta .name:hover { color: var(--accent); }
 .team-divider { font-weight: 900; color: #cbd5e1; font-size: 1.2rem; margin: 0 4px; }
-.m-v2-footer { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px; }
+.m-v2-footer { margin: auto 12px 0; padding-top: 8px; border-top: 1px solid #f1f5f9; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; flex-shrink: 0; }
+.m-referee-badge { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 8px; border-radius: 10px; background: #f8fafc; color: #475569; font-size: 0.7rem; font-weight: 800; }
+.referee-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; background: #e0f2fe; color: #0369a1; font-size: 0.65rem; flex-shrink: 0; }
+.referee-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.referee-phone { color: #94a3b8; flex-shrink: 0; }
 .m-referee { font-size: 0.75rem; color: #64748b; font-weight: 600; display: flex; align-items: center; gap: 4px; }
-.m-media-actions { display: flex; gap: 8px; }
+.m-media-actions { display: flex; gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
+.media-icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; }
 .media-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; text-decoration: none; transition: all 0.2s; }
 .media-btn.video { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
 .media-btn.video:hover { background: #dc2626; color: white; }
@@ -1396,31 +1586,8 @@ const parseSets = (scoreSummary) => {
   .bracket-viewport {
     scroll-snap-type: x mandatory;
   }
-  .neo-bracket-horizontal {
-    gap: 30px;
-    padding: 10px;
-  }
-  .bracket-column {
-    width: 250px;
-    scroll-snap-align: center;
-  }
-  .connector-line-in {
-    left: -20px;
-    width: 20px;
-  }
-  .connector-line-out {
-    right: -20px;
-    width: 20px;
-  }
-  .matches-stack > .match-node-wrapper:nth-child(even) .connector-line-out {
-    width: 20px;
-    border-left: 1px solid #cbd5e1;
-    border-bottom: 1px solid #cbd5e1;
-  }
-  .matches-stack > .match-node-wrapper:nth-child(odd) .connector-line-out {
-    width: 20px;
-    border-left: 1px solid #cbd5e1;
-    border-top: 1px solid #cbd5e1;
+  .neo-bracket-tree {
+    transform-origin: top left;
   }
 }
 @media (max-width: 480px) {
@@ -1492,19 +1659,22 @@ const parseSets = (scoreSummary) => {
 }
 
 /* Match Node Footer */
-.m-v2-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 8px; }
+.m-v2-footer { margin: auto 12px 0; padding-top: 8px; border-top: 1px solid #f1f5f9; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; flex-shrink: 0; }
 .score-container-v2 { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .set-scores-wrap { display: flex; gap: 3px; }
 .set-score-pill { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; font-size: 0.75rem; font-weight: 800; color: #475569; background: #f1f5f9; border-radius: 4px; border: 1px solid #e2e8f0; transition: all 0.2s ease; }
 .set-score-pill.is-set-win { background: #22c55e; color: white; border-color: #22c55e; }
-.m-referee-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 0.75rem; font-weight: 600; color: #475569; width: fit-content; }
-.referee-icon { font-size: 0.8rem; }
-.referee-name { color: #0f172a; font-weight: 700; }
-.m-media-actions { display: flex; gap: 8px; margin-top: 2px; }
+.m-referee-badge { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 0.7rem; font-weight: 800; color: #475569; }
+.referee-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; background: #e0f2fe; color: #0369a1; font-size: 0.65rem; flex-shrink: 0; }
+.referee-name { color: #0f172a; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-media-actions { display: flex; gap: 6px; margin-top: 0; flex-wrap: nowrap; justify-content: flex-end; }
 .media-btn { border-radius: 8px !important; font-weight: 700 !important; font-size: 0.75rem !important; padding: 6px 12px !important; height: 28px !important; transition: all 0.2s ease !important; }
-.video-btn { background: #fef2f2 !important; color: #ef4444 !important; border: 1px solid #fee2e2 !important; }
+.media-icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease; }
+.live-btn { background: #fef3c7 !important; color: #b45309 !important; border-color: #fde68a !important; }
+.live-btn:hover { background: #f59e0b !important; color: white !important; border-color: #f59e0b !important; }
+.video-btn { background: #fef2f2 !important; color: #ef4444 !important; border-color: #fee2e2 !important; }
 .video-btn:hover { background: #ef4444 !important; color: white !important; border-color: #ef4444 !important; }
-.image-btn { background: #eff6ff !important; color: #3b82f6 !important; border: 1px solid #dbeafe !important; }
+.image-btn { background: #eff6ff !important; color: #3b82f6 !important; border-color: #dbeafe !important; }
 .image-btn:hover { background: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }
 
 /* Media Dialog Split Layout */

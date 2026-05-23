@@ -111,6 +111,60 @@ def admin_get_all_registrations(
     return response_items
 
 # 6. ADMIN HỦY ĐƠN / HOÀN TIỀN
+@router.post("/admin/tournaments/{tournament_id}/add-player", dependencies=[Depends(get_current_admin)])
+def admin_add_player_to_tournament(
+    tournament_id: int,
+    payload: registration_schemas.AdminAddTournamentRegistrationRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Khong tim thay giai dau.")
+
+    category = db.query(TournamentCategory).filter(
+        TournamentCategory.id == payload.category_id,
+        TournamentCategory.tournament_id == tournament_id
+    ).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Khong tim thay noi dung thi dau cua giai.")
+
+    player = db.query(Player).filter(Player.id == payload.player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Khong tim thay van dong vien.")
+
+    partners = []
+    if payload.partner_player_id:
+        partner = db.query(Player).filter(Player.id == payload.partner_player_id).first()
+        partner_user = db.query(User).filter(User.id == partner.user_id).first() if partner else None
+        if not partner or not partner_user:
+            raise HTTPException(status_code=404, detail="Khong tim thay dong doi.")
+        partners.append({
+            "player_id": partner.id,
+            "name": partner_user.full_name,
+            "phone": partner_user.phone,
+            "email": partner_user.email,
+        })
+
+    reg = crud_registration.register_with_otp_flow(
+        db=db,
+        tournament_id=tournament_id,
+        category_id=payload.category_id,
+        player_id=payload.player_id,
+        notes=payload.notes,
+        partners=partners,
+    )
+
+    if payload.mark_paid or payload.check_in:
+        reg.payment_status = "paid"
+    if payload.check_in:
+        reg.status = "checked_in"
+    db.commit()
+    db.refresh(reg)
+
+    background_tasks.add_task(update_qr, reg.id, tournament.name)
+    return {"message": "Da them van dong vien vao giai dau thanh cong.", "registration_id": reg.id}
+
 @router.delete("/{registration_id}", dependencies=[Depends(get_current_admin)])
 def admin_cancel_registration(registration_id: int, db: Session = Depends(get_db)):
     reg = crud_registration.admin_cancel_registration(db, registration_id)

@@ -5,6 +5,7 @@ from datetime import date
 
 class SendOTPRequest(BaseModel):
     email: EmailStr
+    purpose: Optional[str] = "signup"
 
 class RegisterRequest(BaseModel):
     email: EmailStr
