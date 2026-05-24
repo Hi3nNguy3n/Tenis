@@ -178,7 +178,7 @@ watch(activeTab, (newTab) => {
 
 const groupedMatches = computed(() => {
   const groups = {}
-  publicMatches.value.forEach(m => {
+  bracketTreeMatches.value.forEach(m => {
     if (!groups[m.round_code]) groups[m.round_code] = []
     groups[m.round_code].push(m)
   })
@@ -198,8 +198,73 @@ const groupedMatches = computed(() => {
     }))
 })
 
+const isGroupStageMatch = (match) => {
+  const roundCode = String(match?.round_code || '').toUpperCase()
+  return match?.stage_type === 'group_stage' || /^G\d+/.test(roundCode)
+}
+
+const getGroupId = (match) => {
+  if (match?.group_id) return Number(match.group_id)
+  const roundCode = String(match?.round_code || '')
+  const parsed = roundCode.match(/^G(\d+)/i)
+  return parsed ? Number(parsed[1]) : 1
+}
+
+const groupStageBoards = computed(() => {
+  const groupMap = new Map()
+
+  publicMatches.value
+    .filter(isGroupStageMatch)
+    .forEach(match => {
+      const groupId = getGroupId(match)
+      if (!groupMap.has(groupId)) {
+        groupMap.set(groupId, {
+          id: groupId,
+          title: `Bảng ${groupId}`,
+          matchCount: 0,
+          rounds: new Map()
+        })
+      }
+
+      const group = groupMap.get(groupId)
+      const roundCode = match.round_code || 'Vòng bảng'
+      if (!group.rounds.has(roundCode)) {
+        group.rounds.set(roundCode, {
+          code: roundCode,
+          label: roundCode,
+          items: []
+        })
+      }
+
+      group.rounds.get(roundCode).items.push(match)
+      group.matchCount += 1
+    })
+
+  return [...groupMap.values()]
+    .sort((a, b) => a.id - b.id)
+    .map(group => ({
+      ...group,
+      rounds: [...group.rounds.values()]
+        .map(round => ({
+          ...round,
+          items: [...round.items].sort((a, b) => (a.match_no || 0) - (b.match_no || 0))
+        }))
+        .sort((a, b) => getRoundSortIndex(a.code) - getRoundSortIndex(b.code))
+    }))
+})
+
+const hasGroupStageMatches = computed(() => groupStageBoards.value.length > 0)
+const bracketTreeMatches = computed(() => {
+  if (!hasGroupStageMatches.value) return publicMatches.value
+  return publicMatches.value.filter(match => !isGroupStageMatch(match))
+})
+
 const getRoundSortIndex = (roundLabel) => {
   const label = String(roundLabel || '').toUpperCase()
+  if (/^G\d+-R\d+$/.test(label)) {
+    const match = label.match(/^G(\d+)-R(\d+)$/)
+    return Number(match?.[2] || 0)
+  }
   if (/^G\d+$/.test(label)) return Number(label.slice(1))
   if (/VONG\s*\d+|VÒNG\s*\d+|ROUND\s*\d+/i.test(label)) {
     const num = Number(label.match(/\d+/)?.[0] || 0)
@@ -219,7 +284,7 @@ const getRoundSortIndex = (roundLabel) => {
 }
 
 const bracketRounds = computed(() => {
-  const layoutMatches = publicMatches.value
+  const layoutMatches = bracketTreeMatches.value
   const hasTreeLinks = layoutMatches.some(m => m.next_match_id)
   if (!hasTreeLinks) return groupedMatches.value
 
@@ -588,6 +653,242 @@ const parseSets = (scoreSummary) => {
                   <div v-if="publicMatches.length === 0" class="empty-state">
                     <div class="es-icon">🎾</div>
                     <p>{{ t('tournaments.bracketNotDrawn') }}</p>
+                  </div>
+
+                  <div v-else-if="hasGroupStageMatches" class="group-stage-public-wrap">
+                    <section v-for="group in groupStageBoards" :key="group.id" class="public-group-card">
+                      <div class="public-group-head">
+                        <div>
+                          <h3>{{ group.title }}</h3>
+                          <p>{{ group.matchCount }} {{ t('tournaments.matches') }}, {{ group.rounds.length }} vòng thi đấu</p>
+                        </div>
+                      </div>
+
+                      <div class="public-group-rounds">
+                        <div v-for="round in group.rounds" :key="`${group.id}-${round.code}`" class="public-round-lane">
+                          <div class="public-round-head">
+                            <span>{{ round.label }}</span>
+                            <small>{{ round.items.length }} {{ t('tournaments.matches') }}</small>
+                          </div>
+
+                          <div class="public-round-matches">
+                            <div v-for="m in round.items" :key="m.id" class="group-match-card" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
+                              <div class="m-v2-header">
+                                <div class="m-v2-header-left">
+                                  <span class="m-v2-no">#{{ m.match_no }}</span>
+                                  <span class="m-v2-court">
+                                    <el-icon><Location /></el-icon> {{ m.court || 'Chưa gán sân' }}
+                                  </span>
+                                </div>
+                                <span class="m-v2-status" :class="getMatchStatusClass(m)">{{ getMatchStatusLabel(m) }}</span>
+                              </div>
+
+                              <div class="m-v2-meta-strip" v-if="m.start_time || m.score_summary || m.advance_note">
+                                <span v-if="m.start_time" class="match-meta-chip">
+                                  <el-icon><CalendarIcon /></el-icon>
+                                  {{ formatDateTime(m.start_time) }}
+                                </span>
+                                <span v-if="m.score_summary" class="match-score-chip">{{ m.score_summary }}</span>
+                                <span v-if="m.advance_note" class="match-advance-chip">{{ m.advance_note }}</span>
+                              </div>
+
+                              <div class="m-v2-body">
+                                <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_a' }">
+                                  <div class="player-stack-v2">
+                                    <div class="p-mini-box">
+                                      <el-avatar :size="20" :src="m.p1_avatar" class="p-avatar-mini">
+                                        <el-icon><User /></el-icon>
+                                      </el-avatar>
+                                      <router-link :to="m.p1_user_id ? `/players/${m.p1_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p1_user_id}">
+                                        {{ m.p1_name || 'Chưa xác định' }}
+                                      </router-link>
+                                      <el-icon v-if="m.winner_side === 'side_a'" class="p-win-icon"><Check /></el-icon>
+                                    </div>
+                                    <div v-if="m.p1_partner_name" class="p-mini-box">
+                                      <el-avatar :size="20" :src="m.p1_partner_avatar" class="p-avatar-mini">
+                                        <el-icon><User /></el-icon>
+                                      </el-avatar>
+                                      <router-link :to="m.p1_partner_user_id ? `/players/${m.p1_partner_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p1_partner_user_id}">
+                                        {{ m.p1_partner_name }}
+                                      </router-link>
+                                    </div>
+                                  </div>
+                                  <div class="score-container-v2" v-if="m.status === 'completed' || m.score_summary">
+                                    <div class="set-scores-wrap" v-if="m.score_summary">
+                                      <span v-for="(set, sIdx) in parseSets(m.score_summary)" :key="sIdx" class="set-score-pill" :class="{ 'is-set-win': Number(set.a) > Number(set.b) }">
+                                        {{ set.a }}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div class="m-v2-divider"></div>
+
+                                <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_b' }">
+                                  <div class="player-stack-v2">
+                                    <div class="p-mini-box">
+                                      <el-avatar :size="20" :src="m.p2_avatar" class="p-avatar-mini">
+                                        <el-icon><User /></el-icon>
+                                      </el-avatar>
+                                      <router-link :to="m.p2_user_id ? `/players/${m.p2_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p2_user_id}">
+                                        {{ m.p2_name || 'Chưa xác định' }}
+                                      </router-link>
+                                      <el-icon v-if="m.winner_side === 'side_b'" class="p-win-icon"><Check /></el-icon>
+                                    </div>
+                                    <div v-if="m.p2_partner_name" class="p-mini-box">
+                                      <el-avatar :size="20" :src="m.p2_partner_avatar" class="p-avatar-mini">
+                                        <el-icon><User /></el-icon>
+                                      </el-avatar>
+                                      <router-link :to="m.p2_partner_user_id ? `/players/${m.p2_partner_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p2_partner_user_id}">
+                                        {{ m.p2_partner_name }}
+                                      </router-link>
+                                    </div>
+                                  </div>
+                                  <div class="score-container-v2" v-if="m.status === 'completed' || m.score_summary">
+                                    <div class="set-scores-wrap" v-if="m.score_summary">
+                                      <span v-for="(set, sIdx) in parseSets(m.score_summary)" :key="sIdx" class="set-score-pill" :class="{ 'is-set-win': Number(set.b) > Number(set.a) }">
+                                        {{ set.b }}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div v-if="m.referee_name || m.advance_note || m.live_stream_url || m.video_url || m.image_url" class="m-v2-footer">
+                                  <div v-if="m.referee_name" class="m-referee-badge" :title="`${m.referee_name}${m.referee_phone ? ' - ' + m.referee_phone : ''}`">
+                                    <span class="referee-icon">TT</span>
+                                    <span class="referee-name">{{ m.referee_name }}</span>
+                                  </div>
+                                  <div class="m-media-actions">
+                                    <el-tooltip v-if="m.live_stream_url" content="Livestream" placement="top">
+                                      <button class="media-icon-btn live-btn" type="button" @click.stop="openPreview('video', m.live_stream_url, `Livestream Trận #${m.match_no}`, m)">
+                                        <el-icon><VideoPlay /></el-icon>
+                                      </button>
+                                    </el-tooltip>
+                                    <el-tooltip v-if="m.video_url" content="Video highlight" placement="top">
+                                      <button class="media-icon-btn video-btn" type="button" @click.stop="openPreview('video', m.video_url, `Highlight Trận #${m.match_no}`, m)">
+                                        <el-icon><VideoCamera /></el-icon>
+                                      </button>
+                                    </el-tooltip>
+                                    <el-tooltip v-if="m.image_url" content="Ảnh trận đấu" placement="top">
+                                      <button class="media-icon-btn image-btn" type="button" @click.stop="openPreview('image', m.image_url, `Ảnh Trận #${m.match_no}`, m)">
+                                        <el-icon><Picture /></el-icon>
+                                      </button>
+                                    </el-tooltip>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <div
+                      v-if="bracketTreeMatches.length > 0"
+                      class="neo-bracket-tree playoff-tree-after-groups"
+                      :style="{ width: `${bracketLayout.width}px`, height: `${bracketLayout.height}px` }"
+                    >
+                      <svg
+                        class="bracket-lines"
+                        :width="bracketLayout.width"
+                        :height="bracketLayout.height"
+                        :viewBox="`0 0 ${bracketLayout.width} ${bracketLayout.height}`"
+                        aria-hidden="true"
+                      >
+                        <polyline
+                          v-for="line in bracketLayout.lines"
+                          :key="line.id"
+                          :points="line.points"
+                          class="bracket-link"
+                        />
+                      </svg>
+
+                      <div
+                        v-for="(round, roundIdx) in bracketLayout.rounds"
+                        :key="round.id"
+                        class="round-sticky-header tree-round-header"
+                        :style="{ left: `${round.x}px`, top: `${round.y}px`, width: `${bracketLayout.cardWidth}px` }"
+                      >
+                        <div class="round-title-group">
+                          <span class="round-index">{{ roundIdx + 1 }}</span>
+                          <h4 class="round-title">{{ round.label }}</h4>
+                        </div>
+                        <span class="round-count">{{ round.items.length }} {{ t('tournaments.matches') }}</span>
+                      </div>
+
+                      <div
+                        v-for="node in bracketLayout.nodes"
+                        :key="node.id"
+                        class="match-node-wrapper tree-node"
+                        :style="{
+                          left: `${node.x}px`,
+                          top: `${node.y}px`,
+                          width: `${bracketLayout.cardWidth}px`,
+                          height: `${bracketLayout.cardHeight}px`
+                        }"
+                      >
+                        <template v-for="m in [node.match]" :key="m.id">
+                          <div class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
+                            <div class="m-v2-header">
+                              <div class="m-v2-header-left">
+                                <span class="m-v2-no">#{{ m.match_no }}</span>
+                                <span class="m-v2-court">
+                                  <el-icon><Location /></el-icon> {{ m.court || 'Chưa gán sân' }}
+                                </span>
+                              </div>
+                              <span class="m-v2-status" :class="getMatchStatusClass(m)">{{ getMatchStatusLabel(m) }}</span>
+                            </div>
+                            <div class="m-v2-meta-strip" v-if="m.start_time || m.score_summary || m.advance_note">
+                              <span v-if="m.start_time" class="match-meta-chip">
+                                <el-icon><CalendarIcon /></el-icon>
+                                {{ formatDateTime(m.start_time) }}
+                              </span>
+                              <span v-if="m.score_summary" class="match-score-chip">{{ m.score_summary }}</span>
+                              <span v-if="m.advance_note" class="match-advance-chip">{{ m.advance_note }}</span>
+                            </div>
+                            <div class="m-v2-body">
+                              <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_a' }">
+                                <div class="player-stack-v2">
+                                  <div class="p-mini-box">
+                                    <el-avatar :size="20" :src="m.p1_avatar" class="p-avatar-mini"><el-icon><User /></el-icon></el-avatar>
+                                    <router-link :to="m.p1_user_id ? `/players/${m.p1_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p1_user_id}">{{ m.p1_name || '???' }}</router-link>
+                                    <el-icon v-if="m.winner_side === 'side_a'" class="p-win-icon"><Check /></el-icon>
+                                  </div>
+                                  <div v-if="m.p1_partner_name" class="p-mini-box">
+                                    <el-avatar :size="20" :src="m.p1_partner_avatar" class="p-avatar-mini"><el-icon><User /></el-icon></el-avatar>
+                                    <router-link :to="m.p1_partner_user_id ? `/players/${m.p1_partner_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p1_partner_user_id}">{{ m.p1_partner_name }}</router-link>
+                                  </div>
+                                </div>
+                                <div class="score-container-v2" v-if="m.status === 'completed' || m.score_summary">
+                                  <div class="set-scores-wrap" v-if="m.score_summary">
+                                    <span v-for="(set, sIdx) in parseSets(m.score_summary)" :key="sIdx" class="set-score-pill" :class="{ 'is-set-win': Number(set.a) > Number(set.b) }">{{ set.a }}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div class="m-v2-divider"></div>
+                              <div class="m-v2-player" :class="{ 'is-win': m.winner_side === 'side_b' }">
+                                <div class="player-stack-v2">
+                                  <div class="p-mini-box">
+                                    <el-avatar :size="20" :src="m.p2_avatar" class="p-avatar-mini"><el-icon><User /></el-icon></el-avatar>
+                                    <router-link :to="m.p2_user_id ? `/players/${m.p2_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p2_user_id}">{{ m.p2_name || '???' }}</router-link>
+                                    <el-icon v-if="m.winner_side === 'side_b'" class="p-win-icon"><Check /></el-icon>
+                                  </div>
+                                  <div v-if="m.p2_partner_name" class="p-mini-box">
+                                    <el-avatar :size="20" :src="m.p2_partner_avatar" class="p-avatar-mini"><el-icon><User /></el-icon></el-avatar>
+                                    <router-link :to="m.p2_partner_user_id ? `/players/${m.p2_partner_user_id}` : '#'" class="p-name-link" :class="{'no-link': !m.p2_partner_user_id}">{{ m.p2_partner_name }}</router-link>
+                                  </div>
+                                </div>
+                                <div class="score-container-v2" v-if="m.status === 'completed' || m.score_summary">
+                                  <div class="set-scores-wrap" v-if="m.score_summary">
+                                    <span v-for="(set, sIdx) in parseSets(m.score_summary)" :key="sIdx" class="set-score-pill" :class="{ 'is-set-win': Number(set.b) > Number(set.a) }">{{ set.b }}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
                   </div>
                   
                   <div
@@ -1266,6 +1567,108 @@ const parseSets = (scoreSummary) => {
   position: relative;
   min-width: max-content;
   padding: 0;
+}
+
+.group-stage-public-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 980px;
+}
+
+.public-group-card {
+  background: #ffffff;
+  border: 1px solid #dbe5f0;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06);
+}
+
+.public-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.public-group-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.public-group-head p {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.public-group-rounds {
+  display: flex;
+  gap: 24px;
+  padding: 20px;
+  overflow-x: auto;
+  background:
+    linear-gradient(#eef4fb 1px, transparent 1px),
+    linear-gradient(90deg, #eef4fb 1px, transparent 1px),
+    #ffffff;
+  background-size: 64px 64px;
+}
+
+.public-round-lane {
+  min-width: 316px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.public-round-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: rgba(248, 250, 252, 0.92);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.public-round-head span {
+  font-size: 0.76rem;
+  font-weight: 900;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.public-round-head small {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.public-round-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.group-match-card {
+  background: white;
+  border: 1px solid #dbe5f0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 14px 24px rgba(15, 23, 42, 0.07);
+}
+
+.playoff-tree-after-groups {
+  margin-top: 4px;
+  flex-shrink: 0;
 }
 
 .bracket-lines {

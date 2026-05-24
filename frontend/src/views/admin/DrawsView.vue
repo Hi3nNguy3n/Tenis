@@ -48,10 +48,42 @@ const knockoutRoundCount = computed(() => {
   return rounds
 })
 
+const roundRobinPreview = computed(() => {
+  const participantCount = Math.max(0, Number(drawForm.value.draw_size || 0))
+  const groupCount = Math.max(1, Math.min(Number(drawForm.value.num_groups || 1), Math.max(1, participantCount)))
+  if (participantCount < 2) {
+    return {
+      groupCount,
+      groupSizes: [],
+      matchCount: 0,
+      label: 'Cần ít nhất 2 đội/cặp để tạo lịch vòng tròn.'
+    }
+  }
+
+  const baseSize = Math.floor(participantCount / groupCount)
+  const extraSlots = participantCount % groupCount
+  const groupSizes = Array.from({ length: groupCount }, (_, index) => baseSize + (index < extraSlots ? 1 : 0))
+  const matchCount = groupSizes.reduce((total, size) => total + (size * (size - 1)) / 2, 0)
+  return {
+    groupCount,
+    groupSizes,
+    matchCount,
+    label: `${participantCount} đội/cặp, ${groupCount} bảng (${groupSizes.join(' - ')} đội/cặp), dự kiến ${matchCount} trận.`
+  }
+})
+
 watch(knockoutRoundCount, (count) => {
   const defaults = ['Vòng 1', 'Tứ kết', 'Bán kết', 'Chung kết']
   drawForm.value.round_names = Array.from({ length: count }, (_, idx) => drawForm.value.round_names[idx] || defaults[Math.max(0, defaults.length - count + idx)] || `Vòng ${idx + 1}`)
 }, { immediate: true })
+
+watch(() => [drawForm.value.draw_size, drawForm.value.num_groups], ([drawSize, numGroups]) => {
+  const participantCount = Number(drawSize || 0)
+  const groupCount = Number(numGroups || 1)
+  if (participantCount > 0 && groupCount > participantCount) {
+    drawForm.value.num_groups = participantCount
+  }
+})
 
 // --- BIẾN GÁN VĐV (GHÉP CẶP THỦ CÔNG) ---
 const tournamentRegistrations = ref([])
@@ -223,13 +255,33 @@ const confirmGeneratePlayoff = async () => {
 const roundOrder = (roundCode) => {
   const normalized = String(roundCode || '').toUpperCase()
   if (normalized.includes('G')) return 0
-  const orderMap = { R128: 1, R64: 2, R32: 3, R16: 4, R8: 5, QF: 6, SF: 7, F: 8, FINAL: 8 }
+  const orderMap = {
+    R128: 1,
+    R64: 2,
+    R32: 3,
+    '1/16': 4,
+    R16: 5,
+    '1/8': 5,
+    R8: 6,
+    QF: 6,
+    '1/4': 6,
+    SF: 7,
+    '1/2': 7,
+    F: 8,
+    FINAL: 8
+  }
   return orderMap[normalized] ?? 99
 }
 
 const isGroupStageMatch = (match) => {
   const roundCode = String(match?.round_code || '').toUpperCase()
   return match?.stage_type === 'group_stage' || /^G\d+/.test(roundCode)
+}
+
+const getGroupIdFromMatch = (match) => {
+  if (match?.group_id) return Number(match.group_id)
+  const matchRound = String(match?.round_code || '').toUpperCase().match(/^G(\d+)/)
+  return matchRound ? Number(matchRound[1]) : 1
 }
 
 const groupedMatches = computed(() => {
@@ -247,6 +299,43 @@ const groupedMatches = computed(() => {
 })
 
 const groupRounds = computed(() => groupedMatches.value.filter(r => r.items.some(isGroupStageMatch)))
+const roundRobinGroups = computed(() => {
+  const groups = new Map()
+  groupRounds.value.forEach(round => {
+    round.items.forEach(match => {
+      const groupId = getGroupIdFromMatch(match)
+      if (!groups.has(groupId)) {
+        groups.set(groupId, {
+          groupId,
+          title: `Bảng ${groupId}`,
+          matchCount: 0,
+          rounds: new Map()
+        })
+      }
+      const group = groups.get(groupId)
+      if (!group.rounds.has(round.roundCode)) {
+        group.rounds.set(round.roundCode, {
+          roundCode: round.roundCode,
+          items: []
+        })
+      }
+      group.rounds.get(round.roundCode).items.push(match)
+      group.matchCount += 1
+    })
+  })
+
+  return [...groups.values()]
+    .sort((a, b) => a.groupId - b.groupId)
+    .map(group => ({
+      ...group,
+      rounds: [...group.rounds.values()]
+        .map(round => ({
+          ...round,
+          items: round.items.slice().sort((a, b) => (a.match_no || 0) - (b.match_no || 0))
+        }))
+        .sort((a, b) => roundOrder(a.roundCode) - roundOrder(b.roundCode) || a.roundCode.localeCompare(b.roundCode))
+    }))
+})
 const knockoutRounds = computed(() => {
   const rounds = groupedMatches.value.filter(r => !r.items.some(isGroupStageMatch))
   const matchMap = new Map(matches.value.map(m => [m.id, m]))
@@ -685,6 +774,7 @@ const confirmControlMatch = async () => {
   }
   const payload = {
     ...controlForm.value,
+    status: formattedScore && controlForm.value.winner_side ? 'completed' : controlForm.value.status,
     score: formattedScore,
     court_id: controlForm.value.court_id || null,
     start_time: controlForm.value.start_time || null,
@@ -839,114 +929,111 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div class="bracket-viewport-wrapper">
-            <div
-              class="bracket-tree-board"
-              :style="{ width: `${groupBracketLayout.width}px`, height: `${groupBracketLayout.height}px` }"
-            >
-              <svg class="bracket-lines" :width="groupBracketLayout.width" :height="groupBracketLayout.height">
-                <polyline
-                  v-for="line in groupBracketLayout.connectors"
-                  :key="line.id"
-                  :points="line.points"
-                  fill="none"
-                  stroke="#cbd5e1"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-
-              <div
-                v-for="round in groupBracketLayout.roundHeaders"
-                :key="round.roundCode"
-                class="bracket-round-header"
-                :style="{ left: `${round.x}px`, top: `${round.y}px`, width: `${groupBracketLayout.cardWidth}px` }"
-              >
-                <span class="lane-tag">{{ round.roundCode }}</span>
-                <div class="round-header-actions">
-                  <el-button size="small" circle plain @click="openRoundNameDialog(round.roundCode)">
-                    <el-icon><Edit /></el-icon>
-                  </el-button>
-                  <el-button size="small" circle plain type="success" @click="openManualMatchDialog({ stage_type: 'group_stage', round_code: round.roundCode })">
+          <div class="round-robin-groups">
+            <section v-for="group in roundRobinGroups" :key="group.groupId" class="round-robin-group-card">
+              <div class="round-robin-group-header">
+                <div>
+                  <h4>{{ group.title }}</h4>
+                  <span>{{ group.matchCount }} trận, {{ group.rounds.length }} vòng thi đấu</span>
+                </div>
+                <div class="round-robin-group-actions">
+                  <el-button size="small" plain type="success" @click="openManualMatchDialog({ stage_type: 'group_stage', round_code: group.rounds[0]?.roundCode || `G${group.groupId}-R1` })">
                     <el-icon><Plus /></el-icon>
+                    Thêm trận
                   </el-button>
                 </div>
               </div>
 
-              <div
-                v-for="node in groupBracketLayout.nodes"
-                :key="node.id"
-                class="bracket-match-node"
-                :style="{ left: `${node.x}px`, top: `${node.y}px`, width: `${groupBracketLayout.cardWidth}px` }"
-              >
-                <div class="saas-match-card bracket-card clickable" @click="openMatchDetailDialog(node.match)">
+              <div class="round-robin-rounds-scroll">
+                <div class="round-robin-rounds">
+                  <div v-for="round in group.rounds" :key="`${group.groupId}-${round.roundCode}`" class="round-robin-round-column">
+                    <div class="round-robin-round-header">
+                      <span class="lane-tag">{{ round.roundCode }}</span>
+                      <div class="round-header-actions">
+                        <el-button size="small" circle plain @click="openRoundNameDialog(round.roundCode)">
+                          <el-icon><Edit /></el-icon>
+                        </el-button>
+                        <el-button size="small" circle plain type="success" @click="openManualMatchDialog({ stage_type: 'group_stage', round_code: round.roundCode })">
+                          <el-icon><Plus /></el-icon>
+                        </el-button>
+                      </div>
+                    </div>
+
+                    <div
+                      v-for="match in round.items"
+                      :key="match.id"
+                      class="saas-match-card round-robin-match-card clickable"
+                      @click="openMatchDetailDialog(match)"
+                    >
                   <div class="m-card-header compact">
                     <div class="m-header-left">
-                      <span class="m-id">#{{ node.match.match_no }}</span>
-                      <span class="m-court-tag" v-if="node.match.court">
-                        <el-icon><Location /></el-icon> {{ node.match.court }}
+                      <span class="m-id">#{{ match.match_no }}</span>
+                      <span class="m-court-tag" v-if="match.court" :title="match.court">
+                        <el-icon><Location /></el-icon> {{ match.court }}
                       </span>
                     </div>
                     <div class="m-header-right" style="display: flex; gap: 8px; align-items: center">
-                      <el-button type="primary" size="small" circle plain @click.stop="openAssignDialog(node.match)" v-if="node.match.status === 'pending' || node.match.status === 'scheduled'" style="padding: 4px; min-height: unset">
+                      <el-button type="primary" size="small" circle plain @click.stop="openAssignDialog(match)" v-if="match.status === 'pending' || match.status === 'scheduled'" style="padding: 4px; min-height: unset">
                         <el-icon><Edit /></el-icon>
                       </el-button>
-                      <el-button type="success" size="small" circle plain @click.stop="openControlDialog(node.match)" style="padding: 4px; min-height: unset">
+                      <el-button type="success" size="small" circle plain @click.stop="openControlDialog(match)" style="padding: 4px; min-height: unset">
                         <el-icon><Calendar /></el-icon>
                       </el-button>
-                      <el-button type="danger" size="small" circle plain @click.stop="deleteMatchNode(node.match)" style="padding: 4px; min-height: unset">
+                      <el-button type="danger" size="small" circle plain @click.stop="deleteMatchNode(match)" style="padding: 4px; min-height: unset">
                         <el-icon><Delete /></el-icon>
                       </el-button>
-                      <span class="m-status-dot" :class="node.match.status"></span>
+                      <span class="m-status-dot" :class="match.status"></span>
                     </div>
                   </div>
                   <div class="m-card-body">
-                    <div class="team-row compact" :class="{ 'is-winner': node.match.winner_side === 'side_a' }">
+                    <div class="team-row compact" :class="{ 'is-winner': match.winner_side === 'side_a' }">
                       <div class="team-meta-container compact">
                         <div class="player-unit compact">
-                          <el-avatar :size="18" :src="node.match.p1_avatar" class="player-avatar-mini">
+                          <el-avatar :size="18" :src="match.p1_avatar" class="player-avatar-mini">
                             <el-icon><User /></el-icon>
                           </el-avatar>
-                          <span class="team-name">{{ node.match.p1_name || '---' }}</span>
+                          <span class="team-name">{{ match.p1_name || '---' }}</span>
                         </div>
-                        <div v-if="node.match.p1_partner_name" class="player-unit compact">
-                          <el-avatar :size="18" :src="node.match.p1_partner_avatar" class="player-avatar-mini">
+                        <div v-if="match.p1_partner_name" class="player-unit compact">
+                          <el-avatar :size="18" :src="match.p1_partner_avatar" class="player-avatar-mini">
                             <el-icon><User /></el-icon>
                           </el-avatar>
-                          <span class="team-name">{{ node.match.p1_partner_name }}</span>
+                          <span class="team-name">{{ match.p1_partner_name }}</span>
                         </div>
                       </div>
-                      <span class="team-score" v-if="node.match.score_a !== null">{{ node.match.score_a }}</span>
+                      <span class="team-score" v-if="match.score_a !== null">{{ match.score_a }}</span>
                     </div>
-                    <div class="team-row compact" :class="{ 'is-winner': node.match.winner_side === 'side_b' }">
+                    <div class="team-row compact" :class="{ 'is-winner': match.winner_side === 'side_b' }">
                       <div class="team-meta-container compact">
                         <div class="player-unit compact">
-                          <el-avatar :size="18" :src="node.match.p2_avatar" class="player-avatar-mini">
+                          <el-avatar :size="18" :src="match.p2_avatar" class="player-avatar-mini">
                             <el-icon><User /></el-icon>
                           </el-avatar>
-                          <span class="team-name">{{ node.match.p2_name || '---' }}</span>
+                          <span class="team-name">{{ match.p2_name || '---' }}</span>
                         </div>
-                        <div v-if="node.match.p2_partner_name" class="player-unit compact">
-                          <el-avatar :size="18" :src="node.match.p2_partner_avatar" class="player-avatar-mini">
+                        <div v-if="match.p2_partner_name" class="player-unit compact">
+                          <el-avatar :size="18" :src="match.p2_partner_avatar" class="player-avatar-mini">
                             <el-icon><User /></el-icon>
                           </el-avatar>
-                          <span class="team-name">{{ node.match.p2_partner_name }}</span>
+                          <span class="team-name">{{ match.p2_partner_name }}</span>
                         </div>
                       </div>
-                      <span class="team-score" v-if="node.match.score_b !== null">{{ node.match.score_b }}</span>
+                      <span class="team-score" v-if="match.score_b !== null">{{ match.score_b }}</span>
                     </div>
                   </div>
-                  <div class="m-card-footer match-ops-footer" v-if="node.match.score_summary || node.match.advance_note || node.match.referee_name || node.match.live_stream_url">
-                    <span class="score-value">{{ node.match.score_summary || node.match.advance_note || node.match.referee_name || 'Thông tin trận' }}</span>
-                    <a v-if="node.match.live_stream_url" :href="node.match.live_stream_url" target="_blank" rel="noopener" class="stream-link">
+                  <div class="m-card-footer match-ops-footer" v-if="match.score_summary || match.advance_note || match.referee_name || match.live_stream_url">
+                    <span class="score-value">{{ match.score_summary || match.advance_note || match.referee_name || 'Thông tin trận' }}</span>
+                    <a v-if="match.live_stream_url" :href="match.live_stream_url" target="_blank" rel="noopener" class="stream-link">
                       <el-icon><VideoPlay /></el-icon> Stream
                     </a>
                   </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>        </div>
+            </section>
+          </div>
+        </div>
 
         <!-- Vòng Loại Trực Tiếp -->
         <div v-if="knockoutRounds.length > 0" class="saas-stage-block knockout-stage">
@@ -969,8 +1056,8 @@ onMounted(async () => {
                   :key="line.id"
                   :points="line.points"
                   fill="none"
-                  stroke="#cbd5e1"
-                  stroke-width="2"
+                  stroke="#94a3b8"
+                  stroke-width="3"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 />
@@ -1003,7 +1090,7 @@ onMounted(async () => {
                   <div class="m-card-header compact">
                     <div class="m-header-left">
                       <span class="m-id">#{{ node.match.match_no }}</span>
-                      <span class="m-court-tag" v-if="node.match.court">
+                      <span class="m-court-tag" v-if="node.match.court" :title="node.match.court">
                         <el-icon><Location /></el-icon> {{ node.match.court }}
                       </span>
                     </div>
@@ -1090,63 +1177,83 @@ onMounted(async () => {
     </template>
   </el-dialog>
 
-  <el-dialog v-model="manualDialogVisible" title="Thêm trận thủ công" width="620px" destroy-on-close>
-    <el-form :model="manualMatchForm" label-position="top" class="manual-match-form">
-      <div class="form-grid-2">
-        <el-form-item label="Tên vòng đấu">
-          <el-input v-model="manualMatchForm.round_code" placeholder="VD: Vòng bảng A, Tứ kết, Chung kết" />
-        </el-form-item>
-        <el-form-item label="Số thứ tự trận">
-          <el-input-number v-model="manualMatchForm.match_no" :min="1" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="Giai đoạn">
-          <el-select v-model="manualMatchForm.stage_type" style="width: 100%">
-            <el-option label="Vòng bảng" value="group_stage" />
-            <el-option label="Nhánh loại trực tiếp" value="knockout" />
-            <el-option label="Playoff" value="playoff" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Trạng thái">
-          <el-select v-model="manualMatchForm.status" style="width: 100%">
-            <el-option label="Chờ thi đấu" value="pending" />
-            <el-option label="Đã xếp lịch" value="scheduled" />
-            <el-option label="Đang thi đấu" value="ongoing" />
-          </el-select>
-        </el-form-item>
+  <el-dialog v-model="manualDialogVisible" title="Thêm trận thủ công" width="920px" destroy-on-close class="draw-control-dialog manual-premium-dialog">
+    <el-form :model="manualMatchForm" label-position="top" class="manual-match-form premium-manual-form">
+      <div class="control-dialog-grid">
+        <section class="control-panel form-card-accent">
+          <div class="control-panel-title">
+            <span>Thông tin nhánh</span>
+            <small>Xác định vị trí trận trong sơ đồ</small>
+          </div>
+          <div class="form-grid-2 compact-fields">
+            <el-form-item label="Tên vòng đấu">
+              <el-input v-model="manualMatchForm.round_code" placeholder="VD: Vòng bảng A, Tứ kết, Chung kết" />
+            </el-form-item>
+            <el-form-item label="Số thứ tự trận">
+              <el-input-number v-model="manualMatchForm.match_no" :min="1" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="Giai đoạn">
+              <el-select v-model="manualMatchForm.stage_type" style="width: 100%">
+                <el-option label="Vòng bảng" value="group_stage" />
+                <el-option label="Nhánh loại trực tiếp" value="knockout" />
+                <el-option label="Playoff" value="playoff" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Trạng thái">
+              <el-select v-model="manualMatchForm.status" style="width: 100%">
+                <el-option label="Chờ thi đấu" value="pending" />
+                <el-option label="Đã xếp lịch" value="scheduled" />
+                <el-option label="Đang thi đấu" value="ongoing" />
+              </el-select>
+            </el-form-item>
+          </div>
+        </section>
+
+        <section class="control-panel form-card-accent">
+          <div class="control-panel-title">
+            <span>Vận động viên</span>
+            <small>Có thể để trống và nhập sau</small>
+          </div>
+          <div class="form-grid-2 compact-fields">
+            <el-form-item label="Bên A">
+              <el-select v-model="manualMatchForm.side_a_registration_id" placeholder="Chọn VĐV/cặp đấu" clearable filterable style="width: 100%">
+                <el-option v-for="r in tournamentRegistrations" :key="r.id" :label="r.player_name + (r.partner_name ? ' & ' + r.partner_name : '')" :value="r.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="Bên B">
+              <el-select v-model="manualMatchForm.side_b_registration_id" placeholder="Chọn VĐV/cặp đấu" clearable filterable style="width: 100%">
+                <el-option v-for="r in tournamentRegistrations" :key="r.id" :label="r.player_name + (r.partner_name ? ' & ' + r.partner_name : '')" :value="r.id" />
+              </el-select>
+            </el-form-item>
+          </div>
+        </section>
       </div>
-      <div class="form-grid-2">
-        <el-form-item label="Bên A">
-          <el-select v-model="manualMatchForm.side_a_registration_id" placeholder="Chọn VĐV/cặp đấu" clearable filterable style="width: 100%">
-            <el-option v-for="r in tournamentRegistrations" :key="r.id" :label="r.player_name + (r.partner_name ? ' & ' + r.partner_name : '')" :value="r.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Bên B">
-          <el-select v-model="manualMatchForm.side_b_registration_id" placeholder="Chọn VĐV/cặp đấu" clearable filterable style="width: 100%">
-            <el-option v-for="r in tournamentRegistrations" :key="r.id" :label="r.player_name + (r.partner_name ? ' & ' + r.partner_name : '')" :value="r.id" />
-          </el-select>
-        </el-form-item>
-      </div>
-      <div class="form-grid-2">
-        <el-form-item label="Sân">
-          <el-select v-model="manualMatchForm.court_id" placeholder="Chọn sân" clearable filterable style="width: 100%">
-            <el-option v-for="court in courts" :key="court.id" :label="court.court_name" :value="court.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="Thời gian">
-          <el-date-picker v-model="manualMatchForm.start_time" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
-        </el-form-item>
-      </div>
-      <div class="form-grid-2">
-        <el-form-item label="Trọng tài">
-          <el-input v-model="manualMatchForm.referee_name" placeholder="Tên trọng tài" />
-        </el-form-item>
-        <el-form-item label="Số điện thoại trọng tài">
-          <el-input v-model="manualMatchForm.referee_phone" placeholder="Số điện thoại" />
-        </el-form-item>
-      </div>
-      <el-form-item label="Link stream YouTube">
-        <el-input v-model="manualMatchForm.live_stream_url" placeholder="https://youtube.com/..." />
-      </el-form-item>
+
+      <section class="control-panel form-card-accent full-span-panel">
+        <div class="control-panel-title">
+          <span>Điều phối trận</span>
+          <small>Sân, lịch thi đấu, trọng tài và livestream</small>
+        </div>
+        <div class="form-grid-2 compact-fields">
+          <el-form-item label="Sân">
+            <el-select v-model="manualMatchForm.court_id" placeholder="Chọn sân" clearable filterable style="width: 100%">
+              <el-option v-for="court in courts" :key="court.id" :label="court.court_name" :value="court.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="Thời gian">
+            <el-date-picker v-model="manualMatchForm.start_time" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="Trọng tài">
+            <el-input v-model="manualMatchForm.referee_name" placeholder="Tên trọng tài" />
+          </el-form-item>
+          <el-form-item label="Số điện thoại trọng tài">
+            <el-input v-model="manualMatchForm.referee_phone" placeholder="Số điện thoại" />
+          </el-form-item>
+          <el-form-item label="Link stream YouTube" class="wide-form-item">
+            <el-input v-model="manualMatchForm.live_stream_url" placeholder="https://youtube.com/..." />
+          </el-form-item>
+        </div>
+      </section>
       <div class="auto-link-hint">
         Hệ thống sẽ tự nối trận mới vào nhánh phù hợp theo vòng đấu và số thứ tự trận. Nếu vị trí chưa đúng, có thể chỉnh hoặc xóa trực tiếp trên khung trận.
       </div>
@@ -1405,9 +1512,11 @@ onMounted(async () => {
           <el-radio :value="'round_robin'">{{ $t('admin.roundRobin') }}</el-radio>
         </el-radio-group>
       </el-form-item>
-      <el-form-item v-if="drawForm.format_type === 'knockout'" :label="$t('admin.drawSize', 'Quy mô bốc thăm')">
+      <el-form-item v-if="['knockout', 'round_robin'].includes(drawForm.format_type)" :label="$t('admin.drawSize', 'Quy mô bốc thăm')">
         <el-input-number v-model="drawForm.draw_size" :min="1" :max="256" style="width: 100%" />
-        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">Nhập số đội hoặc cặp đấu tham gia. Hệ thống sẽ tự tính số trận mỗi vòng và tự tạo bye nếu số lượng là số lẻ.</div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">
+          Nhập số đội hoặc cặp đấu tham gia. Loại trực tiếp sẽ tự tính nhánh; vòng tròn sẽ tự tạo lịch theo số đội/cặp và số bảng.
+        </div>
       </el-form-item>
       <el-form-item v-if="drawForm.format_type === 'knockout'" label="Tên các vòng đấu">
         <div class="round-name-editor">
@@ -1420,8 +1529,16 @@ onMounted(async () => {
         </div>
       </el-form-item>
       <el-form-item v-if="drawForm.format_type === 'round_robin'" :label="$t('admin.numGroups')">
-        <el-input-number v-model="drawForm.num_groups" :min="1" :max="16" />
+        <el-input-number v-model="drawForm.num_groups" :min="1" :max="Math.max(1, Number(drawForm.draw_size || 1))" style="width: 100%" />
         <div style="font-size: 12px; color: #64748b; margin-top: 5px;">{{ $t('admin.numGroupsDesc') }}</div>
+        <div class="draw-preview-card">
+          <div class="draw-preview-title">Số trận dự kiến</div>
+          <div class="draw-preview-value">{{ roundRobinPreview.matchCount }}</div>
+          <div class="draw-preview-desc">{{ roundRobinPreview.label }}</div>
+          <div class="draw-preview-note">
+            Vòng tròn nghĩa là các đội/cặp trong cùng bảng sẽ gặp nhau một lần. Ví dụ 16 đội chia 2 bảng sẽ tạo 56 trận; 16 đội trong 1 bảng sẽ tạo 120 trận.
+          </div>
+        </div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -1573,11 +1690,11 @@ onMounted(async () => {
 
 /* STAGE BLOCKS */
 .saas-stage-block {
-  background: white;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   padding: 32px;
   border-radius: 24px;
-  border: 1px solid #f1f5f9;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
   margin-bottom: 32px;
 }
 
@@ -1587,7 +1704,7 @@ onMounted(async () => {
   gap: 16px;
   margin-bottom: 32px;
   padding-bottom: 20px;
-  border-bottom: 2px solid #f8fafc;
+  border-bottom: 2px solid #eef2f7;
 }
 
 .header-icon {
@@ -1600,11 +1717,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   font-size: 20px;
+  box-shadow: inset 0 0 0 1px rgba(22, 163, 74, 0.12), 0 8px 18px rgba(22, 163, 74, 0.08);
 }
 
 .header-icon.knockout {
   background: #fef2f2;
   color: #dc2626;
+  box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.12), 0 8px 18px rgba(220, 38, 38, 0.08);
 }
 
 .header-text h3 {
@@ -1621,31 +1740,32 @@ onMounted(async () => {
 
 /* MATCH CARDS */
 .saas-match-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  border: 1.5px solid #cbd5e1;
   border-radius: 16px;
   overflow: hidden;
   transition: all 0.2s ease;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
 }
 
 .saas-match-card:hover {
   border-color: #2563eb;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.04);
+  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.12);
 }
 
 .m-card-header {
-  background: #f8fafc;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
   padding: 10px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #dbe3ec;
 }
 
 .m-id {
   font-size: 0.75rem;
   font-weight: 800;
-  color: #64748b;
+  color: #334155;
 }
 
 .m-card-body {
@@ -1661,13 +1781,15 @@ onMounted(async () => {
   align-items: center;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fcfcfc;
-  border: 1px solid transparent;
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
 .team-row.is-winner {
-  background: #f0fdf4;
-  border-color: #dcfce7;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f7fee7 100%);
+  border-color: #86efac;
+  box-shadow: inset 3px 0 0 #16a34a, 0 8px 16px rgba(22, 163, 74, 0.08);
 }
 
 .team-name {
@@ -1697,7 +1819,7 @@ onMounted(async () => {
 .m-card-footer {
   padding: 10px 16px;
   background: #f8fafc;
-  border-top: 1px dashed #e2e8f0;
+  border-top: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1722,9 +1844,13 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #dc2626;
+  color: #b91c1c;
   font-weight: 800;
   text-decoration: none;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  padding: 3px 8px;
 }
 
 /* HORIZONTAL SCROLL FOR GROUPS */
@@ -1740,6 +1866,96 @@ onMounted(async () => {
   flex: 0 0 300px;
 }
 
+.round-robin-groups {
+  display: grid;
+  gap: 24px;
+}
+
+.round-robin-group-card {
+  border: 1px solid #dbe3ec;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.round-robin-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(90deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.round-robin-group-header h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.round-robin-group-header span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.round-robin-group-actions {
+  flex: 0 0 auto;
+}
+
+.round-robin-rounds-scroll {
+  overflow-x: auto;
+  padding: 22px;
+  scrollbar-color: #94a3b8 #eef2f7;
+  scrollbar-width: thin;
+}
+
+.round-robin-rounds-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.round-robin-rounds-scroll::-webkit-scrollbar-track {
+  background: #eef2f7;
+  border-radius: 999px;
+}
+
+.round-robin-rounds-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+  border: 2px solid #eef2f7;
+}
+
+.round-robin-rounds {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 280px;
+  gap: 22px;
+  align-items: start;
+  min-width: max-content;
+}
+
+.round-robin-round-column {
+  display: grid;
+  gap: 14px;
+}
+
+.round-robin-round-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.round-robin-match-card {
+  min-height: 224px;
+}
+
 .lane-header {
   margin-bottom: 16px;
   text-align: center;
@@ -1752,20 +1968,21 @@ onMounted(async () => {
 }
 
 .lane-tag {
-  background: #f1f5f9;
-  color: #475569;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  color: #334155;
   padding: 6px 20px;
   border-radius: 99px;
   font-weight: 800;
   font-size: 0.75rem;
   text-transform: uppercase;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
 }
 
 .lane-tag.knockout {
-  background: #fef2f2;
-  color: #dc2626;
-  border-color: #fecaca;
+  background: linear-gradient(180deg, #fff7f7 0%, #fef2f2 100%);
+  color: #b91c1c;
+  border-color: #fca5a5;
 }
 
 .lane-content {
@@ -1778,7 +1995,32 @@ onMounted(async () => {
 .bracket-viewport-wrapper {
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 20px 0 36px;
+  padding: 28px 24px 44px;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+    #ffffff;
+  background-size: 96px 96px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  scrollbar-color: #94a3b8 #eef2f7;
+  scrollbar-width: thin;
+}
+
+.bracket-viewport-wrapper::-webkit-scrollbar {
+  height: 10px;
+}
+
+.bracket-viewport-wrapper::-webkit-scrollbar-track {
+  background: #eef2f7;
+  border-radius: 999px;
+}
+
+.bracket-viewport-wrapper::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+  border: 2px solid #eef2f7;
 }
 
 .bracket-tree-board {
@@ -1796,6 +2038,7 @@ onMounted(async () => {
   inset: 0;
   z-index: 1;
   pointer-events: none;
+  filter: drop-shadow(0 1px 0 rgba(15, 23, 42, 0.18));
 }
 
 .bracket-round-header {
@@ -1812,6 +2055,12 @@ onMounted(async () => {
   gap: 6px;
 }
 
+.round-header-actions :deep(.el-button) {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+}
+
 .bracket-card {
   width: 100%;
   margin: 0 !important;
@@ -1819,30 +2068,62 @@ onMounted(async () => {
   z-index: 2;
   overflow: hidden;
 }
-.bracket-card.clickable { cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease; }
-.bracket-card.clickable:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08); }
+.bracket-card.clickable { cursor: pointer; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.bracket-card.clickable:hover { transform: translateY(-2px); box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12); }
 
-.m-header-left { display: flex; align-items: center; gap: 8px; }
+.m-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
 .m-court-tag {
-  font-size: 0.65rem; color: #64748b; background: #f8fafc;
-  padding: 2px 8px; border-radius: 6px; display: flex; align-items: center; gap: 4px;
-  font-weight: 700; border: 1px solid #f1f5f9;
+  font-size: 0.65rem; color: #475569; background: #eef2f7;
+  padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;
+  font-weight: 800; border: 1px solid #dbe3ec;
+  max-width: 96px;
+  height: 24px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  flex: 0 1 auto;
+}
+
+.m-court-tag .el-icon {
+  flex: 0 0 auto;
+}
+
+.m-card-header.compact {
+  gap: 8px;
+  min-height: 48px;
+}
+
+.m-card-header.compact > div:last-child {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .m-status-dot {
-  width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0;
+  width: 10px; height: 10px; border-radius: 50%; background: #e2e8f0;
+  box-shadow: 0 0 0 4px #f1f5f9;
 }
-.m-status-dot.completed { background: #16a34a; }
-.m-status-dot.scheduled { background: #2563eb; }
-.m-status-dot.pending { background: #f59e0b; }
+.m-status-dot.completed { background: #16a34a; box-shadow: 0 0 0 4px #dcfce7; }
+.m-status-dot.scheduled { background: #2563eb; box-shadow: 0 0 0 4px #dbeafe; }
+.m-status-dot.ongoing { background: #ef4444; box-shadow: 0 0 0 4px #fee2e2; }
+.m-status-dot.pending { background: #f59e0b; box-shadow: 0 0 0 4px #fef3c7; }
 
 .team-meta-container { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; }
 .team-meta-container.compact { gap: 2px; }
 .player-unit { display: flex; align-items: center; gap: 8px; min-height: 22px; }
 .player-unit.compact { gap: 6px; }
-.player-avatar-mini { border: 1.5px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.08); flex-shrink: 0; }
-.team-name { font-size: 0.9rem; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
-.compact .team-name { font-size: 0.8rem; max-width: 110px; }
+.player-avatar-mini { border: 2px solid white; box-shadow: 0 3px 8px rgba(15, 23, 42, 0.16); flex-shrink: 0; }
+.team-name { font-size: 0.9rem; font-weight: 800; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+.compact .team-name { font-size: 0.82rem; max-width: 120px; }
 .is-winner .team-name { color: #16a34a; }
 .team-row.compact { min-height: 56px; }
 .m-card-body { display: flex; flex-direction: column; gap: 8px; }
@@ -1861,6 +2142,23 @@ onMounted(async () => {
   border-radius: 20px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.form-card-accent {
+  position: relative;
+  overflow: hidden;
+}
+
+.form-card-accent::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #2563eb, #14b8a6);
+}
+
+.full-span-panel {
+  margin-top: 16px;
 }
 .control-panel-title {
   display: grid;
@@ -1958,9 +2256,88 @@ onMounted(async () => {
   gap: 10px;
 }
 
+.draw-preview-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  display: grid;
+  gap: 6px;
+}
+
+.draw-preview-title {
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: #1d4ed8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.draw-preview-value {
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.draw-preview-desc {
+  color: #334155;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.draw-preview-note {
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .manual-match-form {
   display: grid;
-  gap: 4px;
+  gap: 14px;
+}
+
+.premium-manual-form {
+  gap: 16px;
+}
+
+.premium-manual-form :deep(.el-form-item__label),
+.control-premium-form :deep(.el-form-item__label) {
+  margin-bottom: 7px;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.premium-manual-form :deep(.el-input__wrapper),
+.premium-manual-form :deep(.el-select__wrapper),
+.premium-manual-form :deep(.el-date-editor.el-input__wrapper),
+.control-premium-form :deep(.el-input__wrapper),
+.control-premium-form :deep(.el-select__wrapper),
+.control-premium-form :deep(.el-date-editor.el-input__wrapper) {
+  min-height: 42px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #dbe3ec inset;
+  transition: box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.premium-manual-form :deep(.el-input__wrapper:hover),
+.premium-manual-form :deep(.el-select__wrapper:hover),
+.control-premium-form :deep(.el-input__wrapper:hover),
+.control-premium-form :deep(.el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px #93c5fd inset, 0 6px 14px rgba(37, 99, 235, 0.08);
+}
+
+.premium-manual-form :deep(.el-input-number),
+.control-premium-form :deep(.el-input-number) {
+  width: 100%;
+}
+
+.wide-form-item {
+  grid-column: 1 / -1;
 }
 
 .form-grid-2,

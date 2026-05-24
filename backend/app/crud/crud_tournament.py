@@ -299,6 +299,7 @@ def get_tournament_matches_detail(db: Session, tournament_id: int, category_id: 
             "image_url": getattr(m, 'image_url', None),
             "advance_note": getattr(m, 'win_reason', None),
             "stage_type": m.stage_type,
+            "group_id": m.group_id,
             "next_match_id": m.next_match_id,
             "tournament_category_id": m.tournament_category_id
         })
@@ -979,71 +980,88 @@ def save_mail_campaign(
     db.refresh(new_campaign)
     return new_campaign
 
-def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int, num_groups: int = 1):
-    """Thuáº­t toÃ¡n chia báº£ng vÃ  táº¡o lá»‹ch thi Ä‘áº¥u VÃ²ng trÃ²n cho tá»«ng ná»™i dung"""
-    
-    # 1. Láº¥y danh sÃ¡ch VÄV Ä‘Ã£ xÃ¡c nháº­n tham gia trong ná»™i dung nÃ y
-    players = db.query(Registration).filter(
+def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int, num_groups: int = 1, draw_size: Optional[int] = None):
+    """Generate round-robin group matches.
+
+    When draw_size is provided, it is treated as the number of teams/pairs in
+    the same manual setup style as knockout. Missing registrations are kept as
+    empty slots so admins can assign them later.
+    """
+    if num_groups < 1:
+        num_groups = 1
+
+    query = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
-        Registration.tournament_category_id == category_id,
         Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
         Registration.deleted_at.is_(None)
-    ).all()
+    )
+    if category_id:
+        query = query.filter(Registration.tournament_category_id == category_id)
+    players = query.all()
 
-    if len(players) < 2:
-        raise HTTPException(status_code=400, detail="Cáº§n Ã­t nháº¥t 2 VÄV Ä‘Ã£ duyá»‡t Ä‘á»ƒ táº¡o lá»‹ch thi Ä‘áº¥u vÃ²ng trÃ²n.")
+    participant_count = draw_size if draw_size and draw_size > 0 else len(players)
+    if participant_count < 2:
+        raise HTTPException(status_code=400, detail="Khong du so doi de tao lich thi dau vong tron.")
 
-    # 2. XÃ³a lá»‹ch thi Ä‘áº¥u cÅ© cá»§a ná»™i dung nÃ y (náº¿u cÃ³) Ä‘á»ƒ táº¡o láº¡i
-    db.query(Match).filter(
+    match_del_query = db.query(Match).filter(
         Match.tournament_id == tournament_id,
-        Match.tournament_category_id == category_id
-    ).delete()
-    
-    # Bá» chá»n ngáº«u nhiÃªn Ä‘á»ƒ há»— trá»£ bá»‘c thÄƒm / sáº¯p xáº¿p thá»§ cÃ´ng (theo danh sÃ¡ch Ä‘Ã£ duyá»‡t)
-    # random.shuffle(players) 
+        Match.stage_type == "group_stage"
+    )
+    if category_id:
+        match_del_query = match_del_query.filter(Match.tournament_category_id == category_id)
+    match_del_query.delete()
+    db.flush()
 
-    # 3. Chia Ä‘á»u VÄV vÃ o cÃ¡c báº£ng
-    # Máº¹o Python: players[i::num_groups] sáº½ chia Ä‘á»u máº£ng thÃ nh cÃ¡c pháº§n báº±ng nhau
-    groups = [players[i::num_groups] for i in range(num_groups)]
-    
+    # Manual setup mode: round-robin only creates empty match frames.
+    # Admins assign players/pairs later from the draw management screen.
+    slots = [{"registration": None, "is_bye": False} for _ in range(participant_count)]
+
+    groups = [slots[i::num_groups] for i in range(num_groups)]
+
     match_no = 1
     for group_idx, group_players in enumerate(groups):
-        group_id = group_idx + 1 # ÄÃ¡nh sá»‘ báº£ng: 1 (A), 2 (B)...
+        group_id = group_idx + 1
         n = len(group_players)
-        
-        # Náº¿u sá»‘ VÄV láº», thÃªm má»™t "bÃ³ng ma" (None) Ä‘áº¡i diá»‡n cho viá»‡c Ä‘Æ°á»£c nghá»‰ (Bye) á»Ÿ vÃ²ng Ä‘Ã³
+
         if n % 2 != 0:
-            group_players.append(None)
+            group_players.append({"registration": None, "is_bye": True})
             n += 1
-            
-        # 4. Ãp dá»¥ng thuáº­t toÃ¡n xoay vÃ²ng táº¡o tráº­n
+
         for round_num in range(n - 1):
             for i in range(n // 2):
                 p1 = group_players[i]
                 p2 = group_players[n - 1 - i]
-                
-                # Náº¿u khÃ´ng ai Ä‘á»¥ng pháº£i "bÃ³ng ma" thÃ¬ táº¡o tráº­n Ä‘áº¥u
-                if p1 is not None and p2 is not None:
-                    new_match = Match(
-                        tournament_id=tournament_id,
-                        tournament_category_id=category_id,
-                        stage_type="group_stage",
-                        group_id=group_id, # LÆ°u ID báº£ng vÃ o Ä‘Ã¢y
-                        round_code=f"G{group_id}-R{round_num+1}", # MÃ£ vÃ²ng: Báº£ng 1 - VÃ²ng 1
-                        match_no=match_no,
-                        side_a_registration_id=p1.id,
-                        side_b_registration_id=p2.id,
-                        status="scheduled",
-                        best_of_sets=3 # Máº·c Ä‘á»‹nh Ä‘Ã¡nh 3 set
-                    )
-                    db.add(new_match)
-                    match_no += 1
-            
-            # Xoay vÃ²ng danh sÃ¡ch: RÃºt ngÆ°á»i cuá»‘i cÃ¹ng nhÃ©t vÃ o vá»‹ trÃ­ sá»‘ 1 (Giá»¯ nguyÃªn ngÆ°á»i sá»‘ 0)
+
+                if p1.get("is_bye") or p2.get("is_bye"):
+                    continue
+
+                reg_a = p1.get("registration")
+                reg_b = p2.get("registration")
+                new_match = Match(
+                    tournament_id=tournament_id,
+                    tournament_category_id=category_id,
+                    stage_type="group_stage",
+                    group_id=group_id,
+                    round_code=f"G{group_id}-R{round_num + 1}",
+                    match_no=match_no,
+                    side_a_registration_id=reg_a.id if reg_a else None,
+                    side_b_registration_id=reg_b.id if reg_b else None,
+                    status="pending",
+                    best_of_sets=3,
+                    elo_affected=True
+                )
+                db.add(new_match)
+                match_no += 1
+
             group_players.insert(1, group_players.pop())
 
     db.commit()
-    return {"message": f"ÄÃ£ chia {num_groups} báº£ng vÃ  táº¡o lá»‹ch thi Ä‘áº¥u vÃ²ng trÃ²n thÃ nh cÃ´ng!"}
+    return {
+        "message": "Da tao lich thi dau vong tron thanh cong.",
+        "total_slots": participant_count,
+        "num_groups": num_groups,
+        "matches_created": match_no - 1
+    }
 
 def calculate_tournament_standings(db: Session, tournament_id: int, category_id: Optional[int] = None):
     """HÃ m lÃµi tÃ­nh Ä‘iá»ƒm (DÃ¹ng cho cáº£ VÃ²ng trÃ²n vÃ  Xáº¿p háº¡ng tá»•ng thá»ƒ)"""
@@ -1194,74 +1212,208 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
     return result
 
 def generate_playoff_draw(db: Session, tournament_id: int, category_id: int, advancers_per_group: int = 2):
-    """Thuáº­t toÃ¡n tá»± Ä‘á»™ng chá»‘t vÃ²ng báº£ng vÃ  xáº¿p cáº·p Playoff cho tá»«ng ná»™i dung"""
-    
-    # 1. Gá»i hÃ m cá»¥c bá»™ tÃ­nh Báº£ng xáº¿p háº¡ng Ä‘á»ƒ láº¥y Top VÄV cá»§a ná»™i dung nÃ y
-    standings_data = calculate_tournament_standings(db=db, tournament_id=tournament_id, category_id=category_id)
-    
-    if not standings_data:
-        raise ValueError("ChÆ°a cÃ³ tráº­n vÃ²ng báº£ng nÃ o hoÃ n thÃ nh. Vui lÃ²ng cáº­p nháº­t tá»· sá»‘!")
+    """Finalize group standings and create a knockout playoff tree."""
+    if advancers_per_group < 1:
+        raise ValueError("So VDV di tiep moi bang phai lon hon 0.")
 
-    qualified_players = []
-    num_groups = len(standings_data)
+    all_group_rows = db.query(Match.group_id).filter(
+        Match.tournament_id == tournament_id,
+        Match.tournament_category_id == category_id,
+        Match.stage_type == "group_stage",
+        Match.group_id.isnot(None)
+    ).distinct().all()
+    expected_group_ids = sorted(int(row[0]) for row in all_group_rows if row[0] is not None)
 
-    # 2. Nháº·t nhá»¯ng ngÆ°á»i Top Ä‘áº§u cá»§a má»—i báº£ng ra
-    for group in standings_data:
-        top_players = group["rankings"][:advancers_per_group]
-        qualified_players.append(top_players)
+    if not expected_group_ids:
+        raise ValueError("Chua co bang dau nao de chot Playoff.")
 
-    match_pairs = []
-    
-    # 3. Thuáº­t toÃ¡n ghÃ©p cáº·p (ÄÃ£ vÃ¡ lá»—i cho giáº£i 3 ngÆ°á»i)
-    if num_groups == 1:
-        top_n = qualified_players[0]
-        if len(top_n) < 2:
-            raise ValueError("Báº£ng xáº¿p háº¡ng chÆ°a Ä‘á»§ 2 ngÆ°á»i cÃ³ Ä‘iá»ƒm.")
-            
-        # Náº¾U CÃ“ 2 HOáº¶C 3 NGÆ¯á»œI: Láº¥y 2 ngÆ°á»i Ä‘á»©ng Ä‘áº§u Ä‘Ã¡nh Chung Káº¿t
-        if len(top_n) == 2 or len(top_n) == 3:
-            match_pairs.append((top_n[0], top_n[1])) 
-        # Náº¾U Tá»ª 4 NGÆ¯á»œI TRá»ž LÃŠN: Báº¯t cáº·p BÃ¡n Káº¿t (Nháº¥t vs TÆ°, NhÃ¬ vs Ba)
-        elif len(top_n) >= 4:
-            match_pairs.append((top_n[0], top_n[3]))
-            match_pairs.append((top_n[1], top_n[2]))
-            
-    elif num_groups == 2:
-        group_a = qualified_players[0]
-        group_b = qualified_players[1]
-        
-        if len(group_a) >= 2 and len(group_b) >= 2:
-            match_pairs.append((group_a[0], group_b[1]))
-            match_pairs.append((group_b[0], group_a[1]))
-        else:
-            raise ValueError("Má»—i báº£ng cáº§n Ã­t nháº¥t 2 VÄV cÃ³ Ä‘iá»ƒm Ä‘á»ƒ thi Ä‘áº¥u chÃ©o.")
+    group_matches_query = db.query(Match).filter(
+        Match.tournament_id == tournament_id,
+        Match.tournament_category_id == category_id,
+        Match.stage_type == "group_stage",
+        or_(
+            Match.status == "completed",
+            Match.winner_registration_id.isnot(None)
+        ),
+        Match.group_id.isnot(None)
+    )
+    group_matches = group_matches_query.order_by(Match.group_id.asc(), Match.round_code.asc(), Match.match_no.asc()).all()
 
-    if not match_pairs:
-        raise ValueError("KhÃ´ng thá»ƒ táº¡o Playoff vá»›i sá»‘ lÆ°á»£ng nÃ y. Vui lÃ²ng kiá»ƒm tra láº¡i.")
+    if not group_matches:
+        raise ValueError("Chua co tran vong bang nao hoan thanh. Vui long cap nhat ty so.")
 
-    # 4. Ghi cÃ¡c tráº­n Playoff vÃ o Database cho ná»™i dung nÃ y
+    grouped_stats = {}
+
+    def safe_int(val):
+        return int(val) if val is not None else 0
+
+    def ensure_stat(group_id: int, registration_id: int):
+        if group_id not in grouped_stats:
+            grouped_stats[group_id] = {}
+        if registration_id not in grouped_stats[group_id]:
+            grouped_stats[group_id][registration_id] = {
+                "registration_id": registration_id,
+                "played": 0,
+                "won": 0,
+                "lost": 0,
+                "points": 0,
+                "sets_won": 0,
+                "sets_lost": 0,
+                "games_won": 0,
+                "games_lost": 0,
+            }
+        return grouped_stats[group_id][registration_id]
+
+    for match in group_matches:
+        if not match.side_a_registration_id or not match.side_b_registration_id or not match.winner_registration_id:
+            continue
+
+        group_id = int(match.group_id)
+        side_a = ensure_stat(group_id, match.side_a_registration_id)
+        side_b = ensure_stat(group_id, match.side_b_registration_id)
+
+        a_games = safe_int(match.set1_a) + safe_int(match.set2_a) + safe_int(match.set3_a)
+        b_games = safe_int(match.set1_b) + safe_int(match.set2_b) + safe_int(match.set3_b)
+
+        a_sets = 0
+        b_sets = 0
+        for a_score, b_score in [
+            (match.set1_a, match.set1_b),
+            (match.set2_a, match.set2_b),
+            (match.set3_a, match.set3_b),
+        ]:
+            a_score = safe_int(a_score)
+            b_score = safe_int(b_score)
+            if a_score > b_score:
+                a_sets += 1
+            elif b_score > a_score:
+                b_sets += 1
+
+        a_won = match.winner_registration_id == match.side_a_registration_id
+        b_won = match.winner_registration_id == match.side_b_registration_id
+
+        side_a["played"] += 1
+        side_a["won"] += 1 if a_won else 0
+        side_a["lost"] += 0 if a_won else 1
+        side_a["points"] += 3 if a_won else 0
+        side_a["sets_won"] += a_sets
+        side_a["sets_lost"] += b_sets
+        side_a["games_won"] += a_games
+        side_a["games_lost"] += b_games
+
+        side_b["played"] += 1
+        side_b["won"] += 1 if b_won else 0
+        side_b["lost"] += 0 if b_won else 1
+        side_b["points"] += 3 if b_won else 0
+        side_b["sets_won"] += b_sets
+        side_b["sets_lost"] += a_sets
+        side_b["games_won"] += b_games
+        side_b["games_lost"] += a_games
+
+    group_tops = []
+    insufficient_groups = []
+    for group_id in expected_group_ids:
+        players = list(grouped_stats.get(group_id, {}).values())
+        for player in players:
+            player["set_diff"] = player["sets_won"] - player["sets_lost"]
+            player["game_diff"] = player["games_won"] - player["games_lost"]
+
+        ranked_players = sorted(
+            players,
+            key=lambda item: (item["points"], item["set_diff"], item["game_diff"], item["games_won"]),
+            reverse=True
+        )
+        top_players = ranked_players[:advancers_per_group]
+        if len(top_players) < advancers_per_group:
+            insufficient_groups.append(f"Bang {group_id}: co {len(top_players)}/{advancers_per_group}")
+        group_tops.append(top_players)
+
+    if insufficient_groups:
+        raise ValueError("Mot so bang chua du VDV/cap co diem de chot Playoff: " + "; ".join(insufficient_groups))
+
+    seeded_players = []
+    for rank_index in range(advancers_per_group):
+        for group in group_tops:
+            if rank_index < len(group):
+                seeded_players.append(group[rank_index])
+
+    participant_count = len(seeded_players)
+    if participant_count < 2:
+        raise ValueError("Can it nhat 2 VDV/cap dau de tao Playoff.")
+
     db.query(Match).filter(
         Match.tournament_id == tournament_id,
         Match.tournament_category_id == category_id,
         Match.stage_type == "playoff"
     ).delete()
+    db.flush()
 
-    for idx, pair in enumerate(match_pairs):
-        new_match = Match(
-            tournament_id=tournament_id,
-            tournament_category_id=category_id,
-            stage_type="playoff",
-            round_code="SF" if len(match_pairs) > 1 else "FINAL",
-            match_no=idx + 1,
-            side_a_registration_id=pair[0]["registration_id"],
-            side_b_registration_id=pair[1]["registration_id"],
-            status="scheduled",
-            best_of_sets=3
-        )
-        db.add(new_match)
+    round_match_counts = []
+    current_participants = participant_count
+    while current_participants > 1:
+        current_matches = math.ceil(current_participants / 2)
+        round_match_counts.append(current_matches)
+        current_participants = current_matches
+
+    label_by_match_count = {
+        16: "1/16",
+        8: "1/8",
+        4: "1/4",
+        2: "1/2",
+        1: "FINAL"
+    }
+
+    matches_by_round = {}
+    for round_index, num_matches in enumerate(round_match_counts):
+        matches_by_round[round_index] = []
+        round_code = label_by_match_count.get(num_matches, f"R{num_matches * 2}")
+        for idx in range(num_matches):
+            new_match = Match(
+                tournament_id=tournament_id,
+                tournament_category_id=category_id,
+                stage_type="playoff",
+                round_code=round_code,
+                match_no=idx + 1,
+                status="pending",
+                best_of_sets=3,
+                elo_affected=True
+            )
+            db.add(new_match)
+            matches_by_round[round_index].append(new_match)
+
+    db.flush()
+
+    incoming_counts = {}
+    for round_index in range(0, len(round_match_counts) - 1):
+        for match in matches_by_round[round_index]:
+            for future_match in matches_by_round[round_index + 1]:
+                current_incoming = incoming_counts.get(future_match.id, 0)
+                if current_incoming < 2:
+                    match.next_match_id = future_match.id
+                    incoming_counts[future_match.id] = current_incoming + 1
+                    break
+
+    first_round_slots = seeded_players[:]
+    target_slot_count = round_match_counts[0] * 2
+    while len(first_round_slots) < target_slot_count:
+        first_round_slots.append(None)
+
+    first_round_pairs = []
+    for index in range(round_match_counts[0]):
+        first_round_pairs.append((first_round_slots[index], first_round_slots[target_slot_count - 1 - index]))
+
+    for match, pair in zip(matches_by_round[0], first_round_pairs):
+        side_a, side_b = pair
+        match.side_a_registration_id = side_a["registration_id"] if side_a else None
+        match.side_b_registration_id = side_b["registration_id"] if side_b else None
 
     db.commit()
-    return {"message": f"ÄÃ£ chá»‘t sá»• VÃ²ng báº£ng vÃ  táº¡o {len(match_pairs)} tráº­n Playoff thÃ nh cÃ´ng!"}
+    return {
+        "message": "Da chot vong bang va tao so do Playoff thanh cong.",
+        "qualified_count": participant_count,
+        "first_round_matches": round_match_counts[0],
+        "rounds": len(round_match_counts)
+    }
 
 def auto_update_tournament_statuses(db: Session):
     """HÃ m cháº¡y ngáº§m Ä‘á»ƒ quÃ©t vÃ  cáº­p nháº­t tráº¡ng thÃ¡i giáº£i Ä‘áº¥u dá»±a trÃªn thá»i gian thá»±c táº¿."""

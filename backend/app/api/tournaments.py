@@ -136,7 +136,7 @@ def update_tournament_category(
 def generate_draw(tournament_id: int, request: tournament_schemas.GenerateDrawRequest, db: Session = Depends(get_db)):
     try:
         if request.format_type == "round_robin":
-            return crud_tournament.generate_round_robin_draw(db, tournament_id, request.category_id, request.num_groups)
+            return crud_tournament.generate_round_robin_draw(db, tournament_id, request.category_id, request.num_groups, request.draw_size)
         else:
             return crud_tournament.generate_knockout_draw(db, tournament_id, request.category_id, request.draw_size, request.round_names)
             
