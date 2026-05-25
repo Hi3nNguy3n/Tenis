@@ -68,6 +68,26 @@ class Player(Base):
     losses = Column(Integer, default=0, nullable=False)
     matches_played = Column(Integer, default=0, nullable=False)
     bio = Column(Text)
+    height_cm = Column(Integer)
+    weight_kg = Column(Integer)
+    aces = Column(Integer, default=0, nullable=False)
+    double_faults = Column(Integer, default=0, nullable=False)
+    first_serve_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    first_serve_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    second_serve_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    break_points_faced = Column(Integer, default=0, nullable=False)
+    break_points_saved_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    service_games_played = Column(Integer, default=0, nullable=False)
+    service_games_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    total_service_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    first_serve_return_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    second_serve_return_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    break_points_opportunities = Column(Integer, default=0, nullable=False)
+    break_points_converted_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    return_games_played = Column(Integer, default=0, nullable=False)
+    return_games_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    return_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    total_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
     date_of_birth = Column(Date)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -115,9 +135,27 @@ class Tournament(Base):
     entry_fee = Column(Numeric(15, 2))
     entry_fee_team = Column(Numeric(15, 2))
     max_participants = Column(Integer)
+    description = Column(Text) # Thông tin chi tiết, điều lệ giải đấu
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    categories = relationship("TournamentCategory", back_populates="tournament")
+
+
+class TournamentCategory(Base):
+    __tablename__ = "tournament_categories"
+    id = Column(BigInteger, primary_key=True, index=True)
+    tournament_id = Column(BigInteger, ForeignKey("tournaments.id"), index=True, nullable=False)
+    name = Column(String(150), nullable=False) # VD: Đôi Nam 1275, Đôi Nam Nữ 1200
+    category_type = Column(String(50), nullable=False) # VD: mens_doubles, mixed_doubles, mens_singles
+    max_points = Column(Integer) # VD: 1275
+    max_participants = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    tournament = relationship("Tournament", back_populates="categories")
+
 
 class Registration(Base):
     __tablename__ = "registrations"
@@ -138,6 +176,8 @@ class Registration(Base):
     partner_phone = Column(String(20))
     partner_email = Column(String(255))
     partner_user_id = Column(BigInteger, ForeignKey("users.id"), index=True)
+    partner_player_id = Column(BigInteger, ForeignKey("players.id"), index=True) # Map trực tiếp với Player profile
+    tournament_category_id = Column(BigInteger, ForeignKey("tournament_categories.id"), index=True) # Đăng ký vào nội dung nào
     team_members_data = Column(JSONB)
     deleted_at = Column(DateTime, index=True)
     qr_code_url = Column(String(255))
@@ -182,6 +222,7 @@ class Match(Base):
     __tablename__ = "matches"
     id = Column(BigInteger, primary_key=True, index=True)
     tournament_id = Column(BigInteger, ForeignKey("tournaments.id"), index=True, nullable=True)
+    tournament_category_id = Column(BigInteger, ForeignKey("tournament_categories.id"), index=True, nullable=True) # Trận đấu thuộc nội dung nào
     stage_type = Column(String(20), index=True, nullable=False)
     group_id = Column(BigInteger, index=True) # ID ảo quản lý group, không fk cứng để dễ linh động
     round_code = Column(String(100), index=True, nullable=False)
@@ -202,9 +243,13 @@ class Match(Base):
     updated_by = Column(BigInteger, ForeignKey("users.id"), index=True)
     next_match_id = Column(BigInteger, ForeignKey("matches.id"), index=True)
     live_stream_url = Column(String(500))
+    video_url = Column(String(500)) # Video highlight hoặc full match
+    image_url = Column(String(500)) # Hình ảnh nổi bật của trận
     win_reason = Column(String(50), index=True)
     elo_affected = Column(Boolean, default=True, index=True, nullable=False)
     referee_id = Column(BigInteger, ForeignKey("users.id"))
+    referee_name = Column(String(100), nullable=True)
+    referee_phone = Column(String(20), nullable=True)
     
     # Tỷ số trực tiếp theo Set (Phi chuẩn hóa)
     set1_a = Column(SmallInteger, nullable=True)
@@ -224,6 +269,9 @@ class Match(Base):
 
     player_a_id = Column(Integer, ForeignKey("players.id"), nullable=True)
     player_b_id = Column(Integer, ForeignKey("players.id"), nullable=True)
+    player_a2_id = Column(Integer, ForeignKey("players.id"), nullable=True)
+    player_b2_id = Column(Integer, ForeignKey("players.id"), nullable=True)
+    match_type = Column(String(30), default="singles", nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -234,6 +282,9 @@ class MatchChallenge(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     challenger_id = Column(BigInteger, ForeignKey("players.id"), nullable=False) # Người thách
     challenged_id = Column(BigInteger, ForeignKey("players.id"), nullable=False) # Người bị thách
+    challenger_partner_id = Column(BigInteger, ForeignKey("players.id"), nullable=True) # Đồng đội người thách
+    challenged_partner_id = Column(BigInteger, ForeignKey("players.id"), nullable=True) # Đồng đội người bị thách
+    match_type = Column(String(30), default="singles", nullable=True)
     
     proposed_date = Column(Date, nullable=False) # Ngày dự kiến
     notes = Column(Text) # Lời nhắn (VD: 2 set cafe nhé)
@@ -413,6 +464,45 @@ class Setting(Base):
 # ==========================================
 # MODULE 7: COMMUNICATION & CHAT (Tương tác)
 # ==========================================
+
+# ==========================================
+# MODULE 6.5: MARKETING (Banner & Sponsors)
+# ==========================================
+
+class MarketingBanner(Base):
+    __tablename__ = "marketing_banners"
+    id = Column(BigInteger, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    subtitle = Column(String(255))
+    image_url = Column(String(500), nullable=False)
+    link_url = Column(String(500))
+    placement = Column(String(50), index=True, nullable=False, default="home_top")
+    display_order = Column(Integer, default=0, index=True, nullable=False)
+    is_active = Column(Boolean, default=True, index=True, nullable=False)
+    open_in_new_tab = Column(Boolean, default=True, nullable=False)
+    start_at = Column(DateTime, index=True)
+    end_at = Column(DateTime, index=True)
+    created_by = Column(BigInteger, ForeignKey("users.id"), index=True)
+    updated_by = Column(BigInteger, ForeignKey("users.id"), index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class Sponsor(Base):
+    __tablename__ = "sponsors"
+    id = Column(BigInteger, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    logo_url = Column(String(500), nullable=False)
+    website_url = Column(String(500))
+    tier = Column(String(50), index=True, nullable=False, default="partner")
+    description = Column(Text)
+    display_order = Column(Integer, default=0, index=True, nullable=False)
+    is_active = Column(Boolean, default=True, index=True, nullable=False)
+    start_at = Column(DateTime, index=True)
+    end_at = Column(DateTime, index=True)
+    created_by = Column(BigInteger, ForeignKey("users.id"), index=True)
+    updated_by = Column(BigInteger, ForeignKey("users.id"), index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 class Notification(Base):
     __tablename__ = "notifications"

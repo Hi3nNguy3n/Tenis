@@ -3,8 +3,8 @@ import { useAuthStore } from '../stores/auth'
 import { getStoredAccessToken, getStoredTokenType } from '../utils/authStorage'
 
 // Lấy các Base URL từ biến môi trường
-const MAIN_API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-const CHAT_API_URL = import.meta.env.VITE_API_CHAT_URL || 'http://127.0.0.1:8001'
+export const MAIN_API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+export const CHAT_API_URL = import.meta.env.VITE_API_CHAT_URL || 'http://127.0.0.1:8001'
 
 /**
  * Tự động lấy Token để gắn vào Header
@@ -68,7 +68,22 @@ export const apiClient = {
     const { method = 'GET', body, headers = {}, includeJson = true, useChatApi = false, ...rest } = options
 
     const baseUrl = useChatApi ? CHAT_API_URL : MAIN_API_URL
-    const url = `${baseUrl}${endpoint}`
+    let url = `${baseUrl}${endpoint}`
+    
+    // Support query parameters in GET/DELETE or any request
+    if (options.params && Object.keys(options.params).length > 0) {
+      const queryParams = new URLSearchParams()
+      Object.entries(options.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, value)
+        }
+      })
+      const queryString = queryParams.toString()
+      if (queryString) {
+        url += (url.includes('?') ? '&' : '?') + queryString
+      }
+    }
+
     const isFormData = body instanceof FormData
     const finalIncludeJson = isFormData ? false : includeJson
 

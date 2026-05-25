@@ -1,0 +1,107 @@
+# Kế hoạch Tái cấu trúc (Refactoring) An toàn - Saigon Tennis Tour Backend
+
+Kế hoạch này đã được tinh chỉnh lại nhằm ưu tiên tối đa tính ổn định của hệ thống. Mục tiêu cốt lõi là **không làm vỡ bất kỳ chức năng nghiệp vụ nào đang chạy** (đăng ký, thanh toán/check-in, bốc thăm, nhánh đấu, điều hành trận, ELO, upload, marketing, player stats) bằng cách tiếp cận cuốn chiếu, bọc tương thích và không thay đổi URL API hay DB schema.
+
+---
+
+## Ý kiến phản hồi cần Người dùng xác nhận (User Review Required)
+
+> [!IMPORTANT]
+> **Giữ nguyên các tính năng mới:**
+> Quá trình refactor cam kết giữ nguyên và không chạm vào các logic nghiệp vụ mới bao gồm:
+> - Player ATP stats (chỉ số thống kê nâng cao của VĐV).
+> - Marketing banner/sponsor (các cấu hình banner quảng cáo/nhà tài trợ).
+> - Giới hạn dung lượng và thời lượng video upload (chặn video trên 60 giây).
+
+> [!WARNING]
+> **Wrapper tương thích ngược:**
+> Ở Phase 3, khi chuyển logic ELO, Draw, Excel sang Service, chúng ta sẽ không xóa các hàm này trong [crud_tournament.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/crud/crud_tournament.py). Các hàm cũ sẽ hoạt động như một Wrapper chuyển tiếp lời gọi hàm (delegation) sang Service mới. Điều này đảm bảo tầng API không phải sửa đổi import đồng loạt.
+
+---
+
+## Lộ trình Triển khai Từng bước (Refactoring Roadmap)
+
+### Phase 0: Thiết lập Baseline & Ghi nhận Trạng thái
+*Mục tiêu: Đảm bảo có điểm tựa kiểm định trước và sau khi refactor.*
+1. Chạy lệnh build/compile để kiểm tra trạng thái gốc:
+   - Backend: `python -m compileall backend`
+   - Frontend: `npm run build` (ở thư mục frontend)
+2. Ghi nhận danh sách các Endpoint chính đang hoạt động ổn định:
+   - `/api/auth`
+   - `/api/players`
+   - `/api/tournaments`
+   - `/api/registrations`
+   - `/api/matches`
+   - `/api/upload`
+   - `/api/marketing`
+3. **Nguyên tắc**: Không thay đổi Response Shape (cấu trúc JSON trả về), không đổi URL API, không đổi Database Schema ở giai đoạn này.
+
+---
+
+### Phase 1: Dọn dẹp Code ít rủi ro (Clean Code & Security Quick-Fix)
+*Mục tiêu: Vá các lỗ hổng bảo mật và clean code cơ bản.*
+- **[auth.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/api/auth.py)**: Xóa hoàn toàn các câu lệnh `print` debug chứa OTP của người dùng ở dòng 34 và 65.
+- **[main.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/main.py)**: Sửa Exception Handler của `Exception` chung để ghi nhận lỗi chi tiết qua `logger.exception(exc)` ở server-side, nhưng chỉ trả về thông báo lỗi hệ thống chung chung cho client (`"Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."`).
+- **Kiểm định**: Test luồng gửi OTP, đăng ký tài khoản, đăng nhập, và chạy compile backend.
+
+---
+
+### Phase 2: Chuẩn hóa Upload API Tương thích ngược
+*Mục tiêu: Làm sạch API contract cho tính năng upload file mà không làm vỡ Frontend.*
+- **[upload.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/api/upload.py)**:
+  * Thêm endpoint mới `@router.post("/media")` hỗ trợ upload cả ảnh và video.
+  * Giữ nguyên endpoint cũ `@router.post("/image")` hoạt động bình thường để tránh làm vỡ Frontend cũ.
+  * Tách logic kiểm tra dung lượng (ảnh <10MB, video <80MB) và thời lượng video (<60 giây) thành một helper dùng chung cho cả hai endpoint.
+- **Kiểm định**: Upload ảnh banner/tin tức, upload video trận đấu (thử nghiệm cả video hợp lệ và video quá 60 giây để xác nhận tính năng chặn hoạt động đúng).
+
+---
+
+### Phase 3: Tách Service & Giữ Wrapper tương thích
+*Mục tiêu: Giải phóng trách nhiệm cho `crud_tournament.py` mà không làm đứt gãy kết nối.*
+1. Tạo thư mục `backend/app/services/`.
+2. Tạo các service tương ứng để chuyển mã nguồn sang:
+   - [excel_service.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/services/excel_service.py) [NEW] (logic dựng file Excel báo cáo).
+   - [tournament_draw_service.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/services/tournament_draw_service.py) [NEW] (logic sinh nhánh đấu knockout, round robin, playoff).
+   - [elo_service.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/services/elo_service.py) [NEW] (logic tính điểm ELO và cập nhật chỉ số thắng/thua).
+3. **Quan trọng**: Giữ nguyên các định nghĩa hàm cũ trong [crud_tournament.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/crud/crud_tournament.py). Nội dung bên trong hàm cũ sẽ được sửa để gọi trực tiếp sang Service tương ứng.
+4. **Kiểm định**: Tạo giải đấu mới, sinh nhánh đấu (Knockout/Round Robin), nhập tỉ số trận đấu, cập nhật ELO, và xuất Excel.
+
+---
+
+### Phase 4: Di chuyển DB Query từ API xuống CRUD theo Module (Cuốn chiếu)
+*Mục tiêu: Làm sạch API Router, tối ưu hóa các câu truy vấn N+1.*
+- Thực hiện cuốn chiếu cho từng file Router:
+  1. **[matches.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/api/matches.py)**: Chuyển logic lặp và query DB trực tiếp của hàm `list_matches` xuống [crud_match.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/crud/crud_match.py). Sử dụng `joinedload` để gộp toàn bộ các câu truy vấn liên quan lại.
+  2. **[registrations.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/api/registrations.py)**: Di chuyển các đoạn mutate database trực tiếp tại router xuống tầng CRUD.
+  3. **[tournaments.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/api/tournaments.py)**: Đưa logic validation đăng ký và quản lý category xuống CRUD/Service phù hợp.
+- **Kiểm định**: Đảm bảo response JSON trả về từ các API này hoàn toàn khớp với cấu trúc cũ sau khi di chuyển code.
+
+---
+
+### Phase 5: Chuẩn hóa Lỗi CRUD (Tách rời HTTPException)
+*Mục tiêu: Đưa các hàm CRUD về đúng nhiệm vụ thao tác dữ liệu, không phụ thuộc vào Web Framework.*
+1. Định nghĩa các ngoại lệ nghiệp vụ tùy chỉnh (Domain Errors) tại `app/core/errors.py` (ví dụ: `TournamentNotFoundError`, `InvalidRegistrationError`).
+2. Thay thế dần việc `raise HTTPException` trong CRUD bằng cách ném các Domain Errors trên (làm từng module một).
+3. Bổ sung Exception Handlers chung trong `main.py` để tự động ánh xạ các Domain Errors thành các HTTP Response tương ứng (ví dụ: `TournamentNotFoundError` -> HTTP 404).
+
+---
+
+### Phase 6: Chuẩn hóa Khởi chạy Database & Migration
+*Mục tiêu: Đảm bảo an toàn cấu trúc cơ sở dữ liệu.*
+1. Bổ sung biến cấu hình `AUTO_CREATE_TABLES` (mặc định là `True` ở dev, `False` ở production) vào [config.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/core/config.py).
+2. Tại [main.py](file:///d:/Thực%20Tập/Dự%20án%203%20-%20Tennis/clone/Tenis/backend/app/main.py), chỉ gọi `Base.metadata.create_all` khi `settings.AUTO_CREATE_TABLES` bằng `True`.
+3. Kiểm tra tính tương thích của database schema hiện tại, đặc biệt là các bảng liên quan đến marketing banner và player ATP stats.
+
+---
+
+## Kế hoạch Nghiệm thu (Verification Checklist)
+
+Mỗi Phase sau khi hoàn thành sẽ được chạy kiểm tra độc lập các chức năng cốt lõi:
+- [ ] Backend biên dịch thành công (`compileall` không báo lỗi).
+- [ ] Luồng Đăng nhập / Nhận OTP qua email hoạt động bình thường.
+- [ ] Luồng Đăng ký thi đấu giải (Đơn và Đôi).
+- [ ] Thuật toán Vẽ nhánh đấu và Xếp lịch.
+- [ ] Chạy trận đấu, nhập điểm số, tính điểm ELO tự động.
+- [ ] Xuất file Excel báo cáo.
+- [ ] Tải lên tệp đa phương tiện hình ảnh/video (kiểm tra giới hạn dung lượng/thời lượng).
+- [ ] Các banner và thống kê ATP Stats của VĐV hiển thị đầy đủ trên giao diện.

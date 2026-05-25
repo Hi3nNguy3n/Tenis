@@ -16,14 +16,26 @@ import admin from './admin/admin.js'
 export default {
   nav,
   common,
-  home,
+  home: {
+    ...home,
+    goldPartner: 'Đối tác Vàng',
+    featuredTournaments: 'GIẢI ĐẤU TIÊU BIỂU',
+    viewAllTournaments: 'Xem tất cả giải đấu',
+  },
   auth,
   chat,
   footer,
   news,
   rankings,
   matches,
-  tournaments,
+  tournaments: {
+    ...tournaments,
+    tournamentFee: 'Lệ phí giải',
+    freeFee: 'Miễn phí',
+    registrationTime: 'Thời gian đăng ký',
+    participants: 'Danh sách VĐV',
+    noParticipants: 'Chưa có VĐV nào đăng ký.'
+  },
   challenges,
   players,
   profile,

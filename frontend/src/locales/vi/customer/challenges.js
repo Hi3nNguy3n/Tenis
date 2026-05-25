@@ -44,5 +44,13 @@ export default {
   cancel: 'Hủy bỏ',
   sendRequest: 'Gửi yêu cầu',
   head2head: 'LỊCH SỬ ĐỐI ĐẦU',
-  vs: 'VS'
+  vs: 'VS',
+  noH2H: 'Chưa có lịch sử đối đầu',
+  
+  // Trạng thái thách đấu
+  pending: 'Chờ duyệt',
+  waiting_payment: 'Chờ thanh toán',
+  paid: 'Đã thanh toán',
+  scheduled: 'Đã lên lịch',
+  rejected: 'Đã từ chối'
 }

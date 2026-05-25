@@ -72,4 +72,23 @@ export default {
   chooseCourtAndTime: 'Vui lòng chọn sân và giờ thi đấu',
   updateScheduleSuccess: 'Cập nhật lịch thi đấu thành công',
   updateError: 'Lỗi cập nhật: ',
+  matchSchedule: 'Lịch Thi Đấu Tổng Thể',
+  calendarDesc: 'Quản lý và điều phối lịch trình các giải đấu',
+  
+  // New unified keys
+  round: 'Vòng đấu',
+  update: 'Cập nhật',
+  updateSchedule: 'Cập nhật lịch thi đấu',
+  allocateMatch: 'Phân bổ trận đấu',
+  assignCourt: 'Chỉ định sân',
+  matchTime: 'Thời gian thi đấu',
+  cancel: 'Hủy',
+  confirm: 'Xác nhận',
+  ongoingMatches: 'Trận đang đấu',
+  scheduledMatches: 'Trận sắp đấu',
+  completedMatches: 'Trận đã xong',
+  totalMatches: 'Tổng số trận',
+  loadTournamentsError: 'Lỗi tải danh sách giải đấu',
+  loadMatchesError: 'Lỗi tải danh sách trận đấu',
+  others: 'Khác',
 }

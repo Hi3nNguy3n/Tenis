@@ -1,7 +1,7 @@
 # backend/app/schemas/registration_schemas.py
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 from typing import List
 
 class TeamMember(BaseModel):
@@ -25,6 +25,14 @@ class RegistrationBase(BaseModel):
 class RegistrationCreate(RegistrationBase):
     pass
 
+class AdminAddTournamentRegistrationRequest(BaseModel):
+    category_id: int
+    player_id: int
+    partner_player_id: Optional[int] = None
+    notes: Optional[str] = None
+    mark_paid: bool = False
+    check_in: bool = False
+
 class RegistrationResponse(RegistrationBase):
     id: int
     tournament_id: int
@@ -36,27 +44,26 @@ class RegistrationResponse(RegistrationBase):
     hold_expires_at: Optional[datetime] = None
     registered_at: datetime
     qr_code_url: Optional[str] = None
+    category_id: Optional[int] = None
     
     # Optional fields for display
-    tournament_name: Optional[str] = None
     player_name: Optional[str] = None
+    user_id: Optional[int] = None
+    partner_name: Optional[str] = None
+    partner_user_id: Optional[int] = None
+    partner_avatar: Optional[str] = None
+    category_name: Optional[str] = None
+    tournament_name: Optional[str] = None
     location: Optional[str] = None
     
     # Detailed fields for "View Details"
-    tournament_date: Optional[datetime] = None
+    tournament_date: Optional[date] = None
     category_type: Optional[str] = None
     entry_fee: Optional[float] = None
     entry_fee_team: Optional[float] = None
     player_phone: Optional[str] = None
     player_email: Optional[str] = None
     player_skill: Optional[str] = None
-    
-    partner_name: Optional[str] = None
-    partner_phone: Optional[str] = None
-    partner_email: Optional[str] = None
-    partner_user_id: Optional[int] = None
-    team_members_data: Optional[List[TeamMember]] = None
-
     
     class Config:
         from_attributes = True

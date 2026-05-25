@@ -90,14 +90,19 @@ onMounted(async () => {
           <h2>{{ t('players.featuredPlayers') }}</h2>
         </div>
         <div class="featured-scroll">
-          <div v-for="(p, i) in recentWinners" :key="'featured-'+p.id" class="featured-card">
+          <RouterLink
+            v-for="(p, i) in recentWinners"
+            :key="'featured-'+(p.player_id || p.id)"
+            :to="`/players/${p.player_id || p.id}`"
+            class="featured-card"
+          >
             <div class="featured-avatar">
-              <img :src="p.avatar_url" alt="" />
+              <img :src="p.avatar_url" alt="" referrerpolicy="no-referrer" />
               <div class="rank-ring"><span>#{{ i + 1 }}</span></div>
             </div>
             <h4 class="featured-name">{{ p.full_name }}</h4>
             <p class="featured-pts">{{ p.elo_points }} {{ t('players.points') }}</p>
-          </div>
+          </RouterLink>
         </div>
       </section>
 
@@ -108,7 +113,7 @@ onMounted(async () => {
             <div v-for="p in visiblePlayers" :key="p.id" class="talent-card group">
               
               <div class="talent-image-box">
-                <img :src="p.avatar_url" alt="" class="talent-img" />
+                <img :src="p.avatar_url" alt="" class="talent-img" referrerpolicy="no-referrer" />
               </div>
               
               <div class="talent-info">
@@ -134,9 +139,11 @@ onMounted(async () => {
                   </div>
                 </div>
 
-                <button class="view-profile-btn">
-                  {{ t('players.viewProfile') }} <el-icon><Right /></el-icon>
-                </button>
+                <RouterLink :to="`/players/${p.player_id || p.id}`" class="view-profile-link">
+                  <button class="view-profile-btn">
+                    {{ t('players.viewProfile') }} <el-icon><Right /></el-icon>
+                  </button>
+                </RouterLink>
               </div>
             </div>
 
@@ -170,6 +177,7 @@ onMounted(async () => {
                   <img 
                     v-else 
                     :src="news.thumbnail_url || news.media_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop'" 
+                    referrerpolicy="no-referrer"
                   />
                   <div class="feed-play" v-if="isVideo(news.media_url || news.thumbnail_url)">
                     <el-icon><VideoPlay /></el-icon>
@@ -336,6 +344,8 @@ onMounted(async () => {
   align-items: center;
   min-width: 100px;
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
   transition: transform 0.2s;
 }
 .featured-card:hover { transform: translateY(-5px); }

@@ -1,9 +1,11 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DocumentAdd, Edit, Delete, Picture, View } from '@element-plus/icons-vue'
+import { DocumentAdd, Edit, Delete, Picture } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
+import Quill from 'quill'
+import 'quill/dist/quill.snow.css'
 
 const posts = ref([])
 const isLoading = ref(false)
@@ -15,13 +17,99 @@ const isSaving = ref(false)
 const isEditMode = ref(false)
 const isUploading = ref(false)
 
+const editorRef = ref(null)
+let quillInstance = null
+
 const form = ref({
   id: null,
   title: '',
+  summary: '',
   content: '',
   category: 'announcement',
   status: 'published',
-  thumbnail_url: ''
+  thumbnail_url: '',
+  tags: []
+})
+
+const imageHandler = () => {
+  const input = document.createElement('input')
+  input.setAttribute('type', 'file')
+  input.setAttribute('accept', 'image/*')
+  input.click()
+
+  input.onchange = async () => {
+    const file = input.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await apiClient.request('/api/upload/image', {
+        method: 'POST',
+        body: formData,
+        includeJson: false
+      })
+      
+      const range = quillInstance.getSelection()
+      if (range) {
+        quillInstance.insertEmbed(range.index, 'image', res.url)
+      } else {
+        quillInstance.insertEmbed(quillInstance.getLength(), 'image', res.url)
+      }
+    } catch (err) {
+      ElMessage.error(t('admin.uploadError') || 'Upload failed')
+    }
+  }
+}
+
+const initQuill = () => {
+  if (!editorRef.value) return
+
+  quillInstance = new Quill(editorRef.value, {
+    theme: 'snow',
+    placeholder: 'Nhập nội dung bài viết...',
+    modules: {
+      toolbar: {
+        container: [
+          ['bold', 'italic', 'underline', 'strike'],
+          ['blockquote', 'code-block'],
+          [{ 'header': 1 }, { 'header': 2 }],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          [{ 'indent': '-1'}, { 'indent': '+1' }],
+          [{ 'size': ['small', false, 'large', 'huge'] }],
+          [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+          [{ 'color': [] }, { 'background': [] }],
+          [{ 'align': [] }],
+          ['clean'],
+          ['link', 'image', 'video']
+        ],
+        handlers: {
+          image: imageHandler
+        }
+      }
+    }
+  })
+
+  // Set initial content
+  if (form.value.content) {
+    quillInstance.root.innerHTML = form.value.content
+  }
+
+  // Sync content back to form
+  quillInstance.on('text-change', () => {
+    form.value.content = quillInstance.root.innerHTML
+  })
+}
+
+// Watch for dialog open to re-init Quill
+watch(isDialogOpen, async (newVal) => {
+  if (newVal) {
+    await nextTick()
+    initQuill()
+  } else {
+    quillInstance = null
+  }
 })
 
 const categories = computed(() => [
@@ -46,12 +134,6 @@ const fetchPosts = async () => {
     posts.value = data
   } catch (err) {
     console.error('Fetch News Error:', err)
-    if (err.message.includes('404')) {
-      posts.value = [
-        { id: 1, title: 'Saigon Open 2026 Opening', category: 'announcement', status: 'published', views: 120, created_at: '2026-04-15' },
-        { id: 2, title: 'Highlight: A vs B', category: 'highlight', status: 'draft', views: 0, created_at: '2026-04-16' }
-      ]
-    }
   } finally {
     isLoading.value = false
   }
@@ -59,7 +141,7 @@ const fetchPosts = async () => {
 
 const openCreateDialog = () => {
   isEditMode.value = false
-  form.value = { id: null, title: '', content: '', category: 'announcement', status: 'published', thumbnail_url: '' }
+  form.value = { id: null, title: '', summary: '', content: '', category: 'announcement', status: 'published', thumbnail_url: '', tags: [] }
   isDialogOpen.value = true
 }
 
@@ -87,7 +169,7 @@ const handleThumbnailUpload = async (event) => {
     form.value.thumbnail_url = res.url 
     ElMessage.success(t('admin.uploadSuccess') || 'Upload successful!')
   } catch (err) {
-    ElMessage.error(t('admin.uploadError') || 'Upload failed: ' + (err.message || 'Server error'))
+    ElMessage.error(t('admin.uploadError') || 'Upload failed')
   } finally {
     isUploading.value = false 
     event.target.value = '' 
@@ -95,7 +177,9 @@ const handleThumbnailUpload = async (event) => {
 }
 
 const savePost = async () => {
-  if (!form.value.title || !form.value.content) {
+  const isContentEmpty = !form.value.content || form.value.content === '<p><br></p>' || form.value.content.trim() === ''
+  
+  if (!form.value.title || isContentEmpty) {
     return ElMessage.warning(t('admin.inputRequired'))
   }
 
@@ -207,7 +291,7 @@ onMounted(fetchPosts)
       </el-table>
     </section>
 
-    <el-dialog v-model="isDialogOpen" :title="isEditMode ? $t('admin.editPost') : $t('admin.createNewPost')" width="800px" destroy-on-close top="5vh">
+    <el-dialog v-model="isDialogOpen" :title="isEditMode ? $t('admin.editPost') : $t('admin.createNewPost')" width="1100px" destroy-on-close top="5vh">
       <el-form label-position="top" class="news-form">
         <el-row :gutter="20">
           <el-col :span="16">
@@ -215,13 +299,19 @@ onMounted(fetchPosts)
               <el-input v-model="form.title" placeholder="..." size="large" />
             </el-form-item>
 
-            <el-form-item :label="$t('admin.postContentLabel')" required>
+            <el-form-item :label="$t('admin.postSummaryLabel')">
               <el-input 
-                v-model="form.content" 
+                v-model="form.summary" 
                 type="textarea" 
-                :rows="12" 
-                placeholder="..." 
+                :rows="2" 
+                placeholder="Nhập tóm tắt ngắn (hiển thị ở trang danh sách tin tức)..." 
               />
+            </el-form-item>
+
+            <el-form-item :label="$t('admin.postContentLabel')" required>
+              <div class="editor-wrapper">
+                <div ref="editorRef" style="height: 400px;"></div>
+              </div>
             </el-form-item>
           </el-col>
 
@@ -236,6 +326,22 @@ onMounted(fetchPosts)
             <el-form-item :label="$t('admin.filterByCategory')">
               <el-select v-model="form.category" style="width: 100%">
                 <el-option v-for="cat in categories" :key="cat.value" :label="cat.label" :value="cat.value" />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item :label="$t('admin.tagsLabel')">
+              <el-select
+                v-model="form.tags"
+                multiple
+                filterable
+                allow-create
+                default-first-option
+                placeholder="Nhập hoặc chọn tags..."
+                style="width: 100%"
+              >
+                <el-option label="Tennis" value="Tennis" />
+                <el-option label="SaigonTennis" value="SaigonTennis" />
+                <el-option label="Giải đấu" value="Giải đấu" />
               </el-select>
             </el-form-item>
 
@@ -350,6 +456,55 @@ onMounted(fetchPosts)
 
 /* Dialog Form */
 .news-form { padding-top: 10px; }
+
+.editor-wrapper {
+  width: 100%;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+:deep(.ql-container) {
+  min-height: 450px;
+  max-height: 700px;
+  overflow-y: auto;
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+:deep(.ql-editor) {
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: #334155;
+}
+
+:deep(.ql-editor blockquote) {
+  border-left: 6px solid #c1ff72;
+  background: #f8fafc;
+  padding: 1.5rem;
+  margin: 2rem 0;
+  font-style: italic;
+  font-size: 1.2rem;
+  color: #1e293b;
+  border-radius: 0 8px 8px 0;
+}
+
+:deep(.ql-editor .ql-bg-black) { background-color: #000; color: #fff; }
+:deep(.ql-editor .ql-bg-red) { background-color: #e60000; color: #fff; }
+:deep(.ql-editor .ql-bg-orange) { background-color: #f50; color: #fff; }
+:deep(.ql-editor .ql-bg-yellow) { background-color: #ff0; color: #000; }
+:deep(.ql-editor .ql-bg-green) { background-color: #008a00; color: #fff; }
+:deep(.ql-editor .ql-bg-blue) { background-color: #06c; color: #fff; }
+:deep(.ql-editor .ql-bg-purple) { background-color: #d85d00; color: #fff; }
+
+:deep(.ql-toolbar) {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  background: #f8fafc;
+}
+
 .thumbnail-uploader {
   width: 100%; height: 160px; border: 2px dashed #cbd5e1; border-radius: 20px;
   position: relative; overflow: hidden; cursor: pointer; background: #f8fafc; transition: 0.3s;
@@ -358,4 +513,12 @@ onMounted(fetchPosts)
 .upload-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #94a3b8; gap: 8px; }
 .thumbnail-preview { width: 100%; height: 100%; object-fit: cover; }
 .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+/* Modal Width Adjustment */
+:deep(.el-dialog) {
+  border-radius: 24px;
+}
+:deep(.el-dialog__body) {
+  padding: 10px 25px 30px;
+}
 </style>

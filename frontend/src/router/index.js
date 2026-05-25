@@ -14,6 +14,7 @@ const MatchesView = () => import('../views/customer/MatchesView.vue')
 const RankingsView = () => import('../views/customer/RankingsView.vue')
 const NewsView = () => import('../views/customer/tournaments/NewsView.vue')
 const NewsDetailView = () => import('../views/customer/tournaments/NewsDetailView.vue')
+const PlayerProfileView = () => import('../views/customer/PlayerProfileView.vue')
 
 // --- PROFILE & ACCOUNT ---
 const ProfileView = () => import('../views/customer/profile/ProfileView.vue')
@@ -27,7 +28,8 @@ const ForgotPasswordView = () => import('../views/auth/ForgotPasswordView.vue')
 
 const adminViewFactories = {
   dashboard: () => import('../views/admin/AdminDashboardView.vue'),
-  profile: () => import('../views/admin/AdminProfileView.vue'),
+/*   profile: () => import('../AdminProfileView.vue'),
+ */  
   tournaments: () => import('../views/admin/TournamentManagementView.vue'),
   registrations: () => import('../views/admin/RegistrationsQueueView.vue'),
   courts: () => import('../views/admin/CourtManagementView.vue'),
@@ -39,12 +41,14 @@ const adminViewFactories = {
   matches: () => import('../views/admin/MatchesView.vue'),
   placeholder: () => import('../views/admin/GenericAdminModuleView.vue'),
   ActivityLogsView: () => import('../views/admin/ActivityLogsView.vue'),
-  dailySchedule: () => import('../views/admin/AdminDailyScheduleView.vue'),
-  calendar: () => import('../views/admin/AdminCalendarView.vue'),
-  news: () => import('../views/admin/NewsManagementView.vue'),
+/*   dailySchedule: () => import('../views/admin/AdminDailyScheduleView.vue'),
+ */  
+/*   calendar: () => import('../views/admin/AdminCalendarView.vue'),
+ */  news: () => import('../views/admin/NewsManagementView.vue'),
   rankings: () => import('../views/admin/AdminRankingsView.vue'),
   mailCampaign: () => import('../views/admin/MailCampaignView.vue'),
   AdminCreateMatchView: () => import('../views/admin/AdminCreateMatchView.vue'),
+  marketing: () => import('../views/admin/MarketingManagementView.vue'),
 }
 
 
@@ -125,6 +129,11 @@ const router = createRouter({
       path: '/players',
       name: 'players',
       component: PlayersView,
+    },
+    {
+      path: '/players/:id',
+      name: 'player-profile',
+      component: PlayerProfileView,
     },
     {
       path: '/challenges',

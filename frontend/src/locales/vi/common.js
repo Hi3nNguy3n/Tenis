@@ -18,4 +18,5 @@ export default {
   details: 'Chi tiết',
   other: 'Khác',
   noNews: 'Chưa có tin tức nào.',
+  back: 'Quay lại'
 }

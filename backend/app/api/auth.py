@@ -1,74 +1,70 @@
 # backend/app/api/auth.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 import random
 
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
-from app.core.config import settings
 from app.db.redis_client import get_redis
-
 from app.db.database import get_db
 from app.schemas.auth_schemas import SendOTPRequest, RegisterRequest, LoginRequest, TokenResponse
 from app.core.security import verify_password, create_access_token
+from app.core.mail import send_email
 from app.crud import crud_auth
-
 from app.api.deps import get_current_user
 from app.models.models import User
-
 router = APIRouter()
 
-conf = ConnectionConfig(
-    MAIL_USERNAME=settings.MAIL_USERNAME,
-    MAIL_PASSWORD=settings.MAIL_PASSWORD,
-    MAIL_FROM=settings.MAIL_FROM,
-    MAIL_PORT=settings.MAIL_PORT,
-    MAIL_SERVER=settings.MAIL_SERVER,
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
-)
-
-@router.post("/change-password")
-def change_password(
-    old_password: str, 
-    new_password: str, 
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
-):
-    if not verify_password(old_password, current_user.password_hash):
-        raise HTTPException(status_code=400, detail="Mật khẩu cũ không chính xác.")
-    
-    crud_auth.update_password(db, user=current_user, new_password=new_password)
-    return {"message": "Đổi mật khẩu thành công!"}
-
+# ==========================================
+# 1. API GỬI OTP ĐĂNG KÝ
+# ==========================================
 @router.post("/send-otp")
 async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
-    otp = str(random.randint(100000, 999999))
-    
-    # Lưu OTP vào Redis (giữ nguyên thời gian hết hạn của ông)
-    r.setex(f"otp:{request.email}", 300, otp) 
+    email_key = request.email.lower().strip()
+    purpose = (request.purpose or "signup").strip().lower()
+    existing_user = crud_auth.get_user_by_email(db, email_key)
+    if purpose != "signup" and not existing_user:
+        raise HTTPException(status_code=404, detail="Email khong ton tai trong he thong.")
+    if purpose == "signup" and existing_user:
+        raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
 
-    # Gửi Email (giữ nguyên template của ông)
-    message = MessageSchema(
-        subject="Mã xác thực Saigon Tennis Tour",
-        recipients=[request.email],
-        body=f"Mã xác thực của bạn là: {otp}. Mã có hiệu lực trong 5 phút.",
-        subtype=MessageType.plain
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    # Tạo mã OTP ngẫu nhiên
+    otp_code = str(random.randint(100000, 999999))
     
-    return {"message": "Mã OTP đã được gửi thành công."}
+    # Lưu OTP vào Redis với thời hạn 300s (5 phút)
+    print(f"[DEBUG SEND OTP]: Key='otp:{email_key}', Value='{otp_code}'")
+    r.setex(f"otp:{email_key}", 300, otp_code) 
+    
+    # Gửi email qua SMTP/app password
+    subject = "Mã xác nhận OTP - Saigon Tennis Tours"
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Xin chào,</h2>
+        <p>Bạn vừa yêu cầu mã OTP để xác thực tài khoản tại Saigon Tennis Tours.</p>
+        <p>Mã xác nhận của bạn là: <strong style="font-size: 24px; color: #10b981;">{otp_code}</strong></p>
+        <p>Mã này sẽ hết hạn sau 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>
+    </div>
+    """
+    await send_email(email_to=request.email, subject=subject, html_content=html_content)
+    
+    return {"message": "Mã OTP đã được gửi đến email của bạn!"}
 
+# ==========================================
+# 2. API XÁC NHẬN ĐĂNG KÝ (CHECK REDIS)
+# ==========================================
 @router.post("/register")
-def register(
-    request: RegisterRequest, 
-    db: Session = Depends(get_db), 
-    r = Depends(get_redis)
-):
-    cached_otp = r.get(f"otp:{request.email}")
-    if not cached_otp or cached_otp != request.otp_code:
+def register(request: RegisterRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
+    # Kiểm tra OTP trong Redis
+    email_key = request.email.lower().strip()
+    if crud_auth.get_user_by_email(db, email_key):
+        raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
+
+    cached_otp = r.get(f"otp:{email_key}")
+    
+    # Xử lý trường hợp cached_otp là kiểu bytes (tùy cấu hình Redis)
+    decoded_otp = cached_otp.decode("utf-8") if isinstance(cached_otp, bytes) else cached_otp
+    print(f"[DEBUG VERIFY OTP]: Key='otp:{email_key}', Cached='{decoded_otp}', Sent='{request.otp_code}'")
+
+    if not decoded_otp or str(decoded_otp).strip() != str(request.otp_code).strip():
         raise HTTPException(status_code=400, detail="Mã OTP không đúng hoặc hết hạn.")
 
     role = crud_auth.get_role_by_key(db, "user")
@@ -77,12 +73,19 @@ def register(
     
     try:
         user = crud_auth.create_user_and_player_transaction(db, request, role.id)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi DB: {str(e)}")
     
-    r.delete(f"otp:{request.email}")
+    # Dùng xong xóa OTP
+    r.delete(f"otp:{email_key}")
     return {"message": "Đăng ký thành công", "user_id": user.id}
 
+# ==========================================
+# 3. API ĐĂNG NHẬP
+# ==========================================
 @router.post("/login", response_model=TokenResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = crud_auth.get_user_by_email(db, request.email)
@@ -107,6 +110,9 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         "account_type": user.account_type
     }
 
+# ==========================================
+# 4. API QUÊN MẬT KHẨU (GỬI OTP)
+# ==========================================
 @router.post("/forgot-password")
 async def forgot_password(request: SendOTPRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
     user = crud_auth.get_user_by_email(db, request.email)
@@ -114,22 +120,30 @@ async def forgot_password(request: SendOTPRequest, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Email không tồn tại trong hệ thống.")
 
     otp = str(random.randint(100000, 999999))
-    r.setex(f"reset_otp:{request.email}", 600, otp) 
+    r.setex(f"reset_otp:{request.email}", 600, otp) # Thời hạn 10 phút
 
-    message = MessageSchema(
-        subject="Khôi phục mật khẩu Saigon Tennis Tour",
-        recipients=[request.email],
-        body=f"Mã xác thực khôi phục mật khẩu của bạn là: {otp}. Vui lòng không cung cấp mã này cho bất kỳ ai.",
-        subtype=MessageType.plain
-    )
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    subject = "Khôi phục mật khẩu - Saigon Tennis Tours"
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Xin chào,</h2>
+        <p>Chúng tôi nhận được yêu cầu khôi phục mật khẩu cho tài khoản của bạn.</p>
+        <p>Mã xác thực của bạn là: <strong style="font-size: 24px; color: #eab308;">{otp}</strong></p>
+        <p>Mã có hiệu lực trong 10 phút. Vui lòng không cung cấp mã này cho bất kỳ ai.</p>
+    </div>
+    """
+    await send_email(email_to=request.email, subject=subject, html_content=html_content)
+    
     return {"message": "Mã khôi phục đã được gửi tới email của bạn."}
 
+# ==========================================
+# 5. API ĐẶT LẠI MẬT KHẨU (CHECK REDIS)
+# ==========================================
 @router.post("/reset-password")
 def reset_password(email: str, otp: str, new_password: str, db: Session = Depends(get_db), r = Depends(get_redis)):
     cached_otp = r.get(f"reset_otp:{email}")
-    if not cached_otp or cached_otp != otp:
+    decoded_otp = cached_otp.decode("utf-8") if isinstance(cached_otp, bytes) else cached_otp
+    
+    if not decoded_otp or decoded_otp != otp:
         raise HTTPException(status_code=400, detail="Mã xác thực không đúng hoặc đã hết hạn.")
     
     user = crud_auth.get_user_by_email(db, email)
@@ -138,29 +152,43 @@ def reset_password(email: str, otp: str, new_password: str, db: Session = Depend
     
     crud_auth.update_password(db, user=user, new_password=new_password)
     r.delete(f"reset_otp:{email}")
+    
     return {"message": "Đổi mật khẩu thành công!"}
 
-def verify_otp(email: str, otp_code: str):
-    """Hàm helper để kiểm tra mã OTP từ Redis"""
-    from app.db.redis_client import get_redis
+# ==========================================
+# 6. ĐỔI MẬT KHẨU BÊN TRONG HỆ THỐNG
+# ==========================================
+@router.post("/change-password")
+def change_password(
+    old_password: str, 
+    new_password: str, 
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    if not verify_password(old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Mật khẩu cũ không chính xác.")
     
+    crud_auth.update_password(db, user=current_user, new_password=new_password)
+    return {"message": "Đổi mật khẩu thành công!"}
+
+# ==========================================
+# 7. HÀM HELPER 
+# ==========================================
+def verify_otp(email: str, otp_code: str):
+    """Hàm helper để kiểm tra mã OTP nội bộ"""
     try:
-        # Vì get_redis là một generator, ta dùng next() để lấy instance
         redis_gen = get_redis()
         r = next(redis_gen)
         
         cached_otp = r.get(f"otp:{email}")
-        
         if not cached_otp:
             return False
             
-        # Nếu redis_client đã set decode_responses=True thì cached_otp là string
-        # Nếu chưa, ta cần decode. Để an toàn nhất, ta ép kiểu về string để so sánh
-        if str(cached_otp) == str(otp_code):
-            r.delete(f"otp:{email}") # Dùng xong xóa luôn
+        decoded_otp = cached_otp.decode("utf-8") if isinstance(cached_otp, bytes) else cached_otp
+        
+        if str(decoded_otp) == str(otp_code):
+            r.delete(f"otp:{email}") 
             return True
-    except StopIteration:
-        pass
     except Exception as e:
         print(f"Lỗi Redis verify_otp: {e}")
         

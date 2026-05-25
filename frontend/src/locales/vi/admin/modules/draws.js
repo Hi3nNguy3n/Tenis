@@ -1,5 +1,7 @@
 export default {
-  drawingMatrix: 'Trung tâm quản lý, bốc thăm hạt giống và chốt sơ đồ Playoff.',
+  selectTournamentToStart: 'Chon giai dau de bat dau',
+  drawingMatrix: 'Bốc thăm & Nhánh đấu',
+  drawingMatrixDesc: 'Trung tâm quản lý, bốc thăm hạt giống và chốt sơ đồ Playoff.',
   selectTournamentPlaceholder: '-- Chọn giải đấu --',
   finalizeGroups: 'Chốt Bảng & Tạo Playoff',
   startNewDraw: 'Bắt đầu Bốc thăm Mới',

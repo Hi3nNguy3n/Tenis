@@ -6,7 +6,7 @@ import { newsService } from '../../services/newsService'
 import { playerService } from '../../services/playerService'
 import { useAuthStore } from '../../stores/auth'
 import { currentLocale, t } from '../../utils/locale'
-import { Message, Check, Right, VideoPlay } from '@element-plus/icons-vue'
+import { Message, Check, Right, VideoPlay, Location } from '@element-plus/icons-vue'
 
 const authStore = useAuthStore()
 
@@ -31,16 +31,150 @@ const newsItems = computed(() => {
 // === STATE ===
 const topPlayers = ref([])
 const recentMatches = ref([])
+const featuredTournaments = ref([])
 const h2hData = ref(null) 
+const homeTopBanners = ref([])
+const homeAdBanners = ref([])
+const marketingSponsors = ref([])
+
+const fallbackHomeBanner = {
+  title: 'Saigontennistours',
+  subtitle: 'Cập nhật giải đấu, lịch thi đấu và cộng đồng tennis mỗi ngày.',
+  image_url: 'https://tpc.googlesyndication.com/simgad/9470293650305402252',
+  link_url: '/tournaments',
+  open_in_new_tab: false,
+}
+
+const fallbackSponsors = [
+  { id: 'fallback-emirates', name: 'Emirates', logo_url: '/emirates.svg', tier: 'premier', website_url: '' },
+  { id: 'fallback-pif', name: 'PIF', logo_url: '/pif.svg', tier: 'gold', website_url: '' },
+  { id: 'fallback-lexus', name: 'Lexus', logo_url: '/lexus.svg', tier: 'gold', website_url: '' },
+  { id: 'fallback-infosys', name: 'Infosys', logo_url: 'https://upload.wikimedia.org/wikipedia/commons/9/95/Infosys_logo.svg', tier: 'partner', website_url: '' },
+  { id: 'fallback-nitto', name: 'Nitto', logo_url: '/nitto.svg', tier: 'partner', website_url: '' },
+  { id: 'fallback-haier', name: 'Haier', logo_url: '/haier.jpg', tier: 'partner', website_url: '' },
+]
+
+const homeTopBanner = computed(() => homeTopBanners.value[0] || null)
+const homeAdBanner = computed(() => homeAdBanners.value[0] || null)
+const homeBannerItems = computed(() => {
+  const seen = new Set()
+  return homeTopBanners.value
+    .filter((banner) => {
+      if (!banner?.id || seen.has(banner.id)) return false
+      seen.add(banner.id)
+      return Boolean(banner.image_url)
+    })
+    .slice(0, 3)
+})
+const homeAdItems = computed(() => {
+  const seen = new Set()
+  return homeAdBanners.value
+    .filter((banner) => {
+      if (!banner?.id || seen.has(banner.id)) return false
+      seen.add(banner.id)
+      return Boolean(banner.image_url)
+    })
+    .slice(0, 3)
+})
+
+const sponsorTierLabels = {
+  premier: t('home.premierPartner') || 'Đối tác chính',
+  gold: t('home.platinumPartner') || 'Đối tác vàng',
+  silver: 'Đối tác bạc',
+  partner: t('home.goldPartner') || 'Đối tác đồng hành',
+}
+
+const sponsorTierOrder = ['premier', 'gold', 'silver', 'partner']
+
+const sponsorGroups = computed(() => {
+  const source = marketingSponsors.value.length ? marketingSponsors.value : fallbackSponsors
+  const groups = new Map()
+  source.forEach((sponsor) => {
+    const tier = sponsor.tier || 'partner'
+    if (!groups.has(tier)) {
+      groups.set(tier, {
+        tier,
+        label: sponsorTierLabels[tier] || tier,
+        items: []
+      })
+    }
+    groups.get(tier).items.push(sponsor)
+  })
+
+  return [...groups.values()].sort((a, b) => {
+    const orderA = sponsorTierOrder.indexOf(a.tier)
+    const orderB = sponsorTierOrder.indexOf(b.tier)
+    return (orderA === -1 ? 99 : orderA) - (orderB === -1 ? 99 : orderB)
+  })
+})
+
+const getTournamentStatusLabel = (status) => {
+  const map = {
+    'ongoing': t('tournaments.ongoing'),
+    'open': t('tournaments.upcoming'),
+    'finished': t('tournaments.completed'),
+    'pending': t('tournaments.upcoming')
+  }
+  return map[status] || t('tournaments.upcoming')
+}
+
+const getTournamentImage = (tour) => {
+  if (tour.media_url) return tour.media_url
+  const posters = ['/poster-1.jpg', '/poster-2.jpg', '/poster-3.jpg', '/poster-4.jpg']
+  const index = (tour.id || 0) % posters.length
+  return posters[index]
+}
+
+const hasHomeBanners = computed(() => homeBannerItems.value.length > 0)
+const hasHomeAds = computed(() => homeAdItems.value.length > 0)
+
+const getScorePart = (score, sideIndex) => {
+  if (!score) return '-'
+  const firstSet = String(score).split(',')[0] || ''
+  const parts = firstSet.split('-')
+  return parts[sideIndex]?.trim() || '-'
+}
+
+const hasRealPlayerName = (name) => {
+  const normalized = String(name || '').trim().toLowerCase()
+  if (!normalized) return false
+  return ![
+    'dang cap nhat',
+    'đang cập nhật',
+    'chua xac dinh',
+    'chưa xác định',
+    'tba'
+  ].includes(normalized)
+}
+
+const hasScoreData = (match) => {
+  const score = String(match?.score || match?.score_summary || match?.result_note || '').trim()
+  return Boolean(score && !['-', '--', '--:--', 'n/a'].includes(score.toLowerCase()))
+}
+
+const hasDisplayableMatchData = (match) => {
+  if (hasScoreData(match)) return true
+  return hasRealPlayerName(match?.p1_name) && hasRealPlayerName(match?.p2_name)
+}
+
+const getMatchContext = (match) => {
+  const tournament = match.tournament || 'Giao hữu tự do'
+  const round = match.round_code || t('home.round')
+  return `${tournament} · ${round}`
+}
 
 onMounted(async () => {
   authStore.hydrate()
   
   Promise.all([
-    newsService.getAllPosts(),
-    playerService.getRankings().catch(() => []),
-    apiClient.get('/api/tournaments/matches/all').catch(() => [])
-  ]).then(async ([newsData, rankingsData, matchesData]) => {
+    newsService.getAllPosts({ limit: 5 }),
+    playerService.getRankings({ limit: 10 }).catch(() => []),
+    apiClient.get('/api/tournaments/matches/all', { params: { limit: 30 } }).catch(() => []),
+    apiClient.get('/api/tournaments', { params: { limit: 4 } }).catch(() => []),
+    apiClient.get('/api/marketing/banners', { params: { placement: 'home_top', limit: 3 } }).catch(() => []),
+    apiClient.get('/api/marketing/banners', { params: { placement: 'home_ad', limit: 3 } }).catch(() => []),
+    apiClient.get('/api/marketing/sponsors', { params: { limit: 100 } }).catch(() => [])
+  ]).then(async ([newsData, rankingsData, matchesData, toursData, homeTopData, homeAdData, sponsorsData]) => {
     
     // 1. Xử lý Tin tức
     if (newsData) {
@@ -58,9 +192,22 @@ onMounted(async () => {
     const filteredMatches = (Array.isArray(matchesData) ? matchesData : []).filter(m => {
       const isP1Admin = m.p1_name?.toLowerCase().includes('admin')
       const isP2Admin = m.p2_name?.toLowerCase().includes('admin')
-      return !isP1Admin && !isP2Admin
+      return !isP1Admin && !isP2Admin && hasDisplayableMatchData(m)
     })
     recentMatches.value = filteredMatches.slice(0, 5)
+
+    // 2.5 Xử lý Tournaments
+    if (toursData && Array.isArray(toursData)) {
+      // Ưu tiên ONGOING -> OPEN -> FINISHED
+      const statusOrder = { 'ongoing': 0, 'open': 1, 'pending': 2, 'finished': 3 }
+      featuredTournaments.value = [...toursData]
+        .sort((a, b) => (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99))
+        .slice(0, 4)
+    }
+
+    homeTopBanners.value = Array.isArray(homeTopData) ? homeTopData : []
+    homeAdBanners.value = Array.isArray(homeAdData) ? homeAdData : []
+    marketingSponsors.value = Array.isArray(sponsorsData) ? sponsorsData : []
 
     // 4. LOGIC H2H
     let p1 = null;
@@ -103,7 +250,7 @@ onMounted(async () => {
           class="hero-media" 
           autoplay muted loop playsinline
         ></video>
-        <img v-else :src="newsItems[0].image" class="hero-media" />
+        <img v-else :src="newsItems[0].image" class="hero-media" referrerpolicy="no-referrer" />
         
         <div class="hero-overlay">
           <span class="category-badge">{{ newsItems[0].category }}</span>
@@ -122,8 +269,11 @@ onMounted(async () => {
         </div>
         <div class="widget-body match-list">
           <div v-for="match in recentMatches" :key="match.id" class="match-item">
+            <div class="match-context" :title="getMatchContext(match)">
+              {{ getMatchContext(match) }}
+            </div>
             <div class="match-meta">
-              <span class="round">{{ match.round_code || t('home.round') }}</span>
+              <span class="round">#{{ match.id }}</span>
               <span class="status" :class="{ 'live-text': match.status === 'ongoing' }">
                 {{ match.status === 'completed' ? t('home.finished') : (match.status === 'ongoing' ? t('home.live') : match.start) }}
               </span>
@@ -132,14 +282,14 @@ onMounted(async () => {
               <div class="p-name"><span class="flag"></span> {{ match.p1_name || t('home.tba') }}</div>
               <div class="p-score">
                 <span v-if="match.winner_side === 'side_a'" class="check-icon"><el-icon><Check /></el-icon></span>
-                <strong>{{ match.score ? match.score.split(',')[0].split('-')[0] : '-' }}</strong>
+                <strong>{{ getScorePart(match.score, 0) }}</strong>
               </div>
             </div>
             <div class="player-row" :class="{ 'is-winner': match.winner_side === 'side_b' }">
               <div class="p-name"><span class="flag"></span> {{ match.p2_name || t('home.tba') }}</div>
               <div class="p-score">
                 <span v-if="match.winner_side === 'side_b'" class="check-icon"><el-icon><Check /></el-icon></span>
-                <strong>{{ match.score ? match.score.split(',')[0].split('-')[1] : '-' }}</strong>
+                <strong>{{ getScorePart(match.score, 1) }}</strong>
               </div>
             </div>
           </div>
@@ -148,9 +298,54 @@ onMounted(async () => {
       </div>
     </section>
 
-    <section class="container ad-banner-section">
-      <div class="ad-banner-wrapper">
-        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" class="ad-banner-img" />
+    <section class="container marketing-showcase" v-if="hasHomeBanners">
+      <div class="marketing-heading">
+        <span>Promotions</span>
+        <h2>Banner nổi bật</h2>
+      </div>
+      <div class="marketing-banner-grid">
+        <a
+          v-for="(banner, index) in homeBannerItems"
+          :key="banner.id"
+          class="marketing-banner-card"
+          :class="{ 'marketing-banner-card--primary': index === 0 && homeBannerItems.length > 1 }"
+          :href="banner.link_url || '#'"
+          :target="banner.open_in_new_tab ? '_blank' : '_self'"
+          rel="noopener"
+          @click="!banner.link_url && $event.preventDefault()"
+        >
+          <img :src="banner.image_url" :alt="banner.title" class="marketing-banner-img" referrerpolicy="no-referrer" />
+          <div class="marketing-banner-content">
+            <span>Banner chính</span>
+            <strong>{{ banner.title }}</strong>
+            <p v-if="banner.subtitle">{{ banner.subtitle }}</p>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="container home-ads-section" v-if="hasHomeAds">
+      <div class="home-ads-heading">
+        <span>Ads</span>
+        <h2>Quảng cáo</h2>
+      </div>
+      <div class="home-ads-grid">
+        <a
+          v-for="banner in homeAdItems"
+          :key="banner.id"
+          class="home-ad-card"
+          :href="banner.link_url || '#'"
+          :target="banner.open_in_new_tab ? '_blank' : '_self'"
+          rel="noopener"
+          @click="!banner.link_url && $event.preventDefault()"
+        >
+          <img :src="banner.image_url" :alt="banner.title" referrerpolicy="no-referrer" />
+          <div class="home-ad-content">
+            <span>Quảng cáo</span>
+            <strong>{{ banner.title }}</strong>
+            <p v-if="banner.subtitle">{{ banner.subtitle }}</p>
+          </div>
+        </a>
       </div>
     </section>
 
@@ -184,7 +379,7 @@ onMounted(async () => {
             
             <div class="h2h-player">
               <div class="h2h-avatar">
-                <img :src="h2hData.player1.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player1.full_name}&background=random`" />
+                <img :src="h2hData.player1.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player1.full_name}&background=random`" referrerpolicy="no-referrer" />
               </div>
               <h4 class="h2h-name">{{ h2hData.player1.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
@@ -198,7 +393,7 @@ onMounted(async () => {
 
             <div class="h2h-player">
               <div class="h2h-avatar">
-                <img :src="h2hData.player2.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player2.full_name}&background=random`" />
+                <img :src="h2hData.player2.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player2.full_name}&background=random`" referrerpolicy="no-referrer" />
               </div>
               <h4 class="h2h-name">{{ h2hData.player2.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
@@ -247,6 +442,39 @@ onMounted(async () => {
       </div>
     </section>
 
+    <section class="container atp-tournaments-section" v-if="featuredTournaments.length > 0">
+      <div class="section-header">
+        <h2>{{ t('home.featuredTournaments') || 'GIẢI ĐẤU TIÊU BIỂU' }}</h2>
+        <RouterLink to="/tournaments" class="view-all-link">{{ t('home.viewAllTournaments') || 'Xem tất cả giải đấu' }} <el-icon><Right /></el-icon></RouterLink>
+      </div>
+      <div class="tournament-grid">
+        <div 
+          v-for="tour in featuredTournaments" 
+          :key="tour.id" 
+          class="tour-card"
+          @click="$router.push(`/tournaments/${tour.id}`)"
+        >
+          <div class="tour-media">
+            <img :src="getTournamentImage(tour)" alt="Tournament" referrerpolicy="no-referrer" />
+            <div class="tour-status-badge" :class="tour.status">
+              <span v-if="tour.status === 'ongoing'" class="pulse-dot"></span>
+              {{ getTournamentStatusLabel(tour.status) }}
+            </div>
+            <div class="tour-location-badge">
+              <el-icon><Location /></el-icon> {{ tour.location || 'Hồ Chí Minh' }}
+            </div>
+          </div>
+          <div class="tour-info">
+            <h3 class="tour-name">{{ tour.name }}</h3>
+            <div class="tour-meta">
+              <span class="tour-date">{{ new Date(tour.start_date).toLocaleDateString(currentLocale === 'vi' ? 'vi-VN' : 'en-US') }}</span>
+              <span class="tour-type">{{ tour.category_type }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="container atp-news-grid">
       <div class="section-title">
         <h2>{{ t('home.topNews') }}</h2>
@@ -256,7 +484,7 @@ onMounted(async () => {
         <article v-for="news in newsItems.slice(1, 5)" :key="news.id" class="news-card" @click="$router.push('/news/' + news.slug)">
           <div class="card-media">
             <video v-if="isVideo(news.image)" :src="news.image" autoplay muted loop playsinline></video>
-            <img v-else :src="news.image" />
+            <img v-else :src="news.image" referrerpolicy="no-referrer" />
             <span class="play-icon" v-if="isVideo(news.image)"><el-icon><VideoPlay /></el-icon></span>
           </div>
           <div class="card-body">
@@ -268,32 +496,28 @@ onMounted(async () => {
 
     <section class="atp-sponsors">
       <div class="container">
+        <div class="sponsors-heading">
+          <span>Partners</span>
+          <h2>Nhà tài trợ & Đối tác</h2>
+        </div>
         <div class="sponsor-tiers">
-          
-          <div class="tier">
-            <h5>{{ t('home.premierPartner') }}</h5>
+          <div v-for="group in sponsorGroups" :key="group.tier" class="tier">
+            <h5>{{ group.label }}</h5>
             <div class="logos">
-              <img src="../../../public/emirates.svg" alt="Emirates" class="sponsor-img premier-img">
+              <a
+                v-for="sponsor in group.items"
+                :key="sponsor.id"
+                class="sponsor-link"
+                :href="sponsor.website_url || '#'"
+                :target="sponsor.website_url ? '_blank' : '_self'"
+                rel="noopener"
+                @click="!sponsor.website_url && $event.preventDefault()"
+              >
+                <img :src="sponsor.logo_url" :alt="sponsor.name" class="sponsor-img" :class="{ 'premier-img': group.tier === 'premier' }" referrerpolicy="no-referrer">
+                <span class="sponsor-name">{{ sponsor.name }}</span>
+              </a>
             </div>
           </div>
-          
-          <div class="tier">
-            <h5>{{ t('home.platinumPartner') }}</h5>
-            <div class="logos">
-              <img src="../../../public/pif.svg" alt="PIF" class="sponsor-img">
-              <img src="../../../public/lexus.svg" alt="Lexus" class="sponsor-img">
-            </div>
-          </div>
-          
-          <div class="tier">
-            <h5>{{ t('home.goldPartner') }}</h5>
-            <div class="logos">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/9/95/Infosys_logo.svg" alt="Infosys" class="sponsor-img">
-              <img src="../../../public/nitto.svg" alt="Nitto" class="sponsor-img">
-              <img src="../../../public/haier.jpg" alt="Haier" class="sponsor-img">
-            </div>
-          </div>
-
         </div>
       </div>
     </section>
@@ -374,6 +598,9 @@ onMounted(async () => {
   overflow: hidden;
   cursor: pointer;
   min-height: 450px;
+  display: block;
+  color: inherit;
+  text-decoration: none;
 }
 
 .main-hero-news .hero-media {
@@ -405,6 +632,16 @@ onMounted(async () => {
   margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
+.hero-subtitle {
+  max-width: 720px;
+  margin: 0.85rem 0 0;
+  color: rgba(255,255,255,0.88);
+  font-size: 1rem;
+  line-height: 1.55;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.35);
+}
+
 .scores-widget, .rankings-widget {
   background: white; border: 1px solid #e2e8f0; border-radius: 8px;
   overflow: hidden; display: flex; flex-direction: column;
@@ -424,6 +661,16 @@ onMounted(async () => {
 .match-list { padding: 0; max-height: 380px; overflow-y: auto; }
 .match-item { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; }
 .match-item:last-child { border-bottom: none; }
+.match-context {
+  margin-bottom: 0.45rem;
+  color: var(--atp-blue);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .match-meta { display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600; }
 .live-text { color: #dc2626; }
 .player-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--atp-dark); }
@@ -433,25 +680,217 @@ onMounted(async () => {
 /* =========================================================
    AD BANNER SECTION
 ========================================================= */
-.ad-banner-section {
+.marketing-showcase {
   margin-bottom: 3rem;
-  text-align: center;
 }
 
-.ad-banner-wrapper {
-  display: inline-block;
-  width: 100%;
-  max-width: 970px; 
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-  background: #f8fafc;
+.marketing-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
-.ad-banner-img {
-  width: 100%;
-  height: auto;
+.marketing-heading span {
+  color: #16a34a;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.marketing-heading h2 {
+  margin: 0;
+  color: var(--atp-dark);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.marketing-banner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  grid-auto-flow: dense;
+}
+
+.marketing-banner-card {
+  position: relative;
   display: block;
+  width: 100%;
+  min-height: 260px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #dbe6f3;
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+  background: #0f172a;
+  text-decoration: none;
+  isolation: isolate;
+}
+
+.marketing-banner-card--primary {
+  grid-column: span 2;
+  min-height: 330px;
+}
+
+.marketing-banner-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  position: absolute;
+  inset: 0;
+  opacity: 0.86;
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+.marketing-banner-card:hover .marketing-banner-img {
+  transform: scale(1.03);
+  opacity: 0.74;
+}
+.marketing-banner-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.78)),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.16));
+  z-index: 1;
+}
+.marketing-banner-content {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  max-width: 520px;
+  padding: 24px 28px;
+  color: #ffffff;
+}
+.marketing-banner-content span {
+  width: fit-content;
+  margin-bottom: 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(193, 255, 114, 0.18);
+  color: #d9ff8f;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.marketing-banner-content strong {
+  font-size: clamp(1.35rem, 2.4vw, 2.25rem);
+  line-height: 1.12;
+  font-weight: 900;
+}
+.marketing-banner-content p {
+  margin: 10px 0 0;
+  color: #dbeafe;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.home-ads-section {
+  margin-bottom: 3rem;
+}
+
+.home-ads-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.home-ads-heading span {
+  color: #2563eb;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.home-ads-heading h2 {
+  margin: 0;
+  color: var(--atp-dark);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.home-ads-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.home-ad-card {
+  position: relative;
+  min-height: 170px;
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #ffffff;
+  text-decoration: none;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+  isolation: isolate;
+}
+
+.home-ad-card img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.home-ad-card:hover img {
+  transform: scale(1.04);
+  opacity: 0.8;
+}
+
+.home-ad-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0.82));
+}
+
+.home-ad-content {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 2;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-ad-content span {
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.28);
+  color: #bfdbfe;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.home-ad-content strong {
+  font-size: 1.2rem;
+  line-height: 1.2;
+  font-weight: 900;
+}
+
+.home-ad-content p {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 /* =========================================================
@@ -551,13 +990,30 @@ onMounted(async () => {
    SECTION 4: SPONSORS (HÌNH ẢNH LOGO) - ĐÃ BỎ HIỆU ỨNG MỜ
 ========================================================= */
 .atp-sponsors {
-  background: white;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   border-top: 1px solid #e2e8f0;
   padding: 4rem 0;
   text-align: center;
 }
 
-.sponsor-tiers { display: flex; flex-direction: column; gap: 3.5rem; }
+.sponsors-heading { margin-bottom: 2.5rem; }
+.sponsors-heading span {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--atp-blue);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sponsors-heading h2 {
+  margin: 0;
+  color: var(--atp-dark);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 900;
+}
+
+.sponsor-tiers { display: flex; flex-direction: column; gap: 2.6rem; }
 
 .tier h5 {
   font-size: 0.75rem;
@@ -568,52 +1024,117 @@ onMounted(async () => {
 }
 
 .logos {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   justify-content: center;
   align-items: center;
-  gap: 4rem;
-  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sponsor-link {
+  min-height: 98px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--atp-dark);
+  text-decoration: none;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.sponsor-link:hover {
+  transform: translateY(-4px);
+  border-color: #bfdbfe;
+  box-shadow: 0 18px 34px rgba(37, 99, 235, 0.12);
 }
 
 .sponsor-img {
-  height: 50px; 
-  width: auto;
+  max-height: 54px; 
+  max-width: 150px;
+  width: 100%;
   object-fit: contain;
-  transition: transform 0.3s ease;
-}
-
-.sponsor-img:hover {
-  transform: translateY(-3px);
 }
 
 .premier-img {
-  height: 85px; 
+  max-height: 78px; 
+  max-width: 210px;
 }
+
+.sponsor-name {
+  max-width: 100%;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   TOURNAMENTS SECTION
+========================================================= */
+.atp-tournaments-section { margin-bottom: 4rem; }
+.atp-tournaments-section .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 2px solid var(--atp-blue); padding-bottom: 0.5rem; }
+.atp-tournaments-section h2 { font-size: 1.5rem; font-weight: 700; color: var(--atp-dark); margin: 0; }
+.view-all-link { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--atp-blue); text-decoration: none; font-weight: 700; transition: 0.2s; }
+.view-all-link:hover { color: #c1ff72; }
+.tournament-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+.tour-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.3s ease, box-shadow 0.3s ease; border: 1px solid #e2e8f0; }
+.tour-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+.tour-media { position: relative; height: 180px; background: #1e293b; }
+.tour-media img { width: 100%; height: 100%; object-fit: cover; }
+.tour-status-badge { position: absolute; top: 12px; left: 12px; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: white; display: flex; align-items: center; gap: 6px; backdrop-filter: blur(4px); }
+.tour-status-badge.ongoing { background: rgba(220, 38, 38, 0.9); }
+.tour-status-badge.open { background: rgba(22, 163, 74, 0.9); }
+.tour-status-badge.finished { background: rgba(100, 116, 139, 0.9); }
+.tour-status-badge.pending { background: rgba(37, 99, 235, 0.9); }
+.pulse-dot { width: 8px; height: 8px; background: #fff; border-radius: 50%; box-shadow: 0 0 0 rgba(255, 255, 255, 0.4); animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); } }
+.tour-location-badge { position: absolute; bottom: 12px; left: 12px; background: rgba(255,255,255,0.9); color: #0f172a; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+.tour-info { padding: 1rem; }
+.tour-name { font-size: 1rem; font-weight: 700; color: #1e293b; margin: 0 0 0.5rem 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 2.8rem; line-height: 1.4; }
+.tour-meta { display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; font-weight: 600; }
 
 /* =========================================================
    RESPONSIVE
 ========================================================= */
 @media (max-width: 1024px) {
   .atp-top-section { grid-template-columns: 1fr; }
+  .marketing-banner-card--primary { grid-column: span 1; }
   .atp-middle-section { grid-template-columns: 1fr 1fr; }
   .right-widgets { grid-column: span 2; flex-direction: row; }
   .newsletter-widget, .shop-card { flex: 1; }
   .news-cards-row { grid-template-columns: repeat(2, 1fr); }
+  .tournament-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
   .atp-middle-section { grid-template-columns: 1fr; }
   .right-widgets { flex-direction: column; grid-column: span 1; }
   .hero-overlay h1 { font-size: 1.8rem; }
-  .logos { gap: 2rem; }
-  .sponsor-img { height: 40px; } 
-  .premier-img { height: 65px; }
+  .marketing-banner-card,
+  .marketing-banner-card--primary { min-height: 230px; }
+  .marketing-banner-content { padding: 22px; }
+  .logos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .sponsor-link { min-height: 86px; padding: 14px; }
+  .sponsor-img { max-height: 40px; } 
+  .premier-img { max-height: 62px; }
+  .atp-tournaments-section h2 { font-size: 1.2rem; }
 }
 
 @media (max-width: 480px) {
   .news-cards-row { grid-template-columns: 1fr; }
   .main-hero-news { min-height: 350px; }
+  .marketing-heading { align-items: flex-start; flex-direction: column; }
+  .marketing-banner-content strong { font-size: 1.25rem; }
   .h2h-players { gap: 1rem; }
   .score-number { font-size: 2rem; }
+  .tournament-grid { grid-template-columns: 1fr; }
+  .logos { grid-template-columns: 1fr; }
 }
 </style>

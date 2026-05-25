@@ -59,14 +59,30 @@ def get_paid_challenges(db: Session = Depends(get_db)):
         # Tìm tên người bị thách
         p2 = db.query(User).join(Player).filter(Player.id == c.challenged_id).first()
         
+        # Tìm tên đồng đội của người thách (đấu đôi)
+        p1_partner = None
+        if c.challenger_partner_id:
+            p1_partner = db.query(User).join(Player).filter(Player.id == c.challenger_partner_id).first()
+            
+        # Tìm tên đồng đội của người bị thách (đấu đôi)
+        p2_partner = None
+        if c.challenged_partner_id:
+            p2_partner = db.query(User).join(Player).filter(Player.id == c.challenged_partner_id).first()
+        
+        c_display = f"{p1.full_name} & {p1_partner.full_name}" if p1 and p1_partner else (p1.full_name if p1 else "VĐV A")
+        d_display = f"{p2.full_name} & {p2_partner.full_name}" if p2 and p2_partner else (p2.full_name if p2 else "VĐV B")
+        
         results.append({
             "id": c.id,
-            "challenger_name": p1.full_name if p1 else "VĐV A",
-            "challenged_name": p2.full_name if p2 else "VĐV B",
+            "challenger_name": c_display,
+            "challenged_name": d_display,
             "side_a_id": c.challenger_id,
             "side_b_id": c.challenged_id,
+            "side_a2_id": c.challenger_partner_id,
+            "side_b2_id": c.challenged_partner_id,
+            "match_type": c.match_type or "singles",
             "proposed_date": c.proposed_date.isoformat(),
             "notes": c.notes,
-            "match_name": f"Kèo Thách Đấu: {p1.full_name if p1 else 'A'} vs {p2.full_name if p2 else 'B'}"
+            "match_name": f"Kèo Thách Đấu: {c_display} vs {d_display}"
         })
     return results

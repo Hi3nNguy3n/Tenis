@@ -21,6 +21,7 @@ config = context.config
 # --- THÊM ĐOẠN NÀY ĐỂ ÉP ALEMBIC ĐỌC LINK TỪ .ENV ---
 db_url = os.getenv("DATABASE_URL")
 if db_url:
+    db_url = db_url.replace("%", "%%") # Thoát ký tự % để configparser không bị lỗi
     config.set_main_option("sqlalchemy.url", db_url)
 # ----------------------------------------------------
 # this is the Alembic Config object, which provides

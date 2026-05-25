@@ -37,7 +37,10 @@ const editForm = ref({
   gender: '',
   date_of_birth: '',
   province: '',
-  play_hand: ''
+  play_hand: '',
+  bio: '',
+  height_cm: null,
+  weight_kg: null
 })
 
 // --- LOGIC THÁCH ĐẤU ---
@@ -103,22 +106,43 @@ onMounted(async () => {
         gender: profileData?.player_profile?.gender || authStore.user.gender,
         date_of_birth: profileData?.player_profile?.date_of_birth || authStore.user.date_of_birth,
         province: authStore.user.province || '',
-        play_hand: profileData?.player_profile?.play_hand || ''
+        play_hand: profileData?.player_profile?.play_hand || '',
+        bio: profileData?.player_profile?.bio || '',
+        height_cm: profileData?.player_profile?.height_cm || null,
+        weight_kg: profileData?.player_profile?.weight_kg || null
       }
     }
 
     const history = await playerService.getMatchHistory()
     matchHistory.value = history || []
     
-    loadMyChallenges() 
+  loadMyChallenges() 
     await tournamentStore.fetchMyRegistrations() 
+    
+    // Handle tab from query param
+    const urlParams = new URLSearchParams(window.location.search)
+    const tab = urlParams.get('tab')
+    if (tab && ['info', 'challenges', 'tournaments', 'security'].includes(tab)) {
+      activeTab.value = tab
+    }
   } catch (error) {
     console.error('Lỗi khi tải dữ liệu hồ sơ:', error)
   }
 })
 
 const startEdit = () => {
-  editForm.value = { ...authStore.user }
+  editForm.value = {
+    full_name: authStore.user?.full_name || '',
+    email: authStore.user?.email || '',
+    phone: authStore.user?.phone || '',
+    gender: authStore.profile?.player_profile?.gender || authStore.user?.gender || '',
+    date_of_birth: authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth || '',
+    province: authStore.user?.province || '',
+    play_hand: authStore.profile?.player_profile?.play_hand || '',
+    bio: authStore.profile?.player_profile?.bio || '',
+    height_cm: authStore.profile?.player_profile?.height_cm || null,
+    weight_kg: authStore.profile?.player_profile?.weight_kg || null
+  }
   isEditing.value = true
 }
 
@@ -143,6 +167,9 @@ const handleUpdate = async () => {
   try {
     const data = await playerService.updateMe(editForm.value)
     authStore.user = { ...authStore.user, ...editForm.value }
+    if (authStore.profile?.player_profile) {
+      authStore.profile.player_profile = { ...authStore.profile.player_profile, ...editForm.value }
+    }
     isEditing.value = false
     ElMessage.success(t('profile.updateSuccess'))
   } catch (error) {
@@ -305,6 +332,9 @@ const selectTab = (tab) => {
                 <div class="display-item"><label>{{ t('profile.dob') }}</label><p>{{ authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth ? new Date(authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US') : t('profile.notUpdated') }}</p></div>
                 <div class="display-item"><label>{{ t('profile.province') }}</label><p>{{ authStore.user?.province || t('profile.notUpdated') }}</p></div>
                 <div class="display-item"><label>{{ t('profile.playHand') }}</label><p>{{ authStore.profile?.player_profile?.play_hand === 'right' ? t('profile.right') : authStore.profile?.player_profile?.play_hand === 'left' ? t('profile.left') : authStore.profile?.player_profile?.play_hand === 'both' ? t('profile.both') : t('profile.notUpdated') }}</p></div>
+                <div class="display-item"><label>{{ t('profile.height') }}</label><p>{{ authStore.profile?.player_profile?.height_cm ? `${authStore.profile.player_profile.height_cm} cm` : t('profile.notUpdated') }}</p></div>
+                <div class="display-item"><label>{{ t('profile.weight') }}</label><p>{{ authStore.profile?.player_profile?.weight_kg ? `${authStore.profile.player_profile.weight_kg} kg` : t('profile.notUpdated') }}</p></div>
+                <div class="display-item display-item-wide"><label>{{ t('profile.bio') }}</label><p class="bio-copy">{{ authStore.profile?.player_profile?.bio || t('profile.bioEmpty') }}</p></div>
               </div>
 
               <!-- Edit Mode -->
@@ -333,6 +363,22 @@ const selectTab = (tab) => {
                       <el-option :label="t('profile.both')" value="both" />
                     </el-select>
                   </el-form-item>
+                  <el-form-item :label="t('profile.height')">
+                    <el-input-number v-model="editForm.height_cm" :min="80" :max="250" :step="1" controls-position="right" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item :label="t('profile.weight')">
+                    <el-input-number v-model="editForm.weight_kg" :min="25" :max="250" :step="1" controls-position="right" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item :label="t('profile.bio')" class="form-item-wide">
+                    <el-input
+                      v-model="editForm.bio"
+                      type="textarea"
+                      :rows="6"
+                      maxlength="3000"
+                      show-word-limit
+                      :placeholder="t('profile.bioPlaceholder')"
+                    />
+                  </el-form-item>
                 </div>
                 
                 <div class="form-actions-row">
@@ -352,10 +398,10 @@ const selectTab = (tab) => {
               <!-- Desktop Table -->
               <div class="atp-table-wrapper hide-mobile">
                 <el-table :data="matchHistory" :empty-text="t('profile.noMatchData')" style="width: 100%">
-                  <el-table-column prop="time" label="Thời gian" width="160" />
-                  <el-table-column prop="tournament_name" label="Giải đấu" />
-                  <el-table-column prop="opponent" label="Đối thủ" />
-                  <el-table-column prop="round" label="Vòng" width="100" />
+                  <el-table-column prop="time" :label="t('profile.matchTime')" width="160" />
+                  <el-table-column prop="tournament_name" :label="t('profile.matchTournament')" />
+                  <el-table-column prop="opponent" :label="t('profile.matchOpponent')" />
+                  <el-table-column prop="round" :label="t('profile.matchRound')" width="100" />
                   <el-table-column prop="status" label="Kết quả" width="100">
                       <template #default="scope">
                         <span :class="['result-tag', scope.row.status === 'THẮNG' ? 'win' : 'lose']">{{ scope.row.status === 'THẮNG' ? t('profile.winTag') : t('profile.loseTag') }}</span>
@@ -372,9 +418,9 @@ const selectTab = (tab) => {
                     <span class="m-match-time">{{ match.time }}</span>
                   </div>
                   <div class="m-match-body">
-                    <div class="m-match-row"><b>Giải đấu:</b> <span>{{ match.tournament_name }}</span></div>
-                    <div class="m-match-row"><b>Đối thủ:</b> <span>{{ match.opponent }}</span></div>
-                    <div class="m-match-row"><b>Vòng:</b> <span>{{ match.round }}</span></div>
+                    <div class="m-match-row"><b>{{ t('profile.matchTournament') }}:</b> <span>{{ match.tournament_name }}</span></div>
+                    <div class="m-match-row"><b>{{ t('profile.matchOpponent') }}:</b> <span>{{ match.opponent }}</span></div>
+                    <div class="m-match-row"><b>{{ t('profile.matchRound') }}:</b> <span>{{ match.round }}</span></div>
                   </div>
                 </div>
                 <el-empty v-if="matchHistory.length === 0" :description="t('profile.noMatchData')" />
@@ -488,21 +534,21 @@ const selectTab = (tab) => {
                   <div class="tour-header-row">
                     <span class="tour-category">Saigontennistours</span>
                     <span :class="['atp-status-pill', reg.payment_status]">
-                      {{ reg.payment_status === 'confirmed' ? 'Đã xác nhận' : 'Đang xử lý' }}
+                      {{ reg.payment_status === 'confirmed' ? t('profile.paymentConfirmed') : t('profile.processing') }}
                     </span>
                   </div>
                   <h2 class="atp-tour-name">{{ reg.tournament_name }}</h2>
                   <div class="tour-meta-grid">
-                    <div class="m-item"><span class="m-label">Hạng đấu</span><span class="m-val">{{ reg.category_type || 'Chuyên nghiệp' }}</span></div>
-                    <div class="m-item"><span class="m-label">Ngày thi đấu</span><span class="m-val">{{ reg.tournament_date ? new Date(reg.tournament_date).toLocaleDateString() : 'TBD' }}</span></div>
-                    <div class="m-item"><span class="m-label">Địa điểm</span><span class="m-val">{{ reg.location || 'Saigon Tennis Center' }}</span></div>
+                    <div class="m-item"><span class="m-label">{{ t('profile.rank') }}</span><span class="m-val">{{ reg.category_type || 'Chuyên nghiệp' }}</span></div>
+                    <div class="m-item"><span class="m-label">{{ t('profile.proposedDate') }}</span><span class="m-val">{{ reg.tournament_date ? new Date(reg.tournament_date).toLocaleDateString() : 'TBD' }}</span></div>
+                    <div class="m-item"><span class="m-label">{{ t('profile.province') }}</span><span class="m-val">{{ reg.location || 'Saigon Tennis Center' }}</span></div>
                   </div>
                 </div>
                 <div class="atp-ticket-stub">
                   <div class="stub-qr-box">
-                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=SAIGONTENNIS" alt="QR Code" />
+                    <img :src="reg.qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=STT_REG_${reg.id}`" alt="QR Code" />
                   </div>
-                  <span class="stub-label">Mã đăng ký</span>
+                  <span class="stub-label">{{ t('profile.registrationCode') }}</span>
                   <code>#{{ reg.id.toString().slice(-8).toUpperCase() }}</code>
                 </div>
               </article>
@@ -670,15 +716,46 @@ const selectTab = (tab) => {
 .atp-card { 
   background: #fff; border: 1px solid var(--profile-border); 
   border-radius: 12px; padding: 2rem 2.5rem; 
-  box-shadow: var(--profile-shadow); margin-bottom: 2rem; 
+  box-shadow: var(--profile-shadow); margin-bottom: 2rem;
+  max-width: 1000px;
 }
-.card-header-flex { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; }
+.card-header-flex { 
+  display: flex; 
+  justify-content: flex-start; 
+  align-items: flex-end; 
+  gap: 2rem;
+  margin-bottom: 2rem; 
+}
+.card-header-flex .btn-atp-outline {
+  margin-left: auto;
+}
 .atp-section-title { margin: 0; font-size: 1.4rem; font-weight: 800; text-transform: uppercase; color: var(--profile-primary); }
 .section-line { width: 40px; height: 3px; background: var(--profile-secondary); margin-top: 0.8rem; }
 
-.data-display-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.data-display-grid { 
+  display: grid; 
+  grid-template-columns: repeat(2, minmax(200px, 350px)); 
+  gap: 2rem 3rem; 
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem 2rem;
+}
 .display-item label { font-size: 0.7rem; color: var(--profile-muted); text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 0.5rem; letter-spacing: 0.05em;}
 .display-item p { font-size: 1rem; font-weight: 600; color: var(--profile-text); margin: 0; word-break: break-all; }
+.display-item-wide,
+.form-item-wide {
+  grid-column: 1 / -1;
+}
+.bio-copy {
+  max-width: 760px;
+  line-height: 1.75;
+  white-space: pre-line;
+  word-break: normal !important;
+  color: #334155 !important;
+  font-weight: 500 !important;
+}
 
 /* Nút Bấm */
 .btn-atp-outline {

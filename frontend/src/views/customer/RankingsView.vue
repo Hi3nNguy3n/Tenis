@@ -1,12 +1,15 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import { Trophy, Check, ArrowRight } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
+import MarketingBannerStrip from '../../components/MarketingBannerStrip.vue'
 
 const rankings = ref([])
+const finalMatches = ref([])
 const isLoading = ref(true)
+const activeRankingTab = ref('Singles')
 
 const filters = ref({
   category: '',
@@ -14,14 +17,18 @@ const filters = ref({
 })
 
 const provinceOptions = ref([])
-const categoryOptions = ref([])
-
+const categoryOptions = ref([
+  { value: 'Singles', label: 'Đơn (Singles)' },
+  { value: 'Doubles', label: 'Đôi (Doubles)' }
+])
 
 const formatCategoryLabel = (value) => {
   if (!value) return ''
-  if (value === 'Singles') return t('common.singles') || 'Đơn'
-  if (value === 'Doubles') return t('common.doubles') || 'Đôi'
-  return value
+  // Nếu value là object (trường hợp khởi tạo), lấy thuộc tính value
+  const val = typeof value === 'object' ? value.value : value
+  if (val === 'Singles') return t('common.singles') || 'Đơn'
+  if (val === 'Doubles') return t('common.doubles') || 'Đôi'
+  return val
 }
 
 const buildFilterOptions = (items = []) => {
@@ -37,54 +44,187 @@ const buildFilterOptions = (items = []) => {
   categoryOptions.value = [...categorySet].sort((a, b) => a.localeCompare(b))
 }
 
+const fetchFinalMatches = async () => {
+  try {
+    const response = await apiClient.get('/api/matches/')
+    const matches = Array.isArray(response) ? response : []
+    finalMatches.value = matches.filter((match) => {
+      const round = String(match.round_code || '').toUpperCase()
+      return round === 'FINAL' || round === 'F' || round.includes('CHUNG KET') || round.includes('CHUNG KẾT')
+    })
+  } catch (error) {
+    finalMatches.value = []
+  }
+}
+
 const fetchRankings = async () => {
   isLoading.value = true
   try {
-    let url = '/api/players/rankings'
-    const queryParts = []
+    // Sử dụng URLSearchParams để tự động xử lý và nối chuỗi param an toàn
+    const params = new URLSearchParams()
+    if (filters.value.category) params.append('category', filters.value.category)
+    if (filters.value.province) params.append('province', filters.value.province)
 
-    if (filters.value.category) {
-      queryParts.push(`category=${encodeURIComponent(filters.value.category)}`)
-    }
+    const queryString = params.toString()
+    const url = queryString ? `/api/players/rankings?${queryString}` : '/api/players/rankings'
 
-    if (filters.value.province) {
-      queryParts.push(`province=${encodeURIComponent(filters.value.province)}`)
-    }
-
-    if (queryParts.length > 0) {
-      url += `?${queryParts.join('&')}`
-    }
-
-    const data = await apiClient.get(url)
-    const normalized = data || []
+    // Gọi API
+    const response = await apiClient.get(url)
+    const normalized = Array.isArray(response) ? response : []
     
-    // Lọc admin và đánh lại số thứ tự
-    const filteredPlayers = normalized.filter(p => !p.full_name?.toLowerCase().includes('admin'))
-    rankings.value = filteredPlayers.map((player, index) => ({
+    // Đánh lại số thứ tự (Rank)
+    rankings.value = normalized.map((player, index) => ({
       ...player,
       rank: index + 1
     }))
 
+    // Chỉ tạo danh sách tuỳ chọn Tỉnh/Thành ở lần load đầu tiên (khi chưa có filter)
     if (!filters.value.category && !filters.value.province) {
       buildFilterOptions(rankings.value)
     }
   } catch (error) {
-    ElMessage.error(t('common.errorLoading') || 'Lỗi tải dữ liệu')
+    ElMessage.error(t('common.errorLoading') || 'Lỗi tải dữ liệu bảng xếp hạng')
   } finally {
     isLoading.value = false
   }
 }
 
-onMounted(fetchRankings)
+const doublesRankings = computed(() => {
+  const sorted = [...rankings.value].sort((a, b) => (a.rank || 0) - (b.rank || 0))
+  const pairs = []
+  for (let index = 0; index < sorted.length; index += 2) {
+    const first = sorted[index]
+    const second = sorted[index + 1]
+    if (!first || !second) continue
+    const totalMatches = (first.matches_played || 0) + (second.matches_played || 0)
+    const totalWins = (first.wins || 0) + (second.wins || 0)
+    pairs.push({
+      rank: pairs.length + 1,
+      player_id: `pair-${first.player_id}-${second.player_id}`,
+      full_name: `${first.full_name} / ${second.full_name}`,
+      avatar_url: first.avatar_url,
+      partner_avatar_url: second.avatar_url,
+      partner_name: second.full_name,
+      skill_level: `${first.skill_level || 'N/A'} / ${second.skill_level || 'N/A'}`,
+      elo_points: (first.elo_points || 0) + (second.elo_points || 0),
+      matches_played: totalMatches,
+      win_rate: totalMatches ? Math.round((totalWins / totalMatches) * 1000) / 10 : 0,
+      isDoublesPair: true
+    })
+  }
+  return pairs
+})
+
+const raceToFinalsRankings = computed(() => {
+  const playerMap = new Map()
+  const ensurePlayer = (name, avatar = null) => {
+    if (!name || name.includes('ChÆ°a') || name.includes('Chưa') || name === 'N/A') return null
+    if (!playerMap.has(name)) {
+      const ranking = rankings.value.find(player => player.full_name === name)
+      playerMap.set(name, {
+        rank: 0,
+        player_id: ranking?.player_id || `finalist-${name}`,
+        full_name: name,
+        avatar_url: avatar || ranking?.avatar_url,
+        skill_level: ranking?.skill_level || 'N/A',
+        elo_points: 0,
+        matches_played: ranking?.matches_played || 0,
+        win_rate: ranking?.win_rate || 0,
+        finals_count: 0,
+        titles_count: 0,
+        isRaceRow: true
+      })
+    }
+    return playerMap.get(name)
+  }
+
+  finalMatches.value.forEach((match) => {
+    const finalists = [
+      [match.p1_name, match.p1_avatar],
+      [match.p1_partner_name, null],
+      [match.p2_name, match.p2_avatar],
+      [match.p2_partner_name, null]
+    ]
+    finalists.forEach(([name, avatar]) => {
+      const row = ensurePlayer(name, avatar)
+      if (row) row.finals_count += 1
+    })
+
+    const winnerNames = match.winner_side === 'side_a'
+      ? [[match.p1_name, match.p1_avatar], [match.p1_partner_name, null]]
+      : match.winner_side === 'side_b'
+        ? [[match.p2_name, match.p2_avatar], [match.p2_partner_name, null]]
+        : []
+    winnerNames.forEach(([name, avatar]) => {
+      const row = ensurePlayer(name, avatar)
+      if (row) row.titles_count += 1
+    })
+  })
+
+  return [...playerMap.values()]
+    .sort((a, b) => {
+      if (b.finals_count !== a.finals_count) return b.finals_count - a.finals_count
+      if (b.titles_count !== a.titles_count) return b.titles_count - a.titles_count
+      return (b.matches_played || 0) - (a.matches_played || 0)
+    })
+    .map((row, index) => ({
+      ...row,
+      rank: index + 1,
+      elo_points: row.finals_count,
+      matches_played: row.titles_count
+    }))
+})
+
+const displayedRankings = computed(() => {
+  if (activeRankingTab.value === 'Doubles') return doublesRankings.value
+  if (activeRankingTab.value === 'Race') return raceToFinalsRankings.value
+  return rankings.value
+})
+
+const rankingTableLabels = computed(() => {
+  if (activeRankingTab.value === 'Doubles') {
+    return {
+      player: 'Cặp vận động viên',
+      points: 'Tổng điểm',
+      matches: 'Tổng trận',
+      winRate: 'Tỉ lệ thắng'
+    }
+  }
+  if (activeRankingTab.value === 'Race') {
+    return {
+      player: 'Vận động viên',
+      points: 'Vào chung kết',
+      matches: 'Vô địch',
+      winRate: 'Tỉ lệ thắng'
+    }
+  }
+  return {
+    player: t('rankings.player'),
+    points: t('rankings.points'),
+    matches: t('rankings.matches'),
+    winRate: t('rankings.winRate')
+  }
+})
+
+const setRankingTab = (tab) => {
+  activeRankingTab.value = tab
+  if (tab === 'Singles') filters.value.category = ''
+  if (tab === 'Doubles') filters.value.category = ''
+}
+// TỰ ĐỘNG LỌC LẠI KHI NGƯỜI DÙNG CHỌN MENU THẢ XUỐNG
+watch(filters, () => {
+  fetchRankings()
+}, { deep: true })
+onMounted(async () => {
+  await Promise.all([fetchRankings(), fetchFinalMatches()])
+})
 </script>
 
 <template>
   <div class="atp-ranking-page">
     
     <div class="top-ad-banner">
-      <div class="ad-placeholder">
-        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" />
-      </div>
+      <MarketingBannerStrip placement="rankings_top" variant="compact" :max="3" />
     </div>
 
     <div class="container layout-grid">
@@ -98,9 +238,9 @@ onMounted(fetchRankings)
 
           <div class="inline-filters">
             <div class="filter-tabs">
-              <span class="f-tab active">{{ t('rankings.singlesTab') }}</span>
-              <span class="f-tab">{{ t('rankings.doublesTab') }}</span>
-              <span class="f-tab">{{ t('rankings.raceToFinals') }}</span>
+              <span class="f-tab" :class="{ active: activeRankingTab === 'Singles' }" @click="setRankingTab('Singles')">{{ t('rankings.singlesTab') }}</span>
+              <span class="f-tab" :class="{ active: activeRankingTab === 'Doubles' }" @click="setRankingTab('Doubles')">{{ t('rankings.doublesTab') }}</span>
+              <span class="f-tab" :class="{ active: activeRankingTab === 'Race' }" @click="setRankingTab('Race')">{{ t('rankings.raceToFinals') }}</span>
             </div>
 
             <div class="filter-dropdowns">
@@ -139,7 +279,7 @@ onMounted(fetchRankings)
         </div>
 
         <div class="ranking-list-container" v-loading="isLoading">
-          <div v-if="rankings.length === 0" class="empty-state">
+          <div v-if="displayedRankings.length === 0" class="empty-state">
             <el-empty :description="t('common.noData') || t('rankings.noDataDesc')" />
           </div>
 
@@ -147,23 +287,30 @@ onMounted(fetchRankings)
             <thead>
               <tr>
                 <th class="col-rank">{{ t('rankings.rank') }}</th>
-                <th class="col-player">{{ t('rankings.player') }}</th>
+                <th class="col-player">{{ rankingTableLabels.player }}</th>
                 <th class="col-level hidden-mobile text-center">{{ t('rankings.level') }}</th>
-                <th class="col-pts text-center">{{ t('rankings.points') }}</th>
-                <th class="col-matches hidden-mobile text-center">{{ t('rankings.matches') }}</th>
-                <th class="col-winrate hidden-mobile text-center">{{ t('rankings.winRate') }}</th>
+                <th class="col-pts text-center">{{ rankingTableLabels.points }}</th>
+                <th class="col-matches hidden-mobile text-center">{{ rankingTableLabels.matches }}</th>
+                <th class="col-winrate hidden-mobile text-center">{{ rankingTableLabels.winRate }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="player in rankings" :key="player.player_id">
+              <tr v-for="player in displayedRankings" :key="player.player_id">
                 <td class="col-rank">
                   <span class="rank-num">{{ player.rank }}</span>
                 </td>
                 <td class="col-player">
-                  <div class="player-info-cell">
-                    <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" />
-                    <span class="flag-mini">🇻🇳</span>
-                    <strong class="player-name">{{ player.full_name }}</strong>
+                  <div class="player-info-cell" :class="{ 'is-pair': player.isDoublesPair }">
+                    <div class="avatar-stack" v-if="player.isDoublesPair">
+                      <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" referrerpolicy="no-referrer" />
+                      <img :src="player.partner_avatar_url || `https://ui-avatars.com/api/?name=${player.partner_name}`" class="player-ava partner-ava" referrerpolicy="no-referrer" />
+                    </div>
+                    <img v-else :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" referrerpolicy="no-referrer" />
+                    <div class="player-name-block">
+                      <strong class="player-name">{{ player.full_name }}</strong>
+                      <span v-if="player.isDoublesPair" class="pair-note">Ghép từ hạng {{ (player.rank - 1) * 2 + 1 }} và {{ (player.rank - 1) * 2 + 2 }}</span>
+                      <span v-if="player.isRaceRow" class="pair-note">{{ player.titles_count }} danh hiệu chung kết</span>
+                    </div>
                   </div>
                 </td>
                 <td class="col-level hidden-mobile text-center">
@@ -211,14 +358,14 @@ onMounted(fetchRankings)
               <div class="match-status">{{ t('rankings.finalCenterCourt') }} <span>01:15:20</span></div>
               
               <div class="match-player">
-                <div class="mp-name"><span class="flag-mini">🇻🇳</span> Nguyễn M. Phú <span class="seed">(1)</span> <el-icon class="winner-check"><Check /></el-icon></div>
+                <div class="mp-name"><span class="flag-mini"></span> Nguyễn M. Phú <span class="seed">(1)</span> <el-icon class="winner-check"><Check /></el-icon></div>
                 <div class="mp-score">
                   <span>6</span><span>6</span>
                 </div>
               </div>
               
               <div class="match-player">
-                <div class="mp-name"><span class="flag-mini">🇻🇳</span> Nguyễn M. Anh <span class="seed">(2)</span></div>
+                <div class="mp-name"><span class="flag-mini"></span> Nguyễn M. Anh <span class="seed">(2)</span></div>
                 <div class="mp-score">
                   <span>4</span><span>2</span>
                 </div>
@@ -262,10 +409,18 @@ onMounted(fetchRankings)
 /* Quảng cáo Top */
 .top-ad-banner {
   background: #f8fafc;
-  padding: 1.5rem 0;
+  padding: 1rem 1.5rem;
   display: flex;
   justify-content: center;
   border-bottom: 1px solid #e2e8f0;
+}
+.top-ad-banner :deep(.marketing-strip) {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.top-ad-banner :deep(.marketing-strip-card) {
+  min-height: 128px;
+  max-height: 160px;
 }
 .ad-placeholder img {
   max-width: 100%;
@@ -413,6 +568,29 @@ onMounted(fetchRankings)
   gap: 12px;
 }
 
+.player-info-cell.is-pair {
+  gap: 14px;
+}
+
+.avatar-stack {
+  position: relative;
+  width: 68px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.avatar-stack .player-ava {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.avatar-stack .partner-ava {
+  left: 28px;
+}
+
 .player-ava {
   width: 44px;
   height: 44px;
@@ -423,10 +601,23 @@ onMounted(fetchRankings)
 
 .flag-mini { font-size: 0.9rem; }
 
+.player-name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .player-name {
   font-size: 1.05rem;
   color: #002855;
   font-weight: 700;
+}
+
+.pair-note {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
 }
 
 .col-level { font-size: 0.9rem; color: #475569; }
@@ -590,22 +781,98 @@ onMounted(fetchRankings)
 ========================================================= */
 @media (max-width: 1024px) {
   .layout-grid {
-    grid-template-columns: 1fr; /* Rớt cột phải xuống dưới */
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+  .sidebar {
+    order: 2;
+    margin-top: 1rem;
   }
 }
 
 @media (max-width: 768px) {
+  .container { padding: 0 1rem; }
+  
+  .layout-grid { margin-top: 1rem; gap: 2rem; }
+
+  .ranking-header-section { margin-bottom: 0.5rem; }
+
   .inline-filters {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 1rem;
+    padding-bottom: 0;
+    border-bottom: none;
   }
-  .hidden-mobile { display: none; }
-  .page-title { font-size: 1.5rem; }
+
+  .filter-tabs {
+    display: flex;
+    gap: 1.2rem;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    white-space: nowrap;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .f-tab { padding-bottom: 8px; font-size: 0.85rem; }
+  .f-tab.active::after { bottom: -9px; }
+
+  .filter-dropdowns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .ranking-list-container {
+    margin: 0.5rem 0 0;
+    overflow-x: visible; /* Bỏ cuộn ngang nếu có thể fit */
+  }
+
+  .atp-flat-table {
+    min-width: auto; /* Cho phép co giãn tự do */
+  }
+
+  .atp-flat-table th { padding: 0.8rem 0.4rem; }
+  .atp-flat-table td { padding: 0.8rem 0.4rem; }
+
+  .hidden-mobile { display: none !important; }
+  
+  .page-title { 
+    font-size: 1.4rem; 
+    justify-content: flex-start;
+  }
+  .page-title span { font-size: 1.2rem; }
+  .pif-icon { font-size: 1.2rem; padding: 3px; }
+
+  .col-rank { width: 40px; font-size: 0.95rem; }
+  .col-pts { width: 80px; }
+  .player-ava { width: 34px; height: 34px; }
+  .player-name { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+  .points-val { font-size: 1rem; }
 }
 
 @media (max-width: 480px) {
-  .filter-dropdowns { flex-direction: column; width: 100%;}
-  :deep(.flat-select) { width: 100%; }
+  .filter-dropdowns { 
+    grid-template-columns: 1fr; 
+    gap: 0.5rem;
+  }
+  
+  .title-row { margin-bottom: 0.8rem; }
+  .page-title { font-size: 1.2rem; }
+  .page-title span { font-size: 1rem; }
+  
+  .atp-flat-table th, .atp-flat-table td {
+    padding: 0.6rem 0.3rem;
+  }
+  
+  .rank-num { font-size: 0.85rem; }
+  .points-val { font-size: 0.9rem; }
+  
+  .player-ava { width: 30px; height: 30px; }
+  .player-name { font-size: 0.8rem; max-width: 110px; }
+  
+  /* Chống tràn cho sidebar widget */
+  .ws-body { padding: 0.75rem; }
+  .match-summary { font-size: 0.65rem; }
 }
 </style>

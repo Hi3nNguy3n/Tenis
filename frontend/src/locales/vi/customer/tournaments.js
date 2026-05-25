@@ -49,6 +49,7 @@ export default {
   gameDiff: 'HS Game',
   points: 'Điểm',
   entryTicket: 'Vé Tham Dự',
+  entryFee: 'Lệ phí',
   registeredCount: 'Số lượng đăng ký',
   registrationCloseAt: 'Đóng đăng ký vào:',
   alreadyRegistered: 'Đã ghi danh',
@@ -60,6 +61,7 @@ export default {
   tournamentClosed: 'Giải đấu đã khép lại',
   live: 'LIVE',
   free: 'MIỄN PHÍ',
+  photos: 'Hình ảnh',
   loadingData: 'Đang tải dữ liệu...',
 
   // Registration
@@ -80,6 +82,7 @@ export default {
   athleteInfoTitle: 'Thông tin vận động viên',
   athleteInfoDesc: 'Vui lòng điền đầy đủ và chính xác thông tin để BTC sắp xếp lịch thi đấu.',
   partnerInfoTitle: 'Thông tin đồng đội (Đánh đôi)',
+  partnerSearch: 'Tìm kiếm đồng đội',
   partnerName: 'Họ và tên đồng đội',
   enterFullName: 'Nhập họ và tên...',
   phoneNumber: 'Số điện thoại liên hệ',
@@ -97,12 +100,14 @@ export default {
   verifying: 'Đang xác thực...',
   confirmRegistration: 'Xác nhận Đăng ký',
   registrationSuccessTitle: 'Ghi danh thành công!',
-  registrationSuccessDesc: 'Tuyệt vời! Hồ sơ tham dự giải đấu của bạn đã được lưu vào hệ thống.<br>Vui lòng đến bàn Check-in tại sân để hoàn tất thanh toán lệ phí (nếu có).',
+  registrationSuccessDesc: 'Tuyệt vời! Hồ sơ tham dự giải đấu của bạn đã được lưu vào hệ thống. Vui lòng đến bàn Check-in tại sân để hoàn tất thanh toán lệ phí (nếu có).',
   viewETicket: 'Xem Vé điện tử (QR Code)',
   startDateTicket: 'Ngày khởi tranh',
   matchFormat: 'Thể thức thi đấu',
   singlesFormat: 'Đơn (Singles)',
   doublesFormat: 'Đôi (Doubles)',
   tournamentFee: 'Lệ phí giải',
-  freeFee: 'Miễn phí'
+  freeFee: 'Miễn phí',
+  selectCategory: 'Chọn nội dung thi đấu',
+  selectCategoryPlaceholder: 'Vui lòng chọn nội dung...'
 }

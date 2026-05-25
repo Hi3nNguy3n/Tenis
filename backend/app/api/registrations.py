@@ -6,8 +6,8 @@ from datetime import datetime
 
 from app.db.database import get_db, SessionLocal
 from app.api.deps import get_current_user, get_current_admin
-from app.models.models import User, Registration, Tournament, Player
-from app.crud import crud_registration, crud_player # Import crud_player
+from app.models.models import User, Registration, Tournament, Player, Payment, TournamentCategory
+from app.crud import crud_registration, crud_player
 from app.schemas import registration_schemas
 from app.core.qr_generator import generate_registration_qr
 
@@ -34,14 +34,27 @@ def get_my_registrations(
     if not player:
         return []
         
-    registrations_data = crud_registration.get_registrations_by_player(db, player.id)
+    from sqlalchemy import or_
+    registrations_data = db.query(Registration, Tournament, TournamentCategory).join(
+        Tournament, Registration.tournament_id == Tournament.id
+    ).outerjoin(
+        TournamentCategory, Registration.tournament_category_id == TournamentCategory.id
+    ).filter(
+        or_(
+            Registration.player_id == player.id,
+            Registration.partner_player_id == player.id
+        ),
+        Registration.deleted_at.is_(None)
+    ).all()
     
     response_items = []
-    for reg, tourn in registrations_data:
+    for reg, tourn, category in registrations_data:
         item = registration_schemas.RegistrationResponse.model_validate(reg)
         item.tournament_name = tourn.name
         item.location = tourn.location
-        item.category_type = tourn.category_type
+        item.category_id = reg.tournament_category_id
+        item.category_type = category.category_type if category else tourn.category_type
+        item.category_name = category.name if category else "Mặc định"
         item.entry_fee = float(tourn.entry_fee) if tourn.entry_fee else 0
         item.entry_fee_team = float(tourn.entry_fee_team) if tourn.entry_fee_team else 0
         item.tournament_date = tourn.start_date
@@ -79,13 +92,16 @@ def admin_get_all_registrations(
     results = crud_registration.get_all_registrations_admin(db)
     
     response_items = []
-    for reg, tourn, player, user in results:
+    for reg, tourn, player, user, category in results:
         item = registration_schemas.RegistrationResponse.model_validate(reg)
         item.tournament_name = tourn.name
         item.location = tourn.location
         item.player_name = user.full_name
         item.tournament_date = tourn.start_date
-        item.category_type = tourn.category_type
+        item.registered_at = reg.registered_at
+        item.category_id = reg.tournament_category_id
+        item.category_type = category.category_type if category else tourn.category_type
+        item.category_name = category.name if category else "Mặc định"
         item.entry_fee = float(tourn.entry_fee) if tourn.entry_fee else 0
         item.player_phone = user.phone
         item.player_email = user.email
@@ -95,6 +111,60 @@ def admin_get_all_registrations(
     return response_items
 
 # 6. ADMIN HỦY ĐƠN / HOÀN TIỀN
+@router.post("/admin/tournaments/{tournament_id}/add-player", dependencies=[Depends(get_current_admin)])
+def admin_add_player_to_tournament(
+    tournament_id: int,
+    payload: registration_schemas.AdminAddTournamentRegistrationRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
+    if not tournament:
+        raise HTTPException(status_code=404, detail="Khong tim thay giai dau.")
+
+    category = db.query(TournamentCategory).filter(
+        TournamentCategory.id == payload.category_id,
+        TournamentCategory.tournament_id == tournament_id
+    ).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Khong tim thay noi dung thi dau cua giai.")
+
+    player = db.query(Player).filter(Player.id == payload.player_id).first()
+    if not player:
+        raise HTTPException(status_code=404, detail="Khong tim thay van dong vien.")
+
+    partners = []
+    if payload.partner_player_id:
+        partner = db.query(Player).filter(Player.id == payload.partner_player_id).first()
+        partner_user = db.query(User).filter(User.id == partner.user_id).first() if partner else None
+        if not partner or not partner_user:
+            raise HTTPException(status_code=404, detail="Khong tim thay dong doi.")
+        partners.append({
+            "player_id": partner.id,
+            "name": partner_user.full_name,
+            "phone": partner_user.phone,
+            "email": partner_user.email,
+        })
+
+    reg = crud_registration.register_with_otp_flow(
+        db=db,
+        tournament_id=tournament_id,
+        category_id=payload.category_id,
+        player_id=payload.player_id,
+        notes=payload.notes,
+        partners=partners,
+    )
+
+    if payload.mark_paid or payload.check_in:
+        reg.payment_status = "paid"
+    if payload.check_in:
+        reg.status = "checked_in"
+    db.commit()
+    db.refresh(reg)
+
+    background_tasks.add_task(update_qr, reg.id, tournament.name)
+    return {"message": "Da them van dong vien vao giai dau thanh cong.", "registration_id": reg.id}
+
 @router.delete("/{registration_id}", dependencies=[Depends(get_current_admin)])
 def admin_cancel_registration(registration_id: int, db: Session = Depends(get_db)):
     reg = crud_registration.admin_cancel_registration(db, registration_id)
@@ -109,16 +179,59 @@ def admin_check_in(registration_id: int, db: Session = Depends(get_db)):
     
     if info == "not_found":
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
-    if info == "not_paid":
-        raise HTTPException(status_code=400, detail="Đơn này chưa thanh toán, không thể check-in.")
     
     return {
-        "message": "Vận động viên đã check-in thành công!", 
-        "player_id": reg.player_id,
+        "status": info["status"],
+        "registration_id": reg.id,
         "player_name": info["user"].full_name,
         "tournament_name": info["tourn"].name,
-        "location": info["tourn"].location
+        "location": info["tourn"].location,
+        "entry_fee": info["entry_fee"]
     }
+
+# 8. ADMIN THU TIỀN MẶT & CHECK-IN TẠI CHỖ
+@router.post("/{registration_id}/pay-and-check-in")
+def admin_pay_and_check_in(
+    registration_id: int,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    reg = db.query(Registration).filter(Registration.id == registration_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
+        
+    tourn = db.query(Tournament).filter(Tournament.id == reg.tournament_id).first()
+    player = db.query(Player).filter(Player.id == reg.player_id).first()
+    user = db.query(User).filter(User.id == player.user_id).first()
+
+    try:
+        # 1. Tạo bản ghi Thanh toán Tiền mặt
+        new_payment = Payment(
+            registration_id=reg.id,
+            amount=(tourn.entry_fee_team if reg.registrant_type == "team" else tourn.entry_fee) if tourn else 0,
+            currency="VND",
+            payment_method="cash_onsite",
+            status="completed",
+            transaction_ref=f"CASH-ADM{current_admin.id}-{int(datetime.utcnow().timestamp())}",
+            paid_at=datetime.utcnow()
+        )
+        db.add(new_payment)
+        
+        # 2. Cập nhật Đăng ký
+        reg.payment_status = "paid"
+        reg.status = "checked_in"
+        reg.notes = (reg.notes or "") + f" | Admin {current_admin.full_name} thu tiền mặt & Check-in lúc {datetime.utcnow()}"
+        
+        db.commit()
+        
+        return {
+            "message": "Đã thu tiền và check-in thành công!",
+            "player_name": user.full_name,
+            "amount": float(tourn.entry_fee) if tourn and tourn.entry_fee else 0
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xử lý giao dịch: {str(e)}")
 
 @router.post("/{registration_id}/confirm", dependencies=[Depends(get_current_admin)])
 def admin_confirm_registration(

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     )
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
-    
+    BREVO_API_KEY: str = ""
     # Auth - BẮT BUỘC (Chỉ khai báo kiểu chữ, không gán mặc định)
     SECRET_KEY: str 
     ALGORITHM: str = "HS256"

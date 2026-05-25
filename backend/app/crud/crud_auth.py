@@ -5,8 +5,30 @@ from app.models.models import User, Player, AuthOtp, Role
 from app.schemas.auth_schemas import RegisterRequest
 from app.core.security import get_password_hash
 
+PLAYER_STAT_FIELDS = [
+    "aces",
+    "double_faults",
+    "first_serve_pct",
+    "first_serve_points_won_pct",
+    "second_serve_points_won_pct",
+    "break_points_faced",
+    "break_points_saved_pct",
+    "service_games_played",
+    "service_games_won_pct",
+    "total_service_points_won_pct",
+    "first_serve_return_points_won_pct",
+    "second_serve_return_points_won_pct",
+    "break_points_opportunities",
+    "break_points_converted_pct",
+    "return_games_played",
+    "return_games_won_pct",
+    "return_points_won_pct",
+    "total_points_won_pct",
+]
+
 def get_user_by_email(db: Session, email: str):
-    return db.query(User).filter(User.email == email).first()
+    normalized_email = email.lower().strip()
+    return db.query(User).filter(User.email == normalized_email).first()
 
 def get_user_by_id(db: Session, user_id: int):
     return db.query(User).filter(User.id == user_id).first()
@@ -52,7 +74,7 @@ def get_valid_otp(db: Session, email: str, otp_code: str):
 def create_user_and_player_transaction(db: Session, request: RegisterRequest, role_id: int):
     try:
         new_user = User(
-            email=request.email,
+            email=request.email.lower().strip(),
             password_hash=get_password_hash(request.password),
             full_name=request.full_name,
             account_type=request.account_type or "user",
@@ -61,20 +83,23 @@ def create_user_and_player_transaction(db: Session, request: RegisterRequest, ro
             date_of_birth=request.date_of_birth,
             gender=request.gender,
             role_id=role_id,
-            is_verified=True 
+            is_verified=True,
+            avatar_url=request.avatar_url # BỔ SUNG LƯU AVATAR VÀO BẢNG USER
         )
         db.add(new_user)
         db.flush()
 
         new_player = Player(
             user_id=new_user.id,
-            elo_points=1000,
-            matches_played=0,
-            wins=0,
-            losses=0
+            gender=request.gender,                         # ĐỒNG BỘ GIỚI TÍNH
+            date_of_birth=request.date_of_birth,           # ĐỒNG BỘ NGÀY SINH
+            play_hand=request.play_hand,                   # BỔ SUNG TAY THUẬN
+            skill_level=request.skill_level,               # BỔ SUNG TRÌNH ĐỘ
+            preferred_category=request.preferred_category, # BỔ SUNG SỞ TRƯỜNG
+            elo_points=request.elo_points,
+            **{field: getattr(request, field) or 0 for field in PLAYER_STAT_FIELDS}
         )
         db.add(new_player)
-        
         db.commit()
         db.refresh(new_user)
         return new_user

@@ -195,14 +195,14 @@ ul {
 }
 
 /* Table */
-.atp-table-wrapper :deep(.el-table) {
+.atp-table-wrapper .el-table {
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border-light);
   font-family: var(--font-main) !important;
 }
 
-.atp-table-wrapper :deep(.el-table th) {
+.atp-table-wrapper .el-table th {
   background: var(--bg-soft) !important;
   color: var(--text-muted);
   font-weight: 500;
@@ -212,7 +212,7 @@ ul {
   font-family: var(--font-main) !important;
 }
 
-.atp-table-wrapper :deep(.el-table td) {
+.atp-table-wrapper .el-table td {
   font-family: var(--font-main) !important;
 }
 

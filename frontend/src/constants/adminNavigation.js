@@ -155,7 +155,7 @@ export const adminModules = [
     description: 'Truy vết các thay đổi dữ liệu và thao tác của quản trị viên trên toàn hệ thống.',
     highlights: ['Truy vết JSON', 'IP Address Tracker', 'Action Type Filter'],
   },
-  {
+/*   {
     path: 'daily-schedule',
     name: 'admin-daily-schedule',
     label: 'Lịch thi đấu ngày',
@@ -177,7 +177,7 @@ export const adminModules = [
     description: 'Giao diện lịch theo tháng giúp theo dõi mật độ các trận đấu.',
     highlights: ['Monthly View', 'Match Density', 'Status Tracking'],
   },
-  {
+ */  {
     path: 'news',
     name: 'admin-news',
     label: 'Tin tức',
@@ -187,6 +187,17 @@ export const adminModules = [
     title: 'Quản lý Tin tức',
     description: 'Viết bài, tải ảnh và đăng thông báo giải đấu.',
     highlights: ['Trình soạn thảo', 'Thumbnail', 'Danh mục'],
+  },
+  {
+    path: 'marketing',
+    name: 'admin-marketing',
+    label: 'marketing',
+    section: 'system',
+    view: 'marketing',
+    badge: 'New',
+    title: 'marketing',
+    description: 'marketingDesc',
+    highlights: ['Banner placement', 'Sponsor tiers', 'Upload media'],
   },
   {
     path: 'mail-campaign',
