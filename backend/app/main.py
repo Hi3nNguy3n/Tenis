@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, players, tournaments, registrations, payments, courts, matches, logs, news, upload, challenges
+from app.api import auth, players, tournaments, registrations, payments, courts, matches, logs, news, upload, challenges, marketing
 from app.db.seed import seed_data
 from app.core.config import settings
 from app.core.cloudinary_setup import init_cloudinary
@@ -105,6 +105,7 @@ app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
 app.include_router(news.router, prefix="/api/news", tags=["News"])
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload System"])
 app.include_router(challenges.router, prefix="/api/challenges", tags=["Challenges"])
+app.include_router(marketing.router, prefix="/api/marketing", tags=["Marketing"])
 
 @app.get("/")
 def root():

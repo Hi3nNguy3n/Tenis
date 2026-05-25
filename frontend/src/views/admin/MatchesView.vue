@@ -21,6 +21,10 @@ const referees = ref([])
 const isUploadingVideo = ref(false)
 const isUploadingImage = ref(false)
 const selectedCategoryId = ref('all')
+const MAX_VIDEO_DURATION_SECONDS = 60
+const MAX_VIDEO_SIZE_MB = 80
+const MAX_IMAGE_SIZE_MB = 10
+const VIDEO_UPLOAD_HINT = `Video tối đa ${MAX_VIDEO_DURATION_SECONDS} giây, dung lượng tối đa ${MAX_VIDEO_SIZE_MB}MB.`
 
 const uploadHeaders = computed(() => {
   const accessToken = authStore.accessToken || getStoredAccessToken()
@@ -155,12 +159,54 @@ const openScoreDialog = (match) => {
   showScoreDialog.value = true
 }
 
-const beforeVideoUpload = (file) => {
+const getVideoDuration = (file) => new Promise((resolve, reject) => {
+  const video = document.createElement('video')
+  const objectUrl = URL.createObjectURL(file)
+
+  video.preload = 'metadata'
+  video.onloadedmetadata = () => {
+    URL.revokeObjectURL(objectUrl)
+    resolve(video.duration || 0)
+  }
+  video.onerror = () => {
+    URL.revokeObjectURL(objectUrl)
+    reject(new Error('Không đọc được thời lượng video'))
+  }
+  video.src = objectUrl
+})
+
+const beforeVideoUpload = async (file) => {
+  const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
+  if (!allowedTypes.includes(file.type)) {
+    ElMessage.error('Chỉ hỗ trợ video MP4, WebM, MOV hoặc AVI.')
+    return false
+  }
+
+  if (file.size / 1024 / 1024 > MAX_VIDEO_SIZE_MB) {
+    ElMessage.error(`Video vượt quá ${MAX_VIDEO_SIZE_MB}MB. Vui lòng nén hoặc cắt ngắn video.`)
+    return false
+  }
+
+  try {
+    const duration = await getVideoDuration(file)
+    if (duration > MAX_VIDEO_DURATION_SECONDS) {
+      ElMessage.error(`Video phải ngắn hơn hoặc bằng ${MAX_VIDEO_DURATION_SECONDS} giây.`)
+      return false
+    }
+  } catch (err) {
+    ElMessage.error(err.message || 'Không kiểm tra được thời lượng video.')
+    return false
+  }
+
   isUploadingVideo.value = true
   return true
 }
 
 const beforeImageUpload = (file) => {
+  if (file.size / 1024 / 1024 > MAX_IMAGE_SIZE_MB) {
+    ElMessage.error(`Ảnh vượt quá ${MAX_IMAGE_SIZE_MB}MB.`)
+    return false
+  }
   isUploadingImage.value = true
   return true
 }
@@ -543,6 +589,7 @@ onMounted(() => {
                           :on-error="handleVideoError"
                           :before-upload="beforeVideoUpload"
                           :show-file-list="false"
+                          accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
                         >
                           <el-button v-if="!scoreForm.video_url" type="primary" plain :icon="VideoCamera" :loading="isUploadingVideo">
                             {{ isUploadingVideo ? 'Đang tải video...' : 'Tải Video lên' }}
@@ -552,6 +599,7 @@ onMounted(() => {
                              <el-button link type="primary" @click.stop="scoreForm.video_url = ''">Thay đổi</el-button>
                           </div>
                         </el-upload>
+                        <div class="upload-hint">{{ VIDEO_UPLOAD_HINT }}</div>
                         <el-input v-model="scoreForm.video_url" size="small" placeholder="Hoặc dán URL Youtube/Cloudinary" style="margin-top: 8px;" />
                       </el-form-item>
 
@@ -564,6 +612,7 @@ onMounted(() => {
                           :on-error="handleImageError"
                           :before-upload="beforeImageUpload"
                           :show-file-list="false"
+                          accept="image/*"
                         >
                           <el-button v-if="!scoreForm.image_url" type="success" plain :icon="Picture" :loading="isUploadingImage">
                             {{ isUploadingImage ? 'Đang tải ảnh...' : 'Tải Ảnh lên' }}
@@ -920,6 +969,7 @@ onMounted(() => {
 .referee-info-grid { border-top: none; padding-top: 0; margin-top: 0; }
 .upload-result { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.85rem; }
 .upload-result.success { color: #059669; }
+.upload-hint { margin-top: 6px; color: #64748b; font-size: 0.78rem; line-height: 1.4; }
 .saas-upload { display: block; }
 
 @media (max-width: 768px) {

@@ -25,6 +25,62 @@ const editErrors = ref({
   phone: ''
 })
 
+const playerStatDefaults = {
+  aces: 0,
+  double_faults: 0,
+  first_serve_pct: 0,
+  first_serve_points_won_pct: 0,
+  second_serve_points_won_pct: 0,
+  break_points_faced: 0,
+  break_points_saved_pct: 0,
+  service_games_played: 0,
+  service_games_won_pct: 0,
+  total_service_points_won_pct: 0,
+  first_serve_return_points_won_pct: 0,
+  second_serve_return_points_won_pct: 0,
+  break_points_opportunities: 0,
+  break_points_converted_pct: 0,
+  return_games_played: 0,
+  return_games_won_pct: 0,
+  return_points_won_pct: 0,
+  total_points_won_pct: 0
+}
+
+const playerStatGroups = [
+  {
+    title: 'Giao bóng',
+    subtitle: 'Serve',
+    description: 'Các chỉ số khi vận động viên cầm giao bóng.',
+    fields: [
+      ['aces', 'Giao bóng ăn điểm trực tiếp', 'Aces', 'count'],
+      ['double_faults', 'Lỗi giao bóng kép', 'Double Faults', 'count'],
+      ['first_serve_pct', 'Tỷ lệ giao bóng 1 vào sân', '1st Serve', 'percent'],
+      ['first_serve_points_won_pct', 'Điểm thắng khi giao bóng 1', '1st Serve Points Won', 'percent'],
+      ['second_serve_points_won_pct', 'Điểm thắng khi giao bóng 2', '2nd Serve Points Won', 'percent'],
+      ['break_points_faced', 'Số break point phải đối mặt', 'Break Points Faced', 'count'],
+      ['break_points_saved_pct', 'Tỷ lệ cứu break point', 'Break Points Saved', 'percent'],
+      ['service_games_played', 'Số game giao bóng đã chơi', 'Service Games Played', 'count'],
+      ['service_games_won_pct', 'Tỷ lệ thắng game giao bóng', 'Service Games Won', 'percent'],
+      ['total_service_points_won_pct', 'Tổng điểm thắng khi giao bóng', 'Total Service Points Won', 'percent']
+    ]
+  },
+  {
+    title: 'Trả giao bóng',
+    subtitle: 'Return',
+    description: 'Các chỉ số khi vận động viên đỡ/trả giao bóng.',
+    fields: [
+      ['first_serve_return_points_won_pct', 'Điểm thắng khi trả giao bóng 1', '1st Serve Return Points Won', 'percent'],
+      ['second_serve_return_points_won_pct', 'Điểm thắng khi trả giao bóng 2', '2nd Serve Return Points Won', 'percent'],
+      ['break_points_opportunities', 'Cơ hội bẻ game', 'Break Points Opportunities', 'count'],
+      ['break_points_converted_pct', 'Tỷ lệ tận dụng break point', 'Break Points Converted', 'percent'],
+      ['return_games_played', 'Số game trả giao bóng đã chơi', 'Return Games Played', 'count'],
+      ['return_games_won_pct', 'Tỷ lệ thắng game trả giao bóng', 'Return Games Won', 'percent'],
+      ['return_points_won_pct', 'Tỷ lệ thắng điểm trả giao bóng', 'Return Points Won', 'percent'],
+      ['total_points_won_pct', 'Tổng tỷ lệ điểm thắng', 'Total Points Won', 'percent']
+    ]
+  }
+]
+
 const validateEmail = (email) => {
   if (!email) return 'Email không được để trống'
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -84,7 +140,8 @@ const editForm = ref({
   date_of_birth: null, 
   elo_points: 1000,
   avatar_url: '',
-  is_active: true
+  is_active: true,
+  ...playerStatDefaults
 })
 
 const isCreateDialogVisible = ref(false)
@@ -98,7 +155,8 @@ const createForm = ref({
   preferred_category: 'Singles',
   province: '',
   date_of_birth: null, 
-  elo_points: 1000
+  elo_points: 1000,
+  ...playerStatDefaults
 })
 
 const isUploading = ref(false)
@@ -178,7 +236,10 @@ const openEditDialog = (player) => {
     date_of_birth: player.player_profile?.date_of_birth || null,
     elo_points: player.player_profile?.elo_points || 1000,
     avatar_url: player.user.avatar_url || '',
-    is_active: player.user.is_active
+    is_active: player.user.is_active,
+    ...Object.fromEntries(
+      Object.keys(playerStatDefaults).map(key => [key, player.player_profile?.[key] ?? 0])
+    )
   }
   isEditDialogVisible.value = true
 }
@@ -190,7 +251,8 @@ const openCreateDialog = () => {
     gender: 'male', play_hand: 'right', account_type: 'user', 
     otp_code: 'bypass_otp',
     avatar_url: '', skill_level: 'Beginner', preferred_category: 'Singles',
-    province: '', date_of_birth: null, elo_points: 1000
+    province: '', date_of_birth: null, elo_points: 1000,
+    ...playerStatDefaults
   }
   isCreateDialogVisible.value = true
 }
@@ -454,9 +516,18 @@ const getRegStatusType = (status) => {
     </div>
 
     <!-- Dialogs -->
-    <el-dialog v-model="isCreateDialogVisible" :title="$t('admin.createNewPlayer')" width="650px" class="saas-dialog">
+    <el-dialog v-model="isCreateDialogVisible" :title="$t('admin.createNewPlayer')" width="980px" class="saas-dialog player-editor-dialog">
       <el-form label-position="top">
-        <div class="saas-upload-zone">
+        <el-tabs class="player-editor-tabs">
+          <el-tab-pane label="Thông tin cơ bản">
+            <div class="editor-intro">
+              <div>
+                <strong>Hồ sơ vận động viên</strong>
+                <p>Thông tin nhận diện, trình độ và trạng thái xếp hạng ban đầu.</p>
+              </div>
+            </div>
+
+        <div class="saas-upload-zone compact-upload">
           <div class="avatar-preview-box">
             <img v-if="createForm.avatar_url" :src="createForm.avatar_url" />
             <el-icon v-else><User /></el-icon>
@@ -496,6 +567,50 @@ const getRegStatusType = (status) => {
             </el-form-item>
           </el-col>
         </el-row>
+
+          </el-tab-pane>
+
+          <el-tab-pane label="Chỉ số ATP">
+            <div class="editor-intro">
+              <div>
+                <strong>Bảng thống kê thi đấu</strong>
+                <p>Nhập chỉ số đếm hoặc tỷ lệ %. Có thể để 0 nếu chưa có dữ liệu chính thức.</p>
+              </div>
+            </div>
+
+        <div class="stats-editor">
+          <section v-for="group in playerStatGroups" :key="group.title" class="stats-group">
+            <div class="stats-group-head">
+              <div>
+                <h4>{{ group.title }}</h4>
+                <span>{{ group.subtitle }}</span>
+              </div>
+              <p>{{ group.description }}</p>
+            </div>
+            <div class="stat-field-grid">
+              <el-form-item v-for="[key, viLabel, enLabel, type] in group.fields" :key="key">
+                <template #label>
+                  <span class="field-label">
+                    <strong>{{ viLabel }}</strong>
+                    <small>{{ enLabel }}</small>
+                  </span>
+                </template>
+                  <el-input-number
+                    v-model="createForm[key]"
+                    :min="0"
+                    :max="type === 'percent' ? 100 : undefined"
+                    :precision="type === 'percent' ? 2 : 0"
+                    :step="type === 'percent' ? 0.1 : 1"
+                    :controls-position="'right'"
+                    style="width: 100%"
+                  />
+                  <span class="field-unit">{{ type === 'percent' ? '%' : 'lần' }}</span>
+              </el-form-item>
+            </div>
+          </section>
+        </div>
+          </el-tab-pane>
+        </el-tabs>
       </el-form>
       <template #footer>
         <el-button @click="isCreateDialogVisible = false" class="saas-btn-secondary">{{ $t('admin.cancel') }}</el-button>
@@ -503,9 +618,18 @@ const getRegStatusType = (status) => {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="isEditDialogVisible" :title="$t('admin.editPlayerProfile')" width="650px" class="saas-dialog">
+    <el-dialog v-model="isEditDialogVisible" :title="$t('admin.editPlayerProfile')" width="980px" class="saas-dialog player-editor-dialog">
       <el-form label-position="top">
-        <div class="saas-upload-zone">
+        <el-tabs class="player-editor-tabs">
+          <el-tab-pane label="Thông tin cơ bản">
+            <div class="editor-intro">
+              <div>
+                <strong>Hồ sơ vận động viên</strong>
+                <p>Cập nhật thông tin cá nhân, trình độ và trạng thái tài khoản.</p>
+              </div>
+            </div>
+
+        <div class="saas-upload-zone compact-upload">
           <div class="avatar-preview-box">
             <img v-if="editForm.avatar_url" :src="editForm.avatar_url" />
             <el-icon v-else><User /></el-icon>
@@ -556,6 +680,50 @@ const getRegStatusType = (status) => {
             </el-form-item>
           </el-col>
         </el-row>
+
+          </el-tab-pane>
+
+          <el-tab-pane label="Chỉ số ATP">
+            <div class="editor-intro">
+              <div>
+                <strong>Bảng thống kê thi đấu</strong>
+                <p>Các chỉ số này sẽ hiển thị ở tab Stats của hồ sơ vận động viên.</p>
+              </div>
+            </div>
+
+        <div class="stats-editor">
+          <section v-for="group in playerStatGroups" :key="group.title" class="stats-group">
+            <div class="stats-group-head">
+              <div>
+                <h4>{{ group.title }}</h4>
+                <span>{{ group.subtitle }}</span>
+              </div>
+              <p>{{ group.description }}</p>
+            </div>
+            <div class="stat-field-grid">
+              <el-form-item v-for="[key, viLabel, enLabel, type] in group.fields" :key="key">
+                <template #label>
+                  <span class="field-label">
+                    <strong>{{ viLabel }}</strong>
+                    <small>{{ enLabel }}</small>
+                  </span>
+                </template>
+                  <el-input-number
+                    v-model="editForm[key]"
+                    :min="0"
+                    :max="type === 'percent' ? 100 : undefined"
+                    :precision="type === 'percent' ? 2 : 0"
+                    :step="type === 'percent' ? 0.1 : 1"
+                    :controls-position="'right'"
+                    style="width: 100%"
+                  />
+                  <span class="field-unit">{{ type === 'percent' ? '%' : 'lần' }}</span>
+              </el-form-item>
+            </div>
+          </section>
+        </div>
+          </el-tab-pane>
+        </el-tabs>
       </el-form>
       <template #footer>
         <el-button @click="isEditDialogVisible = false" class="saas-btn-secondary">{{ $t('admin.cancel') }}</el-button>
@@ -940,5 +1108,164 @@ const getRegStatusType = (status) => {
 .set-tag strong {
   color: #059669;
   margin-left: 4px;
+}
+
+.player-editor-dialog :deep(.el-dialog__body) {
+  padding-top: 0;
+}
+
+.player-editor-tabs :deep(.el-tabs__header) {
+  margin-bottom: 22px;
+}
+
+.player-editor-tabs :deep(.el-tabs__item) {
+  height: 44px;
+  padding: 0 22px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.player-editor-tabs :deep(.el-tabs__item.is-active) {
+  color: #059669;
+}
+
+.editor-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+  padding: 16px 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef7ff 100%);
+}
+
+.editor-intro strong {
+  display: block;
+  color: #0f2f57;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.editor-intro p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.compact-upload {
+  margin-bottom: 22px;
+}
+
+.stats-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.stats-group {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+}
+
+.stats-group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.stats-group h4 {
+  margin: 0;
+  color: #002855;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.stats-group-head span {
+  display: inline-block;
+  margin-top: 4px;
+  color: #059669;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stats-group-head p {
+  max-width: 220px;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.stat-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.stat-field-grid :deep(.el-form-item) {
+  position: relative;
+  margin-bottom: 0;
+  padding: 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 38px;
+}
+
+.field-label strong {
+  color: #1e293b;
+  font-size: 0.84rem;
+  line-height: 1.25;
+}
+
+.field-label small {
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.field-unit {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+@media (max-width: 960px) {
+  .stats-editor,
+  .stat-field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-group-head {
+    flex-direction: column;
+  }
+
+  .stats-group-head p {
+    max-width: none;
+    text-align: left;
+  }
 }
 </style>

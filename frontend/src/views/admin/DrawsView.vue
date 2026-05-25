@@ -105,6 +105,10 @@ const savingControl = ref(false)
 const savingRoundName = ref(false)
 const isUploadingVideo = ref(false)
 const isUploadingImage = ref(false)
+const MAX_VIDEO_DURATION_SECONDS = 60
+const MAX_VIDEO_SIZE_MB = 80
+const MAX_IMAGE_SIZE_MB = 10
+const VIDEO_UPLOAD_HINT = `Video tối đa ${MAX_VIDEO_DURATION_SECONDS} giây, dung lượng tối đa ${MAX_VIDEO_SIZE_MB}MB.`
 const currentControlMatch = ref(null)
 const currentViewedMatch = ref(null)
 const currentRoundName = ref('')
@@ -298,7 +302,7 @@ const groupedMatches = computed(() => {
     .sort((a, b) => roundOrder(a.roundCode) - roundOrder(b.roundCode))
 })
 
-const groupRounds = computed(() => groupedMatches.value.filter(r => r.items.some(isGroupStageMatch)))
+const groupRounds = computed(() => groupedMatches.value.filter(r => Array.isArray(r.items) && r.items.some(isGroupStageMatch)))
 const roundRobinGroups = computed(() => {
   const groups = new Map()
   groupRounds.value.forEach(round => {
@@ -337,15 +341,21 @@ const roundRobinGroups = computed(() => {
     }))
 })
 const knockoutRounds = computed(() => {
-  const rounds = groupedMatches.value.filter(r => !r.items.some(isGroupStageMatch))
+  const rounds = groupedMatches.value.filter(r => Array.isArray(r.items) && !r.items.some(isGroupStageMatch))
   const matchMap = new Map(matches.value.map(m => [m.id, m]))
   const memo = new Map()
 
-  const distanceToFinal = (match) => {
+  const distanceToFinal = (match, visiting = new Set()) => {
     if (!match?.id) return 0
     if (memo.has(match.id)) return memo.get(match.id)
+    if (visiting.has(match.id)) {
+      memo.set(match.id, 0)
+      return 0
+    }
+    visiting.add(match.id)
     const next = match.next_match_id ? matchMap.get(match.next_match_id) : null
-    const distance = next ? distanceToFinal(next) + 1 : 0
+    const distance = next ? distanceToFinal(next, visiting) + 1 : 0
+    visiting.delete(match.id)
     memo.set(match.id, distance)
     return distance
   }
@@ -353,11 +363,12 @@ const knockoutRounds = computed(() => {
   return rounds
     .map(round => ({
       ...round,
-      treeLevel: Math.max(...round.items.map(distanceToFinal), 0)
+      items: Array.isArray(round.items) ? round.items : [],
+      treeLevel: Math.max(...(Array.isArray(round.items) ? round.items : []).map(match => distanceToFinal(match)), 0)
     }))
     .sort((a, b) => {
       if (b.treeLevel !== a.treeLevel) return b.treeLevel - a.treeLevel
-      if (b.items.length !== a.items.length) return b.items.length - a.items.length
+      if ((b.items || []).length !== (a.items || []).length) return (b.items || []).length - (a.items || []).length
       const orderA = roundOrder(a.roundCode)
       const orderB = roundOrder(b.roundCode)
       if (orderA !== orderB) return orderA - orderB
@@ -729,12 +740,54 @@ const removeControlSet = (index) => {
   }
 }
 
-const beforeControlVideoUpload = () => {
+const getVideoDuration = (file) => new Promise((resolve, reject) => {
+  const video = document.createElement('video')
+  const objectUrl = URL.createObjectURL(file)
+
+  video.preload = 'metadata'
+  video.onloadedmetadata = () => {
+    URL.revokeObjectURL(objectUrl)
+    resolve(video.duration || 0)
+  }
+  video.onerror = () => {
+    URL.revokeObjectURL(objectUrl)
+    reject(new Error('Không đọc được thời lượng video'))
+  }
+  video.src = objectUrl
+})
+
+const beforeControlVideoUpload = async (file) => {
+  const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
+  if (!allowedTypes.includes(file.type)) {
+    ElMessage.error('Chỉ hỗ trợ video MP4, WebM, MOV hoặc AVI.')
+    return false
+  }
+
+  if (file.size / 1024 / 1024 > MAX_VIDEO_SIZE_MB) {
+    ElMessage.error(`Video vượt quá ${MAX_VIDEO_SIZE_MB}MB. Vui lòng nén hoặc cắt ngắn video.`)
+    return false
+  }
+
+  try {
+    const duration = await getVideoDuration(file)
+    if (duration > MAX_VIDEO_DURATION_SECONDS) {
+      ElMessage.error(`Video phải ngắn hơn hoặc bằng ${MAX_VIDEO_DURATION_SECONDS} giây.`)
+      return false
+    }
+  } catch (err) {
+    ElMessage.error(err.message || 'Không kiểm tra được thời lượng video.')
+    return false
+  }
+
   isUploadingVideo.value = true
   return true
 }
 
-const beforeControlImageUpload = () => {
+const beforeControlImageUpload = (file) => {
+  if (file.size / 1024 / 1024 > MAX_IMAGE_SIZE_MB) {
+    ElMessage.error(`Ảnh vượt quá ${MAX_IMAGE_SIZE_MB}MB.`)
+    return false
+  }
   isUploadingImage.value = true
   return true
 }
@@ -1036,7 +1089,7 @@ onMounted(async () => {
         </div>
 
         <!-- Vòng Loại Trực Tiếp -->
-        <div v-if="knockoutRounds.length > 0" class="saas-stage-block knockout-stage">
+        <div v-if="(knockoutRounds || []).length > 0" class="saas-stage-block knockout-stage">
           <div class="stage-header-modern">
             <div class="header-icon knockout"><el-icon><Finished /></el-icon></div>
             <div class="header-text">
@@ -1418,6 +1471,7 @@ onMounted(async () => {
               :on-success="handleControlVideoSuccess"
               :on-error="handleControlVideoError"
               :before-upload="beforeControlVideoUpload"
+              accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
             >
               <el-button v-if="!controlForm.video_url" type="primary" plain :icon="VideoCamera" :loading="isUploadingVideo">
                 Tải video lên
@@ -1428,6 +1482,7 @@ onMounted(async () => {
                 <el-button link type="primary" @click.stop="controlForm.video_url = ''">Thay đổi</el-button>
               </div>
             </el-upload>
+            <span class="upload-hint">{{ VIDEO_UPLOAD_HINT }}</span>
             <el-input v-model="controlForm.video_url" size="small" placeholder="Hoặc dán URL Youtube/Cloudinary" />
           </div>
 
@@ -1441,6 +1496,7 @@ onMounted(async () => {
               :on-success="handleControlImageSuccess"
               :on-error="handleControlImageError"
               :before-upload="beforeControlImageUpload"
+              accept="image/*"
             >
               <el-button v-if="!controlForm.image_url" type="success" plain :icon="Picture" :loading="isUploadingImage">
                 Tải ảnh lên
@@ -2206,6 +2262,7 @@ onMounted(async () => {
 .saas-upload { display: block; }
 .upload-result { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 800; }
 .upload-result.success { color: #059669; }
+.upload-hint { color: #64748b; font-size: 0.78rem; line-height: 1.4; }
 
 .match-detail-sheet { display: grid; gap: 18px; }
 .match-detail-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }

@@ -49,7 +49,8 @@ const getLocalizedLabel = (label) => {
     'Lịch tổng quan': t('admin.calendar'),
     'Tin tức': t('admin.news'),
     'Gửi mail hàng loạt': t('admin.mailCampaign'),
-    'Tạo trận thủ công': t('admin.createMatch')
+    'Tạo trận thủ công': t('admin.createMatch'),
+    marketing: 'Banner & Nhà tài trợ'
   }
   return labelMap[label] || label
 }
@@ -60,7 +61,8 @@ const getLocalizedSection = (section) => {
     'Vận hành': t('admin.operation'),
     'Giải đấu': t('admin.tournaments'),
     'Điều phối': t('admin.coordination'),
-    'Hệ thống': t('admin.system')
+    'Hệ thống': t('admin.system'),
+    system: 'Hệ thống'
   }
   return sectionMap[section] || section
 }
@@ -82,11 +84,12 @@ const iconMap = {
   'Lịch thi đấu ngày': Memo,
   'Lịch tổng quan': CalendarIcon,
   'Tin tức': Files,
+  marketing: Files,
   'Gửi mail hàng loạt': Message,
   'Tạo trận thủ công': Monitor
 }
 
-const activeGroups = ref(['Tổng quan', 'Giải đấu', 'Vận hành', 'Điều phối', 'Hệ thống'])
+const activeGroups = ref(['Tổng quan', 'Giải đấu', 'Vận hành', 'Điều phối', 'Hệ thống', 'system'])
 
 const toggleGroup = (label) => {
   const index = activeGroups.value.indexOf(label)
@@ -144,7 +147,8 @@ const getLocalizedTitle = (title) => {
     'Lịch tổng quan': t('admin.calendar'),
     'Quản lý Tin tức': t('admin.news'),
     'Mail Campaign': t('admin.mailCampaign'),
-    'Tạo trận giao hữu / 1vs1': t('admin.createMatch')
+    'Tạo trận giao hữu / 1vs1': t('admin.createMatch'),
+    marketing: 'Quản lý Banner & Nhà tài trợ'
   }
   return titleMap[title] || title
 }
@@ -166,7 +170,8 @@ const getLocalizedDescription = (desc) => {
     'Lịch trình chi tiết theo từng cụm sân và khung giờ hàng ngày.': t('admin.dailyScheduleDesc'),
     'Giao diện lịch theo tháng giúp theo dõi mật độ các trận đấu.': t('admin.calendarDesc'),
     'Viết bài, tải ảnh và đăng thông báo giải đấu.': t('admin.newsDesc'),
-    'Soạn template, chọn lịch gửi, ghi log và gửi thông báo hàng loạt đến VĐV.': t('admin.mailCampaignDesc')
+    'Soạn template, chọn lịch gửi, ghi log và gửi thông báo hàng loạt đến VĐV.': t('admin.mailCampaignDesc'),
+    marketingDesc: 'Quản lý banner quảng bá, logo nhà tài trợ, vị trí hiển thị và thứ tự sắp xếp.'
   }
   return descMap[desc] || desc
 }

@@ -291,11 +291,18 @@ const bracketRounds = computed(() => {
   const matchMap = new Map(layoutMatches.map(m => [m.id, m]))
   const depthMemo = new Map()
 
-  const getDepth = (match) => {
+  const getDepth = (match, visiting = new Set()) => {
     if (!match) return 0
     if (depthMemo.has(match.id)) return depthMemo.get(match.id)
+    if (visiting.has(match.id)) {
+      console.warn('Phát hiện vòng lặp next_match_id trong sơ đồ nhánh:', [...visiting, match.id])
+      depthMemo.set(match.id, 0)
+      return 0
+    }
+    visiting.add(match.id)
     const next = match.next_match_id ? matchMap.get(match.next_match_id) : null
-    const depth = next ? getDepth(next) + 1 : 0
+    const depth = next ? getDepth(next, visiting) + 1 : 0
+    visiting.delete(match.id)
     depthMemo.set(match.id, depth)
     return depth
   }
@@ -477,12 +484,68 @@ const allMedia = computed(() => {
 })
 
 const scheduledMatches = computed(() => {
-  return [...publicMatches.value].sort((a, b) => {
+  return [...publicMatches.value].filter(hasAssignedScheduleSide).sort((a, b) => {
     const timeA = a.start_time ? new Date(a.start_time).getTime() : Number.MAX_SAFE_INTEGER
     const timeB = b.start_time ? new Date(b.start_time).getTime() : Number.MAX_SAFE_INTEGER
     if (timeA !== timeB) return timeA - timeB
     return (a.match_no || 0) - (b.match_no || 0)
   })
+})
+
+const selectedScheduleRound = ref('')
+
+const hasAssignedScheduleSide = (match) => {
+  return Boolean(
+    match?.side_a_registration_id ||
+    match?.side_b_registration_id ||
+    match?.p1_user_id ||
+    match?.p2_user_id ||
+    match?.p1_name ||
+    match?.p2_name
+  )
+}
+
+const getScheduleRoundLabel = (roundCode) => roundCode || 'Vòng chưa đặt tên'
+
+const scheduleRounds = computed(() => {
+  const roundMap = new Map()
+
+  scheduledMatches.value.forEach(match => {
+    const roundCode = match.round_code || ''
+    if (!roundMap.has(roundCode)) {
+      roundMap.set(roundCode, {
+        code: roundCode,
+        label: getScheduleRoundLabel(roundCode),
+        count: 0
+      })
+    }
+    roundMap.get(roundCode).count += 1
+  })
+
+  return [...roundMap.values()].sort((a, b) => {
+    const orderA = getRoundSortIndex(a.code)
+    const orderB = getRoundSortIndex(b.code)
+    if (orderA !== orderB) return orderA - orderB
+    return String(a.label).localeCompare(String(b.label), 'vi')
+  })
+})
+
+watch(scheduleRounds, (rounds) => {
+  if (!rounds.length) {
+    selectedScheduleRound.value = ''
+    return
+  }
+
+  const currentExists = rounds.some(round => round.code === selectedScheduleRound.value)
+  if (!currentExists) selectedScheduleRound.value = rounds[0].code
+}, { immediate: true })
+
+const selectedScheduleRoundLabel = computed(() => {
+  return scheduleRounds.value.find(round => round.code === selectedScheduleRound.value)?.label || ''
+})
+
+const selectedRoundMatches = computed(() => {
+  return scheduledMatches.value.filter(match => (match.round_code || '') === selectedScheduleRound.value)
 })
 
 const isAdvanceMatch = (match) => {
@@ -512,10 +575,26 @@ const hasMatchMeta = (match) => {
 
 const previewVisible = ref(false)
 const previewData = ref({ type: 'image', url: '', title: '', match: null })
+const matchDetailVisible = ref(false)
+const selectedScheduleMatch = ref(null)
 
 const openPreview = (type, url, title, matchObj = null) => {
   previewData.value = { type, url, title, match: matchObj }
   previewVisible.value = true
+}
+
+const openScheduleMatchDetail = (match) => {
+  selectedScheduleMatch.value = match
+  matchDetailVisible.value = true
+}
+
+const getScheduleSidePlayers = (match, side) => {
+  if (!match) return ['Chưa xác định']
+  const mainName = side === 'a' ? match.p1_name : match.p2_name
+  const partnerName = side === 'a' ? match.p1_partner_name : match.p2_partner_name
+  return [mainName, partnerName].filter(Boolean).length
+    ? [mainName, partnerName].filter(Boolean)
+    : ['Chưa xác định']
 }
 
 const getVideoEmbedUrl = (url) => {
@@ -636,7 +715,11 @@ const parseSets = (scoreSummary) => {
 
               <el-tab-pane :label="t('tournaments.bracket')" name="bracket">
                 <div v-if="tournament.categories?.length > 1" class="category-filter-wrap">
-                  <div class="filter-label">Chọn nội dung:</div>
+                  <div class="filter-label">
+                    <span class="filter-icon"><el-icon><Trophy /></el-icon></span>
+                    <span class="filter-kicker">Nội dung thi đấu</span>
+                    <strong>Chọn nội dung</strong>
+                  </div>
                   <el-radio-group v-model="selectedCategoryId" size="small">
                     <el-radio-button v-for="cat in tournament.categories" :key="cat.id" :value="cat.id">
                       {{ cat.name }}
@@ -1052,7 +1135,11 @@ const parseSets = (scoreSummary) => {
 
               <el-tab-pane label="LỊCH THI ĐẤU" name="schedule">
                 <div v-if="tournament.categories?.length > 1" class="category-filter-wrap">
-                  <div class="filter-label">Chọn nội dung:</div>
+                  <div class="filter-label">
+                    <span class="filter-icon"><el-icon><Trophy /></el-icon></span>
+                    <span class="filter-kicker">Nội dung thi đấu</span>
+                    <strong>Chọn nội dung</strong>
+                  </div>
                   <el-radio-group v-model="selectedCategoryId" size="small">
                     <el-radio-button v-for="cat in tournament.categories" :key="cat.id" :value="cat.id">
                       {{ cat.name }}
@@ -1061,43 +1148,81 @@ const parseSets = (scoreSummary) => {
                 </div>
 
                 <div v-loading="loadingBracket" class="schedule-panel">
-                  <div v-if="scheduledMatches.length === 0" class="empty-state">
+                  <div v-if="scheduleRounds.length === 0" class="empty-state">
                     <div class="es-icon">🎾</div>
                     <p>Chưa có lịch thi đấu cho nội dung này.</p>
                   </div>
 
-                  <div v-else class="schedule-list">
-                    <div v-for="m in scheduledMatches" :key="m.id" class="schedule-row" :class="getMatchStatusClass(m)">
-                      <div class="schedule-time">
-                        <strong>{{ m.start_time ? formatDateTime(m.start_time) : 'Chưa xếp giờ' }}</strong>
-                        <span>{{ m.court || 'Chưa gán sân' }}</span>
+                  <div v-else class="schedule-round-layout">
+                    <div class="schedule-round-list">
+                      <button
+                        v-for="round in scheduleRounds"
+                        :key="round.code || 'unknown-round'"
+                        type="button"
+                        class="schedule-round-item"
+                        :class="{ active: selectedScheduleRound === round.code }"
+                        @click="selectedScheduleRound = round.code"
+                      >
+                        <span class="round-arrow">›</span>
+                        <strong>{{ round.label }}</strong>
+                        <span class="round-count">{{ round.count }}</span>
+                      </button>
+                    </div>
+
+                    <div class="schedule-round-content">
+                      <div class="schedule-round-heading">
+                        <div>
+                          <span>Vòng đấu</span>
+                          <h3>{{ selectedScheduleRoundLabel }}</h3>
+                        </div>
+                        <small>{{ selectedRoundMatches.length }} trận</small>
                       </div>
 
-                      <div class="schedule-match">
-                        <div class="schedule-title">
-                          <span>#{{ m.match_no }}</span>
-                          <strong>{{ m.round_code }}</strong>
-                          <span class="m-v2-status" :class="getMatchStatusClass(m)">{{ getMatchStatusLabel(m) }}</span>
-                        </div>
+                      <div class="schedule-list">
+                        <div
+                          v-for="m in selectedRoundMatches"
+                          :key="m.id"
+                          class="schedule-row"
+                          :class="getMatchStatusClass(m)"
+                          role="button"
+                          tabindex="0"
+                          @click="openScheduleMatchDetail(m)"
+                          @keydown.enter="openScheduleMatchDetail(m)"
+                        >
+                          <div class="schedule-time">
+                            <strong>{{ m.start_time ? formatDateTime(m.start_time) : 'Chưa xếp giờ' }}</strong>
+                            <span>{{ m.court || 'Chưa gán sân' }}</span>
+                          </div>
 
-                        <div class="schedule-sides">
-                          <div class="schedule-side" :class="{ 'is-win': m.winner_side === 'side_a' }">
-                            <span>{{ m.p1_name || 'Chưa xác định' }}</span>
-                            <small v-if="m.p1_partner_name">{{ m.p1_partner_name }}</small>
-                          </div>
-                          <div class="schedule-score" v-if="m.status === 'completed'">
-                            <template v-if="m.score_summary">{{ m.score_summary }}</template>
-                            <template v-else>{{ m.score_a ?? '-' }} - {{ m.score_b ?? '-' }}</template>
-                          </div>
-                          <div class="schedule-score" v-else>VS</div>
-                          <div class="schedule-side" :class="{ 'is-win': m.winner_side === 'side_b' }">
-                            <span>{{ m.p2_name || 'Chưa xác định' }}</span>
-                            <small v-if="m.p2_partner_name">{{ m.p2_partner_name }}</small>
-                          </div>
-                        </div>
+                          <div class="schedule-match">
+                            <div class="schedule-title">
+                              <span>#{{ m.match_no }}</span>
+                              <strong>{{ m.round_code }}</strong>
+                              <span class="m-v2-status" :class="getMatchStatusClass(m)">{{ getMatchStatusLabel(m) }}</span>
+                            </div>
 
-                        <div v-if="m.referee_name" class="schedule-meta">
-                          Trọng tài: <strong>{{ m.referee_name }}</strong>
+                            <div class="schedule-sides">
+                              <div class="schedule-side" :class="{ 'is-win': m.winner_side === 'side_a' }">
+                                <span v-for="name in getScheduleSidePlayers(m, 'a')" :key="`a-${m.id}-${name}`" class="schedule-player-name">
+                                  {{ name }}
+                                </span>
+                              </div>
+                              <div class="schedule-score" v-if="m.status === 'completed'">
+                                <template v-if="m.score_summary">{{ m.score_summary }}</template>
+                                <template v-else>{{ m.score_a ?? '-' }} - {{ m.score_b ?? '-' }}</template>
+                              </div>
+                              <div class="schedule-score" v-else>VS</div>
+                              <div class="schedule-side" :class="{ 'is-win': m.winner_side === 'side_b' }">
+                                <span v-for="name in getScheduleSidePlayers(m, 'b')" :key="`b-${m.id}-${name}`" class="schedule-player-name">
+                                  {{ name }}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div v-if="m.referee_name" class="schedule-meta">
+                              Trọng tài: <strong>{{ m.referee_name }}</strong>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1107,7 +1232,11 @@ const parseSets = (scoreSummary) => {
 
               <el-tab-pane :label="t('tournaments.standings')" name="standings">
                 <div v-if="tournament.categories?.length > 1" class="category-filter-wrap">
-                  <div class="filter-label">Chọn nội dung:</div>
+                  <div class="filter-label">
+                    <span class="filter-icon"><el-icon><Trophy /></el-icon></span>
+                    <span class="filter-kicker">Nội dung thi đấu</span>
+                    <strong>Chọn nội dung</strong>
+                  </div>
                   <el-radio-group v-model="selectedCategoryId" size="small">
                     <el-radio-button v-for="cat in tournament.categories" :key="cat.id" :value="cat.id">
                       {{ cat.name }}
@@ -1187,7 +1316,11 @@ const parseSets = (scoreSummary) => {
 
               <el-tab-pane :label="t('tournaments.participants') || 'Danh sách VĐV'" name="participants">
                 <div v-if="tournament.categories?.length > 1" class="category-filter-wrap">
-                  <div class="filter-label">Chọn nội dung:</div>
+                  <div class="filter-label">
+                    <span class="filter-icon"><el-icon><Trophy /></el-icon></span>
+                    <span class="filter-kicker">Nội dung thi đấu</span>
+                    <strong>Chọn nội dung</strong>
+                  </div>
                   <el-radio-group v-model="selectedCategoryId" size="small">
                     <el-radio-button v-for="cat in tournament.categories" :key="cat.id" :value="cat.id">
                       {{ cat.name }}
@@ -1478,6 +1611,87 @@ const parseSets = (scoreSummary) => {
       </div>
     </el-dialog>
 
+    <el-dialog
+      v-model="matchDetailVisible"
+      :title="selectedScheduleMatch ? `Chi tiết trận #${selectedScheduleMatch.match_no}` : 'Chi tiết trận đấu'"
+      width="720px"
+      destroy-on-close
+      class="match-detail-dialog"
+    >
+      <div v-if="selectedScheduleMatch" class="match-detail-body">
+        <div class="match-detail-head">
+          <div>
+            <span class="info-badge">Trận #{{ selectedScheduleMatch.match_no }}</span>
+            <span class="info-stage">{{ selectedScheduleMatch.round_code || 'Vòng chưa đặt tên' }}</span>
+          </div>
+          <span class="m-v2-status" :class="getMatchStatusClass(selectedScheduleMatch)">
+            {{ getMatchStatusLabel(selectedScheduleMatch) }}
+          </span>
+        </div>
+
+        <div class="match-detail-teams">
+          <div class="detail-team" :class="{ 'is-winner': selectedScheduleMatch.winner_side === 'side_a' }">
+            <span class="team-label">Đội 1</span>
+            <div class="detail-player-row" v-for="name in getScheduleSidePlayers(selectedScheduleMatch, 'a')" :key="`detail-a-${name}`">
+              <el-avatar :size="28" class="info-avatar">
+                <el-icon><User /></el-icon>
+              </el-avatar>
+              <strong>{{ name }}</strong>
+            </div>
+          </div>
+
+          <div class="detail-vs">
+            <span v-if="selectedScheduleMatch.status === 'completed'">
+              {{ selectedScheduleMatch.score_summary || selectedScheduleMatch.score || `${selectedScheduleMatch.score_a ?? '-'} - ${selectedScheduleMatch.score_b ?? '-'}` }}
+            </span>
+            <span v-else>VS</span>
+          </div>
+
+          <div class="detail-team" :class="{ 'is-winner': selectedScheduleMatch.winner_side === 'side_b' }">
+            <span class="team-label">Đội 2</span>
+            <div class="detail-player-row" v-for="name in getScheduleSidePlayers(selectedScheduleMatch, 'b')" :key="`detail-b-${name}`">
+              <el-avatar :size="28" class="info-avatar">
+                <el-icon><User /></el-icon>
+              </el-avatar>
+              <strong>{{ name }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-info-grid">
+          <div class="detail-info-item">
+            <span>Thời gian</span>
+            <strong>{{ selectedScheduleMatch.start_time ? formatDateTime(selectedScheduleMatch.start_time) : 'Chưa xếp giờ' }}</strong>
+          </div>
+          <div class="detail-info-item">
+            <span>Sân đấu</span>
+            <strong>{{ selectedScheduleMatch.court || 'Chưa gán sân' }}</strong>
+          </div>
+          <div class="detail-info-item">
+            <span>Trọng tài</span>
+            <strong>{{ selectedScheduleMatch.referee_name || 'Chưa gán' }}</strong>
+            <small v-if="selectedScheduleMatch.referee_phone">{{ selectedScheduleMatch.referee_phone }}</small>
+          </div>
+          <div class="detail-info-item">
+            <span>Ghi chú</span>
+            <strong>{{ selectedScheduleMatch.advance_note || selectedScheduleMatch.score || 'Chưa cập nhật' }}</strong>
+          </div>
+        </div>
+
+        <div v-if="selectedScheduleMatch.live_stream_url || selectedScheduleMatch.video_url || selectedScheduleMatch.image_url" class="detail-media-actions">
+          <button v-if="selectedScheduleMatch.live_stream_url" class="media-btn video" type="button" @click="openPreview('video', selectedScheduleMatch.live_stream_url, `Livestream Trận #${selectedScheduleMatch.match_no}`, selectedScheduleMatch)">
+            Livestream
+          </button>
+          <button v-if="selectedScheduleMatch.video_url" class="media-btn video" type="button" @click="openPreview('video', selectedScheduleMatch.video_url, `Highlight Trận #${selectedScheduleMatch.match_no}`, selectedScheduleMatch)">
+            Video
+          </button>
+          <button v-if="selectedScheduleMatch.image_url" class="media-btn image" type="button" @click="openPreview('image', selectedScheduleMatch.image_url, `Ảnh Trận #${selectedScheduleMatch.match_no}`, selectedScheduleMatch)">
+            Ảnh trận đấu
+          </button>
+        </div>
+      </div>
+    </el-dialog>
+
     <div v-if="tournamentStore.loading && !tournament" class="neo-loading">
       <div class="spinner-ring"></div>
       <p>{{ t('tournaments.loadingData') }}</p>
@@ -1763,6 +1977,105 @@ const parseSets = (scoreSummary) => {
 .match-advance-chip { background: #fff7ed; color: #c2410c; }
 
 .schedule-panel { margin-top: 10px; }
+.schedule-round-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 280px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.schedule-round-list {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.schedule-round-item {
+  width: 100%;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.schedule-round-item:last-child { border-bottom: 0; }
+.schedule-round-item:hover { background: #f8fafc; }
+.schedule-round-item.active {
+  background: #eff6ff;
+  color: var(--accent);
+}
+.schedule-round-item strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+.round-arrow {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #16a34a;
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 900;
+}
+.schedule-round-item.active .round-arrow {
+  background: #dbeafe;
+  color: var(--accent);
+}
+.round-count {
+  min-width: 34px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+.schedule-round-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.schedule-round-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+.schedule-round-heading span,
+.schedule-round-heading small {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.schedule-round-heading h3 {
+  margin: 3px 0 0;
+  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
 .schedule-list { display: flex; flex-direction: column; gap: 12px; }
 .schedule-row {
   display: grid;
@@ -1774,6 +2087,15 @@ const parseSets = (scoreSummary) => {
   border-left: 4px solid #cbd5e1;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.schedule-row:hover,
+.schedule-row:focus-visible {
+  transform: translateY(-2px);
+  border-color: #bfdbfe;
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.12);
+  outline: none;
 }
 .schedule-row.is-done { border-left-color: #22c55e; }
 .schedule-row.is-live { border-left-color: #ef4444; }
@@ -1787,11 +2109,10 @@ const parseSets = (scoreSummary) => {
 .schedule-title > span:first-child { color: #94a3b8; font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
 .schedule-title strong { color: #0f172a; font-size: 0.9rem; }
 .schedule-sides { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
-.schedule-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #eef2f7; }
-.schedule-side span { font-weight: 800; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.schedule-side small { color: #64748b; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #eef2f7; }
+.schedule-player-name { font-size: 0.92rem; line-height: 1.25; font-weight: 850; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .schedule-side.is-win { background: #f0fdf4; border-color: #bbf7d0; }
-.schedule-side.is-win span { color: #15803d; }
+.schedule-side.is-win .schedule-player-name { color: #15803d; }
 .schedule-score { min-width: 48px; text-align: center; font-weight: 900; color: #2563eb; font-family: 'JetBrains Mono', monospace; }
 .schedule-meta { font-size: 0.8rem; color: #64748b; }
 
@@ -2030,31 +2351,144 @@ const parseSets = (scoreSummary) => {
   margin-bottom: 24px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 15px;
-  padding: 15px;
-  background: #f8fafc;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.10), rgba(16, 185, 129, 0.08)),
+    #ffffff;
+  border-radius: 16px;
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.10), inset 0 1px 0 rgba(255,255,255,0.9);
+  position: relative;
+  overflow: hidden;
+}
+.category-filter-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, #2563eb, #10b981);
+}
+.category-filter-wrap::after {
+  content: '';
+  position: absolute;
+  right: 18px;
+  top: -34px;
+  width: 120px;
+  height: 120px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  pointer-events: none;
 }
 .filter-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text-secondary);
+  position: relative;
+  z-index: 1;
+  min-width: 180px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  color: var(--text-primary);
+}
+.filter-icon {
+  grid-row: 1 / span 2;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.95), rgba(16, 185, 129, 0.90));
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.25);
+  color: #ffffff;
+  font-size: 1.1rem;
+}
+.filter-kicker {
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #64748b;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.filter-label strong {
+  font-size: 0.98rem;
+  font-weight: 900;
+  color: #0f172a;
 }
 
-:deep(.el-radio-button__inner) {
-  background: white !important;
-  color: var(--text-secondary) !important;
-  border: 1px solid #e2e8f0 !important;
-  font-weight: 700;
-  transition: all 0.3s ease;
+.category-filter-wrap :deep(.el-radio-group) {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(8px);
 }
 
-:deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background: var(--accent) !important;
+.category-filter-wrap :deep(.el-radio-button__inner) {
+  min-width: 92px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  color: #475569 !important;
+  font-weight: 900;
+  box-shadow: none !important;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.category-filter-wrap :deep(.el-radio-button__inner:hover) {
+  color: var(--accent) !important;
+  background: #eff6ff !important;
+  transform: translateY(-1px);
+}
+
+.category-filter-wrap :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
   color: white !important;
-  border-color: var(--accent) !important;
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.28) !important;
+}
+
+.category-filter-wrap :deep(.el-radio-button:first-child .el-radio-button__inner),
+.category-filter-wrap :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 10px !important;
+}
+
+@media (max-width: 768px) {
+  .category-filter-wrap {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 14px;
+  }
+  .filter-label {
+    min-width: 0;
+  }
+  .category-filter-wrap :deep(.el-radio-group) {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .category-filter-wrap :deep(.el-radio-group::-webkit-scrollbar) {
+    display: none;
+  }
+  .category-filter-wrap :deep(.el-radio-button) {
+    flex-shrink: 0;
+  }
+  .category-filter-wrap :deep(.el-radio-button__inner) {
+    min-width: 108px;
+  }
 }
 
 .standings-wrap, .bracket-viewport {
@@ -2117,6 +2551,73 @@ const parseSets = (scoreSummary) => {
 .meta-value { font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px; }
 .meta-value.score-highlight { background: #1e293b; color: white; padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; }
 
+.match-detail-dialog :deep(.el-dialog) { border-radius: 18px; overflow: hidden; }
+.match-detail-dialog :deep(.el-dialog__header) { padding: 22px 24px 12px; border-bottom: 1px solid #e2e8f0; }
+.match-detail-dialog :deep(.el-dialog__title) { font-size: 1.15rem; font-weight: 900; color: #0f172a; }
+.match-detail-dialog :deep(.el-dialog__body) { padding: 24px; }
+.match-detail-body { display: flex; flex-direction: column; gap: 18px; }
+.match-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.match-detail-head > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.match-detail-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.detail-team {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.detail-team.is-winner { background: #f0fdf4; border-color: #bbf7d0; }
+.team-label { font-size: 0.72rem; font-weight: 900; color: #64748b; text-transform: uppercase; }
+.detail-player-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.detail-player-row strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f172a; font-size: 0.95rem; }
+.detail-team.is-winner .detail-player-row strong { color: #15803d; }
+.detail-vs {
+  min-width: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2563eb;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 900;
+}
+.detail-vs span {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #eff6ff;
+}
+.detail-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.detail-info-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+.detail-info-item span { font-size: 0.72rem; font-weight: 900; color: #64748b; text-transform: uppercase; }
+.detail-info-item strong { min-width: 0; color: #0f172a; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail-info-item small { color: #64748b; font-weight: 700; }
+.detail-media-actions { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 2px; }
+@media (max-width: 768px) {
+  .match-detail-teams,
+  .detail-info-grid { grid-template-columns: 1fr; }
+  .detail-vs { min-height: 40px; }
+}
+
 /* Media Gallery */
 .media-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; padding: 10px 0; }
 .media-item-card { background: white; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; transition: transform 0.3s; }
@@ -2138,6 +2639,21 @@ const parseSets = (scoreSummary) => {
 }
 
 @media (max-width: 768px) {
+  .schedule-round-layout {
+    grid-template-columns: 1fr;
+  }
+  .schedule-round-list {
+    display: flex;
+    overflow-x: auto;
+    border-radius: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .schedule-round-item {
+    min-width: 220px;
+    border-bottom: 0;
+    border-right: 1px solid #e2e8f0;
+  }
+  .schedule-round-item:last-child { border-right: 0; }
   .mobile-sticky-action-bar {
     display: block;
     position: fixed;

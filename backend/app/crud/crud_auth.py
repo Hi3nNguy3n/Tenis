@@ -5,6 +5,27 @@ from app.models.models import User, Player, AuthOtp, Role
 from app.schemas.auth_schemas import RegisterRequest
 from app.core.security import get_password_hash
 
+PLAYER_STAT_FIELDS = [
+    "aces",
+    "double_faults",
+    "first_serve_pct",
+    "first_serve_points_won_pct",
+    "second_serve_points_won_pct",
+    "break_points_faced",
+    "break_points_saved_pct",
+    "service_games_played",
+    "service_games_won_pct",
+    "total_service_points_won_pct",
+    "first_serve_return_points_won_pct",
+    "second_serve_return_points_won_pct",
+    "break_points_opportunities",
+    "break_points_converted_pct",
+    "return_games_played",
+    "return_games_won_pct",
+    "return_points_won_pct",
+    "total_points_won_pct",
+]
+
 def get_user_by_email(db: Session, email: str):
     normalized_email = email.lower().strip()
     return db.query(User).filter(User.email == normalized_email).first()
@@ -75,7 +96,8 @@ def create_user_and_player_transaction(db: Session, request: RegisterRequest, ro
             play_hand=request.play_hand,                   # BỔ SUNG TAY THUẬN
             skill_level=request.skill_level,               # BỔ SUNG TRÌNH ĐỘ
             preferred_category=request.preferred_category, # BỔ SUNG SỞ TRƯỜNG
-            elo_points=request.elo_points                  # BỔ SUNG ĐIỂM ELO
+            elo_points=request.elo_points,
+            **{field: getattr(request, field) or 0 for field in PLAYER_STAT_FIELDS}
         )
         db.add(new_player)
         db.commit()

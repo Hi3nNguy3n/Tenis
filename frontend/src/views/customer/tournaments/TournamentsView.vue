@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useTournamentStore } from '../../../stores/tournament'
 import { newsService } from '../../../services/newsService'
 import { playerService } from '../../../services/playerService'
+import MarketingBannerStrip from '../../../components/MarketingBannerStrip.vue'
 import { Search, Location, Clock, Trophy } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../../utils/locale'
 
@@ -146,13 +147,7 @@ const viewDetail = (id) => {
     <div class="container main-layout">
       
       <aside class="left-sidebar">
-        <div class="ad-banner">
-          <img src="/ad-main.jpg" alt="Sponsor Ad" />
-          <div class="ad-content">
-            <h4>{{ t('tournaments.appDigitization') }}</h4>
-            <p>{{ t('tournaments.experienceSystem') }}</p>
-          </div>
-        </div>
+        <MarketingBannerStrip placement="tournaments_top" variant="sidebar" :max="2" />
 
         <div class="partners-widget">
           <h4 class="widget-title">{{ t('tournaments.partners') }}</h4>

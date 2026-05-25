@@ -365,6 +365,28 @@ def _auto_link_manual_match(db: Session, match: Match):
                 child.next_match_id = match.id
                 incoming += 1
 
+def validate_next_match_assignment(db: Session, match: Match, next_match_id: Optional[int]):
+    if not next_match_id:
+        return
+    if next_match_id == match.id:
+        raise HTTPException(status_code=400, detail="Khong the noi tran dau den chinh no.")
+
+    next_match = db.query(Match).filter(Match.id == next_match_id).first()
+    if not next_match:
+        raise HTTPException(status_code=404, detail="Khong tim thay tran dau tiep theo.")
+    if next_match.tournament_id != match.tournament_id:
+        raise HTTPException(status_code=400, detail="Tran dau tiep theo phai thuoc cung giai dau.")
+    if match.tournament_category_id and next_match.tournament_category_id and next_match.tournament_category_id != match.tournament_category_id:
+        raise HTTPException(status_code=400, detail="Tran dau tiep theo phai thuoc cung noi dung.")
+
+    visited = {match.id}
+    cursor = next_match
+    while cursor and cursor.next_match_id:
+        if cursor.next_match_id in visited:
+            raise HTTPException(status_code=400, detail="Lien ket nhanh dau tao vong lap.")
+        visited.add(cursor.id)
+        cursor = db.query(Match).filter(Match.id == cursor.next_match_id).first()
+
 def _advance_winner_to_next_match(db: Session, match: Match, win_reg_id: Optional[int]):
     if not win_reg_id or not match.tournament_id or not match.next_match_id:
         return
@@ -399,6 +421,14 @@ def create_manual_match_db(db: Session, tournament_id: int, payload: ManualMatch
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
         raise HTTPException(status_code=404, detail="Khong tim thay giai dau")
+    if payload.next_match_id:
+        next_match = db.query(Match).filter(Match.id == payload.next_match_id).first()
+        if not next_match:
+            raise HTTPException(status_code=404, detail="Khong tim thay tran dau tiep theo.")
+        if next_match.tournament_id != tournament_id:
+            raise HTTPException(status_code=400, detail="Tran dau tiep theo phai thuoc cung giai dau.")
+        if payload.category_id and next_match.tournament_category_id and next_match.tournament_category_id != payload.category_id:
+            raise HTTPException(status_code=400, detail="Tran dau tiep theo phai thuoc cung noi dung.")
 
     category_id = payload.category_id
     round_code = (payload.round_code or "Vong moi").strip()
@@ -454,6 +484,8 @@ def update_match_admin_db(db: Session, match_id: int, payload: AdminMatchUpdate)
     data = payload.model_dump(exclude_unset=True)
     if data.get("side_a_registration_id") and data.get("side_a_registration_id") == data.get("side_b_registration_id"):
         raise HTTPException(status_code=400, detail="KhÃ´ng thá»ƒ xáº¿p cÃ¹ng má»™t VÄV/cáº·p Ä‘áº¥u á»Ÿ cáº£ hai bÃªn.")
+    if "next_match_id" in data:
+        validate_next_match_assignment(db, match, data["next_match_id"])
 
     for field in [
         "round_code", "match_no", "stage_type", "side_a_registration_id", "side_b_registration_id",
@@ -474,7 +506,6 @@ def update_match_admin_db(db: Session, match_id: int, payload: AdminMatchUpdate)
         match.winner_registration_id = match.side_a_registration_id if data["winner_side"] == "side_a" else match.side_b_registration_id
         _advance_winner_to_next_match(db, match, match.winner_registration_id)
 
-    _auto_link_manual_match(db, match)
     db.commit()
     return {"message": "ÄÃ£ cáº­p nháº­t thÃ´ng tin Ä‘iá»u hÃ nh tráº­n Ä‘áº¥u"}
 
@@ -513,12 +544,15 @@ def schedule_match_db(db: Session, match_id: int, payload: MatchScheduleUpdate):
     db.commit()
     return {"message": "ÄÃ£ cáº­p nháº­t lá»‹ch thi Ä‘áº¥u"}
 
-def get_all_matches_detail(db: Session):
-    matches = db.query(Match, Tournament, Court).outerjoin(
+def get_all_matches_detail(db: Session, limit: Optional[int] = None):
+    query = db.query(Match, Tournament, Court).outerjoin(
         Tournament, Match.tournament_id == Tournament.id
     ).outerjoin(
         Court, Match.court_id == Court.id
-    ).order_by(desc(Match.start_time)).all()
+    ).order_by(desc(Match.start_time))
+    if limit:
+        query = query.limit(limit)
+    matches = query.all()
 
     # Helper láº¥y thÃ´ng tin Ä‘áº§y Ä‘á»§ cá»§a team tá»« match vÃ  side
     def get_match_players_data(m, side):
@@ -812,10 +846,15 @@ def get_public_bracket_detail(db: Session, tournament_id: int, category_id: Opti
             "p2_partner_avatar": p2_data["partner_avatar_url"],
             
             "winner_side": m.winner_side, "status": m.status,
-            "start_time": m.start_time, "score": m.result_note,
+            "start_time": m.start_time,
+            "match_date": m.match_date,
+            "score": m.result_note,
+            "score_summary": m.score_summary,
             "score_a": m.set1_a,
             "score_b": m.set1_b,
+            "court_id": m.court_id,
             "court": court_name,
+            "live_stream_url": getattr(m, "live_stream_url", None),
             "video_url": getattr(m, "video_url", None),
             "image_url": getattr(m, "image_url", None),
             "advance_note": getattr(m, "win_reason", None),

@@ -48,6 +48,7 @@ const adminViewFactories = {
   rankings: () => import('../views/admin/AdminRankingsView.vue'),
   mailCampaign: () => import('../views/admin/MailCampaignView.vue'),
   AdminCreateMatchView: () => import('../views/admin/AdminCreateMatchView.vue'),
+  marketing: () => import('../views/admin/MarketingManagementView.vue'),
 }
 
 

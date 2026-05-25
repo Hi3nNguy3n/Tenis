@@ -4,6 +4,7 @@ import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
 import { Trophy, Check, ArrowRight } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
+import MarketingBannerStrip from '../../components/MarketingBannerStrip.vue'
 
 const rankings = ref([])
 const finalMatches = ref([])
@@ -223,9 +224,7 @@ onMounted(async () => {
   <div class="atp-ranking-page">
     
     <div class="top-ad-banner">
-      <div class="ad-placeholder">
-        <img src="https://tpc.googlesyndication.com/simgad/9470293650305402252" alt="Sponsor Banner" referrerpolicy="no-referrer" />
-      </div>
+      <MarketingBannerStrip placement="rankings_top" variant="compact" :max="3" />
     </div>
 
     <div class="container layout-grid">
@@ -410,10 +409,18 @@ onMounted(async () => {
 /* Quảng cáo Top */
 .top-ad-banner {
   background: #f8fafc;
-  padding: 1.5rem 0;
+  padding: 1rem 1.5rem;
   display: flex;
   justify-content: center;
   border-bottom: 1px solid #e2e8f0;
+}
+.top-ad-banner :deep(.marketing-strip) {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.top-ad-banner :deep(.marketing-strip-card) {
+  min-height: 128px;
+  max-height: 160px;
 }
 .ad-placeholder img {
   max-width: 100%;

@@ -4,6 +4,33 @@ from sqlalchemy import or_, desc
 from app.models.models import Player, User, Match, Registration, Tournament, Court, Role
 from app.schemas.player_schemas import PlayerUpdate
 
+PLAYER_STAT_FIELDS = [
+    "aces",
+    "double_faults",
+    "first_serve_pct",
+    "first_serve_points_won_pct",
+    "second_serve_points_won_pct",
+    "break_points_faced",
+    "break_points_saved_pct",
+    "service_games_played",
+    "service_games_won_pct",
+    "total_service_points_won_pct",
+    "first_serve_return_points_won_pct",
+    "second_serve_return_points_won_pct",
+    "break_points_opportunities",
+    "break_points_converted_pct",
+    "return_games_played",
+    "return_games_won_pct",
+    "return_points_won_pct",
+    "total_points_won_pct",
+]
+
+def _apply_player_stat_updates(player: Player, update_data: PlayerUpdate):
+    for field in PLAYER_STAT_FIELDS:
+        value = getattr(update_data, field, None)
+        if value is not None:
+            setattr(player, field, value)
+
 def get_player_by_user_id(db: Session, user_id: int):
     return db.query(Player).filter(Player.user_id == user_id).first()
 
@@ -28,6 +55,7 @@ def update_player_profile(db: Session, user: User, update_data: PlayerUpdate):
         if update_data.bio is not None: player.bio = update_data.bio
         if update_data.height_cm is not None: player.height_cm = update_data.height_cm
         if update_data.weight_kg is not None: player.weight_kg = update_data.weight_kg
+        _apply_player_stat_updates(player, update_data)
 
     db.commit()
     db.refresh(user)
@@ -89,6 +117,7 @@ def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpd
     if update_data.bio is not None: player.bio = update_data.bio
     if update_data.height_cm is not None: player.height_cm = update_data.height_cm
     if update_data.weight_kg is not None: player.weight_kg = update_data.weight_kg
+    _apply_player_stat_updates(player, update_data)
 
     db.commit()
     db.refresh(player)
@@ -96,7 +125,7 @@ def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpd
     
     return player
 
-def get_player_rankings(db: Session, category: str = None, province: str = None):
+def get_player_rankings(db: Session, category: str = None, province: str = None, limit: int = None):
     query = db.query(Player, User).join(User, Player.user_id == User.id).outerjoin(
         Role, User.role_id == Role.id
     ).filter(
@@ -109,7 +138,10 @@ def get_player_rankings(db: Session, category: str = None, province: str = None)
     if province:
         query = query.filter(User.province == province)
 
-    return query.order_by(desc(Player.elo_points), desc(Player.wins)).all()
+    query = query.order_by(desc(Player.elo_points), desc(Player.wins))
+    if limit:
+        query = query.limit(limit)
+    return query.all()
 
 # --- CÁC HÀM PHỤ TRỢ CHO LỊCH SỬ THI ĐẤU ---
 def get_player_registrations(db: Session, player_id: int):
@@ -228,6 +260,7 @@ def get_player_by_id(db: Session, player_id: int):
             "preferred_category": p.preferred_category,
             "bio": p.bio,
             "height_cm": p.height_cm,
-            "weight_kg": p.weight_kg
+            "weight_kg": p.weight_kg,
+            **{field: float(getattr(p, field) or 0) for field in PLAYER_STAT_FIELDS}
         }
     }

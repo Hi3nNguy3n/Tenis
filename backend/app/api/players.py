@@ -92,9 +92,10 @@ def admin_update_player(
 def get_global_rankings(
     category: Optional[str] = Query(None, description="Lọc theo nội dung (Singles/Doubles)"),
     province: Optional[str] = Query(None, description="Lọc theo tỉnh thành"),
+    limit: Optional[int] = Query(None, ge=1, le=200),
     db: Session = Depends(get_db)
 ):
-    players_data = crud_player.get_player_rankings(db, category, province)
+    players_data = crud_player.get_player_rankings(db, category, province, limit)
 
     results = []
     for rank, (p, u) in enumerate(players_data, start=1):

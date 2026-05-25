@@ -189,6 +189,17 @@ export const adminModules = [
     highlights: ['Trình soạn thảo', 'Thumbnail', 'Danh mục'],
   },
   {
+    path: 'marketing',
+    name: 'admin-marketing',
+    label: 'marketing',
+    section: 'system',
+    view: 'marketing',
+    badge: 'New',
+    title: 'marketing',
+    description: 'marketingDesc',
+    highlights: ['Banner placement', 'Sponsor tiers', 'Upload media'],
+  },
+  {
     path: 'mail-campaign',
     name: 'admin-mail-campaign',
     label: 'Gửi mail hàng loạt',

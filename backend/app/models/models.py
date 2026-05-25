@@ -70,6 +70,24 @@ class Player(Base):
     bio = Column(Text)
     height_cm = Column(Integer)
     weight_kg = Column(Integer)
+    aces = Column(Integer, default=0, nullable=False)
+    double_faults = Column(Integer, default=0, nullable=False)
+    first_serve_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    first_serve_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    second_serve_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    break_points_faced = Column(Integer, default=0, nullable=False)
+    break_points_saved_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    service_games_played = Column(Integer, default=0, nullable=False)
+    service_games_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    total_service_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    first_serve_return_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    second_serve_return_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    break_points_opportunities = Column(Integer, default=0, nullable=False)
+    break_points_converted_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    return_games_played = Column(Integer, default=0, nullable=False)
+    return_games_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    return_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
+    total_points_won_pct = Column(Numeric(5, 2), default=0, nullable=False)
     date_of_birth = Column(Date)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -446,6 +464,45 @@ class Setting(Base):
 # ==========================================
 # MODULE 7: COMMUNICATION & CHAT (Tương tác)
 # ==========================================
+
+# ==========================================
+# MODULE 6.5: MARKETING (Banner & Sponsors)
+# ==========================================
+
+class MarketingBanner(Base):
+    __tablename__ = "marketing_banners"
+    id = Column(BigInteger, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    subtitle = Column(String(255))
+    image_url = Column(String(500), nullable=False)
+    link_url = Column(String(500))
+    placement = Column(String(50), index=True, nullable=False, default="home_top")
+    display_order = Column(Integer, default=0, index=True, nullable=False)
+    is_active = Column(Boolean, default=True, index=True, nullable=False)
+    open_in_new_tab = Column(Boolean, default=True, nullable=False)
+    start_at = Column(DateTime, index=True)
+    end_at = Column(DateTime, index=True)
+    created_by = Column(BigInteger, ForeignKey("users.id"), index=True)
+    updated_by = Column(BigInteger, ForeignKey("users.id"), index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class Sponsor(Base):
+    __tablename__ = "sponsors"
+    id = Column(BigInteger, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    logo_url = Column(String(500), nullable=False)
+    website_url = Column(String(500))
+    tier = Column(String(50), index=True, nullable=False, default="partner")
+    description = Column(Text)
+    display_order = Column(Integer, default=0, index=True, nullable=False)
+    is_active = Column(Boolean, default=True, index=True, nullable=False)
+    start_at = Column(DateTime, index=True)
+    end_at = Column(DateTime, index=True)
+    created_by = Column(BigInteger, ForeignKey("users.id"), index=True)
+    updated_by = Column(BigInteger, ForeignKey("users.id"), index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 class Notification(Base):
     __tablename__ = "notifications"

@@ -57,6 +57,46 @@ const newsItems = computed(() => {
 const featuredNews = computed(() => newsItems.value[0])
 const sideNews = computed(() => newsItems.value.slice(1, 4))
 
+const formatStatValue = (value, type) => {
+  const numeric = Number(value || 0)
+  if (type === 'percent') return `${numeric.toFixed(numeric % 1 === 0 ? 0 : 1)}%`
+  return numeric.toLocaleString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US')
+}
+
+const playerStatGroups = computed(() => {
+  const p = profile.value
+  return [
+    {
+      title: t('players.statsServe'),
+      items: [
+        [t('players.statsAces'), p.aces, 'count'],
+        [t('players.statsDoubleFaults'), p.double_faults, 'count'],
+        [t('players.statsFirstServe'), p.first_serve_pct, 'percent'],
+        [t('players.statsFirstServePointsWon'), p.first_serve_points_won_pct, 'percent'],
+        [t('players.statsSecondServePointsWon'), p.second_serve_points_won_pct, 'percent'],
+        [t('players.statsBreakPointsFaced'), p.break_points_faced, 'count'],
+        [t('players.statsBreakPointsSaved'), p.break_points_saved_pct, 'percent'],
+        [t('players.statsServiceGamesPlayed'), p.service_games_played, 'count'],
+        [t('players.statsServiceGamesWon'), p.service_games_won_pct, 'percent'],
+        [t('players.statsTotalServicePointsWon'), p.total_service_points_won_pct, 'percent']
+      ]
+    },
+    {
+      title: t('players.statsReturn'),
+      items: [
+        [t('players.statsFirstServeReturnPointsWon'), p.first_serve_return_points_won_pct, 'percent'],
+        [t('players.statsSecondServeReturnPointsWon'), p.second_serve_return_points_won_pct, 'percent'],
+        [t('players.statsBreakPointsOpportunities'), p.break_points_opportunities, 'count'],
+        [t('players.statsBreakPointsConverted'), p.break_points_converted_pct, 'percent'],
+        [t('players.statsReturnGamesPlayed'), p.return_games_played, 'count'],
+        [t('players.statsReturnGamesWon'), p.return_games_won_pct, 'percent'],
+        [t('players.statsReturnPointsWon'), p.return_points_won_pct, 'percent'],
+        [t('players.statsTotalPointsWon'), p.total_points_won_pct, 'percent']
+      ]
+    }
+  ]
+})
+
 onMounted(async () => {
   try {
     const [profileRes, historyRes, tourRes, newsRes] = await Promise.all([
@@ -229,10 +269,19 @@ const tabs = [
             <h2>{{ t('players.profileStats') }}</h2>
             <span></span>
           </div>
-          <div class="stats-board">
-            <div><el-icon><DataLine /></el-icon><b>{{ stats.total }}</b><span>{{ t('players.matchesCount') }}</span></div>
-            <div><el-icon><Trophy /></el-icon><b>{{ profile.wins || 0 }}</b><span>{{ t('players.wins') }}</span></div>
-            <div><el-icon><Star /></el-icon><b>{{ stats.winRate }}%</b><span>{{ t('players.winRate') }}</span></div>
+          <div class="atp-stats-grid">
+            <div v-for="group in playerStatGroups" :key="group.title" class="atp-stat-column">
+              <h3>{{ group.title }}</h3>
+              <div v-for="[label, value, type] in group.items" :key="label" class="atp-stat-row">
+                <div class="stat-line">
+                  <span>{{ label }}</span>
+                  <strong>{{ formatStatValue(value, type) }}</strong>
+                </div>
+                <div v-if="type === 'percent'" class="stat-bar">
+                  <span :style="{ width: `${Math.min(Number(value || 0), 100)}%` }"></span>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -688,6 +737,53 @@ const tabs = [
   margin: 0;
 }
 
+.atp-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px;
+}
+
+.atp-stat-column h3 {
+  margin: 0 0 18px;
+  color: var(--navy);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.atp-stat-row {
+  padding: 0 0 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.stat-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.stat-line strong {
+  color: var(--navy);
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.stat-bar {
+  height: 3px;
+  margin-top: 10px;
+  background: #edf2f7;
+  overflow: hidden;
+}
+
+.stat-bar span {
+  display: block;
+  height: 100%;
+  background: #0b6f9f;
+}
+
 .featured-news {
   display: block;
   color: inherit;
@@ -825,6 +921,11 @@ const tabs = [
   .score-stat {
     border-top: 1px solid rgba(0, 166, 224, 0.45);
   }
+
+  .atp-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -844,6 +945,7 @@ const tabs = [
   .score-grid,
   .detail-grid,
   .stats-board,
+  .atp-stats-grid,
   .match-item {
     grid-template-columns: 1fr;
   }

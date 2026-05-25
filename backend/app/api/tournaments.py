@@ -50,6 +50,13 @@ def read_tournaments(
     return crud_tournament.get_tournaments_with_counts(db, skip=skip, limit=limit, status=status)
 
 # 3. XEM CHI TIẾT 1 GIẢI ĐẤU (PUBLIC)
+@router.get("/matches/all")
+def read_all_matches(
+    limit: Optional[int] = Query(None, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    return crud_tournament.get_all_matches_detail(db, limit=limit)
+
 @router.get("/{tournament_id}", response_model=tournament_schemas.TournamentResponse)
 def read_tournament(tournament_id: int, db: Session = Depends(get_db)):
     return crud_tournament.get_tournament_with_count(db, tournament_id=tournament_id)
@@ -317,6 +324,7 @@ def update_match_from_draw(match_id: int, payload: tournament_schemas.AdminMatch
             if payload.live_stream_url is not None:
                 match.live_stream_url = payload.live_stream_url
             if "next_match_id" in payload.model_fields_set:
+                crud_tournament.validate_next_match_assignment(db, match, payload.next_match_id)
                 match.next_match_id = payload.next_match_id
             if "advance_note" in payload.model_fields_set:
                 match.win_reason = payload.advance_note or None
@@ -330,9 +338,6 @@ def update_match_from_draw(match_id: int, payload: tournament_schemas.AdminMatch
 def delete_match_from_draw(match_id: int, db: Session = Depends(get_db)):
     return crud_tournament.delete_match_from_draw_db(db, match_id)
 
-@router.get("/matches/all")
-def read_all_matches(db: Session = Depends(get_db)):
-    return crud_tournament.get_all_matches_detail(db)
 
 # 10. CẬP NHẬT TỶ SỐ, THĂNG HẠNG & TÍNH ĐIỂM ELO
 @router.post("/matches/{match_id}/score", dependencies=[Depends(get_current_admin)])

@@ -29,6 +29,24 @@ class RegisterRequest(BaseModel):
     preferred_category: Optional[str] = "Singles"
     elo_points: Optional[int] = 1000
     play_hand: Optional[str] = "right"
+    aces: Optional[int] = 0
+    double_faults: Optional[int] = 0
+    first_serve_pct: Optional[float] = 0
+    first_serve_points_won_pct: Optional[float] = 0
+    second_serve_points_won_pct: Optional[float] = 0
+    break_points_faced: Optional[int] = 0
+    break_points_saved_pct: Optional[float] = 0
+    service_games_played: Optional[int] = 0
+    service_games_won_pct: Optional[float] = 0
+    total_service_points_won_pct: Optional[float] = 0
+    first_serve_return_points_won_pct: Optional[float] = 0
+    second_serve_return_points_won_pct: Optional[float] = 0
+    break_points_opportunities: Optional[int] = 0
+    break_points_converted_pct: Optional[float] = 0
+    return_games_played: Optional[int] = 0
+    return_games_won_pct: Optional[float] = 0
+    return_points_won_pct: Optional[float] = 0
+    total_points_won_pct: Optional[float] = 0
 
 class LoginRequest(BaseModel):
     email: EmailStr
