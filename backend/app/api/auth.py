@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import random
+import logging
 
 from app.db.redis_client import get_redis
 from app.db.database import get_db
@@ -13,6 +14,9 @@ from app.crud import crud_auth
 from app.api.deps import get_current_user
 from app.models.models import User
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+INTERNAL_ERROR_MESSAGE = "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."
 
 # ==========================================
 # 1. API GỬI OTP ĐĂNG KÝ
@@ -31,7 +35,6 @@ async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = D
     otp_code = str(random.randint(100000, 999999))
     
     # Lưu OTP vào Redis với thời hạn 300s (5 phút)
-    print(f"[DEBUG SEND OTP]: Key='otp:{email_key}', Value='{otp_code}'")
     r.setex(f"otp:{email_key}", 300, otp_code) 
     
     # Gửi email qua SMTP/app password
@@ -62,8 +65,6 @@ def register(request: RegisterRequest, db: Session = Depends(get_db), r = Depend
     
     # Xử lý trường hợp cached_otp là kiểu bytes (tùy cấu hình Redis)
     decoded_otp = cached_otp.decode("utf-8") if isinstance(cached_otp, bytes) else cached_otp
-    print(f"[DEBUG VERIFY OTP]: Key='otp:{email_key}', Cached='{decoded_otp}', Sent='{request.otp_code}'")
-
     if not decoded_otp or str(decoded_otp).strip() != str(request.otp_code).strip():
         raise HTTPException(status_code=400, detail="Mã OTP không đúng hoặc hết hạn.")
 
@@ -76,8 +77,9 @@ def register(request: RegisterRequest, db: Session = Depends(get_db), r = Depend
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi DB: {str(e)}")
+    except Exception:
+        logger.exception("Registration transaction failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
     
     # Dùng xong xóa OTP
     r.delete(f"otp:{email_key}")
@@ -189,7 +191,7 @@ def verify_otp(email: str, otp_code: str):
         if str(decoded_otp) == str(otp_code):
             r.delete(f"otp:{email}") 
             return True
-    except Exception as e:
-        print(f"Lỗi Redis verify_otp: {e}")
+    except Exception:
+        logger.exception("OTP verification failed due to Redis error")
         
     return False

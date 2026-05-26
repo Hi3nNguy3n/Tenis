@@ -18,23 +18,25 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Saigon Tennis Tour API")
 
-# --- CORS SETTINGS ---
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "https://saigon-tennis-frontend-deploy.vercel.app",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=settings.frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # --- GLOBAL EXCEPTION HANDLERS ---
+def _cors_error_headers(request: Request) -> dict:
+    origin = request.headers.get("origin")
+    if origin and origin in settings.frontend_origins:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        }
+    return {}
+
+
 @app.exception_handler(OperationalError)
 async def db_connection_exception_handler(request: Request, exc: OperationalError):
     logger.error(f"DATABASE CONNECTION LOST: {exc}")
@@ -44,25 +46,19 @@ async def db_connection_exception_handler(request: Request, exc: OperationalErro
             "detail": "DATABASE_ERROR", 
             "message": "Không thể kết nối đến máy chủ cơ sở dữ liệu. Vui lòng kiểm tra lại cấu hình kết nối."
         },
-        headers={
-            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-            "Access-Control-Allow-Credentials": "true"
-        }
+        headers=_cors_error_headers(request)
     )
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"GLOBAL ERROR: {exc}")
+    logger.exception("GLOBAL ERROR")
     return JSONResponse(
         status_code=500,
         content={
             "detail": "INTERNAL_SERVER_ERROR",
-            "message": f"Đã xảy ra lỗi hệ thống: {str(exc)}"
+            "message": "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."
         },
-        headers={
-            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-            "Access-Control-Allow-Credentials": "true"
-        }
+        headers=_cors_error_headers(request)
     )
 
 @app.on_event("startup")

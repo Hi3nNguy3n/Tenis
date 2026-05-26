@@ -9,7 +9,8 @@ class Settings(BaseSettings):
         "http://localhost:5173,"
         "http://127.0.0.1:5173,"
         "http://localhost:4173,"
-        "http://127.0.0.1:4173"
+        "http://127.0.0.1:4173,"
+        "https://saigon-tennis-frontend-deploy.vercel.app"
     )
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379

@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import logging
 from app.db.database import get_db
 from app.crud import crud_match # Import CRUD mới tạo
 
@@ -10,6 +11,8 @@ from datetime import date, time
 from app.api.deps import get_current_admin
 from app.models.models import User, Registration, Player
 router = APIRouter()
+logger = logging.getLogger(__name__)
+INTERNAL_ERROR_MESSAGE = "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."
 
 @router.get("/")
 def list_matches(
@@ -148,8 +151,9 @@ def create_match(
         }
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Create match failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
 
 @router.delete("/{match_id}")
 def delete_match(
@@ -162,5 +166,6 @@ def delete_match(
         return {"message": "Đã hủy trận đấu thành công!"}
     except HTTPException as e:
         raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Delete match failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)

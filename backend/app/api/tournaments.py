@@ -4,6 +4,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any
 from datetime import datetime
+import logging
 
 from app.db.database import get_db
 from app.api.deps import get_current_admin, get_current_user
@@ -17,6 +18,8 @@ from app.api.auth import verify_otp
 from app.crud import crud_registration
 from app.api.registrations import update_qr
 router = APIRouter()
+logger = logging.getLogger(__name__)
+INTERNAL_ERROR_MESSAGE = "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."
 
 # 1. TẠO GIẢI ĐẤU (CHỈ ADMIN)
 @router.post("/", response_model=tournament_schemas.TournamentResponse)
@@ -479,8 +482,9 @@ def register_tournament_with_otp(
 
     except HTTPException as e:
         raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Tournament registration failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
 
 @router.get("/{tournament_id}/registrations")
 def get_public_registrations(

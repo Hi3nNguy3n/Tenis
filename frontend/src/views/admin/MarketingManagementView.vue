@@ -41,6 +41,15 @@ const sponsorTiers = [
   { label: 'Partner', value: 'partner' },
 ]
 
+const MARKETING_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+const MARKETING_IMAGE_ACCEPT = `${MARKETING_IMAGE_TYPES.join(',')},.svg`
+const MAX_MARKETING_IMAGE_SIZE_MB = 10
+
+const isMarketingImageFile = (file) => {
+  const extension = file.name?.split('.').pop()?.toLowerCase()
+  return MARKETING_IMAGE_TYPES.includes(file.type) || extension === 'svg'
+}
+
 const emptyBannerForm = () => ({
   title: '',
   subtitle: '',
@@ -277,6 +286,16 @@ const toggleActive = async (row) => {
 }
 
 const uploadAsset = async (file) => {
+  if (!isMarketingImageFile(file)) {
+    ElMessage.error('Banner và nhà tài trợ chỉ được upload hình ảnh. Vui lòng không upload video.')
+    return false
+  }
+
+  if (file.size / 1024 / 1024 > MAX_MARKETING_IMAGE_SIZE_MB) {
+    ElMessage.error(`Ảnh vượt quá ${MAX_MARKETING_IMAGE_SIZE_MB}MB. Vui lòng chọn ảnh nhẹ hơn.`)
+    return false
+  }
+
   uploadLoading.value = true
   try {
     const body = new FormData()
@@ -517,7 +536,7 @@ onMounted(fetchAll)
               </div>
               <el-form-item label="Ảnh banner">
                 <div class="upload-row">
-                  <el-upload :show-file-list="false" :before-upload="uploadAsset" accept="image/*,.svg">
+                  <el-upload :show-file-list="false" :before-upload="uploadAsset" :accept="MARKETING_IMAGE_ACCEPT">
                     <el-button :icon="UploadFilled" :loading="uploadLoading">Upload ảnh</el-button>
                   </el-upload>
                   <el-input v-model="form.banner.image_url" placeholder="Hoặc dán URL ảnh" />
@@ -579,7 +598,7 @@ onMounted(fetchAll)
               </div>
               <el-form-item label="Logo">
                 <div class="upload-row">
-                  <el-upload :show-file-list="false" :before-upload="uploadAsset" accept="image/*,.svg">
+                  <el-upload :show-file-list="false" :before-upload="uploadAsset" :accept="MARKETING_IMAGE_ACCEPT">
                     <el-button :icon="UploadFilled" :loading="uploadLoading">Upload logo</el-button>
                   </el-upload>
                   <el-input v-model="form.sponsor.logo_url" placeholder="Hoặc dán URL logo" />

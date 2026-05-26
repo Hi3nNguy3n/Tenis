@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
 import cloudinary.uploader
 from typing import Optional
+import logging
 
 from datetime import datetime, date
 from app.db.database import get_db
@@ -23,6 +24,8 @@ from app.schemas.auth_schemas import RegisterRequest
 from app.crud import crud_auth
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+INTERNAL_ERROR_MESSAGE = "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."
 
 @router.get("/me")
 def read_user_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -55,8 +58,9 @@ def upload_avatar(
         
         crud_player.update_user_avatar(db, current_user, avatar_url)
         return {"avatar_url": avatar_url, "message": "Cập nhật ảnh đại diện thành công"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi upload ảnh: {str(e)}")
+    except Exception:
+        logger.exception("Player avatar upload failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
 
 @router.get("/list")
 def list_players(
@@ -214,8 +218,9 @@ def upload_avatar_to_cloudinary(
         result = cloudinary.uploader.upload(file.file)
         # Trả về URL an toàn (https)
         return {"avatar_url": result.get("secure_url")}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi khi tải ảnh lên Cloudinary: {str(e)}")
+    except Exception:
+        logger.exception("Player avatar direct upload failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
     
 @router.get("/{player_id}/history")
 def get_player_match_history_public(
@@ -318,8 +323,9 @@ def get_player_match_history_public(
                 "winner_side": m.winner_side
             })
         return results
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi truy vấn lịch sử: {str(e)}")
+    except Exception:
+        logger.exception("Public player match history query failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
 
 @router.get("/{player_id}/tournaments")
 def get_player_tournaments_public(
@@ -346,8 +352,9 @@ def get_player_tournaments_public(
                 "registered_at": reg.registered_at.strftime("%d/%m/%Y %H:%M") if reg.registered_at else "N/A"
             })
         return results
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi truy vấn giải đấu: {str(e)}")
+    except Exception:
+        logger.exception("Public player tournaments query failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
 
 @router.get("/h2h/{opponent_id}")
 def get_h2h_history(
@@ -446,7 +453,8 @@ def admin_create_player(
     # 3. Thực hiện Transaction giống hệt user đăng ký (Nhưng bỏ qua check OTP ở auth.py)
     try:
         user = crud_auth.create_user_and_player_transaction(db, request, role.id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi DB: {str(e)}")
+    except Exception:
+        logger.exception("Admin create player failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
     
     return {"message": "Tạo tài khoản VĐV thành công!", "user_id": user.id}

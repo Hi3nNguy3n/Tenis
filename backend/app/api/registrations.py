@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+import logging
 
 from app.db.database import get_db, SessionLocal
 from app.api.deps import get_current_user, get_current_admin
@@ -12,6 +13,8 @@ from app.schemas import registration_schemas
 from app.core.qr_generator import generate_registration_qr
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+INTERNAL_ERROR_MESSAGE = "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."
 
 # --- BACKGROUND TASK ---
 def update_qr(r_id: int, t_name: str):
@@ -19,8 +22,8 @@ def update_qr(r_id: int, t_name: str):
     try:
         url = generate_registration_qr(r_id, t_name)
         crud_registration.update_registration_qr_url(db_task, r_id, url)
-    except Exception as e:
-        print(f"❌ [Background Error] Lỗi khi tạo QR Code: {str(e)}")
+    except Exception:
+        logger.exception("Registration QR generation failed")
     finally:
         db_task.close()
 
@@ -229,9 +232,10 @@ def admin_pay_and_check_in(
             "player_name": user.full_name,
             "amount": float(tourn.entry_fee) if tourn and tourn.entry_fee else 0
         }
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Lỗi khi xử lý giao dịch: {str(e)}")
+        logger.exception("Admin pay-and-check-in failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
 
 @router.post("/{registration_id}/confirm", dependencies=[Depends(get_current_admin)])
 def admin_confirm_registration(
