@@ -33,7 +33,7 @@ export default {
   preferredCategory: 'Preferred Category',
   singles: 'Singles',
   doubles: 'Doubles',
-  province: 'Province / City',
+  province: 'Active Club',
   dob: 'Date of Birth',
   dobPlaceholder: 'Select or enter (DD/MM/YYYY)',
   clickToUpload: 'Click to upload avatar',

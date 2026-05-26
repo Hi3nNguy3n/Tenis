@@ -1,4 +1,4 @@
-﻿# backend/app/crud/crud_tournament.py
+# backend/app/crud/crud_tournament.py
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List, Dict, Any
 from sqlalchemy import func, desc, or_
@@ -301,7 +301,8 @@ def get_tournament_matches_detail(db: Session, tournament_id: int, category_id: 
             "stage_type": m.stage_type,
             "group_id": m.group_id,
             "next_match_id": m.next_match_id,
-            "tournament_category_id": m.tournament_category_id
+            "tournament_category_id": m.tournament_category_id,
+            "show_on_homepage": getattr(m, 'show_on_homepage', False)
         })
     return results
 
@@ -490,7 +491,7 @@ def update_match_admin_db(db: Session, match_id: int, payload: AdminMatchUpdate)
     for field in [
         "round_code", "match_no", "stage_type", "side_a_registration_id", "side_b_registration_id",
         "status", "court_id", "start_time", "referee_name", "referee_phone",
-        "live_stream_url", "video_url", "image_url", "winner_side", "next_match_id"
+        "live_stream_url", "video_url", "image_url", "winner_side", "next_match_id", "show_on_homepage"
     ]:
         if field in data:
             setattr(match, field, data[field])
@@ -544,12 +545,15 @@ def schedule_match_db(db: Session, match_id: int, payload: MatchScheduleUpdate):
     db.commit()
     return {"message": "ÄÃ£ cáº­p nháº­t lá»‹ch thi Ä‘áº¥u"}
 
-def get_all_matches_detail(db: Session, limit: Optional[int] = None):
+def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_homepage: Optional[bool] = None):
     query = db.query(Match, Tournament, Court).outerjoin(
         Tournament, Match.tournament_id == Tournament.id
     ).outerjoin(
         Court, Match.court_id == Court.id
-    ).order_by(desc(Match.start_time))
+    )
+    if show_on_homepage is not None:
+        query = query.filter(Match.show_on_homepage == show_on_homepage)
+    query = query.order_by(desc(Match.start_time))
     if limit:
         query = query.limit(limit)
     matches = query.all()
@@ -638,6 +642,7 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None):
             "winner_side": m.winner_side,
             "score": m.score_summary,
             "video_url": getattr(m, 'video_url', None),
+            "show_on_homepage": getattr(m, 'show_on_homepage', False),
         })
     return results
 

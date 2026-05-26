@@ -27,7 +27,7 @@ export default {
   shopDesc: 'Professional equipment, accessories and stringing services curated for semi-pro and pro players.',
 
   // --- CÁC TỪ KHÓA MỚI CHO ATP THEME (HOME VIEW) ---
-  scores: 'SCORES',
+  scores: 'OVERVIEW',
   seeAllMatches: 'See all',
   liveCompleted: 'Live / Completed',
   schedule: 'Schedule',

@@ -68,6 +68,7 @@ class Player(Base):
     losses = Column(Integer, default=0, nullable=False)
     matches_played = Column(Integer, default=0, nullable=False)
     bio = Column(Text)
+    admin_notes = Column(Text)
     height_cm = Column(Integer)
     weight_kg = Column(Integer)
     aces = Column(Integer, default=0, nullable=False)
@@ -250,6 +251,7 @@ class Match(Base):
     referee_id = Column(BigInteger, ForeignKey("users.id"))
     referee_name = Column(String(100), nullable=True)
     referee_phone = Column(String(20), nullable=True)
+    show_on_homepage = Column(Boolean, default=False, index=True, nullable=False)
     
     # Tỷ số trực tiếp theo Set (Phi chuẩn hóa)
     set1_a = Column(SmallInteger, nullable=True)

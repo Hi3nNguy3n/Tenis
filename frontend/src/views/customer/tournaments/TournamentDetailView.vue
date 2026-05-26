@@ -1,5 +1,5 @@
-﻿<script setup>
-import { onMounted, computed, ref, watch } from 'vue'
+<script setup>
+import { onMounted, computed, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTournamentStore } from '../../../stores/tournament'
 import { useAuthStore } from '../../../stores/auth'
@@ -139,12 +139,44 @@ const fetchBracket = async () => {
                 (selectedCategoryId.value ? `?category_id=${selectedCategoryId.value}` : '')
     const data = await apiClient.get(url)
     publicMatches.value = data
+    if (route.query.matchId) {
+      scrollToAndHighlightMatch()
+    }
   } catch (err) {
     console.error("Không tải được sơ đồ nhánh đấu:", err)
   } finally {
     loadingBracket.value = false
   }
 }
+
+const scrollToAndHighlightMatch = () => {
+  const matchId = route.query.matchId
+  if (!matchId) return
+  
+  activeTab.value = 'bracket'
+  
+  nextTick(() => {
+    setTimeout(() => {
+      const elementId = `match-node-${matchId}`
+      const el = document.getElementById(elementId)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+        el.classList.add('highlighted-match')
+        setTimeout(() => {
+          el.classList.remove('highlighted-match')
+        }, 4000)
+      } else {
+        console.warn(`Không tìm thấy phần tử trận đấu: ${elementId}`)
+      }
+    }, 300)
+  })
+}
+
+watch(() => route.query.matchId, (newId) => {
+  if (newId) {
+    scrollToAndHighlightMatch()
+  }
+})
 
 // Watch category change to re-fetch data
 watch(selectedCategoryId, (newVal) => {
@@ -755,7 +787,7 @@ const parseSets = (scoreSummary) => {
                           </div>
 
                           <div class="public-round-matches">
-                            <div v-for="m in round.items" :key="m.id" class="group-match-card" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
+                            <div v-for="m in round.items" :key="m.id" :id="'match-node-' + m.id" class="group-match-card" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
                               <div class="m-v2-header">
                                 <div class="m-v2-header-left">
                                   <span class="m-v2-no">#{{ m.match_no }}</span>
@@ -911,7 +943,7 @@ const parseSets = (scoreSummary) => {
                         }"
                       >
                         <template v-for="m in [node.match]" :key="m.id">
-                          <div class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
+                          <div :id="'match-node-' + m.id" class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
                             <div class="m-v2-header">
                               <div class="m-v2-header-left">
                                 <span class="m-v2-no">#{{ m.match_no }}</span>
@@ -1019,7 +1051,7 @@ const parseSets = (scoreSummary) => {
                       }"
                     >
                       <template v-for="m in [node.match]" :key="m.id">
-                          <div class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
+                          <div :id="'match-node-' + m.id" class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
                             <div class="m-v2-header">
                               <div class="m-v2-header-left">
                                 <span class="m-v2-no">#{{ m.match_no }}</span>
@@ -2724,5 +2756,27 @@ const parseSets = (scoreSummary) => {
   .neo-tournament-page {
     padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px)) !important;
   }
+}
+
+@keyframes borderPulse {
+  0% {
+    box-shadow: 0 0 0 0px rgba(64, 158, 255, 0.7);
+    border-color: #409eff;
+  }
+  50% {
+    box-shadow: 0 0 12px 6px rgba(64, 158, 255, 0.5);
+    border-color: #66b1ff;
+  }
+  100% {
+    box-shadow: 0 0 0 0px rgba(64, 158, 255, 0);
+    border-color: #409eff;
+  }
+}
+.highlighted-match {
+  animation: borderPulse 1.2s infinite ease-in-out;
+  border: 2px solid #409eff !important;
+  z-index: 100 !important;
+  transform: scale(1.02);
+  transition: transform 0.3s ease;
 }
 </style>

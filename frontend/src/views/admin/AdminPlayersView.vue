@@ -141,6 +141,7 @@ const editForm = ref({
   elo_points: 1000,
   avatar_url: '',
   is_active: true,
+  admin_notes: '',
   ...playerStatDefaults
 })
 
@@ -156,6 +157,7 @@ const createForm = ref({
   province: '',
   date_of_birth: null, 
   elo_points: 1000,
+  admin_notes: '',
   ...playerStatDefaults
 })
 
@@ -237,6 +239,7 @@ const openEditDialog = (player) => {
     elo_points: player.player_profile?.elo_points || 1000,
     avatar_url: player.user.avatar_url || '',
     is_active: player.user.is_active,
+    admin_notes: player.player_profile?.admin_notes || '',
     ...Object.fromEntries(
       Object.keys(playerStatDefaults).map(key => [key, player.player_profile?.[key] ?? 0])
     )
@@ -357,6 +360,22 @@ const getPlayerStatProgress = (value, type) => {
   const numericValue = Number(value ?? 0)
   if (Number.isNaN(numericValue)) return 0
   return Math.min(Math.max(numericValue, 0), 100)
+}
+
+const formatPlayHand = (hand) => {
+  if (hand === 'right') return 'Tay phải'
+  if (hand === 'left') return 'Tay trái'
+  if (hand === 'both') return 'Cả hai tay'
+  return 'Chưa cập nhật'
+}
+
+const getBirthYear = (dob) => {
+  if (!dob) return 'Chưa cập nhật'
+  try {
+    return new Date(dob).getFullYear()
+  } catch (e) {
+    return '---'
+  }
 }
 
 onMounted(fetchPlayers)
@@ -596,6 +615,11 @@ const getRegStatusType = (status) => {
               <el-date-picker v-model="createForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" :disabled-date="disabledDate" />
             </el-form-item>
           </el-col>
+          <el-col :span="24">
+            <el-form-item label="Đánh giá / Ghi chú của Ban quản trị">
+              <el-input type="textarea" v-model="createForm.admin_notes" :rows="3" placeholder="Nhập đánh giá, ghi chú hoặc thông tin từ ban quản trị..." />
+            </el-form-item>
+          </el-col>
         </el-row>
 
           </el-tab-pane>
@@ -709,6 +733,11 @@ const getRegStatusType = (status) => {
               <el-switch v-model="editForm.is_active" inline-prompt :active-text="$t('admin.active')" :inactive-text="$t('admin.locked')" />
             </el-form-item>
           </el-col>
+          <el-col :span="24">
+            <el-form-item label="Đánh giá / Ghi chú của Ban quản trị">
+              <el-input type="textarea" v-model="editForm.admin_notes" :rows="3" placeholder="Nhập đánh giá, ghi chú hoặc thông tin từ ban quản trị..." />
+            </el-form-item>
+          </el-col>
         </el-row>
 
           </el-tab-pane>
@@ -784,6 +813,21 @@ const getRegStatusType = (status) => {
       </template>
 
       <el-tabs type="border-card" class="detail-tabs" v-loading="detailsLoading">
+        <el-tab-pane label="Thông tin cá nhân & Ghi chú">
+          <el-descriptions :column="2" border size="small" v-if="selectedPlayer">
+            <el-descriptions-item label="Họ và tên">{{ selectedPlayer.user.full_name }}</el-descriptions-item>
+            <el-descriptions-item label="Số điện thoại">{{ formatPhone(selectedPlayer.user.phone) }}</el-descriptions-item>
+            <el-descriptions-item label="Email">{{ selectedPlayer.user.email }}</el-descriptions-item>
+            <el-descriptions-item label="Năm sinh">{{ getBirthYear(selectedPlayer.player_profile?.date_of_birth || selectedPlayer.user.date_of_birth) }}</el-descriptions-item>
+            <el-descriptions-item label="Câu lạc bộ hoạt động">{{ selectedPlayer.user.province || 'Chưa cập nhật' }}</el-descriptions-item>
+            <el-descriptions-item label="Tay thuận">{{ formatPlayHand(selectedPlayer.player_profile?.play_hand) }}</el-descriptions-item>
+            <el-descriptions-item label="Trình độ">{{ formatSkillLevel(selectedPlayer.player_profile?.skill_level) }}</el-descriptions-item>
+            <el-descriptions-item label="Sở trường">{{ selectedPlayer.player_profile?.preferred_category === 'Singles' ? 'Đơn' : (selectedPlayer.player_profile?.preferred_category === 'Doubles' ? 'Đôi' : 'Chưa cập nhật') }}</el-descriptions-item>
+            <el-descriptions-item label="Ghi chú của Ban quản trị" :span="2">
+              <div style="white-space: pre-line; min-height: 50px; font-style: italic;">{{ selectedPlayer.player_profile?.admin_notes || 'Không có ghi chú' }}</div>
+            </el-descriptions-item>
+          </el-descriptions>
+        </el-tab-pane>
         <el-tab-pane label="Lịch sử thi đấu">
           <el-table :data="matchHistory" stripe style="width: 100%" size="small" empty-text="Chưa có dữ liệu thi đấu">
             <el-table-column property="time" label="Thời gian" width="150" />

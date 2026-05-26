@@ -42,7 +42,7 @@ export default {
   resultLoss: 'LOSS',
   resultTbd: 'TBD',
   versus: 'vs',
-  defaultLocation: 'Saigon',
+  defaultLocation: 'No Club',
   unranked: 'Unranked',
   ytd: 'YTD',
   career: 'Career',

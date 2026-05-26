@@ -56,9 +56,10 @@ def read_tournaments(
 @router.get("/matches/all")
 def read_all_matches(
     limit: Optional[int] = Query(None, ge=1, le=100),
+    show_on_homepage: Optional[bool] = Query(None),
     db: Session = Depends(get_db)
 ):
-    return crud_tournament.get_all_matches_detail(db, limit=limit)
+    return crud_tournament.get_all_matches_detail(db, limit=limit, show_on_homepage=show_on_homepage)
 
 @router.get("/{tournament_id}", response_model=tournament_schemas.TournamentResponse)
 def read_tournament(tournament_id: int, db: Session = Depends(get_db)):
@@ -326,6 +327,8 @@ def update_match_from_draw(match_id: int, payload: tournament_schemas.AdminMatch
                 match.start_time = payload.start_time
             if payload.live_stream_url is not None:
                 match.live_stream_url = payload.live_stream_url
+            if payload.show_on_homepage is not None:
+                match.show_on_homepage = payload.show_on_homepage
             if "next_match_id" in payload.model_fields_set:
                 crud_tournament.validate_next_match_assignment(db, match, payload.next_match_id)
                 match.next_match_id = payload.next_match_id

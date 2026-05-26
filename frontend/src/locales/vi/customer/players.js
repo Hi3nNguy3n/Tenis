@@ -40,7 +40,7 @@ export default {
   resultLoss: 'THUA',
   resultTbd: 'CHỜ',
   versus: 'đấu với',
-  defaultLocation: 'Saigon',
+  defaultLocation: 'Chưa có câu lạc bộ',
   unranked: 'Chưa xếp hạng',
   ytd: 'Mùa này',
   career: 'Sự nghiệp',

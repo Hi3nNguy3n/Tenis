@@ -1,6 +1,9 @@
 # backend/app/schemas/player_schemas.py
 from pydantic import BaseModel, Field
 from typing import Optional
+# backend/app/schemas/player_schemas.py
+from pydantic import BaseModel, Field
+from typing import Optional
 from datetime import date
 
 class PlayerUpdate(BaseModel):
@@ -8,6 +11,7 @@ class PlayerUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=15)
     gender: Optional[str] = Field(None, description="male, female, other")
     date_of_birth: Optional[date] = None
+    admin_notes: Optional[str] = None
     province: Optional[str] = None       # Thêm trường này
     play_hand: Optional[str] = Field(None, description="right, left, both")
     skill_level: Optional[str] = None
@@ -54,6 +58,7 @@ class UserSummary(BaseModel):
     phone: Optional[str] = None
     avatar_url: Optional[str] = None
     province: Optional[str] = None
+    date_of_birth: Optional[date] = None
 
 class PlayerProfileSummary(BaseModel):
     id: int
@@ -64,6 +69,8 @@ class PlayerProfileSummary(BaseModel):
     matches_played: int
     win_rate: float
     gender: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    admin_notes: Optional[str] = None
     play_hand: Optional[str] = None
     skill_level: Optional[str] = None
     preferred_category: Optional[str] = None

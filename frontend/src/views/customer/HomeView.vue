@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import apiClient from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
 import { playerService } from '../../services/playerService'
@@ -9,6 +9,7 @@ import { currentLocale, t } from '../../utils/locale'
 import { Message, Check, Right, VideoPlay, Location } from '@element-plus/icons-vue'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 const isVideo = (url) => {
   if (!url) return false
@@ -29,10 +30,51 @@ const newsItems = computed(() => {
 })
 
 // === STATE ===
-const topPlayers = ref([])
+const activeRankingTab = ref('singles')
+const rawRankings = ref([])
 const recentMatches = ref([])
 const featuredTournaments = ref([])
+
+const topPlayers = computed(() => {
+  return rawRankings.value.slice(0, 10).map((p, index) => ({
+    ...p,
+    displayRank: index + 1
+  }))
+})
+
+const doublesRankings = computed(() => {
+  const sorted = [...rawRankings.value].sort((a, b) => (a.rank || 0) - (b.rank || 0))
+  const pairs = []
+  for (let index = 0; index < sorted.length; index += 2) {
+    const first = sorted[index]
+    const second = sorted[index + 1]
+    if (!first || !second) continue
+    pairs.push({
+      rank: pairs.length + 1,
+      player_id: `pair-${first.player_id}-${second.player_id}`,
+      full_name: `${first.full_name} / ${second.full_name}`,
+      p1_name: first.full_name,
+      p2_name: second.full_name,
+      p1_user_id: first.player_id,
+      p2_user_id: second.player_id,
+      elo_points: (first.elo_points || 0) + (second.elo_points || 0),
+      isDoublesPair: true
+    })
+  }
+  return pairs.slice(0, 10)
+})
+
+const displayedRankings = computed(() => {
+  if (activeRankingTab.value === 'doubles') return doublesRankings.value
+  return topPlayers.value
+})
 const h2hData = ref(null) 
+const h2hPairIndex = ref(0)
+const h2hLoading = ref(false)
+const h2hSelectedLeft = ref(null)
+const h2hSelectedRight = ref(null)
+const h2hShowSelectLeft = ref(false)
+const h2hShowSelectRight = ref(false)
 const homeTopBanners = ref([])
 const homeAdBanners = ref([])
 const marketingSponsors = ref([])
@@ -169,7 +211,7 @@ onMounted(async () => {
   Promise.all([
     newsService.getAllPosts({ limit: 5 }),
     playerService.getRankings({ limit: 10 }).catch(() => []),
-    apiClient.get('/api/tournaments/matches/all', { params: { limit: 30 } }).catch(() => []),
+    apiClient.get('/api/tournaments/matches/all', { params: { show_on_homepage: true, limit: 5 } }).catch(() => []),
     apiClient.get('/api/tournaments', { params: { limit: 4 } }).catch(() => []),
     apiClient.get('/api/marketing/banners', { params: { placement: 'home_top', limit: 3 } }).catch(() => []),
     apiClient.get('/api/marketing/banners', { params: { placement: 'home_ad', limit: 3 } }).catch(() => []),
@@ -183,16 +225,16 @@ onMounted(async () => {
     
     // 2. Xử lý Rankings
     const filteredRankings = (rankingsData || []).filter(p => !p.full_name?.toLowerCase().includes('admin'))
-    topPlayers.value = filteredRankings.slice(0, 10).map((p, index) => ({
+    rawRankings.value = filteredRankings.map((p, index) => ({
       ...p,
-      displayRank: index + 1
+      rank: index + 1
     }))
 
     // 3. Xử lý Matches
     const filteredMatches = (Array.isArray(matchesData) ? matchesData : []).filter(m => {
       const isP1Admin = m.p1_name?.toLowerCase().includes('admin')
       const isP2Admin = m.p2_name?.toLowerCase().includes('admin')
-      return !isP1Admin && !isP2Admin && hasDisplayableMatchData(m)
+      return !isP1Admin && !isP2Admin && hasDisplayableMatchData(m) && m.show_on_homepage === true
     })
     recentMatches.value = filteredMatches.slice(0, 5)
 
@@ -227,16 +269,79 @@ onMounted(async () => {
     }
 
     if (p1 && p2) {
-      h2hData.value = {
-        player1: p1,
-        player2: p2,
-        score1: Math.floor(Math.random() * 6),
-        score2: Math.floor(Math.random() * 6)
-      }
+      h2hSelectedLeft.value = p1.player_id
+      h2hSelectedRight.value = p2.player_id
+      loadH2HForPair(p1, p2)
     }
 
   }).catch(err => console.error("Lỗi tải dữ liệu Home:", err))
 })
+
+const goToMatch = (match) => {
+  if (match.tournament_id) {
+    router.push({
+      path: `/tournaments/${match.tournament_id}`,
+      query: { matchId: match.id }
+    })
+  }
+}
+
+const shuffleH2H = (direction = 1) => {
+  const players = topPlayers.value
+  if (players.length < 2 || h2hLoading.value) return
+
+  const allPairs = []
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      allPairs.push([players[i], players[j]])
+    }
+  }
+  if (allPairs.length === 0) return
+
+  h2hPairIndex.value = (h2hPairIndex.value + direction + allPairs.length) % allPairs.length
+  const [p1, p2] = allPairs[h2hPairIndex.value]
+  h2hSelectedLeft.value = p1.player_id
+  h2hSelectedRight.value = p2.player_id
+  loadH2HForPair(p1, p2)
+}
+
+const loadH2HForPair = (p1, p2) => {
+  if (!p1 || !p2 || p1.player_id === p2.player_id) return
+  h2hLoading.value = true
+  h2hData.value = {
+    player1: p1,
+    player2: p2,
+    score1: 0,
+    score2: 0
+  }
+  apiClient.get(`/api/players/h2h/compare/${p1.player_id}/${p2.player_id}`)
+    .then(res => {
+      if (res) {
+        h2hData.value.score1 = res.wins_a || 0
+        h2hData.value.score2 = res.wins_b || 0
+      }
+    })
+    .catch(err => console.error('L\u1ed7i l\u1ea5y l\u1ecbch s\u1eed \u0111\u1ed1i \u0111\u1ea7u:', err))
+    .finally(() => { h2hLoading.value = false })
+}
+
+const selectH2HPlayer = (side, player) => {
+  if (side === 'left') {
+    h2hSelectedLeft.value = player.player_id
+    h2hShowSelectLeft.value = false
+    const rightPlayer = topPlayers.value.find(p => p.player_id === h2hSelectedRight.value)
+    if (rightPlayer && player.player_id !== rightPlayer.player_id) {
+      loadH2HForPair(player, rightPlayer)
+    }
+  } else {
+    h2hSelectedRight.value = player.player_id
+    h2hShowSelectRight.value = false
+    const leftPlayer = topPlayers.value.find(p => p.player_id === h2hSelectedLeft.value)
+    if (leftPlayer && leftPlayer.player_id !== player.player_id) {
+      loadH2HForPair(leftPlayer, player)
+    }
+  }
+}
 </script>
 
 <template>
@@ -265,10 +370,10 @@ onMounted(async () => {
         </div>
         <div class="widget-tabs">
           <span class="active">{{ t('home.liveCompleted') }}</span>
-          <span>{{ t('home.schedule') }}</span>
+          <span @click="$router.push('/tournaments')" style="cursor: pointer;">{{ t('home.schedule') }}</span>
         </div>
         <div class="widget-body match-list">
-          <div v-for="match in recentMatches" :key="match.id" class="match-item">
+          <div v-for="match in recentMatches" :key="match.id" class="match-item" @click="goToMatch(match)" style="cursor: pointer;">
             <div class="match-context" :title="getMatchContext(match)">
               {{ getMatchContext(match) }}
             </div>
@@ -357,32 +462,64 @@ onMounted(async () => {
           <RouterLink to="/rankings" class="view-all">{{ t('home.viewAll') }} <el-icon><Right /></el-icon></RouterLink>
         </div>
         <div class="widget-tabs">
-          <span class="active">{{ t('home.singles') }}</span>
-          <span>{{ t('home.doubles') }}</span>
+          <span :class="{ active: activeRankingTab === 'singles' }" @click="activeRankingTab = 'singles'" style="cursor: pointer;">{{ t('home.singles') }}</span>
+          <span :class="{ active: activeRankingTab === 'doubles' }" @click="activeRankingTab = 'doubles'" style="cursor: pointer;">{{ t('home.doubles') }}</span>
         </div>
         <div class="widget-body ranking-list">
-          <div v-for="(player, index) in topPlayers" :key="player.player_id" class="ranking-row">
+          <div v-for="(player, index) in displayedRankings" :key="player.player_id" class="ranking-row">
             <div class="rank-pos">{{ index + 1 }}</div>
-            <div class="rank-name"><span class="flag"></span> {{ player.full_name }}</div>
+            <div class="rank-name">
+              <span class="flag"></span>
+              <template v-if="player.isDoublesPair">
+                <RouterLink :to="'/players/' + player.p1_user_id" class="player-link" style="color: inherit; text-decoration: none;">{{ player.p1_name }}</RouterLink>
+                <span> / </span>
+                <RouterLink :to="'/players/' + player.p2_user_id" class="player-link" style="color: inherit; text-decoration: none;">{{ player.p2_name }}</RouterLink>
+              </template>
+              <template v-else>
+                <RouterLink :to="'/players/' + player.player_id" class="player-link" style="color: inherit; text-decoration: none;">{{ player.full_name }}</RouterLink>
+              </template>
+            </div>
             <div class="rank-pts">{{ player.elo_points }}</div>
           </div>
-          <div v-if="topPlayers.length === 0" class="empty-state">{{ t('home.noRanking') }}</div>
+          <div v-if="displayedRankings.length === 0" class="empty-state">{{ t('home.noRanking') }}</div>
         </div>
       </div>
 
       <div class="h2h-widget" v-if="h2hData">
         <div class="h2h-header">
+          <button class="h2h-nav-btn" @click="shuffleH2H(-1)" :disabled="h2hLoading" title="C\u1eb7p tr\u01b0\u1edbc">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
           <h3>LEXUS <span class="h2h-logo">{{ t('home.h2h') }}</span></h3>
+          <button class="h2h-nav-btn" @click="shuffleH2H(1)" :disabled="h2hLoading" title="C\u1eb7p ti\u1ebfp">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
         </div>
         <div class="h2h-body">
           <div class="h2h-players">
             
             <div class="h2h-player">
-              <div class="h2h-avatar">
+              <div class="h2h-avatar" @click="h2hShowSelectLeft = !h2hShowSelectLeft" style="cursor: pointer;" title="Ch\u1ecdn v\u1eadn \u0111\u1ed9ng vi\u00ean">
                 <img :src="h2hData.player1.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player1.full_name}&background=random`" referrerpolicy="no-referrer" />
+                <div class="h2h-avatar-edit">\u270E</div>
               </div>
               <h4 class="h2h-name">{{ h2hData.player1.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
+              <div class="h2h-player-select" v-if="h2hShowSelectLeft">
+                <div class="h2h-select-list">
+                  <div
+                    v-for="p in topPlayers.filter(x => x.player_id !== h2hSelectedRight)"
+                    :key="p.player_id"
+                    class="h2h-select-item"
+                    :class="{ active: p.player_id === h2hSelectedLeft }"
+                    @click="selectH2HPlayer('left', p)"
+                  >
+                    <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}&background=random&size=28`" referrerpolicy="no-referrer" />
+                    <span>{{ p.full_name }}</span>
+                    <small>{{ p.elo_points }} pts</small>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="h2h-score-board">
@@ -392,11 +529,27 @@ onMounted(async () => {
             </div>
 
             <div class="h2h-player">
-              <div class="h2h-avatar">
+              <div class="h2h-avatar" @click="h2hShowSelectRight = !h2hShowSelectRight" style="cursor: pointer;" title="Ch\u1ecdn v\u1eadn \u0111\u1ed9ng vi\u00ean">
                 <img :src="h2hData.player2.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player2.full_name}&background=random`" referrerpolicy="no-referrer" />
+                <div class="h2h-avatar-edit">\u270E</div>
               </div>
               <h4 class="h2h-name">{{ h2hData.player2.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
+              <div class="h2h-player-select" v-if="h2hShowSelectRight">
+                <div class="h2h-select-list">
+                  <div
+                    v-for="p in topPlayers.filter(x => x.player_id !== h2hSelectedLeft)"
+                    :key="p.player_id"
+                    class="h2h-select-item"
+                    :class="{ active: p.player_id === h2hSelectedRight }"
+                    @click="selectH2HPlayer('right', p)"
+                  >
+                    <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}&background=random&size=28`" referrerpolicy="no-referrer" />
+                    <span>{{ p.full_name }}</span>
+                    <small>{{ p.elo_points }} pts</small>
+                  </div>
+                </div>
+              </div>
             </div>
 
           </div>
@@ -419,7 +572,9 @@ onMounted(async () => {
             </div>
           </div>
 
-          <button class="h2h-btn">{{ t('home.showH2h') }} <el-icon><Right /></el-icon></button>
+          <RouterLink to="/challenges" class="h2h-btn">
+            \u26A1 Th\u00e1ch \u0111\u1ea5u ngay <el-icon><Right /></el-icon>
+          </RouterLink>
         </div>
       </div>
 
@@ -921,21 +1076,74 @@ onMounted(async () => {
 }
 .h2h-header {
   padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center;
+  display: flex; align-items: center; justify-content: space-between;
 }
-.h2h-header h3 { font-size: 1.1rem; font-style: italic; font-weight: 800; margin: 0; color: #cbd5e1;}
+.h2h-header h3 { font-size: 1.1rem; font-style: italic; font-weight: 800; margin: 0; color: #cbd5e1; flex: 1;}
 .h2h-logo { color: white; font-size: 1.2rem;}
+
+.h2h-nav-btn {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1;
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease; flex-shrink: 0;
+}
+.h2h-nav-btn:hover:not(:disabled) { background: rgba(193,255,114,0.2); color: #c1ff72; border-color: #c1ff72; }
+.h2h-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.h2h-spinner {
+  display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #c1ff72; border-radius: 50%; animation: h2h-spin 0.6s linear infinite;
+}
+@keyframes h2h-spin { to { transform: rotate(360deg); } }
 
 .h2h-body { padding: 1.5rem; display: flex; flex-direction: column; align-items: center;}
 .h2h-players {
   display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 2rem;
 }
-.h2h-player { display: flex; flex-direction: column; align-items: center; width: 90px; text-align: center;}
+.h2h-player { display: flex; flex-direction: column; align-items: center; width: 90px; text-align: center; position: relative;}
 .h2h-avatar {
   width: 70px; height: 70px; border-radius: 50%; overflow: hidden; border: 2px solid #c1ff72; margin-bottom: 0.8rem;
+  position: relative;
 }
 .h2h-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.h2h-avatar-edit {
+  position: absolute; bottom: 0; right: 0;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #c1ff72; color: #002855;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  opacity: 0; transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.h2h-avatar:hover .h2h-avatar-edit { opacity: 1; }
 .h2h-name { font-size: 0.85rem; font-weight: 700; margin: 0 0 4px 0; line-height: 1.2;}
 .h2h-loc { font-size: 0.7rem; color: #94a3b8;}
+
+/* H2H PLAYER SELECTOR DROPDOWN */
+.h2h-player-select {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  z-index: 20; margin-top: 6px;
+  min-width: 200px;
+}
+.h2h-select-list {
+  background: #0f172a; border: 1px solid rgba(193,255,114,0.25);
+  border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+  max-height: 260px; overflow-y: auto;
+  padding: 6px 0;
+}
+.h2h-select-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; cursor: pointer;
+  transition: background 0.15s ease;
+  font-size: 0.82rem; color: #e2e8f0;
+}
+.h2h-select-item:hover { background: rgba(193,255,114,0.1); }
+.h2h-select-item.active { background: rgba(193,255,114,0.18); color: #c1ff72; }
+.h2h-select-item img {
+  width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.15); flex-shrink: 0;
+}
+.h2h-select-item span { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h2h-select-item small { color: #94a3b8; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; }
 
 .h2h-score-board { display: flex; align-items: center; gap: 1rem; }
 .score-number { font-size: 2.5rem; font-weight: 800; color: #c1ff72; }
@@ -951,10 +1159,11 @@ onMounted(async () => {
 
 .h2h-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white;
+  background: rgba(193,255,114,0.15); border: 1px solid rgba(193,255,114,0.3); color: #c1ff72;
   padding: 0.6rem 1.5rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem; cursor: pointer; transition: 0.2s;
+  text-decoration: none;
 }
-.h2h-btn:hover { background: white; color: #002855; }
+.h2h-btn:hover { background: #c1ff72; color: #002855; }
 
 
 /* NEWSLETTER & SHOP */
@@ -1136,5 +1345,10 @@ onMounted(async () => {
   .score-number { font-size: 2rem; }
   .tournament-grid { grid-template-columns: 1fr; }
   .logos { grid-template-columns: 1fr; }
+}
+
+.player-link:hover {
+  color: #00b0f0 !important;
+  text-decoration: underline !important;
 }
 </style>

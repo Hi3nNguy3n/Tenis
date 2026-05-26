@@ -139,6 +139,7 @@ class AdminMatchUpdate(BaseModel):
     image_url: Optional[str] = None
     next_match_id: Optional[int] = None
     advance_note: Optional[str] = None
+    show_on_homepage: Optional[bool] = None
 
 class PlayoffRequest(BaseModel):
     category_id: int

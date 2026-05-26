@@ -115,6 +115,7 @@ def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpd
     if update_data.skill_level is not None: player.skill_level = update_data.skill_level
     if update_data.preferred_category is not None: player.preferred_category = update_data.preferred_category
     if update_data.bio is not None: player.bio = update_data.bio
+    if update_data.admin_notes is not None: player.admin_notes = update_data.admin_notes
     if update_data.height_cm is not None: player.height_cm = update_data.height_cm
     if update_data.weight_kg is not None: player.weight_kg = update_data.weight_kg
     _apply_player_stat_updates(player, update_data)
@@ -259,6 +260,7 @@ def get_player_by_id(db: Session, player_id: int):
             "skill_level": p.skill_level,
             "preferred_category": p.preferred_category,
             "bio": p.bio,
+            "admin_notes": p.admin_notes,
             "height_cm": p.height_cm,
             "weight_kg": p.weight_kg,
             **{field: float(getattr(p, field) or 0) for field in PLAYER_STAT_FIELDS}

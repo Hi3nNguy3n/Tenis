@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { tournamentService } from '../../services/tournamentService' 
@@ -720,6 +720,7 @@ const openControlDialog = (m) => {
     image_url: m.image_url || '',
     next_match_id: m.next_match_id || null,
     advance_note: m.advance_note || '',
+    show_on_homepage: !!m.show_on_homepage,
     sets: parseScoreToSets(m.score_summary || '')
   }
   controlDialogVisible.value = true
@@ -838,6 +839,7 @@ const confirmControlMatch = async () => {
     image_url: controlForm.value.image_url?.trim() || null,
     next_match_id: controlForm.value.next_match_id || null,
     advance_note: controlForm.value.advance_note?.trim() || null,
+    show_on_homepage: !!controlForm.value.show_on_homepage,
   }
   savingControl.value = true
   try {
@@ -1368,6 +1370,9 @@ onMounted(async () => {
               show-word-limit
               placeholder="VD: Tiến đến vòng 2, vào bán kết..."
             />
+          </el-form-item>
+          <el-form-item label="Hiển thị lên trang chủ" style="margin-top: 10px;">
+            <el-switch v-model="controlForm.show_on_homepage" />
           </el-form-item>
         </section>
 

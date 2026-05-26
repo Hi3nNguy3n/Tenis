@@ -425,6 +425,66 @@ def get_h2h_history(
 
     return results
 
+@router.get("/h2h/compare/{user_a_id}/{user_b_id}")
+def get_h2h_compare(user_a_id: int, user_b_id: int, db: Session = Depends(get_db)):
+    """Lấy số trận đối đầu thực tế giữa player_a và player_b (qua user_id)"""
+    me = crud_player.get_player_by_user_id(db, user_a_id)
+    opponent = crud_player.get_player_by_user_id(db, user_b_id)
+    if not me or not opponent:
+        return {"wins_a": 0, "wins_b": 0}
+
+    # 1. Tìm các trận đấu GIẢI (Tournament)
+    my_regs = db.query(Registration.id).filter(Registration.player_id == me.id).all()
+    my_reg_ids = [r[0] for r in my_regs]
+    
+    opp_regs = db.query(Registration.id).filter(Registration.player_id == opponent.id).all()
+    opp_reg_ids = [r[0] for r in opp_regs]
+
+    tour_matches = db.query(Match).filter(
+        Match.status == "completed",
+        Match.tournament_id.is_not(None),
+        (
+            (Match.side_a_registration_id.in_(my_reg_ids) & Match.side_b_registration_id.in_(opp_reg_ids)) |
+            (Match.side_a_registration_id.in_(opp_reg_ids) & Match.side_b_registration_id.in_(my_reg_ids))
+        )
+    ).all()
+
+    # 2. Tìm các trận đấu GIAO HỮU / THÁCH ĐẤU (Friendly/Challenge)
+    friendly_matches = db.query(Match).filter(
+        Match.status == "completed",
+        Match.tournament_id.is_(None),
+        (
+            ((Match.player_a_id == me.id) & (Match.player_b_id == opponent.id)) |
+            ((Match.player_a_id == opponent.id) & (Match.player_b_id == me.id))
+        )
+    ).all()
+
+    all_matches = tour_matches + friendly_matches
+
+    wins_a = 0
+    wins_b = 0
+    for m in all_matches:
+        if m.tournament_id:
+            # check winner registration
+            if m.winner_registration_id in my_reg_ids:
+                wins_a += 1
+            elif m.winner_registration_id in opp_reg_ids:
+                wins_b += 1
+        else:
+            is_a_side_a = m.player_a_id == me.id
+            if m.winner_side == "side_a":
+                if is_a_side_a:
+                    wins_a += 1
+                else:
+                    wins_b += 1
+            elif m.winner_side == "side_b":
+                if is_a_side_a:
+                    wins_b += 1
+                else:
+                    wins_a += 1
+
+    return {"wins_a": wins_a, "wins_b": wins_b}
+
 # 2. API Lấy hồ sơ công khai của 1 người
 @router.get("/{player_id}", response_model=PlayerProfileDetailResponse)
 def get_public_profile(player_id: int, db: Session = Depends(get_db)):

@@ -33,7 +33,7 @@ export default {
   preferredCategory: 'Sở trường',
   singles: 'Đơn',
   doubles: 'Đôi',
-  province: 'Khu vực',
+  province: 'Câu lạc bộ hoạt động',
   dob: 'Ngày sinh',
   dobPlaceholder: 'Nhập hoặc chọn (DD/MM/YYYY)',
   clickToUpload: 'Nhấn để tải ảnh đại diện',

@@ -43,6 +43,15 @@ const editForm = ref({
   weight_kg: null
 })
 
+const getBirthYear = (dob) => {
+  if (!dob) return t('profile.notUpdated') || 'Chưa cập nhật'
+  try {
+    return new Date(dob).getFullYear()
+  } catch (e) {
+    return '---'
+  }
+}
+
 // --- LOGIC THÁCH ĐẤU ---
 const challenges = ref([])
 const activeTab = ref('info') // info, challenges, tournaments, security
@@ -327,7 +336,7 @@ const selectTab = (tab) => {
                 <div class="display-item"><label>{{ t('profile.fullName') }}</label><p>{{ authStore.user?.full_name || '---' }}</p></div>
                 <div class="display-item"><label>{{ t('profile.email') }}</label><p class="text-break email-value">{{ authStore.user?.email || '---' }}</p></div>
                 <div class="display-item"><label>{{ t('profile.phone') }}</label><p>{{ authStore.user?.phone || t('profile.notUpdated') }}</p></div>
-                <div class="display-item"><label>{{ t('profile.gender') }}</label><p>{{ authStore.user?.gender === 'male' ? t('profile.male') : authStore.user?.gender === 'female' ? t('profile.female') : t('profile.other') }}</p></div>
+                <div class="display-item"><label>{{ t('profile.birthYear') || 'Năm sinh' }}</label><p>{{ getBirthYear(authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth) }}</p></div>
                 
                 <div class="display-item"><label>{{ t('profile.dob') }}</label><p>{{ authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth ? new Date(authStore.profile?.player_profile?.date_of_birth || authStore.user?.date_of_birth).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US') : t('profile.notUpdated') }}</p></div>
                 <div class="display-item"><label>{{ t('profile.province') }}</label><p>{{ authStore.user?.province || t('profile.notUpdated') }}</p></div>
