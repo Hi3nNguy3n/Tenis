@@ -344,6 +344,21 @@ const formatElo = (val) => {
   return val.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
+const formatPlayerStatValue = (value, type) => {
+  const numericValue = Number(value ?? 0)
+  if (type === 'percent') {
+    return `${numericValue.toFixed(2).replace(/\.00$/, '')}%`
+  }
+  return formatElo(Number.isNaN(numericValue) ? 0 : numericValue)
+}
+
+const getPlayerStatProgress = (value, type) => {
+  if (type !== 'percent') return null
+  const numericValue = Number(value ?? 0)
+  if (Number.isNaN(numericValue)) return 0
+  return Math.min(Math.max(numericValue, 0), 100)
+}
+
 onMounted(fetchPlayers)
 
 const getSkillType = (skill) => {
@@ -359,6 +374,21 @@ const selectedPlayer = ref(null)
 const matchHistory = ref([])
 const tournamentList = ref([])
 const detailsLoading = ref(false)
+
+const selectedPlayerStatGroups = computed(() => {
+  const profile = selectedPlayer.value?.player_profile || {}
+  return playerStatGroups.map(group => ({
+    ...group,
+    fields: group.fields.map(([key, label, englishLabel, type]) => ({
+      key,
+      label,
+      englishLabel,
+      type,
+      value: profile[key] ?? 0,
+      progress: getPlayerStatProgress(profile[key], type)
+    }))
+  }))
+})
 
 const openDetailDialog = async (player) => {
   selectedPlayer.value = player
@@ -669,8 +699,8 @@ const getRegStatusType = (status) => {
           <el-col :span="12">
             <el-form-item :label="$t('admin.gender')">
               <el-radio-group v-model="editForm.gender">
-                <el-radio label="male">{{ $t('admin.male') }}</el-radio>
-                <el-radio label="female">{{ $t('admin.female') }}</el-radio>
+                <el-radio value="male">{{ $t('admin.male') }}</el-radio>
+                <el-radio value="female">{{ $t('admin.female') }}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
@@ -732,7 +762,7 @@ const getRegStatusType = (status) => {
     </el-dialog>
 
     <!-- PLAYER DETAILS DIALOG -->
-    <el-dialog v-model="isDetailDialogVisible" width="850px" class="saas-dialog detail-dialog" destroy-on-close>
+    <el-dialog v-model="isDetailDialogVisible" width="980px" class="saas-dialog detail-dialog" destroy-on-close>
       <template #header>
         <div class="detail-header">
           <div class="player-info-brief" v-if="selectedPlayer">
@@ -805,6 +835,37 @@ const getRegStatusType = (status) => {
             </el-table-column>
             <el-table-column property="payment_status" label="Thanh toán" width="120" />
           </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="Chỉ số thi đấu">
+          <div class="detail-stats-panel">
+            <section v-for="group in selectedPlayerStatGroups" :key="group.title" class="detail-stats-group">
+              <div class="detail-stats-group-head">
+                <div>
+                  <h4>{{ group.title }}</h4>
+                  <span>{{ group.subtitle }}</span>
+                </div>
+                <p>{{ group.description }}</p>
+              </div>
+
+              <div class="detail-stat-grid">
+                <article v-for="field in group.fields" :key="field.key" class="detail-stat-card">
+                  <div class="detail-stat-label">
+                    <strong>{{ field.label }}</strong>
+                    <small>{{ field.englishLabel }}</small>
+                  </div>
+                  <div class="detail-stat-value">{{ formatPlayerStatValue(field.value, field.type) }}</div>
+                  <el-progress
+                    v-if="field.type === 'percent'"
+                    :percentage="field.progress"
+                    :show-text="false"
+                    :stroke-width="7"
+                    class="detail-stat-progress"
+                  />
+                </article>
+              </div>
+            </section>
+          </div>
         </el-tab-pane>
       </el-tabs>
     </el-dialog>
@@ -1110,6 +1171,108 @@ const getRegStatusType = (status) => {
   margin-left: 4px;
 }
 
+.detail-stats-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.detail-stats-group {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.detail-stats-group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.detail-stats-group-head h4 {
+  margin: 0;
+  color: #002855;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.detail-stats-group-head span {
+  display: inline-block;
+  margin-top: 4px;
+  color: #059669;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detail-stats-group-head p {
+  max-width: 240px;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.detail-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-stat-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.detail-stat-label {
+  min-height: 42px;
+}
+
+.detail-stat-label strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.84rem;
+  line-height: 1.25;
+}
+
+.detail-stat-label small {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.detail-stat-value {
+  margin-top: 12px;
+  color: #002855;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.detail-stat-progress {
+  margin-top: 10px;
+}
+
+.detail-stat-progress :deep(.el-progress-bar__outer) {
+  background-color: #e2e8f0;
+}
+
+.detail-stat-progress :deep(.el-progress-bar__inner) {
+  background: linear-gradient(90deg, #0ea5e9 0%, #059669 100%);
+}
+
 .player-editor-dialog :deep(.el-dialog__body) {
   padding-top: 0;
 }
@@ -1254,15 +1417,18 @@ const getRegStatusType = (status) => {
 }
 
 @media (max-width: 960px) {
+  .detail-stats-panel,
   .stats-editor,
   .stat-field-grid {
     grid-template-columns: 1fr;
   }
 
+  .detail-stats-group-head,
   .stats-group-head {
     flex-direction: column;
   }
 
+  .detail-stats-group-head p,
   .stats-group-head p {
     max-width: none;
     text-align: left;

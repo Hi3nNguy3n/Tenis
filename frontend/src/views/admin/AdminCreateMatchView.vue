@@ -221,8 +221,8 @@ onMounted(fetchInitialData)
 
                   <el-form-item label="Thể thức trận đấu">
                     <el-radio-group v-model="form.match_type" size="default" style="width: 100%; display: flex;">
-                      <el-radio-button label="singles" style="flex: 1; text-align: center;">Đơn (1vs1)</el-radio-button>
-                      <el-radio-button label="doubles" style="flex: 1; text-align: center;">Đôi (2vs2)</el-radio-button>
+                      <el-radio-button value="singles" style="flex: 1; text-align: center;">Đơn (1vs1)</el-radio-button>
+                      <el-radio-button value="doubles" style="flex: 1; text-align: center;">Đôi (2vs2)</el-radio-button>
                     </el-radio-group>
                   </el-form-item>
                 </div>

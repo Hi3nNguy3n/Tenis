@@ -14,6 +14,8 @@ export default {
   loadRegistrationsError: 'Lỗi tải danh sách đăng ký',
 
   // Check-in
+  checkInTitle: 'Hệ thống Check-in',
+  checkInSub: 'Xác nhận vận động viên có mặt tại giải đấu',
   checkInSuccess: 'Check-in thành công!',
   checkInError: 'Lỗi khi check-in.',
   scanSuccess: 'Quét mã QR thành công! Đang xử lý...',

@@ -14,6 +14,8 @@ export default {
   loadRegistrationsError: 'Failed to load registrations',
 
   // Check-in
+  checkInTitle: 'Check-in System',
+  checkInSub: 'Confirm player attendance at the tournament',
   checkInSuccess: 'Check-in successful!',
   checkInError: 'Error during check-in.',
   scanSuccess: 'QR Code scanned successfully! Processing...',

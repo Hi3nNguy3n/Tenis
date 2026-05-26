@@ -314,8 +314,8 @@ onMounted(loadPlayers)
         <el-form label-position="top" class="atp-form">
           <el-form-item label="Hình thức thi đấu">
             <el-radio-group v-model="challengeForm.match_type" size="default" style="width: 100%; display: flex; margin-bottom: 10px;">
-              <el-radio-button label="singles" style="flex: 1; text-align: center;">Đấu đơn (1vs1)</el-radio-button>
-              <el-radio-button label="doubles" style="flex: 1; text-align: center;">Đấu đôi (2vs2)</el-radio-button>
+              <el-radio-button value="singles" style="flex: 1; text-align: center;">Đấu đơn (1vs1)</el-radio-button>
+              <el-radio-button value="doubles" style="flex: 1; text-align: center;">Đấu đôi (2vs2)</el-radio-button>
             </el-radio-group>
           </el-form-item>
 
