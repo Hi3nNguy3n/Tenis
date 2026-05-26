@@ -1,0 +1,71 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: tennis_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: DB_saigontenis
+    # Không cần map cổng ra host VPS để tránh xung đột cổng và tăng bảo mật.
+    # Các service nội bộ vẫn kết nối qua port 5432 trong Docker Network.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d DB_saigontenis"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tennis_backend
+    restart: always
+    environment:
+      - PORT=8000
+    env_file:
+      - ./backend/.env
+    # Không map cổng 8000 ra host để tránh xung đột. Nginx trong container frontend sẽ proxy nội bộ.
+    depends_on:
+      db:
+        condition: service_healthy
+
+  chat_service:
+    build:
+      context: ./chat_service
+      dockerfile: Dockerfile
+    container_name: tennis_chat_service
+    restart: always
+    environment:
+      - PORT=8001
+    env_file:
+      - ./chat_service/.env
+    # Không map cổng 8001 ra host để tránh xung đột. Nginx trong container frontend sẽ proxy nội bộ.
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Sử dụng relative paths để Nginx Gateway điều phối tự động mà không bị lỗi CORS
+        - VITE_API_BASE_URL=
+        - VITE_API_CHAT_URL=
+        # Thay thế localhost thành Domain hoặc IP VPS của bạn kèm cổng 3012 khi deploy
+        # Ví dụ: ws://12.34.56.78:3012 hoặc ws://yourdomain.com:3012
+        - VITE_WS_CHAT_URL=ws://localhost:3012
+    container_name: tennis_frontend
+    restart: always
+    ports:
+      # Map cổng 80 của container ra cổng rảnh 3012 của host VPS để tránh trùng với các container khác (như 3011, 3010, 3004, 3005...)
+      - "3012:80"
+    depends_on:
+      - backend
+      - chat_service
+
+volumes:
+  postgres_data:
