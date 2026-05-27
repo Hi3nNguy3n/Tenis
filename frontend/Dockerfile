@@ -6,7 +6,7 @@ WORKDIR /app
 # Copy dependency files
 COPY package*.json ./
 
-# Use npm install instead of npm ci to automatically sync and resolve lock file mismatches
+# Sử dụng npm install thay vì npm ci để tự động sửa lỗi lệch lock file
 RUN npm install
 
 # Copy frontend source code
