@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 from pathlib import Path
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from sqlalchemy.orm import Session
@@ -42,8 +43,13 @@ class ConnectionManager:
             self.global_users.remove(websocket)
 
     async def broadcast_global(self, message: dict):
-        for connection in self.global_users:
-            await connection.send_json(message)
+        results = await asyncio.gather(
+            *(connection.send_json(message) for connection in list(self.global_users)),
+            return_exceptions=True,
+        )
+        for connection, result in zip(list(self.global_users), results):
+            if isinstance(result, Exception):
+                self.disconnect_global(connection)
 
     async def connect_private(self, websocket: WebSocket, user_id: int):
         await websocket.accept()

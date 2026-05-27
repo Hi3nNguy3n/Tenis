@@ -25,6 +25,11 @@ services:
     restart: always
     environment:
       - PORT=8000
+      - DB_POOL_SIZE=10
+      - DB_MAX_OVERFLOW=20
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=180
+      - RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE=30
+      - UVICORN_LIMIT_CONCURRENCY=1000
     env_file:
       - ./backend/.env
     # Không map cổng 8000 ra host để tránh xung đột. Nginx trong container frontend sẽ proxy nội bộ.
@@ -40,6 +45,10 @@ services:
     restart: always
     environment:
       - PORT=8001
+      - DB_POOL_SIZE=5
+      - DB_MAX_OVERFLOW=10
+      - RATE_LIMIT_REQUESTS_PER_MINUTE=240
+      - UVICORN_LIMIT_CONCURRENCY=1000
     env_file:
       - ./chat_service/.env
     # Không map cổng 8001 ra host để tránh xung đột. Nginx trong container frontend sẽ proxy nội bộ.

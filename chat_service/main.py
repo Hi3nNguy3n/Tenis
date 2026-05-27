@@ -2,11 +2,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import chat
 from app.db.database import engine, Base
+from app.core.middleware import SecurityHeadersMiddleware, SimpleRateLimitMiddleware
+import os
 
 # Tự động tạo bảng khi chạy server
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Saigon Tennis - Chat Microservice")
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    SimpleRateLimitMiddleware,
+    requests_per_window=int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "120")),
+)
 
 origins = [
     "http://localhost:5173",

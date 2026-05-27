@@ -7,6 +7,7 @@ from app.db.seed import seed_data
 from app.core.config import settings
 from app.core.cloudinary_setup import init_cloudinary
 from app.core.tasks import start_scheduler
+from app.core.middleware import SecurityHeadersMiddleware, SimpleRateLimitMiddleware
 import logging
 
 from app.db.database import engine
@@ -17,6 +18,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Saigon Tennis Tour API")
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    SimpleRateLimitMiddleware,
+    requests_per_window=settings.RATE_LIMIT_REQUESTS_PER_MINUTE,
+    auth_requests_per_window=settings.RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE,
+)
 
 app.add_middleware(
     CORSMiddleware,

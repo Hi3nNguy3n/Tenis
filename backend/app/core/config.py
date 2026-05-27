@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     BREVO_API_KEY: str = ""
+    RATE_LIMIT_REQUESTS_PER_MINUTE: int = 120
+    RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE: int = 20
     # Auth - BẮT BUỘC (Chỉ khai báo kiểu chữ, không gán mặc định)
     SECRET_KEY: str 
     ALGORITHM: str = "HS256"
