@@ -5,7 +5,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin123
+      POSTGRES_PASSWORD: admin@123
       POSTGRES_DB: DB_saigontenis
     # Không cần map cổng ra host VPS để tránh xung đột cổng và tăng bảo mật.
     # Các service nội bộ vẫn kết nối qua port 5432 trong Docker Network.
