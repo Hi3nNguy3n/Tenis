@@ -1,13 +1,13 @@
 # Stage 1: Build Vue 3 app
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 # Copy dependency files
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies for build)
-RUN npm ci
+# Use npm install instead of npm ci to automatically sync and resolve lock file mismatches
+RUN npm install
 
 # Copy frontend source code
 COPY . .
