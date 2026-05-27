@@ -573,7 +573,7 @@ const selectH2HPlayer = (side, player) => {
           </div>
 
           <RouterLink to="/challenges" class="h2h-btn">
-            \u26A1 Th\u00e1ch \u0111\u1ea5u ngay <el-icon><Right /></el-icon>
+            ⚡ Thách đấu ngay <el-icon><Right /></el-icon>
           </RouterLink>
         </div>
       </div>
