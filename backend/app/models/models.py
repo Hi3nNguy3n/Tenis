@@ -137,6 +137,7 @@ class Tournament(Base):
     entry_fee_team = Column(Numeric(15, 2))
     max_participants = Column(Integer)
     description = Column(Text) # Thông tin chi tiết, điều lệ giải đấu
+    banner_url = Column(String(255), nullable=True)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

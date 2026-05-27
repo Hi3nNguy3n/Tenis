@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, Response
+from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, Response, UploadFile, File
+import cloudinary.uploader
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -30,6 +31,19 @@ def create_tournament(
     db: Session = Depends(get_db)
 ):
     return crud_tournament.create_tournament(db=db, tournament=tournament)
+
+# 1.1 TẢI ẢNH BANNER GIẢI ĐẤU (CHỈ ADMIN)
+@router.post("/upload-banner")
+def upload_tournament_banner(
+    file: UploadFile = File(...),
+    current_admin: User = Depends(get_current_admin)
+):
+    try:
+        result = cloudinary.uploader.upload(file.file, folder="saigon_tennis/banners")
+        return {"banner_url": result.get("secure_url")}
+    except Exception:
+        logger.exception("Tournament banner upload failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
     
 # 14. XÓA GIẢI ĐẤU (CHỈ ADMIN)
 @router.delete("/{tournament_id}")

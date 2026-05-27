@@ -38,6 +38,7 @@ class TournamentBase(BaseModel):
     entry_fee_team: Optional[float] = None
     max_participants: Optional[int] = None
     description: Optional[str] = None
+    banner_url: Optional[str] = None
 
 class TournamentCreate(TournamentBase):
     pass
@@ -61,6 +62,7 @@ class TournamentUpdate(BaseModel):
     entry_fee_team: Optional[float] = None
     max_participants: Optional[int] = None
     description: Optional[str] = None
+    banner_url: Optional[str] = None
 
 class TournamentResponse(TournamentBase):
     id: int

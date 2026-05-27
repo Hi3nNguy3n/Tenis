@@ -10,7 +10,7 @@ import {
   Message, Plus, Search, Refresh, Delete, 
   Edit, Trophy, DataAnalysis, Calendar as CalendarIcon, 
   User, Filter, EditPen, View, Download,
-  Share, Location as LocationIcon, List
+  Share, Location as LocationIcon, List, Picture
 } from '@element-plus/icons-vue'
 import { t, currentLocale } from '../../utils/locale'
 import { useRouter, useRoute } from 'vue-router'
@@ -185,6 +185,7 @@ const openEditDialog = (row) => {
     start_date: row.start_date || '',
     end_date: row.end_date || '',
     description: row.description || '',
+    banner_url: row.banner_url || '',
     categories: sanitizedCategories
   }
   isDialogOpen.value = true
@@ -361,6 +362,7 @@ const saveTournament = async () => {
       entry_fee: payload.entry_fee,
       entry_fee_team: payload.entry_fee_team,
       description: normalizeTournamentDescription(payload.description),
+      banner_url: payload.banner_url || null,
     }
 
     let tourId = form.value.id
@@ -447,11 +449,41 @@ const createDefaultForm = () => ({
   location: '', surface_type: 'Hard', registration_open_at: '',
   registration_close_at: '', start_date: '', end_date: '',
   entry_fee: 100000, entry_fee_team: 200000, description: '',
+  banner_url: '',
   categories: [
     { name: 'Đơn Nam', category_type: 'mens_singles', max_points: 1200, max_participants: 32 }
   ]
 })
 const form = ref(createDefaultForm())
+
+const bannerUploadLoading = ref(false)
+const handleBannerUpload = async (file) => {
+  const isImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
+  if (!isImage) {
+    ElMessage.error('Chỉ hỗ trợ tải lên tệp hình ảnh.')
+    return false
+  }
+
+  const isLt5M = file.size / 1024 / 1024 < 5
+  if (!isLt5M) {
+    ElMessage.error('Kích thước ảnh không được vượt quá 5MB.')
+    return false
+  }
+
+  bannerUploadLoading.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await apiClient.post('/api/tournaments/upload-banner', formData)
+    form.value.banner_url = res.banner_url
+    ElMessage.success('Tải ảnh banner lên thành công!')
+  } catch (err) {
+    ElMessage.error(err.response?.data?.detail || err.message || 'Tải ảnh banner lên thất bại.')
+  } finally {
+    bannerUploadLoading.value = false
+  }
+  return false
+}
 
 const deletedCategoryIds = ref([])
 
@@ -564,7 +596,10 @@ onMounted(() => {
         <el-table-column :label="$t('admin.tournamentName')" min-width="250">
           <template #default="{ row }">
             <div class="saas-tournament-cell">
-              <div class="tournament-icon"><el-icon><Trophy /></el-icon></div>
+              <div class="tournament-icon">
+                <img v-if="row.banner_url" :src="row.banner_url" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;" />
+                <el-icon v-else><Trophy /></el-icon>
+              </div>
               <div class="tournament-info">
                 <span class="tournament-name">{{ row.name }}</span>
                 <span class="tournament-meta">{{ row.location || 'N/A' }}</span>
@@ -631,10 +666,10 @@ onMounted(() => {
       class="saas-drawer"
     >
       <div v-if="selectedTournament" class="saas-drawer-content">
-        <div class="drawer-hero">
-          <div class="hero-icon"><el-icon><Trophy /></el-icon></div>
+        <div class="drawer-hero" :style="selectedTournament.banner_url ? `background-image: linear-gradient(rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.75)), url(${selectedTournament.banner_url}); background-size: cover; background-position: center; color: #ffffff;` : ''">
+          <div class="hero-icon" :style="selectedTournament.banner_url ? 'color: #f59e0b;' : ''"><el-icon><Trophy /></el-icon></div>
           <div class="hero-text">
-            <h2>{{ selectedTournament.name }}</h2>
+            <h2 :style="selectedTournament.banner_url ? 'color: #ffffff;' : ''">{{ selectedTournament.name }}</h2>
             <div class="hero-badges">
               <el-tag :type="selectedTournament.status === 'open' ? 'success' : 'info'" effect="dark">{{ selectedTournament.status.toUpperCase() }}</el-tag>
               <!-- REMOVED REDUNDANT CATEGORY TYPE TAG -->
@@ -826,6 +861,37 @@ onMounted(() => {
               </el-form-item>
             </el-col>
           </el-row>
+        </div>
+        
+        <!-- Section: Tournament Banner -->
+        <div class="form-section">
+          <div class="section-header">
+            <el-icon><Picture /></el-icon>
+            <span>Ảnh Banner giải đấu</span>
+          </div>
+          <el-form-item label="Tải lên Banner">
+            <div style="display: flex; align-items: center; gap: 16px; width: 100%;">
+              <el-upload
+                class="banner-uploader"
+                action=""
+                :show-file-list="false"
+                :before-upload="handleBannerUpload"
+                :disabled="bannerUploadLoading"
+              >
+                <el-button type="primary" plain :loading="bannerUploadLoading" :icon="Plus">
+                  Chọn hình ảnh
+                </el-button>
+              </el-upload>
+              <el-input v-model="form.banner_url" placeholder="Hoặc nhập URL ảnh banner..." clearable style="flex: 1;" />
+            </div>
+            <p class="form-help-text" style="margin-top: 8px; color: #64748b; font-size: 0.85rem;">
+              Kích thước khuyến nghị: 1200x400px (tỷ lệ 3:1). Hỗ trợ JPG, PNG, WEBP tối đa 5MB.
+            </p>
+            <div v-if="form.banner_url" class="banner-preview-wrapper" style="margin-top: 12px;">
+              <img :src="form.banner_url" class="banner-preview-img" />
+              <el-button type="danger" size="small" circle :icon="Delete" class="banner-delete-btn" @click="form.banner_url = ''" />
+            </div>
+          </el-form-item>
         </div>
 
         <!-- Section: Competition Config -->
@@ -1387,5 +1453,31 @@ onMounted(() => {
 @media (max-width: 768px) {
   .saas-stats-grid { grid-template-columns: 1fr 1fr; }
   .saas-search { width: 100%; }
+}
+.banner-uploader {
+  display: inline-block;
+}
+.banner-preview-wrapper {
+  position: relative;
+  width: 100%;
+  max-height: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.banner-preview-img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+}
+.banner-delete-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 </style>

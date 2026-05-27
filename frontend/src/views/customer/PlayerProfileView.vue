@@ -11,40 +11,21 @@ import {
   DataLine,
   Medal,
   Right,
-  VideoPlay,
-  Close,
-  CircleCheck,
-  InfoFilled
+  VideoPlay
 } from '@element-plus/icons-vue'
-import { Calendar as CalendarIcon } from '@element-plus/icons-vue'
 import { apiClient } from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
-import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const playerId = route.params.id
 
-const authStore = useAuthStore()
 const playerData = ref(null)
 const matchHistory = ref([])
 const tournaments = ref([])
 const rawNewsPosts = ref([])
 const isLoading = ref(true)
-const activeTab = ref('challenge') // Mặc định chọn tab Thách đấu
-const playersList = ref([])
-const h2hCompareData = ref(null)
-const h2hHistory = ref([])
-
-// Hộp thoại Thách đấu
-const showChallengeDialog = ref(false)
-const challengeForm = ref({ 
-  date: '', 
-  notes: '',
-  match_type: 'singles',
-  challenger_partner_id: null,
-  challenged_partner_id: null
-})
+const activeTab = ref('overview')
 
 const profile = computed(() => playerData.value?.player_profile || {})
 const user = computed(() => playerData.value?.user || {})
@@ -60,6 +41,21 @@ const isVideo = (url) => {
   if (!url) return false
   return /\.(mp4|webm|ogg)$/i.test(url)
 }
+
+const newsItems = computed(() => {
+  return rawNewsPosts.value.map(post => ({
+    id: post.id,
+    slug: post.slug || post.id,
+    title: post.title,
+    date: new Date(post.publish_at || post.created_at).toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US'),
+    category: t('players.tennisNews'),
+    excerpt: post.summary,
+    image: post.media_url || post.thumbnail_url || 'https://images.unsplash.com/photo-1595435934249-5df7ed86e1f4?auto=format&fit=crop&q=80&w=800'
+  }))
+})
+
+const featuredNews = computed(() => newsItems.value[0])
+const sideNews = computed(() => newsItems.value.slice(1, 4))
 
 const formatStatValue = (value, type) => {
   const numeric = Number(value || 0)
@@ -101,74 +97,19 @@ const playerStatGroups = computed(() => {
   ]
 })
 
-const isOwnProfile = computed(() => {
-  if (!authStore.user || !user.value) return false
-  return Number(authStore.user.user_id) === Number(user.value.user_id)
-})
-
-const myPlayer = computed(() => {
-  if (!playersList.value || !Array.isArray(playersList.value)) return null
-  return playersList.value.find(p => p.full_name === authStore.user?.full_name)
-})
-const myPlayerId = computed(() => myPlayer.value?.player_id || null)
-
-const myPartnerOptions = computed(() => {
-  if (!playersList.value || !Array.isArray(playersList.value)) return []
-  return playersList.value.filter(p => {
-    const isMe = p.player_id === myPlayerId.value
-    const isOpponent = p.player_id === Number(playerId)
-    const isAdmin = p.full_name?.toLowerCase().includes('admin')
-    return !isMe && !isOpponent && !isAdmin
-  })
-})
-
-const opponentPartnerOptions = computed(() => {
-  if (!playersList.value || !Array.isArray(playersList.value)) return []
-  return playersList.value.filter(p => {
-    const isMe = p.player_id === myPlayerId.value
-    const isOpponent = p.player_id === Number(playerId)
-    const isMyPartner = p.player_id === challengeForm.value.challenger_partner_id
-    const isAdmin = p.full_name?.toLowerCase().includes('admin')
-    return !isMe && !isOpponent && !isMyPartner && !isAdmin
-  })
-})
-
 onMounted(async () => {
   try {
-    authStore.hydrate()
-    const [profileRes, historyRes, tourRes] = await Promise.all([
+    const [profileRes, historyRes, tourRes, newsRes] = await Promise.all([
       apiClient.get(`/api/players/${playerId}`),
       apiClient.get(`/api/players/${playerId}/history`),
-      apiClient.get(`/api/players/${playerId}/tournaments`)
+      apiClient.get(`/api/players/${playerId}/tournaments`),
+      newsService.getAllPosts({ limit: 6 }).catch(() => [])
     ])
 
     playerData.value = profileRes
     matchHistory.value = historyRes || []
     tournaments.value = tourRes || []
-
-    // Tải danh sách ELO để chọn đồng đội đấu đôi
-    try {
-      const data = await apiClient.get('/api/players/rankings')
-      playersList.value = Array.isArray(data) ? data : []
-    } catch (err) {
-      console.error(err)
-    }
-
-    // Tải thông tin đối đầu H2H nếu không phải xem chính mình
-    if (authStore.isAuthenticated && authStore.user && user.value && !isOwnProfile.value) {
-      try {
-        const compare = await apiClient.get(`/api/players/h2h/compare/${authStore.user.user_id}/${user.value.user_id}`)
-        h2hCompareData.value = compare
-      } catch (err) {
-        console.error(err)
-      }
-      try {
-        const history = await apiClient.get(`/api/players/h2h/${playerId}`)
-        h2hHistory.value = history || []
-      } catch (err) {
-        console.error(err)
-      }
-    }
+    rawNewsPosts.value = (newsRes || []).sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
   } catch (err) {
     console.error(err)
     ElMessage.error(t('common.errorLoading'))
@@ -215,49 +156,13 @@ const getResultLabel = (status) => {
   return t('players.resultTbd')
 }
 
-const openChallenge = () => {
-  challengeForm.value = { 
-    date: '', 
-    notes: '', 
-    match_type: 'singles',
-    challenger_partner_id: null,
-    challenged_partner_id: null
-  }
-  showChallengeDialog.value = true
-}
-
-const sendChallengeRequest = async () => {
-  if (!challengeForm.value.date) return ElMessage.warning(t('challenges.selectDateWarning') || 'Vui lòng chọn ngày đề xuất thách đấu!')
-  
-  if (challengeForm.value.match_type === 'doubles') {
-    if (!challengeForm.value.challenger_partner_id || !challengeForm.value.challenged_partner_id) {
-      return ElMessage.warning('Vui lòng chọn đầy đủ đồng đội cho cả hai bên khi thách đấu đôi!')
-    }
-  }
-
-  try {
-    await apiClient.post('/api/challenges/', {
-      challenged_id: Number(playerId),
-      proposed_date: challengeForm.value.date,
-      notes: challengeForm.value.notes,
-      match_type: challengeForm.value.match_type,
-      challenger_partner_id: challengeForm.value.match_type === 'doubles' ? challengeForm.value.challenger_partner_id : null,
-      challenged_partner_id: challengeForm.value.match_type === 'doubles' ? challengeForm.value.challenged_partner_id : null
-    })
-    ElMessage.success(t('challenges.requestSentSuccess') || 'Đã gửi lời mời thách đấu thành công! Vui lòng chờ đối thủ xác nhận.')
-    showChallengeDialog.value = false
-  } catch (err) { 
-    const errorMsg = err.response?.data?.detail || t('challenges.requestSendError') || 'Gửi lời mời thách đấu thất bại.'
-    ElMessage.error(errorMsg) 
-  }
-}
-
-const tabs = computed(() => [
-  { key: 'challenge', label: currentLocale.value === 'vi' ? 'Thách đấu' : 'Challenge' },
-  { key: 'activity', label: currentLocale.value === 'vi' ? 'Kết quả' : 'Results' },
-  { key: 'stats', label: currentLocale.value === 'vi' ? 'Đối đầu' : 'Head to Head' },
-  { key: 'ranking', label: currentLocale.value === 'vi' ? 'Xếp hạng' : 'Ranking' }
-])
+const tabs = [
+  { key: 'overview', labelKey: 'players.profileOverview' },
+  { key: 'bio', labelKey: 'players.profileBio' },
+  { key: 'activity', labelKey: 'players.profileActivity' },
+  { key: 'stats', labelKey: 'players.profileStats' },
+  { key: 'ranking', labelKey: 'players.profileRanking' }
+]
 </script>
 
 <template>
@@ -318,7 +223,7 @@ const tabs = computed(() => [
             :class="{ active: activeTab === tab.key }"
             @click="activeTab = tab.key"
           >
-            {{ tab.label }}
+            {{ t(tab.labelKey) }}
           </button>
         </nav>
       </div>
@@ -326,127 +231,100 @@ const tabs = computed(() => [
 
     <div class="container content-grid" v-if="playerData">
       <main class="main-column">
-        <!-- TAB 1: THÁCH ĐẤU & THÔNG TIN CHUNG -->
-        <div v-if="activeTab === 'challenge'" class="tab-content-wrapper">
-          <!-- Banner Thách đấu -->
-          <section class="content-card challenge-banner-card">
-            <div class="challenge-banner-inner">
-              <div class="banner-icon-box">
-                <el-icon class="banner-trophy-icon"><Trophy /></el-icon>
+        <section v-if="activeTab === 'overview'" class="content-card">
+          <div class="section-head">
+            <h2>{{ t('players.personalDetails') }}</h2>
+            <span></span>
+          </div>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <div class="item-label-wrap">
+                <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #3b82f6;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <label>{{ t('profile.birthYear') || 'Năm sinh' }}</label>
               </div>
-              <div class="banner-details">
-                <h3>{{ isOwnProfile ? 'Hồ sơ cá nhân của bạn' : 'Gửi lời mời thách đấu' }}</h3>
-                <p v-if="!isOwnProfile">
-                  Thử sức và giao lưu trực tiếp với tay vợt <strong>{{ user.full_name }}</strong> để cọ xát, ghi nhận kết quả trận đấu và tích lũy điểm số ELO thăng hạng.
-                </p>
-                <p v-else>
-                  Hồ sơ của bạn đã sẵn sàng nhận các lời mời thách đấu từ cộng đồng. Bạn có thể theo dõi và phản hồi các kèo thách đấu trong trang cá nhân.
-                </p>
-                <button v-if="!isOwnProfile" class="btn-atp-solid challenge-cta-btn" @click="openChallenge">
-                  Thách đấu ngay <el-icon><Right /></el-icon>
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <!-- Thông tin cá nhân -->
-          <section class="content-card info-section">
-            <div class="section-head">
-              <h2>{{ t('players.personalDetails') }}</h2>
-              <span></span>
-            </div>
-            <div class="detail-grid">
-              <div class="detail-item">
-                <div class="item-label-wrap">
-                  <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #3b82f6;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                  <label>{{ t('profile.birthYear') || 'Năm sinh' }}</label>
-                </div>
-                <p>{{ getBirthYear(profile.date_of_birth || user.date_of_birth) }}</p>
-              </div>
-              
-              <div class="detail-item">
-                <div class="item-label-wrap">
-                  <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #10b981;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-                  <label>{{ t('profile.province') }}</label>
-                </div>
-                <p>{{ user.province || t('profile.notUpdated') }}</p>
-              </div>
-              
-              <div class="detail-item">
-                <div class="item-label-wrap">
-                  <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                  <label>{{ t('profile.playHand') }}</label>
-                </div>
-                <p>{{ formatPlayHand(profile.play_hand) }}</p>
-              </div>
-              
-              <div class="detail-item">
-                <div class="item-label-wrap">
-                  <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                  <label>{{ t('profile.phone') }}</label>
-                </div>
-                <p>{{ user.phone || t('profile.notUpdated') }}</p>
-              </div>
-              
-              <div class="detail-item">
-                <div class="item-label-wrap">
-                  <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #ec4899;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                  <label>{{ t('profile.height') }}</label>
-                </div>
-                <p>{{ profile.height_cm ? `${profile.height_cm} cm` : t('profile.notUpdated') }}</p>
-              </div>
-              
-              <div class="detail-item">
-                <div class="item-label-wrap">
-                  <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #14b8a6;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
-                  <label>{{ t('profile.weight') }}</label>
-                </div>
-                <p>{{ profile.weight_kg ? `${profile.weight_kg} kg` : t('profile.notUpdated') }}</p>
-              </div>
-            </div>
-          </section>
-
-          <!-- Đánh giá từ Ban quản trị -->
-          <section v-if="profile.admin_notes" class="content-card admin-evaluation-card">
-            <div class="evaluation-header">
-              <div class="evaluation-badge">
-                <el-icon class="badge-icon"><Trophy /></el-icon>
-                <span>{{ t('profile.adminNotes') || 'Đánh giá từ Ban quản trị' }}</span>
-              </div>
-              <div class="official-stamp">
-                <span class="stamp-dot"></span>
-                <span>Saigon Tennis Tours Official</span>
-              </div>
+              <p>{{ getBirthYear(profile.date_of_birth || user.date_of_birth) }}</p>
             </div>
             
-            <div class="evaluation-body">
-              <span class="quote-mark open">“</span>
-              <p class="evaluation-text">{{ profile.admin_notes }}</p>
-              <span class="quote-mark close">”</span>
+            <div class="detail-item">
+              <div class="item-label-wrap">
+                <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #10b981;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <label>{{ t('profile.province') }}</label>
+              </div>
+              <p>{{ user.province || t('profile.notUpdated') }}</p>
             </div>
+            
+            <div class="detail-item">
+              <div class="item-label-wrap">
+                <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #f59e0b;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <label>{{ t('profile.playHand') }}</label>
+              </div>
+              <p>{{ formatPlayHand(profile.play_hand) }}</p>
+            </div>
+            
+            <div class="detail-item">
+              <div class="item-label-wrap">
+                <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                <label>{{ t('profile.phone') }}</label>
+              </div>
+              <p>{{ user.phone || t('profile.notUpdated') }}</p>
+            </div>
+            
+            <div class="detail-item">
+              <div class="item-label-wrap">
+                <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #ec4899;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <label>{{ t('profile.height') }}</label>
+              </div>
+              <p>{{ profile.height_cm ? `${profile.height_cm} cm` : t('profile.notUpdated') }}</p>
+            </div>
+            
+            <div class="detail-item">
+              <div class="item-label-wrap">
+                <svg class="item-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #14b8a6;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                <label>{{ t('profile.weight') }}</label>
+              </div>
+              <p>{{ profile.weight_kg ? `${profile.weight_kg} kg` : t('profile.notUpdated') }}</p>
+            </div>
+          </div>
+        </section>
 
-            <div class="evaluation-footer">
-              <div class="author-wrap">
-                <div class="author-avatar">STT</div>
-                <div class="author-info">
-                  <strong>Ban chuyên môn Saigon Tennis Tours</strong>
-                  <span>Ban quản trị & Trọng tài chính</span>
-                </div>
+        <!-- Đánh giá từ Ban quản trị -->
+        <section v-if="activeTab === 'overview' && profile.admin_notes" class="content-card admin-evaluation-card">
+          <div class="evaluation-header">
+            <div class="evaluation-badge">
+              <el-icon class="badge-icon"><Trophy /></el-icon>
+              <span>{{ t('profile.adminNotes') || 'Đánh giá từ Ban quản trị' }}</span>
+            </div>
+            <div class="official-stamp">
+              <span class="stamp-dot"></span>
+              <span>Saigon Tennis Tours Official</span>
+            </div>
+          </div>
+          
+          <div class="evaluation-body">
+            <span class="quote-mark open">“</span>
+            <p class="evaluation-text">{{ profile.admin_notes }}</p>
+            <span class="quote-mark close">”</span>
+          </div>
+
+          <div class="evaluation-footer">
+            <div class="author-wrap">
+              <div class="author-avatar">STT</div>
+              <div class="author-info">
+                <strong>Ban chuyên môn Saigon Tennis Tours</strong>
+                <span>Ban quản trị & Trọng tài chính</span>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <!-- Tiểu sử -->
-          <section class="content-card bio-section">
-            <div class="section-head">
-              <h2>{{ t('players.biography') }}</h2>
-              <span></span>
-            </div>
-            <p class="bio-text">{{ profile.bio || t('players.emptyBio') }}</p>
-          </section>
-        </div>
+        <section v-else-if="activeTab === 'bio'" class="content-card">
+          <div class="section-head">
+            <h2>{{ t('players.biography') }}</h2>
+            <span></span>
+          </div>
+          <p class="bio-text">{{ profile.bio || t('players.emptyBio') }}</p>
+        </section>
 
-        <!-- TAB 2: KẾT QUẢ THI ĐẤU -->
         <section v-else-if="activeTab === 'activity'" class="content-card">
           <div class="section-head">
             <h2>{{ t('players.playerActivity') }}</h2>
@@ -466,85 +344,27 @@ const tabs = computed(() => [
           </div>
         </section>
 
-        <!-- TAB 3: ĐỐI ĐẦU -->
-        <div v-else-if="activeTab === 'stats'" class="tab-content-wrapper">
-          <!-- Widget So Sánh Đối Đầu Thực Tế -->
-          <section v-if="!isOwnProfile" class="content-card h2h-comparison-card">
-            <div class="section-head">
-              <h2>Lịch sử đối đầu trực tiếp</h2>
-              <span></span>
-            </div>
-
-            <!-- Stats Ratio Bar -->
-            <div class="h2h-compare-overview" v-if="h2hCompareData">
-              <div class="player-summary left">
-                <span class="p-label">Bạn</span>
-                <span class="p-wins-count">{{ h2hCompareData.wins_a }} thắng</span>
-              </div>
-              <div class="h2h-ratio-bar">
-                <div class="ratio-fill-left" :style="{ width: `${(h2hCompareData.wins_a + h2hCompareData.wins_b) > 0 ? (h2hCompareData.wins_a / (h2hCompareData.wins_a + h2hCompareData.wins_b) * 100) : 50}%` }"></div>
-                <div class="ratio-vs">VS</div>
-                <div class="ratio-fill-right" :style="{ width: `${(h2hCompareData.wins_a + h2hCompareData.wins_b) > 0 ? (h2hCompareData.wins_b / (h2hCompareData.wins_a + h2hCompareData.wins_b) * 100) : 50}%` }"></div>
-              </div>
-              <div class="player-summary right">
-                <span class="p-label">{{ user.full_name }}</span>
-                <span class="p-wins-count">{{ h2hCompareData.wins_b }} thắng</span>
-              </div>
-            </div>
-
-            <!-- Match history list between the two -->
-            <div class="h2h-history-list">
-              <div v-if="h2hHistory.length === 0" class="h2h-history-empty">
-                <el-empty description="Hai người chơi chưa từng gặp nhau trong các giải đấu hoặc trận thách đấu chính thức." :image-size="80" />
-              </div>
-              <div v-else class="match-list">
-                <div v-for="(item, idx) in h2hHistory" :key="idx" class="match-item" :class="item.type">
-                  <div class="result-pill">{{ item.type === 'win' ? 'BẠN THẮNG' : 'BẠN THUA' }}</div>
-                  <div class="match-detail">
-                    <strong>Trận đấu trực tiếp</strong>
-                    <div class="teams-line">Bạn vs {{ user.full_name }}</div>
-                    <small>Thời gian: {{ item.date }}</small>
-                  </div>
-                  <div class="score-pill">{{ item.score }}</div>
+        <section v-else-if="activeTab === 'stats'" class="content-card">
+          <div class="section-head">
+            <h2>{{ t('players.profileStats') }}</h2>
+            <span></span>
+          </div>
+          <div class="atp-stats-grid">
+            <div v-for="group in playerStatGroups" :key="group.title" class="atp-stat-column">
+              <h3>{{ group.title }}</h3>
+              <div v-for="[label, value, type] in group.items" :key="label" class="atp-stat-row">
+                <div class="stat-line">
+                  <span>{{ label }}</span>
+                  <strong>{{ formatStatValue(value, type) }}</strong>
+                </div>
+                <div v-if="type === 'percent'" class="stat-bar">
+                  <span :style="{ width: `${Math.min(Number(value || 0), 100)}%` }"></span>
                 </div>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section v-else class="content-card own-h2h-card">
-            <div class="section-head">
-              <h2>Lịch sử đối đầu trực tiếp</h2>
-              <span></span>
-            </div>
-            <p class="notice-desc">
-              Đây là hồ sơ cá nhân của bạn. Vui lòng chọn một vận động viên khác tại Sảnh Thách đấu hoặc danh sách vận động viên để so sánh thông tin đối đầu.
-            </p>
-          </section>
-
-          <!-- ATP Style Stats -->
-          <section class="content-card stats-section">
-            <div class="section-head">
-              <h2>{{ t('players.profileStats') }}</h2>
-              <span></span>
-            </div>
-            <div class="atp-stats-grid">
-              <div v-for="group in playerStatGroups" :key="group.title" class="atp-stat-column">
-                <h3>{{ group.title }}</h3>
-                <div v-for="[label, value, type] in group.items" :key="label" class="atp-stat-row">
-                  <div class="stat-line">
-                    <span>{{ label }}</span>
-                    <strong>{{ formatStatValue(value, type) }}</strong>
-                  </div>
-                  <div v-if="type === 'percent'" class="stat-bar">
-                    <span :style="{ width: `${Math.min(Number(value || 0), 100)}%` }"></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <!-- TAB 4: XẾP HẠNG -->
         <section v-else class="content-card">
           <div class="section-head">
             <h2>{{ t('players.profileRanking') }}</h2>
@@ -557,100 +377,38 @@ const tabs = computed(() => [
           </div>
         </section>
       </main>
+
+      <aside class="side-column">
+        <section class="content-card compact news-panel">
+          <div class="side-heading">
+            <h3>{{ t('players.relatedNews') }}</h3>
+            <RouterLink to="/news" class="view-all-link">{{ t('players.viewAll') }} <el-icon><Right /></el-icon></RouterLink>
+          </div>
+
+          <RouterLink v-if="featuredNews" :to="`/news/${featuredNews.slug}`" class="featured-news">
+            <video v-if="isVideo(featuredNews.image)" :src="featuredNews.image" autoplay muted loop playsinline></video>
+            <img v-else :src="featuredNews.image" alt="" referrerpolicy="no-referrer" />
+            <span v-if="isVideo(featuredNews.image)" class="play-icon"><el-icon><VideoPlay /></el-icon></span>
+            <div>
+              <span>{{ featuredNews.category }}</span>
+              <h4>{{ featuredNews.title }}</h4>
+              <small>{{ featuredNews.date }}</small>
+            </div>
+          </RouterLink>
+
+          <div class="news-mini-list">
+            <RouterLink v-for="news in sideNews" :key="news.id" :to="`/news/${news.slug}`" class="news-mini-row">
+              <img :src="news.image" alt="" referrerpolicy="no-referrer" />
+              <div>
+                <p>{{ news.title }}</p>
+                <small>{{ news.date }}</small>
+              </div>
+            </RouterLink>
+            <el-empty v-if="!newsItems.length" :description="t('players.updatingPosts')" />
+          </div>
+        </section>
+      </aside>
     </div>
-
-    <!-- HỘP THOẠI GỬI LỜI MỜI THÁCH ĐẤU -->
-    <el-dialog v-model="showChallengeDialog" :show-close="false" width="90%" style="max-width: 450px" class="atp-modal">
-      <template #header>
-        <div class="modal-custom-header">
-          <h3>GỬI LỜI MỜI THÁCH ĐẤU</h3>
-          <button class="close-btn" @click="showChallengeDialog = false"><el-icon><Close /></el-icon></button>
-        </div>
-      </template>
-
-      <div class="modal-body">
-        <div class="challenge-target">
-          <img :src="user.avatar_url || 'https://ui-avatars.com/api/?background=05205c&color=fff&name=' + encodeURIComponent(user.full_name)" alt="" class="target-avatar" referrerpolicy="no-referrer" />
-          <div class="target-info">
-            <span>ĐỐI THỦ</span>
-            <strong>{{ user.full_name }}</strong>
-          </div>
-        </div>
-
-        <el-form label-position="top" class="atp-form">
-          <el-form-item label="Hình thức thi đấu">
-            <el-radio-group v-model="challengeForm.match_type" size="default" style="width: 100%; display: flex; margin-bottom: 10px;">
-              <el-radio-button value="singles" style="flex: 1; text-align: center;">Đấu đơn (1vs1)</el-radio-button>
-              <el-radio-button value="doubles" style="flex: 1; text-align: center;">Đấu đôi (2vs2)</el-radio-button>
-            </el-radio-group>
-          </el-form-item>
-
-          <div v-if="challengeForm.match_type === 'doubles'" class="doubles-select-section" style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px dashed #cbd5e1; margin-bottom: 15px;">
-            <el-form-item label="Đồng đội của bạn" required style="margin-bottom: 10px;">
-              <el-select 
-                v-model="challengeForm.challenger_partner_id" 
-                placeholder="Chọn đồng đội của bạn" 
-                filterable
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="p in myPartnerOptions"
-                  :key="p.player_id"
-                  :label="p.full_name + ' (ELO: ' + (p.elo_points || 1000) + ')'"
-                  :value="p.player_id"
-                />
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="Đồng đội của đối thủ" required style="margin-bottom: 0;">
-              <el-select 
-                v-model="challengeForm.challenged_partner_id" 
-                placeholder="Chọn đồng đội của đối thủ" 
-                filterable
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="p in opponentPartnerOptions"
-                  :key="p.player_id"
-                  :label="p.full_name + ' (ELO: ' + (p.elo_points || 1000) + ')'"
-                  :value="p.player_id"
-                />
-              </el-select>
-            </el-form-item>
-          </div>
-
-          <el-form-item label="Ngày đề xuất thi đấu">
-            <el-date-picker 
-              v-model="challengeForm.date" 
-              type="date" 
-              placeholder="Chọn ngày"
-              value-format="YYYY-MM-DD" 
-              style="width: 100%" 
-            />
-          </el-form-item>
-          <el-form-item label="Lời nhắn (Không bắt buộc)">
-            <el-input 
-              v-model="challengeForm.notes" 
-              type="textarea" 
-              :rows="3"
-              placeholder="Nhập nội dung lời nhắn..." 
-            />
-          </el-form-item>
-        </el-form>
-
-        <div class="atp-notice-box">
-          <el-icon class="notice-icon"><InfoFilled /></el-icon>
-          <p>Kèo thách đấu sau khi gửi cần được đối thủ chấp nhận. Ban quản trị sẽ duyệt lịch thi đấu, chi phí và thông báo cho bạn.</p>
-        </div>
-      </div>
-
-      <template #footer>
-        <div class="modal-footer-flex">
-          <button class="btn-cancel" @click="showChallengeDialog = false">Hủy</button>
-          <button class="btn-atp-solid" @click="sendChallengeRequest">Gửi yêu cầu</button>
-        </div>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -1464,374 +1222,5 @@ const tabs = computed(() => [
   font-size: 0.75rem;
   color: #64748b;
   font-weight: 500;
-}
-
-/* Custom layouts for full-width grid and new tabs */
-.content-grid {
-  display: grid;
-  grid-template-columns: 1fr !important;
-  gap: 28px;
-  padding-top: 32px;
-  padding-bottom: 56px;
-}
-
-.main-column {
-  grid-column: span 2;
-}
-
-.tab-content-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* Challenge Banner Card */
-.challenge-banner-card {
-  background: linear-gradient(135deg, #1e3a8a 0%, #0d1e3d 100%) !important;
-  color: #ffffff;
-  border: none !important;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
-}
-
-.challenge-banner-inner {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-}
-
-.banner-icon-box {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.banner-trophy-icon {
-  font-size: 2rem;
-  color: #f59e0b;
-}
-
-.banner-details h3 {
-  color: #ffffff !important;
-  font-size: 1.3rem;
-  font-weight: 800;
-  margin: 0 0 6px 0 !important;
-  text-transform: none !important;
-}
-
-.banner-details p {
-  margin: 0 0 16px 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.85);
-}
-
-.challenge-cta-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 22px !important;
-  font-size: 0.85rem !important;
-  background: #3b82f6 !important;
-  transition: all 0.3s ease;
-  border-radius: 6px;
-  font-weight: 700;
-  border: none;
-  color: white;
-  cursor: pointer;
-}
-
-.challenge-cta-btn:hover {
-  background: #2563eb !important;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-}
-
-/* H2H Comparison Widget */
-.h2h-comparison-card {
-  padding: 28px;
-}
-
-.h2h-compare-overview {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 28px;
-  background: #f8fafc;
-  padding: 20px;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
-}
-
-.player-summary {
-  display: flex;
-  flex-direction: column;
-  width: 120px;
-}
-
-.player-summary.left {
-  text-align: left;
-}
-
-.player-summary.right {
-  text-align: right;
-}
-
-.player-summary .p-label {
-  font-size: 0.75rem;
-  color: #64748b;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.player-summary .p-wins-count {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.h2h-ratio-bar {
-  flex: 1;
-  height: 24px;
-  border-radius: 12px;
-  background: #cbd5e1;
-  display: flex;
-  overflow: hidden;
-  position: relative;
-}
-
-.ratio-fill-left {
-  background: #3b82f6;
-  height: 100%;
-}
-
-.ratio-fill-right {
-  background: #10b981;
-  height: 100%;
-}
-
-.ratio-vs {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  background: #0f172a;
-  color: #ffffff;
-  font-size: 0.7rem;
-  font-weight: 900;
-  padding: 2px 8px;
-  border-radius: 10px;
-  letter-spacing: 0.05em;
-  z-index: 2;
-}
-
-.h2h-history-empty {
-  padding: 20px 0;
-}
-
-.own-h2h-card {
-  background: #f8fafc !important;
-  border: 1px dashed #cbd5e1 !important;
-  text-align: center;
-}
-
-.own-h2h-card .notice-desc {
-  font-size: 0.95rem;
-  color: #64748b;
-  line-height: 1.6;
-  margin: 15px 0 0 0;
-}
-
-/* Modals styles */
-:deep(.atp-modal .el-dialog) {
-  border-radius: 12px;
-  overflow: hidden;
-  padding: 0;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15) !important;
-}
-
-:deep(.atp-modal .el-dialog__header) {
-  padding: 0;
-  border: none;
-}
-
-:deep(.atp-modal .el-dialog__body) {
-  padding: 0;
-}
-
-.modal-custom-header {
-  background: #0f172a;
-  padding: 1.2rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: white;
-}
-
-.modal-custom-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 800;
-  font-style: italic;
-  color: #ffffff !important;
-}
-
-.close-btn {
-  background: transparent;
-  border: none;
-  color: white;
-  font-size: 1.2rem;
-  cursor: pointer;
-  opacity: 0.8;
-  display: flex;
-  align-items: center;
-}
-
-.close-btn:hover {
-  opacity: 1;
-}
-
-.modal-body {
-  padding: 1.5rem;
-}
-
-.challenge-target {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  background: #f8fafc;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  border: 1px solid #e2e8f0;
-}
-
-.target-avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.target-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.target-info span {
-  font-size: 0.75rem;
-  color: #64748b;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.target-info strong {
-  font-size: 1.05rem;
-  color: #0f172a;
-  font-weight: 800;
-}
-
-:deep(.atp-form .el-form-item__label) {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #64748b;
-  padding-bottom: 4px;
-  text-transform: uppercase;
-}
-
-:deep(.atp-form .el-input__wrapper), :deep(.atp-form .el-textarea__inner) {
-  box-shadow: 0 0 0 1px #cbd5e1 inset;
-  border-radius: 4px;
-}
-
-:deep(.atp-form .el-input__wrapper.is-focus), :deep(.atp-form .el-textarea__inner:focus) {
-  box-shadow: 0 0 0 1px #0f172a inset;
-}
-
-.atp-notice-box {
-  display: flex;
-  gap: 10px;
-  background: #f1f5f9;
-  padding: 12px;
-  border-radius: 6px;
-  margin-top: 1.5rem;
-  align-items: flex-start;
-}
-
-.notice-icon {
-  color: #64748b;
-  font-size: 1.2rem;
-  margin-top: 2px;
-}
-
-.atp-notice-box p {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #475569;
-  line-height: 1.4;
-}
-
-.modal-footer-flex {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  background: #f8fafc;
-}
-
-.btn-cancel {
-  background: white;
-  border: 1px solid #cbd5e1;
-  color: #0f172a;
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 0.8rem;
-  transition: all 0.2s ease;
-}
-
-.btn-cancel:hover {
-  border-color: #94a3b8;
-  background: #f8fafc;
-}
-
-.btn-atp-solid {
-  background: #3b82f6;
-  border: none;
-  color: white;
-  padding: 0.6rem 1.4rem;
-  border-radius: 4px;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 0.8rem;
-  transition: all 0.2s ease;
-}
-
-.btn-atp-solid:hover {
-  background: #2563eb;
-}
-
-@media (max-width: 768px) {
-  .detail-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .h2h-compare-overview {
-    flex-direction: column;
-    text-align: center !important;
-  }
-  .player-summary.left, .player-summary.right {
-    width: 100% !important;
-    text-align: center !important;
-  }
-  .h2h-ratio-bar {
-    width: 100%;
-    margin: 10px 0;
-  }
 }
 </style>

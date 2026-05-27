@@ -29,6 +29,8 @@ const sponsorTierFilter = ref('')
 const bannerPlacements = [
   { label: 'Trang chủ - Banner chính', value: 'home_top' },
   { label: 'Trang chủ - Quảng cáo ngang', value: 'home_ad' },
+  { label: 'Trang chủ - Bản tin (Cột phải)', value: 'home_sidebar_newsletter' },
+  { label: 'Trang chủ - Cửa hàng (Cột phải)', value: 'home_sidebar_store' },
   { label: 'Giải đấu - Banner', value: 'tournaments_top' },
   { label: 'Bảng xếp hạng - Banner', value: 'rankings_top' },
   { label: 'Thách đấu - Banner', value: 'challenges_top' },

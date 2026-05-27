@@ -1,22 +1,246 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { Search, Right, VideoPlay, Medal } from '@element-plus/icons-vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { 
+  Search, 
+  Right, 
+  VideoPlay, 
+  Medal, 
+  Aim, 
+  Calendar, 
+  CircleCheck, 
+  Close, 
+  Trophy, 
+  InfoFilled, 
+  ArrowRight, 
+  User, 
+  Check 
+} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import apiClient from '../../services/apiClient'
-import { newsService } from '../../services/newsService'
 import { useAuthStore } from '../../stores/auth'
 import { t } from '../../utils/locale'
 
 const loading = ref(true)
+const tabLoading = ref(false)
 const players = ref([])
 const recentWinners = ref([])
-const latestNews = ref([])
 const searchQuery = ref('')
+const activeTab = ref('ranking') // Default to 'ranking' (Vận động viên & Xếp hạng)
 
-const isVideo = (url) => {
-  if (!url) return false
-  return url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) !== null
+// --- AUTH STORE ---
+const authStore = useAuthStore()
+
+// --- LAZY LOADING STATE ---
+const matches = ref([])
+const matchesLoaded = ref(false)
+
+const loadMatches = async () => {
+  try {
+    const data = await apiClient.get('/api/tournaments/matches/all')
+    matches.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    console.error('Error loading matches:', err)
+  }
 }
 
+// --- TAB CHANGE HANDLER (Lazy Load) ---
+const handleTabChange = async (tab) => {
+  activeTab.value = tab
+  
+  if ((tab === 'results' || tab === 'h2h') && !matchesLoaded.value) {
+    tabLoading.value = true
+    await loadMatches()
+    matchesLoaded.value = true
+    tabLoading.value = false
+  }
+
+  if (tab === 'h2h') {
+    await fetchH2HCompare()
+  }
+}
+
+// --- KẾT QUẢ TAB (Matches - Sorted & Limited to 15) ---
+const finishedMatches = computed(() => {
+  const completed = matches.value.filter(m => m.status === 'completed')
+  
+  // Sort by date descending (newest on top)
+  const sorted = [...completed].sort((a, b) => {
+    const dateA = a.match_date || a.start_time || ''
+    const dateB = b.match_date || b.start_time || ''
+    return dateB.localeCompare(dateA)
+  })
+  
+  // Limit to 15 matches
+  return sorted.slice(0, 15).map(m => {
+    return {
+      id: m.id,
+      tournamentName: m.tournament || m.tournament_name || 'Giao hữu',
+      round: m.round_code || m.round || 'Vòng đấu',
+      date: m.match_date || (m.start_time ? m.start_time.split('T')[0] : ''),
+      score: m.score || m.score_summary || m.result_note || '- / -',
+      winner_side: m.winner_side,
+      p1_name: m.p1_name,
+      p1_avatar: m.p1_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.p1_name || 'P1')}&background=random`,
+      p1_partner_name: m.p1_partner_name,
+      p1_partner_avatar: m.p1_partner_avatar,
+      p2_name: m.p2_name,
+      p2_avatar: m.p2_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(m.p2_name || 'P2')}&background=random`,
+      p2_partner_name: m.p2_partner_name,
+      p2_partner_avatar: m.p2_partner_avatar,
+    }
+  })
+})
+
+// --- THÁCH ĐẤU MODAL CONFIG ---
+const showChallengeDialog = ref(false)
+const selectedOpponent = ref(null)
+const challengeForm = ref({ 
+  date: '', 
+  notes: '',
+  match_type: 'singles',
+  challenger_partner_id: null,
+  challenged_partner_id: null
+})
+
+const myPlayer = computed(() => {
+  if (!players.value || !Array.isArray(players.value)) return null
+  return players.value.find(p => p.full_name === authStore.user?.full_name)
+})
+const myPlayerId = computed(() => myPlayer.value?.player_id || null)
+
+const myPartnerOptions = computed(() => {
+  if (!players.value || !Array.isArray(players.value)) return []
+  return players.value.filter(p => {
+    const isMe = p.player_id === myPlayerId.value
+    const isOpponent = p.player_id === selectedOpponent.value?.player_id
+    return !isMe && !isOpponent
+  })
+})
+
+const opponentPartnerOptions = computed(() => {
+  if (!players.value || !Array.isArray(players.value)) return []
+  return players.value.filter(p => {
+    const isMe = p.player_id === myPlayerId.value
+    const isOpponent = p.player_id === selectedOpponent.value?.player_id
+    const isMyPartner = p.player_id === challengeForm.value.challenger_partner_id
+    return !isMe && !isOpponent && !isMyPartner
+  })
+})
+
+const openChallenge = (p) => {
+  if (!authStore.user) {
+    ElMessage.warning('Vui lòng đăng nhập để gửi lời thách đấu!')
+    return
+  }
+  selectedOpponent.value = p
+  challengeForm.value = { 
+    date: '', 
+    notes: '', 
+    match_type: 'singles',
+    challenger_partner_id: null,
+    challenged_partner_id: null
+  }
+  showChallengeDialog.value = true
+}
+
+const sendChallengeRequest = async () => {
+  if (!challengeForm.value.date) {
+    return ElMessage.warning('Vui lòng chọn ngày thi đấu đề xuất!')
+  }
+  
+  if (challengeForm.value.match_type === 'doubles') {
+    if (!challengeForm.value.challenger_partner_id || !challengeForm.value.challenged_partner_id) {
+      return ElMessage.warning('Vui lòng chọn đầy đủ đồng đội cho cả hai bên khi thách đấu đôi!')
+    }
+  }
+
+  try {
+    await apiClient.post('/api/challenges/', {
+      challenged_id: selectedOpponent.value.player_id,
+      proposed_date: challengeForm.value.date,
+      notes: challengeForm.value.notes,
+      match_type: challengeForm.value.match_type,
+      challenger_partner_id: challengeForm.value.match_type === 'doubles' ? challengeForm.value.challenger_partner_id : null,
+      challenged_partner_id: challengeForm.value.match_type === 'doubles' ? challengeForm.value.challenged_partner_id : null
+    })
+    ElMessage.success('Gửi yêu cầu thách đấu thành công!')
+    showChallengeDialog.value = false
+    challengeForm.value = { 
+      date: '', 
+      notes: '',
+      match_type: 'singles',
+      challenger_partner_id: null,
+      challenged_partner_id: null
+    }
+  } catch (err) { 
+    const errorMsg = err.response?.data?.detail || 'Gửi yêu cầu thách đấu thất bại.'
+    ElMessage.error(errorMsg) 
+  }
+}
+
+// --- ĐỐI ĐẦU TAB (H2H) ---
+const h2hPlayerA = ref(null)
+const h2hPlayerB = ref(null)
+const h2hWinsA = ref(0)
+const h2hWinsB = ref(0)
+const h2hLoading = ref(false)
+
+const playerAObject = computed(() => players.value.find(p => p.player_id === h2hPlayerA.value))
+const playerBObject = computed(() => players.value.find(p => p.player_id === h2hPlayerB.value))
+const h2hPlayersList = computed(() => players.value)
+
+const fetchH2HCompare = async () => {
+  if (!h2hPlayerA.value || !h2hPlayerB.value) return
+  h2hLoading.value = true
+  try {
+    const data = await apiClient.get(`/api/players/h2h/compare/${h2hPlayerA.value}/${h2hPlayerB.value}`)
+    h2hWinsA.value = data.wins_a || 0
+    h2hWinsB.value = data.wins_b || 0
+  } catch (err) {
+    console.error('Error loading H2H Compare:', err)
+    h2hWinsA.value = 0
+    h2hWinsB.value = 0
+  } finally {
+    h2hLoading.value = false
+  }
+}
+
+const totalH2HWins = computed(() => h2hWinsA.value + h2hWinsB.value)
+const percentA = computed(() => {
+  if (totalH2HWins.value === 0) return 50
+  return Math.round((h2hWinsA.value / totalH2HWins.value) * 100)
+})
+const percentB = computed(() => {
+  if (totalH2HWins.value === 0) return 50
+  return Math.round((h2hWinsB.value / totalH2HWins.value) * 100)
+})
+
+const h2hDirectMatches = computed(() => {
+  if (!h2hPlayerA.value || !h2hPlayerB.value) return []
+  const nameA = playerAObject.value?.full_name?.toLowerCase()
+  const nameB = playerBObject.value?.full_name?.toLowerCase()
+  if (!nameA || !nameB) return []
+  
+  return finishedMatches.value.filter(m => {
+    const p1 = m.p1_name?.toLowerCase()
+    const p2 = m.p2_name?.toLowerCase()
+    const p1Partner = m.p1_partner_name?.toLowerCase()
+    const p2Partner = m.p2_partner_name?.toLowerCase()
+    
+    const isAPlayer1 = p1 === nameA || p1Partner === nameA
+    const isAPlayer2 = p2 === nameA || p2Partner === nameA
+    const isBPlayer1 = p1 === nameB || p1Partner === nameB
+    const isBPlayer2 = p2 === nameB || p2Partner === nameB
+    
+    return (isAPlayer1 && isBPlayer2) || (isAPlayer2 && isBPlayer1)
+  })
+})
+
+watch([h2hPlayerA, h2hPlayerB], () => {
+  fetchH2HCompare()
+})
+
+// --- VẬN ĐỘNG VIÊN & XẾP HẠNG (Main player list with Search) ---
 const visiblePlayers = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase()
   if (!keyword) return players.value
@@ -28,65 +252,86 @@ const loadPlayers = async () => {
     const rankings = await apiClient.get('/api/players/rankings')
     const normalized = Array.isArray(rankings) ? rankings : []
     
-    // THÊM DÒNG NÀY: Lọc bỏ những tài khoản có chữ 'admin'
     const nonAdminPlayers = normalized.filter(p => !p.full_name?.toLowerCase().includes('admin'))
 
-    // Thay biến normalized thành nonAdminPlayers ở dòng map
-    const enriched = await Promise.all(nonAdminPlayers.map(async (p) => {
+    const enriched = await Promise.all(nonAdminPlayers.map(async (p, index) => {
       return {
         ...p,
+        displayRank: index + 1,
         avatar_url: p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name)}&background=random`
       }
     }))
     players.value = enriched
     recentWinners.value = players.value.slice(0, 8)
-  } catch (err) { console.error(err) }
-}
-const loadLatestNews = async () => {
-  try {
-    const data = await newsService.getAllPosts({ limit: 3 })
-    latestNews.value = Array.isArray(data)
-      ? data.map((post) => ({
-          id: post.id,
-          title: post.title,
-          slug: post.slug,
-          summary: post.summary || post.excerpt || '',
-          thumbnail_url: post.thumbnail_url,
-          media_url: post.media_url,
-          created_at: post.publish_at || post.created_at,
-        }))
-      : []
-  } catch {
-    latestNews.value = []
+  } catch (err) { 
+    console.error('Error loading players:', err) 
   }
 }
 
 onMounted(async () => {
-  await loadPlayers()
-  await loadLatestNews()
+  authStore.hydrate()
+  await loadPlayers() // Only load players on mount (Lazy Load)
+  
+  if (myPlayerId.value) {
+    h2hPlayerA.value = myPlayerId.value
+  }
   loading.value = false
 })
 </script>
 
 <template>
   <div class="clean-portfolio-app">
-    
-    <div class="container main-wrapper" v-loading="loading">
+    <div class="container main-wrapper" v-loading="loading || tabLoading">
       
       <header class="portfolio-hero">
         <h1 class="hero-title">
-          {{ t('players.list') }} <span class="highlight-text">{{ t('players.players') }}</span>
+          Danh sách <span class="highlight-text">Vận động viên</span>
         </h1>
         <p class="hero-subtitle">
-          {{ t('players.systemData') }}
+          Hệ thống dữ liệu lưu trữ thông tin, thứ hạng và lịch sử thi đấu của các tay vợt.
         </p>
-
       </header>
 
-      <section class="featured-section" v-if="recentWinners.length">
+      <!-- Tabs Navigation (Sleek Glassmorphic Style) -->
+      <div class="tabs-container">
+        <button 
+          :class="['tab-btn', { active: activeTab === 'ranking' }]"
+          @click="handleTabChange('ranking')"
+        >
+          Vận động viên & Xếp hạng
+        </button>
+        <button 
+          :class="['tab-btn', { active: activeTab === 'results' }]"
+          @click="handleTabChange('results')"
+        >
+          Kết quả gần đây
+        </button>
+        <button 
+          :class="['tab-btn', { active: activeTab === 'h2h' }]"
+          @click="handleTabChange('h2h')"
+        >
+          Phân tích Đối đầu
+        </button>
+      </div>
+
+      <!-- Search Section (Only displayed on main list tab) -->
+      <div class="search-section" v-if="activeTab === 'ranking'">
+        <div class="clean-search-bar">
+          <el-icon class="search-icon"><Search /></el-icon>
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Tìm kiếm tay vợt theo tên..."
+            class="search-input"
+          />
+        </div>
+      </div>
+
+      <!-- Featured Players (Only displayed on main list tab) -->
+      <section class="featured-section" v-if="recentWinners.length && activeTab === 'ranking'">
         <div class="section-heading">
           <el-icon><Medal /></el-icon>
-          <h2>{{ t('players.featuredPlayers') }}</h2>
+          <h2>TAY VỢT NỔI BẬT</h2>
         </div>
         <div class="featured-scroll">
           <RouterLink
@@ -100,132 +345,353 @@ onMounted(async () => {
               <div class="rank-ring"><span>#{{ i + 1 }}</span></div>
             </div>
             <h4 class="featured-name">{{ p.full_name }}</h4>
-            <p class="featured-pts">{{ p.elo_points }} {{ t('players.points') }}</p>
+            <p class="featured-pts">{{ p.elo_points }} Điểm</p>
           </RouterLink>
         </div>
       </section>
 
+      <!-- Content Area -->
       <div class="content-layout">
-        
         <main class="grid-column">
-          <div class="talent-grid">
-            <div v-for="p in visiblePlayers" :key="p.id" class="talent-card group">
-              
-              <div class="talent-image-box">
-                <img :src="p.avatar_url" alt="" class="talent-img" referrerpolicy="no-referrer" />
-              </div>
-              
-              <div class="talent-info">
-                <div class="talent-header">
-                  <h3 class="talent-name">{{ p.full_name }}</h3>
-                  <span class="talent-badge">{{ t('players.rank') }} #{{ p.rank || '--' }}</span>
+          
+          <!-- TAB 1: VẬN ĐỘNG VIÊN & XẾP HẠNG -->
+          <div v-if="activeTab === 'ranking'" class="tab-content">
+            <div class="talent-grid">
+              <div v-for="p in visiblePlayers" :key="p.id" class="talent-card group">
+                <div class="talent-image-box">
+                  <img :src="p.avatar_url" alt="" class="talent-img" referrerpolicy="no-referrer" />
                 </div>
                 
-                <div class="talent-metrics">
-                  <div class="metric">
-                    <span class="m-label">{{ t('players.elo') }}</span>
-                    <span class="m-value">{{ p.elo_points }}</span>
+                <div class="talent-info">
+                  <div class="talent-header">
+                    <h3 class="talent-name">{{ p.full_name }}</h3>
+                    <span class="talent-badge">Hạng #{{ p.displayRank || '--' }}</span>
                   </div>
-                  <div class="metric-divider"></div>
-                  <div class="metric">
-                    <span class="m-label">{{ t('players.winRate') }}</span>
-                    <span class="m-value">{{ p.win_rate || 0 }}%</span>
+                  
+                  <div class="talent-metrics">
+                    <div class="metric">
+                      <span class="m-label">ELO</span>
+                      <span class="m-value highlighted-val">{{ p.elo_points }}</span>
+                    </div>
+                    <div class="metric-divider"></div>
+                    <div class="metric">
+                      <span class="m-label">Tỷ lệ thắng</span>
+                      <span class="m-value">{{ p.win_rate || 0 }}%</span>
+                    </div>
+                    <div class="metric-divider"></div>
+                    <div class="metric">
+                      <span class="m-label">Số trận</span>
+                      <span class="m-value">{{ (p.wins || 0) + (p.losses || 0) }}</span>
+                    </div>
                   </div>
-                  <div class="metric-divider"></div>
-                  <div class="metric">
-                    <span class="m-label">{{ t('players.matchesCount') }}</span>
-                    <span class="m-value">{{ (p.wins || 0) + (p.losses || 0) }}</span>
+
+                  <div class="action-buttons-card">
+                    <RouterLink :to="`/players/${p.player_id || p.id}`" class="flex-btn-link">
+                      <button class="view-profile-btn-split">
+                        Hồ sơ <el-icon><Right /></el-icon>
+                      </button>
+                    </RouterLink>
+                    <button 
+                      v-if="p.full_name !== authStore.user?.full_name" 
+                      class="challenge-now-btn" 
+                      @click="openChallenge(p)"
+                    >
+                      Thách đấu <el-icon><Aim /></el-icon>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="!visiblePlayers.length" class="empty-state-card">
+                <p>Không tìm thấy vận động viên phù hợp với từ khóa tìm kiếm.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: KẾT QUẢ GẦN ĐÂY -->
+          <div v-if="activeTab === 'results'" class="tab-content results-tab-content">
+            <div class="results-list">
+              <div v-for="match in finishedMatches" :key="match.id" class="result-match-card">
+                <div class="match-card-header">
+                  <span class="tour-badge">{{ match.tournamentName }}</span>
+                  <span class="match-round">{{ match.round }}</span>
+                  <span class="match-date">{{ match.date }}</span>
+                </div>
+                
+                <div class="match-card-body">
+                  <!-- Side A -->
+                  <div class="side-item" :class="{ winner: match.winner_side === 'side_a' }">
+                    <div class="players-stack">
+                      <div class="player-unit">
+                        <img :src="match.p1_avatar" class="ava-small" referrerpolicy="no-referrer" />
+                        <span class="name">{{ match.p1_name }}</span>
+                      </div>
+                      <div class="player-unit" v-if="match.p1_partner_name">
+                        <img :src="match.p1_partner_avatar || 'https://ui-avatars.com/api/?name=Partner'" class="ava-small" referrerpolicy="no-referrer" />
+                        <span class="name">{{ match.p1_partner_name }}</span>
+                      </div>
+                    </div>
+                    <div class="winner-indicator" v-if="match.winner_side === 'side_a'">
+                      <el-icon><Check /></el-icon> Thắng
+                    </div>
+                  </div>
+
+                  <div class="vs-divider-text">VS</div>
+
+                  <!-- Side B -->
+                  <div class="side-item" :class="{ winner: match.winner_side === 'side_b' }">
+                    <div class="players-stack">
+                      <div class="player-unit">
+                        <img :src="match.p2_avatar" class="ava-small" referrerpolicy="no-referrer" />
+                        <span class="name">{{ match.p2_name }}</span>
+                      </div>
+                      <div class="player-unit" v-if="match.p2_partner_name">
+                        <img :src="match.p2_partner_avatar || 'https://ui-avatars.com/api/?name=Partner'" class="ava-small" referrerpolicy="no-referrer" />
+                        <span class="name">{{ match.p2_partner_name }}</span>
+                      </div>
+                    </div>
+                    <div class="winner-indicator" v-if="match.winner_side === 'side_b'">
+                      <el-icon><Check /></el-icon> Thắng
+                    </div>
                   </div>
                 </div>
 
-                <RouterLink :to="`/players/${p.player_id || p.id}`" class="view-profile-link">
-                  <button class="view-profile-btn">
-                    {{ t('players.viewProfile') }} <el-icon><Right /></el-icon>
-                  </button>
-                </RouterLink>
+                <div class="match-card-score">
+                  <div class="score-label">Tỷ số</div>
+                  <div class="score-values">{{ match.score }}</div>
+                </div>
+              </div>
+
+              <div v-if="!finishedMatches.length" class="empty-state-card">
+                <p>Không tìm thấy lịch sử trận đấu nào đã hoàn thành.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: ĐỐI ĐẦU (H2H) -->
+          <div v-if="activeTab === 'h2h'" class="tab-content h2h-tab-content">
+            <div class="h2h-selectors">
+              <div class="selector-box">
+                <label>Tay vợt A</label>
+                <el-select v-model="h2hPlayerA" placeholder="Chọn tay vợt A" filterable style="width: 100%">
+                  <el-option 
+                    v-for="p in h2hPlayersList" 
+                    :key="p.player_id" 
+                    :label="p.full_name" 
+                    :value="p.player_id"
+                  />
+                </el-select>
+              </div>
+              
+              <div class="h2h-vs-sign">VS</div>
+
+              <div class="selector-box">
+                <label>Tay vợt B</label>
+                <el-select v-model="h2hPlayerB" placeholder="Chọn tay vợt B" filterable style="width: 100%">
+                  <el-option 
+                    v-for="p in h2hPlayersList" 
+                    :key="p.player_id" 
+                    :label="p.full_name" 
+                    :value="p.player_id"
+                  />
+                </el-select>
               </div>
             </div>
 
-            <div v-if="!visiblePlayers.length" class="empty-state-card">
-              <p>{{ t('players.noMatch') }} "{{ searchQuery }}".</p>
-            </div>
-          </div>
-        </main>
-
-        <aside class="widgets-column">
-          
-          <div class="clean-widget">
-            <div class="widget-top">
-              <h3>{{ t('players.latestNews') }}</h3>
-              <RouterLink to="/news" class="widget-link">{{ t('players.viewAll') }} <el-icon><Right /></el-icon></RouterLink>
-            </div>
-            
-            <div class="widget-feed" v-if="latestNews.length">
-              <RouterLink 
-                v-for="news in latestNews" 
-                :key="news.id" 
-                :to="news.slug ? `/news/${news.slug}` : '/news'"
-                class="feed-item"
-              >
-                <div class="feed-visual">
-                  <video 
-                    v-if="isVideo(news.media_url || news.thumbnail_url)" 
-                    :src="news.media_url || news.thumbnail_url" 
-                    autoplay muted loop playsinline>
-                  </video>
-                  <img 
-                    v-else 
-                    :src="news.thumbnail_url || news.media_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop'" 
-                    referrerpolicy="no-referrer"
-                  />
-                  <div class="feed-play" v-if="isVideo(news.media_url || news.thumbnail_url)">
-                    <el-icon><VideoPlay /></el-icon>
+            <!-- H2H Comparison results -->
+            <div class="h2h-comparison-results" v-if="playerAObject && playerBObject" v-loading="h2hLoading">
+              <div class="h2h-cards-comparison">
+                <!-- Card Player A -->
+                <div class="h2h-player-card card-a">
+                  <img :src="playerAObject.avatar_url" class="h2h-card-avatar" referrerpolicy="no-referrer" />
+                  <h3>{{ playerAObject.full_name }}</h3>
+                  <div class="h2h-card-details">
+                    <div class="detail-row"><span class="lbl">Hạng SGT:</span><strong>#{{ playerAObject.displayRank }}</strong></div>
+                    <div class="detail-row"><span class="lbl">ELO hiện tại:</span><strong class="elo-a">{{ playerAObject.elo_points }}</strong></div>
+                    <div class="detail-row"><span class="lbl">Tỷ lệ thắng:</span><strong>{{ playerAObject.win_rate }}%</strong></div>
                   </div>
                 </div>
-                <div class="feed-text">
-                  <h4 class="line-clamp-2">{{ news.title }}</h4>
-                  <time>{{ new Date(news.created_at).toLocaleDateString('vi-VN') }}</time>
+
+                <!-- H2H Statistics and ratio bar -->
+                <div class="h2h-score-center">
+                  <div class="score-text">LỊCH SỬ ĐỐI ĐẦU</div>
+                  <div class="score-numbers">
+                    <span class="score-a">{{ h2hWinsA }}</span>
+                    <span class="score-dash">:</span>
+                    <span class="score-b">{{ h2hWinsB }}</span>
+                  </div>
+                  
+                  <!-- Match win ratio bar -->
+                  <div class="h2h-ratio-track">
+                    <div class="h2h-ratio-fill-a" :style="{ width: percentA + '%' }"></div>
+                    <div class="h2h-ratio-fill-b" :style="{ width: percentB + '%' }"></div>
+                  </div>
+
+                  <div class="elo-diff-indicator">
+                    Chênh lệch ELO: {{ Math.abs(playerAObject.elo_points - playerBObject.elo_points) }}
+                  </div>
                 </div>
-              </RouterLink>
+
+                <!-- Card Player B -->
+                <div class="h2h-player-card card-b">
+                  <img :src="playerBObject.avatar_url" class="h2h-card-avatar" referrerpolicy="no-referrer" />
+                  <h3>{{ playerBObject.full_name }}</h3>
+                  <div class="h2h-card-details">
+                    <div class="detail-row"><span class="lbl">Hạng SGT:</span><strong>#{{ playerBObject.displayRank }}</strong></div>
+                    <div class="detail-row"><span class="lbl">ELO hiện tại:</span><strong class="elo-b">{{ playerBObject.elo_points }}</strong></div>
+                    <div class="detail-row"><span class="lbl">Tỷ lệ thắng:</span><strong>{{ playerBObject.win_rate }}%</strong></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Direct Matches History List -->
+              <div class="h2h-direct-history">
+                <h3>Các trận chạm trán trực tiếp</h3>
+                <div class="direct-matches-list" v-if="h2hDirectMatches.length">
+                  <div v-for="match in h2hDirectMatches" :key="match.id" class="direct-match-item">
+                    <div class="dm-header">
+                      <span>{{ match.tournamentName }} - {{ match.round }}</span>
+                      <span class="dm-date">{{ match.date }}</span>
+                    </div>
+                    <div class="dm-body">
+                      <span class="team-a" :class="{ winner: match.winner_side === 'side_a' }">{{ match.p1_name }}</span>
+                      <span class="dm-score">{{ match.score }}</span>
+                      <span class="team-b" :class="{ winner: match.winner_side === 'side_b' }">{{ match.p2_name }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="empty-h2h-history">
+                  <el-empty description="Hai tuyển thủ chưa từng gặp nhau trong các trận đấu chính thức hoặc giao hữu." :image-size="60" />
+                </div>
+              </div>
             </div>
-            <div v-else class="empty-feed">{{ t('players.updatingPosts') }}</div>
+
+            <div v-else class="h2h-placeholder">
+              <el-icon class="placeholder-icon"><User /></el-icon>
+              <p>Chọn 2 vận động viên phía trên để tiến hành phân tích lịch sử đối đầu chi tiết.</p>
+            </div>
           </div>
 
-          <div class="clean-widget promo-card">
-            <div class="promo-content">
-              <h4>{{ t('players.upcomingTournament') }}</h4>
-              <p>{{ t('players.tournamentDesc') }}</p>
-              <RouterLink to="/tournaments" class="btn-primary">{{ t('players.viewSchedule') }}</RouterLink>
-            </div>
-          </div>
-
-        </aside>
+        </main>
       </div>
+
     </div>
+
+    <!-- Element Plus Dialog for Challenges -->
+    <el-dialog v-model="showChallengeDialog" :show-close="false" width="90%" style="max-width: 450px" class="atp-modal">
+      <template #header>
+        <div class="modal-custom-header">
+          <h3>Đề xuất kèo thách đấu</h3>
+          <button class="close-btn" @click="showChallengeDialog = false"><el-icon><Close /></el-icon></button>
+        </div>
+      </template>
+
+      <div class="modal-body">
+        <div class="challenge-target">
+          <img :src="selectedOpponent?.avatar_url" alt="" class="target-avatar" referrerpolicy="no-referrer" />
+          <div class="target-info">
+            <span>Đối thủ thách đấu</span>
+            <strong>{{ selectedOpponent?.full_name }}</strong>
+          </div>
+        </div>
+
+        <el-form label-position="top" class="atp-form">
+          <el-form-item label="Thể thức trận đấu">
+            <el-radio-group v-model="challengeForm.match_type" size="default" style="width: 100%; display: flex; margin-bottom: 10px;">
+              <el-radio-button value="singles" style="flex: 1; text-align: center;">Đấu đơn (1vs1)</el-radio-button>
+              <el-radio-button value="doubles" style="flex: 1; text-align: center;">Đấu đôi (2vs2)</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+
+          <div v-if="challengeForm.match_type === 'doubles'" class="doubles-select-section">
+            <el-form-item label="Đồng đội của bạn" required style="margin-bottom: 10px;">
+              <el-select 
+                v-model="challengeForm.challenger_partner_id" 
+                placeholder="Chọn đồng đội ghép cặp" 
+                filterable
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="p in myPartnerOptions"
+                  :key="p.player_id"
+                  :label="p.full_name + ' (ELO: ' + (p.elo_points || 1000) + ')'"
+                  :value="p.player_id"
+                />
+              </el-select>
+            </el-form-item>
+
+            <el-form-item label="Đồng đội của đối thủ" required style="margin-bottom: 0;">
+              <el-select 
+                v-model="challengeForm.challenged_partner_id" 
+                placeholder="Chọn đồng đội đối thủ" 
+                filterable
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="p in opponentPartnerOptions"
+                  :key="p.player_id"
+                  :label="p.full_name + ' (ELO: ' + (p.elo_points || 1000) + ')'"
+                  :value="p.player_id"
+                />
+              </el-select>
+            </el-form-item>
+          </div>
+
+          <el-form-item label="Ngày đề xuất thi đấu">
+            <el-date-picker 
+              v-model="challengeForm.date" 
+              type="date" 
+              placeholder="Chọn ngày thi đấu"
+              value-format="YYYY-MM-DD" 
+              style="width: 100%" 
+            />
+          </el-form-item>
+          <el-form-item label="Tin nhắn kèm theo">
+            <el-input 
+              v-model="challengeForm.notes" 
+              type="textarea" 
+              :rows="3"
+              placeholder="Nhập ghi chú (sân đấu đề xuất, khung giờ, v.v.)..." 
+            />
+          </el-form-item>
+        </el-form>
+
+        <div class="atp-notice-box">
+          <el-icon class="notice-icon"><InfoFilled /></el-icon>
+          <p>Kèo thách đấu giao hữu sẽ tự động cập nhật ELO của các tay vợt sau khi kết thúc trận đấu và kết quả được hai bên xác nhận trên hệ thống.</p>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="modal-footer-flex">
+          <button class="btn-cancel" @click="showChallengeDialog = false">Hủy bỏ</button>
+          <button class="btn-atp-solid" @click="sendChallengeRequest">Gửi lời thách đấu</button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
 /* =========================================================
    CLEAN AGENCY THEME VARIABLES (BLUE-GREY & WHITE)
-========================================================= */
+ ========================================================= */
 .clean-portfolio-app {
-  /* Tông màu Xanh Xám (Slate) */
-  --bg-base: #f1f5f9;       /* Slate 100 - Nền tổng thể */
-  --card-bg: #ffffff;       /* Trắng - Nền các thẻ Card */
-  --border-light: #e2e8f0;  /* Slate 200 - Viền xám nhạt */
-  --border-hover: #cbd5e1;  /* Slate 300 - Viền khi hover */
+  --bg-base: #f8fafc;       /* Light, clean slate grey */
+  --card-bg: #ffffff;       
+  --border-light: #e2e8f0;  
+  --border-hover: #cbd5e1;  
   
-  --text-main: #0f172a;     /* Slate 900 - Chữ tiêu đề */
-  --text-body: #334155;     /* Slate 700 - Chữ đoạn văn */
-  --text-muted: #64748b;    /* Slate 500 - Chữ phụ */
+  --text-main: #0f172a;     
+  --text-body: #334155;     
+  --text-muted: #64748b;    
   
-  --accent-primary: #475569; /* Slate 600 - Xanh xám chủ đạo */
-  --accent-light: #f8fafc;   /* Slate 50 - Nền highlight nhẹ */
+  --accent-primary: #1e293b; 
+  --accent-light: #f1f5f9;   
   
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 15px rgba(15, 23, 42, 0.05);
-  --shadow-hover: 0 10px 25px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 2px 4px rgba(15, 23, 42, 0.02);
+  --shadow-md: 0 8px 30px rgba(15, 23, 42, 0.04);
+  --shadow-hover: 0 16px 40px rgba(15, 23, 42, 0.08);
 
   background-color: var(--bg-base);
   color: var(--text-body);
@@ -235,16 +701,16 @@ onMounted(async () => {
 }
 
 .container {
-  max-width: 1360px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 2rem;
 }
 
 /* =========================================================
    HERO HEADER
-========================================================= */
+ ========================================================= */
 .portfolio-hero {
-  padding: 5rem 0 3.5rem;
+  padding: 5rem 0 3rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -252,34 +718,81 @@ onMounted(async () => {
 }
 
 .hero-title {
-  font-size: clamp(2.5rem, 6vw, 4rem);
-  font-weight: 800;
+  font-size: clamp(2.5rem, 6vw, 3.5rem);
+  font-weight: 850;
   line-height: 1.1;
-  letter-spacing: -0.02em;
-  margin: 0 0 1rem;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.8rem;
   color: var(--text-main);
 }
 
 .highlight-text {
-  color: var(--accent-primary);
+  background: linear-gradient(135deg, #0066cc, #00b0f0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .hero-subtitle {
   color: var(--text-muted);
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   max-width: 600px;
   line-height: 1.6;
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.5rem;
 }
 
-/* Thanh tìm kiếm trung tâm */
+/* =========================================================
+   TABS NAVIGATION
+ ========================================================= */
+.tabs-container {
+  display: flex;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.03);
+  padding: 6px;
+  border-radius: 99px;
+  max-width: 580px;
+  margin: 0 auto 3rem;
+  border: 1px solid var(--border-light);
+}
+
+.tab-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 10px 20px;
+  border-radius: 99px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tab-btn:hover {
+  color: var(--text-main);
+}
+
+.tab-btn.active {
+  color: #fff;
+  background: var(--text-main);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+/* Search bar */
+.search-section {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 3rem;
+}
+
 .clean-search-bar {
   display: flex;
   align-items: center;
   background: var(--card-bg);
   border: 1px solid var(--border-light);
   border-radius: 99px;
-  padding: 0.75rem 1.5rem;
+  padding: 0.85rem 1.75rem;
   width: 100%;
   max-width: 550px;
   box-shadow: var(--shadow-md);
@@ -287,12 +800,12 @@ onMounted(async () => {
 }
 
 .clean-search-bar:focus-within {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 4px rgba(71, 85, 105, 0.1);
+  border-color: #0066cc;
+  box-shadow: 0 0 0 4px rgba(0, 102, 204, 0.1);
 }
 
 .search-icon {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   color: var(--text-muted);
   margin-right: 0.8rem;
 }
@@ -304,27 +817,28 @@ onMounted(async () => {
   color: var(--text-main);
   font-size: 1rem;
   outline: none;
+  font-weight: 500;
 }
 .search-input::placeholder { color: #94a3b8; }
 
 /* =========================================================
-   FEATURED PLAYERS (DẠNG STORY)
-========================================================= */
+   FEATURED PLAYERS (Stories)
+ ========================================================= */
 .featured-section {
-  margin-bottom: 3rem;
+  margin-bottom: 3.5rem;
 }
 
 .section-heading {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
   margin-bottom: 1.5rem;
-  color: var(--accent-primary);
+  color: var(--text-main);
 }
 .section-heading h2 {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   margin: 0;
 }
 
@@ -341,18 +855,18 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 100px;
+  min-width: 105px;
   cursor: pointer;
   text-decoration: none;
   color: inherit;
-  transition: transform 0.2s;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.featured-card:hover { transform: translateY(-5px); }
+.featured-card:hover { transform: translateY(-6px); }
 
 .featured-avatar {
   position: relative;
-  width: 90px; height: 90px;
-  border-radius: 24px;
+  width: 94px; height: 94px;
+  border-radius: 28px;
   background: var(--card-bg);
   padding: 4px;
   border: 1px solid var(--border-light);
@@ -363,7 +877,7 @@ onMounted(async () => {
 .featured-avatar img {
   width: 100%; height: 100%;
   object-fit: cover;
-  border-radius: 20px;
+  border-radius: 24px;
 }
 
 .rank-ring {
@@ -376,55 +890,55 @@ onMounted(async () => {
   display: flex; align-items: center; justify-content: center;
 }
 .rank-ring span {
-  background: var(--accent-primary);
+  background: #0f172a;
   color: white; font-size: 0.7rem; font-weight: 800;
   width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
 }
 
 .featured-name { font-size: 0.9rem; font-weight: 700; margin: 0 0 4px; color: var(--text-main); text-align: center;}
-.featured-pts { font-size: 0.75rem; color: var(--text-muted); margin: 0; font-weight: 500;}
+.featured-pts { font-size: 0.75rem; color: var(--text-muted); margin: 0; font-weight: 600;}
 
 /* =========================================================
-   BỐ CỤC CHÍNH (GRID + SIDEBAR)
-========================================================= */
+   BỐ CỤC CHÍNH
+ ========================================================= */
 .content-layout {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: 1fr;
   gap: 2.5rem;
 }
 
 /* =========================================================
-   BENTO GRID CARDS (DANH SÁCH VĐV)
-========================================================= */
+   TALENT GRID (DANH SÁCH VĐV)
+ ========================================================= */
 .talent-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
 
 .talent-card {
   background: var(--card-bg);
   border: 1px solid var(--border-light);
-  border-radius: 16px;
-  padding: 1.25rem;
+  border-radius: 20px;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   box-shadow: var(--shadow-sm);
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .talent-card:hover {
   border-color: var(--border-hover);
-  transform: translateY(-4px);
+  transform: translateY(-5px);
   box-shadow: var(--shadow-hover);
 }
 
 .talent-image-box {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
   background: var(--bg-base);
 }
@@ -432,17 +946,17 @@ onMounted(async () => {
 .talent-img {
   width: 100%; height: 100%;
   object-fit: cover;
-  transition: transform 0.5s ease;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .talent-card:hover .talent-img {
-  transform: scale(1.03);
+  transform: scale(1.04);
 }
 
 .talent-info {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .talent-header {
@@ -450,16 +964,16 @@ onMounted(async () => {
 }
 
 .talent-name {
-  font-size: 1.15rem; font-weight: 800; margin: 0; color: var(--text-main);
+  font-size: 1.2rem; font-weight: 800; margin: 0; color: var(--text-main);
   line-height: 1.3;
 }
 
 .talent-badge {
   background: var(--accent-light);
-  color: var(--accent-primary);
+  color: var(--text-main);
   border: 1px solid var(--border-light);
-  font-size: 0.7rem; font-weight: 700;
-  padding: 4px 8px; border-radius: 6px;
+  font-size: 0.72rem; font-weight: 700;
+  padding: 4px 10px; border-radius: 8px;
   letter-spacing: 0.05em;
 }
 
@@ -469,151 +983,456 @@ onMounted(async () => {
   align-items: center;
   background: var(--accent-light);
   border: 1px solid var(--border-light);
-  padding: 0.8rem 1rem;
-  border-radius: 10px;
+  padding: 0.9rem 1.25rem;
+  border-radius: 12px;
 }
 
 .metric { display: flex; flex-direction: column; gap: 4px; }
-.m-label { font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;}
-.m-value { font-size: 1rem; color: var(--text-main); font-weight: 800;}
-.metric-divider { width: 1px; height: 24px; background: var(--border-light); }
+.m-label { font-size: 0.65rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;}
+.m-value { font-size: 1.05rem; color: var(--text-main); font-weight: 800;}
+.highlighted-val { color: #0066cc; }
+.metric-divider { width: 1px; height: 26px; background: var(--border-light); }
 
-/* Nút bấm tĩnh - Luôn hiển thị */
-.view-profile-btn {
+/* Nút phân chia */
+.action-buttons-card {
+  display: flex;
+  gap: 10px;
+}
+
+.flex-btn-link {
+  flex: 1;
+  text-decoration: none;
+}
+
+.view-profile-btn-split {
   width: 100%;
   padding: 0.75rem;
   background: transparent;
   color: var(--text-body);
   border: 1px solid var(--border-light);
-  border-radius: 10px;
+  border-radius: 12px;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
-.talent-card:hover .view-profile-btn {
-  background: var(--text-main);
+.view-profile-btn-split:hover {
+  background: var(--accent-light);
+  border-color: var(--border-hover);
+}
+
+.challenge-now-btn {
+  flex: 1.3;
+  padding: 0.75rem;
+  background: #0066cc;
   color: #fff;
-  border-color: var(--text-main);
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
 }
 
-.empty-state-card {
-  grid-column: 1 / -1;
-  background: var(--card-bg);
-  border: 1px dashed var(--border-hover);
-  padding: 4rem 2rem;
-  text-align: center;
-  border-radius: 16px;
-  color: var(--text-muted);
+.challenge-now-btn:hover {
+  background: #004d99;
 }
-
 
 /* =========================================================
-   RIGHT SIDEBAR WIDGETS (TIN TỨC)
-========================================================= */
-.widgets-column {
+   RESULTS TAB (KẾT QUẢ GẦN ĐÂY)
+ ========================================================= */
+.results-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.players-stack {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 8px;
 }
 
-.clean-widget {
+.player-unit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ava-small {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-light);
+  background: var(--bg-base);
+}
+
+.result-match-card {
   background: var(--card-bg);
   border: 1px solid var(--border-light);
-  border-radius: 16px;
+  border-radius: 20px;
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
-.widget-top {
-  display: flex; justify-content: space-between; align-items: center;
+.match-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 10px;
+  font-weight: 600;
+}
+
+.tour-badge {
+  color: #0066cc;
+  background: #eff6ff;
+  padding: 2px 10px;
+  border-radius: 6px;
+}
+
+.match-round {
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.match-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.side-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--accent-light);
+  border: 1px solid transparent;
+}
+
+.side-item.winner {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.side-item.winner .name {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.winner-indicator {
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.match-card-score {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+}
+
+.score-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.score-values {
+  font-size: 1.15rem;
+  font-weight: 850;
+  color: var(--text-main);
+  letter-spacing: 0.05em;
+}
+
+/* =========================================================
+   H2H TAB (ĐỐI ĐẦU)
+ ========================================================= */
+.h2h-tab-content {
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 24px;
+  padding: 3rem;
+  box-shadow: var(--shadow-sm);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.h2h-cards-comparison {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 3rem;
+  width: 100%;
+}
+
+.h2h-selectors {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 3.5rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.selector-box label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+:deep(.selector-box .el-select .el-input__wrapper) {
+  border-radius: 12px;
+  padding: 8px 16px;
+  box-shadow: 0 0 0 1px var(--border-light) inset;
+}
+
+:deep(.selector-box .el-select .el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #0066cc inset !important;
+}
+
+.h2h-vs-sign {
+  font-size: 1.8rem;
+  font-weight: 900;
+  font-style: italic;
+  color: var(--border-hover);
+  padding-bottom: 6px;
+}
+
+.h2h-player-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  background: var(--accent-light);
+  box-shadow: var(--shadow-sm);
+  max-width: 320px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.h2h-player-card.card-a {
+  border-left: 4px solid #0066cc;
+}
+
+.h2h-player-card.card-b {
+  border-left: 4px solid #e11d48;
+}
+
+.h2h-card-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid #fff;
+  box-shadow: var(--shadow-md);
   margin-bottom: 1.25rem;
 }
 
-.widget-top h3 {
-  font-size: 0.85rem; font-weight: 800; color: var(--text-main);
-  margin: 0; letter-spacing: 0.05em;
+.h2h-player-card h3 {
+  margin: 0 0 1.25rem;
+  font-size: 1.25rem;
+  font-weight: 850;
+  color: var(--text-main);
+  text-align: center;
 }
 
-.widget-link {
-  color: var(--accent-primary); font-size: 0.8rem; font-weight: 600;
-  text-decoration: none; display: flex; align-items: center; gap: 4px;
+.elo-a {
+  color: #0066cc;
 }
-.widget-link:hover { text-decoration: underline; }
-
-.widget-feed {
-  display: flex; flex-direction: column; gap: 1.2rem;
+.elo-b {
+  color: #e11d48;
 }
 
-.feed-item {
-  display: flex; gap: 1rem; text-decoration: none; align-items: center;
-  transition: opacity 0.2s;
-}
-.feed-item:hover { opacity: 0.7; }
-
-.feed-visual {
-  width: 75px; height: 75px; border-radius: 10px; overflow: hidden; position: relative;
-  background: var(--bg-base); flex-shrink: 0;
-}
-.feed-visual img, .feed-visual video { width: 100%; height: 100%; object-fit: cover;}
-
-.feed-play {
-  position: absolute; inset: 0; background: rgba(15, 23, 42, 0.3);
-  display: flex; align-items: center; justify-content: center; color: white;
+/* Versus Center Area */
+.h2h-score-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  max-width: 300px;
 }
 
-.feed-text { flex: 1; display: flex; flex-direction: column; gap: 6px;}
-.line-clamp-2 {
-  font-size: 0.9rem; font-weight: 700; color: var(--text-main); margin: 0;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  line-height: 1.4;
-}
-.feed-text time { font-size: 0.75rem; color: var(--text-muted); font-weight: 500;}
-
-/* Promo Widget */
-.promo-card {
-  background: linear-gradient(135deg, var(--accent-primary), var(--text-main));
-  color: white;
-  border: none;
+.score-numbers {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: var(--text-main);
+  line-height: 1;
 }
 
-.promo-content h4 { font-size: 1.1rem; font-weight: 800; margin: 0 0 0.5rem 0;}
-.promo-content p { font-size: 0.9rem; color: rgba(255,255,255,0.8); line-height: 1.5; margin-bottom: 1.5rem;}
-
-.btn-primary {
-  display: inline-block; width: 100%; text-align: center;
-  background: white; color: var(--text-main);
-  padding: 0.8rem; border-radius: 8px; font-weight: 800; font-size: 0.85rem;
-  text-decoration: none; transition: 0.3s; box-shadow: var(--shadow-sm);
+/* Win ratio progress track */
+.h2h-ratio-track {
+  width: 100%;
+  height: 10px;
+  background: var(--border-light);
+  border-radius: 99px;
+  overflow: hidden;
+  display: flex;
 }
-.btn-primary:hover {
-  background: var(--bg-base);
-  transform: translateY(-2px);
+
+.h2h-ratio-fill-a {
+  background: #0066cc;
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.h2h-ratio-fill-b {
+  background: #e11d48;
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.h2h-direct-history h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-main);
+  border-bottom: 2px solid var(--border-light);
+  padding-bottom: 10px;
+  margin: 0 0 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.direct-match-item {
+  background: var(--accent-light);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.direct-match-item:hover {
+  border-color: var(--border-hover);
+}
+
+.dm-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.team-a {
+  flex: 1;
+  text-align: right;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-body);
+}
+
+.team-b {
+  flex: 1;
+  text-align: left;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-body);
+}
+
+.team-a.winner, .team-b.winner {
+  font-weight: 800;
+  color: #16a34a;
+}
+
+.dm-score {
+  font-weight: 850;
+  color: var(--text-main);
+  background: #fff;
+  border: 1px solid var(--border-light);
+  padding: 4px 14px;
+  border-radius: 8px;
+  min-width: 75px;
+  text-align: center;
+}
+
+.h2h-placeholder {
+  text-align: center;
+  padding: 5rem 1.5rem;
+  color: var(--text-muted);
+}
+
+.placeholder-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  color: var(--border-hover);
+}
+
+/* =========================================================
+   ELEMENT PLUS DIALOG (MODALS)
+ ========================================================= */
+.doubles-select-section {
+  background: #f8fafc; 
+  padding: 16px; 
+  border-radius: 12px; 
+  border: 1px dashed #cbd5e1; 
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+:deep(.atp-modal .el-dialog) { 
+  border-radius: 20px; 
 }
 
 /* =========================================================
    RESPONSIVE
-========================================================= */
-@media (max-width: 1024px) {
-  .content-layout { grid-template-columns: 1fr; }
-  .widgets-column { flex-direction: row; }
-  .clean-widget { flex: 1; }
-}
-
+ ========================================================= */
 @media (max-width: 768px) {
-  .portfolio-hero { padding: 3rem 0; }
-  .hero-title { font-size: 2rem; }
-  .widgets-column { flex-direction: column; }
-  .talent-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-}
-
-@media (max-width: 480px) {
-  .container { padding: 0 1rem; }
-  .talent-grid { grid-template-columns: 1fr; }
+  .portfolio-hero { padding: 3.5rem 0; }
+  .tabs-container {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    border-radius: 16px;
+    padding: 4px;
+  }
+  .tab-btn {
+    font-size: 0.85rem;
+    padding: 8px 12px;
+  }
+  .h2h-cards-comparison {
+    flex-direction: column;
+    gap: 2rem;
+  }
 }
 </style>

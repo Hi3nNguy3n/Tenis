@@ -77,6 +77,8 @@ const h2hShowSelectLeft = ref(false)
 const h2hShowSelectRight = ref(false)
 const homeTopBanners = ref([])
 const homeAdBanners = ref([])
+const homeSidebarNewsletterBanners = ref([])
+const homeSidebarStoreBanners = ref([])
 const marketingSponsors = ref([])
 
 const fallbackHomeBanner = {
@@ -98,6 +100,8 @@ const fallbackSponsors = [
 
 const homeTopBanner = computed(() => homeTopBanners.value[0] || null)
 const homeAdBanner = computed(() => homeAdBanners.value[0] || null)
+const homeSidebarNewsletterBanner = computed(() => homeSidebarNewsletterBanners.value[0] || null)
+const homeSidebarStoreBanner = computed(() => homeSidebarStoreBanners.value[0] || null)
 const homeBannerItems = computed(() => {
   const seen = new Set()
   return homeTopBanners.value
@@ -161,6 +165,7 @@ const getTournamentStatusLabel = (status) => {
 }
 
 const getTournamentImage = (tour) => {
+  if (tour.banner_url) return tour.banner_url
   if (tour.media_url) return tour.media_url
   const posters = ['/poster-1.jpg', '/poster-2.jpg', '/poster-3.jpg', '/poster-4.jpg']
   const index = (tour.id || 0) % posters.length
@@ -215,8 +220,10 @@ onMounted(async () => {
     apiClient.get('/api/tournaments/', { params: { limit: 4 } }).catch(() => []),
     apiClient.get('/api/marketing/banners', { params: { placement: 'home_top', limit: 3 } }).catch(() => []),
     apiClient.get('/api/marketing/banners', { params: { placement: 'home_ad', limit: 3 } }).catch(() => []),
-    apiClient.get('/api/marketing/sponsors', { params: { limit: 100 } }).catch(() => [])
-  ]).then(async ([newsData, rankingsData, matchesData, toursData, homeTopData, homeAdData, sponsorsData]) => {
+    apiClient.get('/api/marketing/sponsors', { params: { limit: 100 } }).catch(() => []),
+    apiClient.get('/api/marketing/banners', { params: { placement: 'home_sidebar_newsletter', limit: 1 } }).catch(() => []),
+    apiClient.get('/api/marketing/banners', { params: { placement: 'home_sidebar_store', limit: 1 } }).catch(() => [])
+  ]).then(async ([newsData, rankingsData, matchesData, toursData, homeTopData, homeAdData, sponsorsData, sidebarNewsletterData, sidebarStoreData]) => {
     
     // 1. Xử lý Tin tức
     if (newsData) {
@@ -249,6 +256,8 @@ onMounted(async () => {
 
     homeTopBanners.value = Array.isArray(homeTopData) ? homeTopData : []
     homeAdBanners.value = Array.isArray(homeAdData) ? homeAdData : []
+    homeSidebarNewsletterBanners.value = Array.isArray(sidebarNewsletterData) ? sidebarNewsletterData : []
+    homeSidebarStoreBanners.value = Array.isArray(sidebarStoreData) ? sidebarStoreData : []
     marketingSponsors.value = Array.isArray(sponsorsData) ? sponsorsData : []
 
     // 4. LOGIC H2H
@@ -487,11 +496,11 @@ const selectH2HPlayer = (side, player) => {
 
       <div class="h2h-widget" v-if="h2hData">
         <div class="h2h-header">
-          <button class="h2h-nav-btn" @click="shuffleH2H(-1)" :disabled="h2hLoading" title="C\u1eb7p tr\u01b0\u1edbc">
+          <button class="h2h-nav-btn" @click="shuffleH2H(-1)" :disabled="h2hLoading" title="Cặp trước">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <h3>LEXUS <span class="h2h-logo">{{ t('home.h2h') }}</span></h3>
-          <button class="h2h-nav-btn" @click="shuffleH2H(1)" :disabled="h2hLoading" title="C\u1eb7p ti\u1ebfp">
+          <button class="h2h-nav-btn" @click="shuffleH2H(1)" :disabled="h2hLoading" title="Cặp tiếp">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
@@ -499,9 +508,9 @@ const selectH2HPlayer = (side, player) => {
           <div class="h2h-players">
             
             <div class="h2h-player">
-              <div class="h2h-avatar" @click="h2hShowSelectLeft = !h2hShowSelectLeft" style="cursor: pointer;" title="Ch\u1ecdn v\u1eadn \u0111\u1ed9ng vi\u00ean">
+              <div class="h2h-avatar" @click="h2hShowSelectLeft = !h2hShowSelectLeft" style="cursor: pointer;" title="Chọn vận động viên">
                 <img :src="h2hData.player1.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player1.full_name}&background=random`" referrerpolicy="no-referrer" />
-                <div class="h2h-avatar-edit">\u270E</div>
+                <div class="h2h-avatar-edit">✎</div>
               </div>
               <h4 class="h2h-name">{{ h2hData.player1.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
@@ -529,9 +538,9 @@ const selectH2HPlayer = (side, player) => {
             </div>
 
             <div class="h2h-player">
-              <div class="h2h-avatar" @click="h2hShowSelectRight = !h2hShowSelectRight" style="cursor: pointer;" title="Ch\u1ecdn v\u1eadn \u0111\u1ed9ng vi\u00ean">
+              <div class="h2h-avatar" @click="h2hShowSelectRight = !h2hShowSelectRight" style="cursor: pointer;" title="Chọn vận động viên">
                 <img :src="h2hData.player2.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player2.full_name}&background=random`" referrerpolicy="no-referrer" />
-                <div class="h2h-avatar-edit">\u270E</div>
+                <div class="h2h-avatar-edit">✎</div>
               </div>
               <h4 class="h2h-name">{{ h2hData.player2.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
@@ -579,7 +588,21 @@ const selectH2HPlayer = (side, player) => {
       </div>
 
       <div class="right-widgets">
-        <div class="newsletter-widget">
+        <!-- Sidebar 1: Newsletter or Custom Banner -->
+        <a 
+          v-if="homeSidebarNewsletterBanner" 
+          :href="homeSidebarNewsletterBanner.link_url || '#'" 
+          :target="homeSidebarNewsletterBanner.open_in_new_tab ? '_blank' : '_self'"
+          class="sidebar-banner-card"
+          @click="!homeSidebarNewsletterBanner.link_url && $event.preventDefault()"
+        >
+          <img :src="homeSidebarNewsletterBanner.image_url" :alt="homeSidebarNewsletterBanner.title" referrerpolicy="no-referrer" />
+          <div class="sidebar-banner-content" v-if="homeSidebarNewsletterBanner.title">
+            <h4>{{ homeSidebarNewsletterBanner.title }}</h4>
+            <p v-if="homeSidebarNewsletterBanner.subtitle">{{ homeSidebarNewsletterBanner.subtitle }}</p>
+          </div>
+        </a>
+        <div v-else class="newsletter-widget">
           <h3>{{ t('home.newsletter') }}</h3>
           <p>{{ t('home.newsletterDesc') }}</p>
           <div class="input-group">
@@ -588,7 +611,21 @@ const selectH2HPlayer = (side, player) => {
           </div>
         </div>
 
-        <RouterLink to="/tournaments" class="promo-card shop-card">
+        <!-- Sidebar 2: SGT Store or Custom Banner -->
+        <a 
+          v-if="homeSidebarStoreBanner" 
+          :href="homeSidebarStoreBanner.link_url || '#'" 
+          :target="homeSidebarStoreBanner.open_in_new_tab ? '_blank' : '_self'"
+          class="sidebar-banner-card"
+          @click="!homeSidebarStoreBanner.link_url && $event.preventDefault()"
+        >
+          <img :src="homeSidebarStoreBanner.image_url" :alt="homeSidebarStoreBanner.title" referrerpolicy="no-referrer" />
+          <div class="sidebar-banner-content" v-if="homeSidebarStoreBanner.title">
+            <h4>{{ homeSidebarStoreBanner.title }}</h4>
+            <p v-if="homeSidebarStoreBanner.subtitle">{{ homeSidebarStoreBanner.subtitle }}</p>
+          </div>
+        </a>
+        <RouterLink v-else to="/tournaments" class="promo-card shop-card">
           <div class="shop-content">
             <h4>{{ t('home.sgtStore') }}</h4>
             <span class="promo-btn">{{ t('home.shopNow') }} <el-icon><Right /></el-icon></span>
@@ -1069,10 +1106,10 @@ const selectH2HPlayer = (side, player) => {
 .h2h-widget {
   background: #002855;
   border-radius: 8px;
-  overflow: hidden;
   color: white;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 .h2h-header {
   padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center;
@@ -1119,31 +1156,89 @@ const selectH2HPlayer = (side, player) => {
 .h2h-loc { font-size: 0.7rem; color: #94a3b8;}
 
 /* H2H PLAYER SELECTOR DROPDOWN */
+/* H2H PLAYER SELECTOR DROPDOWN */
 .h2h-player-select {
-  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  z-index: 20; margin-top: 6px;
-  min-width: 200px;
+  position: absolute;
+  top: 100%;
+  z-index: 999;
+  margin-top: 10px;
+  width: 240px;
+}
+.h2h-player:first-child .h2h-player-select {
+  left: 0;
+  transform: none;
+}
+.h2h-player:last-child .h2h-player-select {
+  right: 0;
+  left: auto;
+  transform: none;
 }
 .h2h-select-list {
-  background: #0f172a; border: 1px solid rgba(193,255,114,0.25);
-  border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.5);
-  max-height: 260px; overflow-y: auto;
-  padding: 6px 0;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(193, 255, 114, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.7);
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.h2h-select-list::-webkit-scrollbar {
+  width: 6px;
+}
+.h2h-select-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+.h2h-select-list::-webkit-scrollbar-thumb {
+  background: rgba(193, 255, 114, 0.3);
+  border-radius: 3px;
+}
+.h2h-select-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(193, 255, 114, 0.5);
 }
 .h2h-select-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; cursor: pointer;
-  transition: background 0.15s ease;
-  font-size: 0.82rem; color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  color: #e2e8f0;
 }
-.h2h-select-item:hover { background: rgba(193,255,114,0.1); }
-.h2h-select-item.active { background: rgba(193,255,114,0.18); color: #c1ff72; }
+.h2h-select-item:hover {
+  background: rgba(193, 255, 114, 0.12);
+  color: #c1ff72;
+}
+.h2h-select-item.active {
+  background: rgba(193, 255, 114, 0.2);
+  color: #c1ff72;
+  font-weight: 700;
+}
 .h2h-select-item img {
-  width: 28px; height: 28px; border-radius: 50%; object-fit: cover;
-  border: 1px solid rgba(255,255,255,0.15); flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid rgba(193, 255, 114, 0.3);
+  flex-shrink: 0;
 }
-.h2h-select-item span { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.h2h-select-item small { color: #94a3b8; font-size: 0.72rem; font-weight: 700; flex-shrink: 0; }
+.h2h-select-item span {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.h2h-select-item small {
+  color: #c1ff72;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: rgba(193, 255, 114, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
 
 .h2h-score-board { display: flex; align-items: center; gap: 1rem; }
 .score-number { font-size: 2.5rem; font-weight: 800; color: #c1ff72; }
@@ -1350,5 +1445,50 @@ const selectH2HPlayer = (side, player) => {
 .player-link:hover {
   color: #00b0f0 !important;
   text-decoration: underline !important;
+}
+
+.sidebar-banner-card {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  background: #002855;
+  height: 200px;
+}
+.sidebar-banner-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+}
+.sidebar-banner-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sidebar-banner-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0) 100%);
+  padding: 1.25rem 1rem;
+  color: white;
+  box-sizing: border-box;
+  text-align: left;
+}
+.sidebar-banner-content h4 {
+  margin: 0 0 4px 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+}
+.sidebar-banner-content p {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
 }
 </style>

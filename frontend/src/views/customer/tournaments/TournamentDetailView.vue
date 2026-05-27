@@ -659,9 +659,9 @@ const parseSets = (scoreSummary) => {
 <template>
   <div class="tournament-detail-root">
     <div v-if="tournament" class="neo-tournament-page">
-      <div class="neo-hero">
-        <div class="hero-glow glow-1"></div>
-        <div class="hero-glow glow-2"></div>
+      <div class="neo-hero" :style="tournament.banner_url ? `background-image: linear-gradient(to bottom, rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.85)), url(${tournament.banner_url}); background-size: cover; background-position: center;` : ''">
+        <div class="hero-glow glow-1" v-if="!tournament.banner_url"></div>
+        <div class="hero-glow glow-2" v-if="!tournament.banner_url"></div>
         
         <div class="container hero-inner">
           <div class="hero-meta-top">

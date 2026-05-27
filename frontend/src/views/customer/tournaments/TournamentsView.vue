@@ -88,6 +88,7 @@ const fallbackPosters = [
 ]
 
 const getTournamentImage = (tour) => {
+  if (tour.banner_url) return tour.banner_url;
   if (tour.media_url) return tour.media_url;
   const index = (tour.id || 0) % fallbackPosters.length;
   return fallbackPosters[index];
