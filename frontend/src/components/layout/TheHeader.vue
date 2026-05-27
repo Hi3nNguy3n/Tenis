@@ -42,10 +42,10 @@ const closeMenus = () => {
 
       <nav class="desktop-nav" aria-label="Main navigation">
         <RouterLink to="/" active-class="active">{{ $t('nav.home') }}</RouterLink>
+        <RouterLink to="/tournaments" active-class="active">{{ $t('nav.tournaments') }}</RouterLink>
         <RouterLink to="/news" active-class="active">{{ $t('nav.news') }}</RouterLink>
         <RouterLink to="/players" active-class="active">{{ $t('nav.players') }}</RouterLink>
         <RouterLink to="/challenges" active-class="active">{{ $t('nav.challenges') }}</RouterLink>
-        <RouterLink to="/tournaments" active-class="active">{{ $t('nav.tournaments') }}</RouterLink>
         <RouterLink to="/matches" active-class="active">{{ $t('nav.matches') }}</RouterLink>
         <RouterLink to="/rankings" active-class="active">{{ $t('nav.rankings') }}</RouterLink>
       </nav>
@@ -62,10 +62,10 @@ const closeMenus = () => {
           
           <nav class="sidebar-links">
             <RouterLink to="/" active-class="active" @click="closeMenus">{{ $t('nav.home') }}</RouterLink>
+            <RouterLink to="/tournaments" active-class="active" @click="closeMenus">{{ $t('nav.tournaments') }}</RouterLink>
             <RouterLink to="/news" active-class="active" @click="closeMenus">{{ $t('nav.news') }}</RouterLink>
             <RouterLink to="/players" active-class="active" @click="closeMenus">{{ $t('nav.players') }}</RouterLink>
             <RouterLink to="/challenges" active-class="active" @click="closeMenus">{{ $t('nav.challenges') }}</RouterLink>
-            <RouterLink to="/tournaments" active-class="active" @click="closeMenus">{{ $t('nav.tournaments') }}</RouterLink>
             <RouterLink to="/matches" active-class="active" @click="closeMenus">{{ $t('nav.matches') }}</RouterLink>
             <RouterLink to="/rankings" active-class="active" @click="closeMenus">{{ $t('nav.rankings') }}</RouterLink>
           </nav>

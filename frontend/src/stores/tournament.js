@@ -15,8 +15,7 @@ export const useTournamentStore = defineStore('tournament', {
       this.loading = true
       try {
         const query = new URLSearchParams(params).toString()
-        const endpoint = `/api/tournaments/${query ? '?' + query : ''}`
-        this.tournaments = await apiClient.get(endpoint)
+        this.tournaments = await apiClient.get(query ? `/api/tournaments/?${query}` : '/api/tournaments/')
       } catch (err) {
         this.error = err.message
       } finally {

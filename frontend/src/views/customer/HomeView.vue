@@ -212,7 +212,7 @@ onMounted(async () => {
     newsService.getAllPosts({ limit: 5 }),
     playerService.getRankings({ limit: 10 }).catch(() => []),
     apiClient.get('/api/tournaments/matches/all', { params: { show_on_homepage: true, limit: 5 } }).catch(() => []),
-    apiClient.get('/api/tournaments', { params: { limit: 4 } }).catch(() => []),
+    apiClient.get('/api/tournaments/', { params: { limit: 4 } }).catch(() => []),
     apiClient.get('/api/marketing/banners', { params: { placement: 'home_top', limit: 3 } }).catch(() => []),
     apiClient.get('/api/marketing/banners', { params: { placement: 'home_ad', limit: 3 } }).catch(() => []),
     apiClient.get('/api/marketing/sponsors', { params: { limit: 100 } }).catch(() => [])

@@ -3,7 +3,7 @@ import { apiClient } from './apiClient'
 
 export const tournamentService = {
   async getAll(params) {
-    return apiClient.get('/api/tournaments', { params })
+    return apiClient.get('/api/tournaments/', { params })
   },
   async getById(id) {
     return apiClient.get(`/api/tournaments/${id}`)
