@@ -3,8 +3,11 @@ import { useAuthStore } from '../stores/auth'
 import { getStoredAccessToken, getStoredTokenType } from '../utils/authStorage'
 
 // Lấy các Base URL từ biến môi trường
-export const MAIN_API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-export const CHAT_API_URL = import.meta.env.VITE_API_CHAT_URL || 'http://127.0.0.1:8001'
+const envApiUrl = import.meta.env.VITE_API_BASE_URL
+const envChatUrl = import.meta.env.VITE_API_CHAT_URL
+
+export const MAIN_API_URL = typeof envApiUrl !== 'undefined' ? envApiUrl : 'http://127.0.0.1:8000'
+export const CHAT_API_URL = typeof envChatUrl !== 'undefined' ? envChatUrl : 'http://127.0.0.1:8001'
 
 /**
  * Tự động lấy Token để gắn vào Header
