@@ -1,13 +1,10 @@
 import { getActivePinia } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import { getStoredAccessToken, getStoredTokenType } from '../utils/authStorage'
+import { getApiBaseUrl, getChatApiBaseUrl } from '../utils/apiUrls'
 
-// Lấy các Base URL từ biến môi trường
-const envApiUrl = import.meta.env.VITE_API_BASE_URL
-const envChatUrl = import.meta.env.VITE_API_CHAT_URL
-
-export const MAIN_API_URL = typeof envApiUrl !== 'undefined' ? envApiUrl : 'http://127.0.0.1:8000'
-export const CHAT_API_URL = typeof envChatUrl !== 'undefined' ? envChatUrl : 'http://127.0.0.1:8001'
+export const MAIN_API_URL = getApiBaseUrl()
+export const CHAT_API_URL = getChatApiBaseUrl()
 
 /**
  * Tự động lấy Token để gắn vào Header

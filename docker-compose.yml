@@ -55,9 +55,8 @@ services:
         # Sử dụng relative paths để Nginx Gateway điều phối tự động mà không bị lỗi CORS
         - VITE_API_BASE_URL=
         - VITE_API_CHAT_URL=
-        # Thay thế localhost thành Domain hoặc IP VPS của bạn kèm cổng 3012 khi deploy
-        # Ví dụ: ws://12.34.56.78:3012 hoặc ws://yourdomain.com:3012
-        - VITE_WS_CHAT_URL=ws://localhost:3012
+        # Để trống để frontend tự dùng ws/wss theo domain hiện tại.
+        - VITE_WS_CHAT_URL=
     container_name: tennis_frontend
     restart: always
     ports:

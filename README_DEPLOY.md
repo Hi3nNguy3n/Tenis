@@ -141,14 +141,15 @@ ALGORITHM=HS256
 
 Sau khi đã hoàn tất cấu hình các file `.env`, bạn chỉ cần chạy đúng các lệnh dưới đây.
 
-### Bước 4.1: Build và Triển khai với địa chỉ IP VPS của bạn (Quan Trọng)
-Khi đóng gói Frontend Vue 3, client cần biết chính xác địa chỉ IP của VPS để thiết lập kết nối WebSocket tới phòng Chat thông qua cổng `3012`. Hãy chạy lệnh build kèm tham số `VITE_WS_CHAT_URL` như sau:
+### Bước 4.1: Build và Triển khai
 
 ```bash
-# Build và chạy ngầm dự án với IP VPS thực tế của bạn tại cổng 3012
-docker compose build --build-arg VITE_WS_CHAT_URL=ws://<IP_VPS_CỦA_BẠN>:3012 frontend
+# Build và chạy ngầm dự án
+docker compose build
 docker compose up -d
 ```
+
+> Frontend sẽ tự dùng API tương đối `/api/...` và tự chọn WebSocket `ws://` hoặc `wss://` theo domain hiện tại. Không build cứng `localhost`, IP VPS, hoặc `http://` khi chạy production HTTPS.
 
 > **Lưu ý**: Quá trình build lần đầu tiên có thể mất từ 3 - 5 phút vì Docker cần tải các base image (Node, Python, Postgres) và cài đặt các thư viện `npm` & `pip`.
 

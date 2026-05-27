@@ -3,8 +3,9 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { User, Lock, View, Hide, Warning } from '@element-plus/icons-vue'
+import { getApiBaseUrl } from '../../utils/apiUrls'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
+const API_BASE_URL = getApiBaseUrl()
 const LOGIN_ENDPOINT = `${API_BASE_URL}/api/auth/login`
 
 const router = useRouter()

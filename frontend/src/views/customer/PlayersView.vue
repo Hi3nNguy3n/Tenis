@@ -25,8 +25,7 @@ const visiblePlayers = computed(() => {
 
 const loadPlayers = async () => {
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/players/rankings`)
-    const rankings = await res.json()
+    const rankings = await apiClient.get('/api/players/rankings')
     const normalized = Array.isArray(rankings) ? rankings : []
     
     // THÊM DÒNG NÀY: Lọc bỏ những tài khoản có chữ 'admin'

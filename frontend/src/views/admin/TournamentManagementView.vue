@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { tournamentService } from '../../services/tournamentService'
 import apiClient from '../../services/apiClient'
+import { getApiBaseUrl } from '../../utils/apiUrls'
 import { saveAs } from 'file-saver';
 import { getStoredAccessToken } from '../../utils/authStorage';
 import { 
@@ -421,7 +422,7 @@ const downloadExcelReport = async (tournament) => {
   isExporting.value = true;
   try {
     const token = getStoredAccessToken();
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+    const baseUrl = getApiBaseUrl();
     const response = await fetch(`${baseUrl}/api/tournaments/${tournament.id}/export-excel`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });

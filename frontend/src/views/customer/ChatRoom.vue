@@ -143,6 +143,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, onBeforeUnmount } from 'vue';
 import apiClient from '../../services/apiClient';
+import { getChatApiBaseUrl, getWsChatBaseUrl } from '../../utils/apiUrls';
 import { ChatDotRound, Close, ArrowLeft, Search, User, Position, ChatLineRound , WarningFilled} from '@element-plus/icons-vue';
 
 // --- TRẠNG THÁI GIAO DIỆN MỚI ---
@@ -262,7 +263,7 @@ const updateInbox = (senderId, senderName, message) => {
 
 // --- KẾT NỐI WEBSOCKET ---
 const connectAll = () => {
-  const baseWsUrl = `${import.meta.env.VITE_WS_CHAT_URL}/api/chat/ws`;
+  const baseWsUrl = `${getWsChatBaseUrl()}/api/chat/ws`;
   const safeName = encodeURIComponent(myProfile.value.full_name);
   const myId = myProfile.value.id; 
 
@@ -330,7 +331,7 @@ const openPrivateChat = async (user) => {
   if (!privateMessages.value[user.id]) privateMessages.value[user.id] = [];
   
   try {
-      const res = await fetch(`${import.meta.env.VITE_API_CHAT_URL}/api/chat/history/private/${user.id}?token=${token.value}`);
+      const res = await fetch(`${getChatApiBaseUrl()}/api/chat/history/private/${user.id}?token=${token.value}`);
       if (res.ok) {
           const history = await res.json();
           privateMessages.value[user.id] = history.map(msg => ({
