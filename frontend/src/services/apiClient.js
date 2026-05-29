@@ -6,6 +6,21 @@ import { getApiBaseUrl, getChatApiBaseUrl } from '../utils/apiUrls'
 export const MAIN_API_URL = getApiBaseUrl()
 export const CHAT_API_URL = getChatApiBaseUrl()
 
+const TRAILING_SLASH_ENDPOINTS = new Set([
+  '/api/challenges',
+  '/api/courts',
+  '/api/matches',
+  '/api/news',
+  '/api/registrations',
+  '/api/tournaments',
+])
+
+const normalizeEndpoint = (endpoint) => {
+  const [path, query = ''] = endpoint.split('?')
+  const normalizedPath = TRAILING_SLASH_ENDPOINTS.has(path) ? `${path}/` : path
+  return query ? `${normalizedPath}?${query}` : normalizedPath
+}
+
 /**
  * Tự động lấy Token để gắn vào Header
  */
@@ -68,7 +83,7 @@ export const apiClient = {
     const { method = 'GET', body, headers = {}, includeJson = true, useChatApi = false, ...rest } = options
 
     const baseUrl = useChatApi ? CHAT_API_URL : MAIN_API_URL
-    let url = `${baseUrl}${endpoint}`
+    let url = `${baseUrl}${normalizeEndpoint(endpoint)}`
     
     // Support query parameters in GET/DELETE or any request
     if (options.params && Object.keys(options.params).length > 0) {

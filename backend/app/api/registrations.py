@@ -87,6 +87,7 @@ def user_cancel_registration(
     return {"message": "Hủy đăng ký thành công. Slot của bạn đã được giải phóng."}
 
 # 5. ADMIN XEM TẤT CẢ ĐƠN ĐĂNG KÝ
+@router.get("", response_model=List[registration_schemas.RegistrationResponse], include_in_schema=False)
 @router.get("/", response_model=List[registration_schemas.RegistrationResponse])
 def admin_get_all_registrations(
     current_admin: User = Depends(get_current_admin),
