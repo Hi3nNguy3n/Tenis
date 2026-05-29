@@ -10,10 +10,18 @@ export default defineConfig({
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vue: ['vue', 'vue-router', 'pinia', 'vue-i18n'],
-          element: ['element-plus', '@element-plus/icons-vue'],
-          editor: ['quill', '@vueup/vue-quill'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('vue') || id.includes('vue-router') || id.includes('pinia') || id.includes('vue-i18n')) {
+              return 'vendor-vue'
+            }
+            if (id.includes('element-plus') || id.includes('@element-plus/icons-vue')) {
+              return 'vendor-element'
+            }
+            if (id.includes('quill') || id.includes('@vueup/vue-quill')) {
+              return 'vendor-editor'
+            }
+          }
         },
       },
     },
