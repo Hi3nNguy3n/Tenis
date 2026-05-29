@@ -11,6 +11,7 @@ from app.core.audit import audit_log
 
 router = APIRouter()
 
+@router.get("", response_model=List[court_schemas.CourtResponse], include_in_schema=False)
 @router.get("/", response_model=List[court_schemas.CourtResponse])
 def read_courts(
     search: Optional[str] = Query(None),
@@ -19,6 +20,7 @@ def read_courts(
 ):
     return crud_court.get_courts(db, search=search, status=status)
 
+@router.post("", response_model=court_schemas.CourtResponse, include_in_schema=False)
 @router.post("/", response_model=court_schemas.CourtResponse)
 @audit_log(module="COURT", action="CREATE", event_name="Tạo sân thi đấu mới")
 def create_court(
