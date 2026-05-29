@@ -34,7 +34,7 @@ const stats = computed(() => {
 const loadRegistrations = async () => {
   isLoading.value = true
   try {
-    const res = await apiClient.get('/api/registrations')
+    const res = await apiClient.get('/api/registrations/')
     const data = Array.isArray(res) ? res : (res.data || [])
     
     registrations.value = data.sort((a, b) => {

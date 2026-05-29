@@ -9,7 +9,7 @@ export const tournamentService = {
     return apiClient.get(`/api/tournaments/${id}`)
   },
   async create(data) {
-    return apiClient.post('/api/tournaments', data)
+    return apiClient.post('/api/tournaments/', data)
   },
   async update(id, data) {
     return apiClient.put(`/api/tournaments/${id}`, data)
