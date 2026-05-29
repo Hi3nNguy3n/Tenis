@@ -17,6 +17,13 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: tennis_redis
+    restart: always
+    volumes:
+      - redis_data:/data
+
   backend:
     build:
       context: ./backend
@@ -30,12 +37,15 @@ services:
       - RATE_LIMIT_REQUESTS_PER_MINUTE=180
       - RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE=30
       - UVICORN_LIMIT_CONCURRENCY=1000
+      - REDIS_URL=redis://redis:6379
     env_file:
       - ./backend/.env
     # Không map cổng 8000 ra host để tránh xung đột. Nginx trong container frontend sẽ proxy nội bộ.
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   chat_service:
     build:
@@ -77,3 +87,4 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
