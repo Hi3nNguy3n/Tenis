@@ -898,6 +898,8 @@ const getRegStatusType = (status) => {
             <el-descriptions-item label="Tay thuận">{{ formatPlayHand(selectedPlayer.player_profile?.play_hand) }}</el-descriptions-item>
             <el-descriptions-item label="Trình độ">{{ formatSkillLevel(selectedPlayer.player_profile?.skill_level) }}</el-descriptions-item>
             <el-descriptions-item label="Sở trường">{{ selectedPlayer.player_profile?.preferred_category === 'Singles' ? 'Đơn' : (selectedPlayer.player_profile?.preferred_category === 'Doubles' ? 'Đôi' : 'Chưa cập nhật') }}</el-descriptions-item>
+            <el-descriptions-item label="Chiều cao">{{ selectedPlayer.player_profile?.height_cm ? selectedPlayer.player_profile.height_cm + ' cm' : 'Chưa cập nhật' }}</el-descriptions-item>
+            <el-descriptions-item label="Cân nặng">{{ selectedPlayer.player_profile?.weight_kg ? selectedPlayer.player_profile.weight_kg + ' kg' : 'Chưa cập nhật' }}</el-descriptions-item>
             <el-descriptions-item label="Ghi chú của Ban quản trị" :span="2">
               <div style="white-space: pre-line; min-height: 50px; font-style: italic;">{{ selectedPlayer.player_profile?.admin_notes || 'Không có ghi chú' }}</div>
             </el-descriptions-item>
