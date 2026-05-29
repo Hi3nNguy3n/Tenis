@@ -1,6 +1,9 @@
 # backend/app/schemas/auth_schemas.py
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+# backend/app/schemas/auth_schemas.py
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
 from datetime import date
 
 class SendOTPRequest(BaseModel):
@@ -29,6 +32,8 @@ class RegisterRequest(BaseModel):
     preferred_category: Optional[str] = "Singles"
     elo_points: Optional[int] = 1000
     play_hand: Optional[str] = "right"
+    height_cm: Optional[int] = Field(None, ge=80, le=250)
+    weight_kg: Optional[int] = Field(None, ge=25, le=250)
     aces: Optional[int] = 0
     double_faults: Optional[int] = 0
     first_serve_pct: Optional[float] = 0
