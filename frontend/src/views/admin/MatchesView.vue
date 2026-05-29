@@ -95,7 +95,7 @@ const groupedMatches = computed(() => {
 
 const fetchTournaments = async () => {
   try {
-    const data = await apiClient.get('/api/tournaments?limit=100')
+    const data = await apiClient.get('/api/tournaments/', { params: { limit: 100 } })
     tournaments.value = data
   } catch (err) { ElMessage.error(t('admin.loadTournamentsError')) }
 }
