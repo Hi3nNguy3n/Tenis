@@ -1,9 +1,9 @@
 <script setup>
 import { onMounted, ref, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { playerService } from '../../services/playerService'
 import apiClient from '../../services/apiClient' 
-import { Plus, Camera, User, Search, Filter, EditPen } from '@element-plus/icons-vue' 
+import { Plus, Camera, User, Search, Filter, EditPen, Delete } from '@element-plus/icons-vue' 
 import { t } from '../../utils/locale'
 import { useRoute } from 'vue-router'
 
@@ -139,6 +139,8 @@ const editForm = ref({
   province: '',
   date_of_birth: null, 
   elo_points: 1000,
+  height_cm: null,
+  weight_kg: null,
   avatar_url: '',
   is_active: true,
   admin_notes: '',
@@ -157,6 +159,8 @@ const createForm = ref({
   province: '',
   date_of_birth: null, 
   elo_points: 1000,
+  height_cm: null,
+  weight_kg: null,
   admin_notes: '',
   ...playerStatDefaults
 })
@@ -237,6 +241,8 @@ const openEditDialog = (player) => {
     province: player.player_profile?.province || '',
     date_of_birth: player.player_profile?.date_of_birth || null,
     elo_points: player.player_profile?.elo_points || 1000,
+    height_cm: player.player_profile?.height_cm || null,
+    weight_kg: player.player_profile?.weight_kg || null,
     avatar_url: player.user.avatar_url || '',
     is_active: player.user.is_active,
     admin_notes: player.player_profile?.admin_notes || '',
@@ -255,6 +261,7 @@ const openCreateDialog = () => {
     otp_code: 'bypass_otp',
     avatar_url: '', skill_level: 'Beginner', preferred_category: 'Singles',
     province: '', date_of_birth: null, elo_points: 1000,
+    height_cm: null, weight_kg: null,
     ...playerStatDefaults
   }
   isCreateDialogVisible.value = true
@@ -313,6 +320,27 @@ const handleUpdatePlayer = async () => {
     ElMessage.error(t('admin.updateError') + ': ' + err.message)
   } finally {
     isSaving.value = false
+  }
+}
+
+const deletePlayer = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `Bạn có chắc chắn muốn xóa vận động viên ${row.user?.full_name}? Việc này sẽ không xóa các dữ liệu thi đấu lịch sử nhưng tài khoản của vận động viên sẽ bị vô hiệu hóa.`,
+      'Xác nhận xóa',
+      {
+        confirmButtonText: 'Đồng ý',
+        cancelButtonText: 'Hủy',
+        type: 'warning',
+      }
+    )
+    await playerService.delete(row.user.id)
+    ElMessage.success('Đã xóa vận động viên thành công!')
+    fetchPlayers()
+  } catch (err) {
+    if (err !== 'cancel') {
+      ElMessage.error(err.message || 'Lỗi khi xóa vận động viên')
+    }
   }
 }
 
@@ -537,7 +565,7 @@ const getRegStatusType = (status) => {
            </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.action')" width="180" fixed="right" align="center">
+        <el-table-column :label="$t('admin.action')" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-btns">
               <el-button 
@@ -557,6 +585,15 @@ const getRegStatusType = (status) => {
               >
                 <el-icon><EditPen /></el-icon>
                 <span>{{ $t('admin.edit') }}</span>
+              </el-button>
+              <el-button 
+                size="small" 
+                type="danger" 
+                circle
+                @click="deletePlayer(row)"
+                title="Xóa vận động viên"
+              >
+                <el-icon><Delete /></el-icon>
               </el-button>
             </div>
           </template>
@@ -613,6 +650,25 @@ const getRegStatusType = (status) => {
           <el-col :span="12">
             <el-form-item :label="$t('admin.dob')">
               <el-date-picker v-model="createForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" :disabled-date="disabledDate" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Tay thuận">
+              <el-select v-model="createForm.play_hand" style="width: 100%">
+                <el-option label="Tay phải" value="right" />
+                <el-option label="Tay trái" value="left" />
+                <el-option label="Cả hai tay" value="both" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Chiều cao (cm)">
+              <el-input-number v-model="createForm.height_cm" :min="80" :max="250" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Cân nặng (kg)">
+              <el-input-number v-model="createForm.weight_kg" :min="25" :max="250" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -720,6 +776,25 @@ const getRegStatusType = (status) => {
               <el-date-picker v-model="editForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" :disabled-date="disabledDate" />
             </el-form-item>
           </el-col>
+          <el-col :span="8">
+            <el-form-item label="Tay thuận">
+              <el-select v-model="editForm.play_hand" style="width: 100%">
+                <el-option label="Tay phải" value="right" />
+                <el-option label="Tay trái" value="left" />
+                <el-option label="Cả hai tay" value="both" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Chiều cao (cm)">
+              <el-input-number v-model="editForm.height_cm" :min="80" :max="250" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Cân nặng (kg)">
+              <el-input-number v-model="editForm.weight_kg" :min="25" :max="250" style="width: 100%" />
+            </el-form-item>
+          </el-col>
           <el-col :span="12">
             <el-form-item :label="$t('admin.gender')">
               <el-radio-group v-model="editForm.gender">
@@ -823,6 +898,8 @@ const getRegStatusType = (status) => {
             <el-descriptions-item label="Tay thuận">{{ formatPlayHand(selectedPlayer.player_profile?.play_hand) }}</el-descriptions-item>
             <el-descriptions-item label="Trình độ">{{ formatSkillLevel(selectedPlayer.player_profile?.skill_level) }}</el-descriptions-item>
             <el-descriptions-item label="Sở trường">{{ selectedPlayer.player_profile?.preferred_category === 'Singles' ? 'Đơn' : (selectedPlayer.player_profile?.preferred_category === 'Doubles' ? 'Đôi' : 'Chưa cập nhật') }}</el-descriptions-item>
+            <el-descriptions-item label="Chiều cao">{{ selectedPlayer.player_profile?.height_cm ? selectedPlayer.player_profile.height_cm + ' cm' : 'Chưa cập nhật' }}</el-descriptions-item>
+            <el-descriptions-item label="Cân nặng">{{ selectedPlayer.player_profile?.weight_kg ? selectedPlayer.player_profile.weight_kg + ' kg' : 'Chưa cập nhật' }}</el-descriptions-item>
             <el-descriptions-item label="Ghi chú của Ban quản trị" :span="2">
               <div style="white-space: pre-line; min-height: 50px; font-style: italic;">{{ selectedPlayer.player_profile?.admin_notes || 'Không có ghi chú' }}</div>
             </el-descriptions-item>

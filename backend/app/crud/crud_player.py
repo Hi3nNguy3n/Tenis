@@ -1,5 +1,6 @@
 # backend/app/crud/crud_player.py
 from sqlalchemy.orm import Session
+from datetime import datetime
 from sqlalchemy import or_, desc
 from app.models.models import Player, User, Match, Registration, Tournament, Court, Role
 from app.schemas.player_schemas import PlayerUpdate
@@ -69,7 +70,10 @@ def update_user_avatar(db: Session, user: User, avatar_url: str):
 
 def get_players_list(db: Session, search: str = None, skill: str = None, status: str = None):
     # Lấy cả Player và User trong 1 lần query
-    query = db.query(Player, User).join(User, Player.user_id == User.id)
+    query = db.query(Player, User).join(User, Player.user_id == User.id).filter(
+        Player.deleted_at.is_(None),
+        User.deleted_at.is_(None)
+    )
     
     if search:
         query = query.filter(or_(
@@ -118,6 +122,7 @@ def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpd
     if update_data.admin_notes is not None: player.admin_notes = update_data.admin_notes
     if update_data.height_cm is not None: player.height_cm = update_data.height_cm
     if update_data.weight_kg is not None: player.weight_kg = update_data.weight_kg
+    if update_data.elo_points is not None: player.elo_points = update_data.elo_points
     _apply_player_stat_updates(player, update_data)
 
     db.commit()
@@ -132,7 +137,9 @@ def get_player_rankings(db: Session, category: str = None, province: str = None,
     ).filter(
         User.is_active == True,
         User.account_type != "admin",
-        or_(Role.id.is_(None), Role.role_key != "admin")
+        or_(Role.id.is_(None), Role.role_key != "admin"),
+        Player.deleted_at.is_(None),
+        User.deleted_at.is_(None)
     )
     if category:
         query = query.filter(Player.preferred_category == category)
@@ -192,9 +199,29 @@ def get_opponent_user_by_reg_id(db: Session, reg_id: int):
         Registration, Registration.player_id == Player.id
     ).filter(Registration.id == reg_id).first()
 
+def delete_player_db(db: Session, player_id: int):
+    # player_id ở đây đại diện cho User ID theo quy chuẩn hiện tại
+    player = db.query(Player).join(User, Player.user_id == User.id).filter(User.id == player_id).first()
+    if not player:
+        return None
+    
+    now = datetime.utcnow()
+    player.deleted_at = now
+    
+    user = db.query(User).filter(User.id == player.user_id).first()
+    if user:
+        user.deleted_at = now
+        user.is_active = False # Khóa tài khoản
+        
+    db.commit()
+    return player
+
 def search_players(db: Session, keyword: str, limit: int = 10):
     # Join Player với User để lấy cả 2 thông tin
-    query = db.query(Player, User).join(User, Player.user_id == User.id)
+    query = db.query(Player, User).join(User, Player.user_id == User.id).filter(
+        Player.deleted_at.is_(None),
+        User.deleted_at.is_(None)
+    )
 
     if keyword.isdigit():
         # Nếu nhập số, tìm theo User ID (để đồng bộ với Chat)
@@ -218,7 +245,11 @@ def search_players(db: Session, keyword: str, limit: int = 10):
 
 def get_player_by_id(db: Session, player_id: int):
     # player_id ở đây được hiểu là User ID để đồng bộ toàn hệ thống
-    result = db.query(Player, User).join(User, Player.user_id == User.id).filter(User.id == player_id).first()
+    result = db.query(Player, User).join(User, Player.user_id == User.id).filter(
+        User.id == player_id,
+        Player.deleted_at.is_(None),
+        User.deleted_at.is_(None)
+    ).first()
     if not result:
         return None
     p, u = result

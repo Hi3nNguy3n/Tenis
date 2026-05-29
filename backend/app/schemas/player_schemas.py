@@ -40,6 +40,7 @@ class PlayerUpdate(BaseModel):
 
     avatar_url: Optional[str] = None 
     is_active: Optional[bool] = None
+    elo_points: Optional[int] = None
 class PlayerPublicResponse(BaseModel):
     id: int                # User ID
     player_id: int         # Player Profile ID
