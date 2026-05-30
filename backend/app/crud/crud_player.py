@@ -101,6 +101,15 @@ def admin_update_player_data(db: Session, player_id: int, update_data: PlayerUpd
     if user:
         # Cập nhật thông tin cơ bản
         if update_data.full_name is not None: user.full_name = update_data.full_name
+        if update_data.email is not None:
+            normalized_email = update_data.email.strip().lower()
+            existing_user = db.query(User).filter(
+                User.email == normalized_email,
+                User.id != user.id
+            ).first()
+            if existing_user:
+                raise ValueError("Email này đã được sử dụng bởi tài khoản khác.")
+            user.email = normalized_email
         if update_data.phone is not None: user.phone = update_data.phone
         if update_data.province is not None: user.province = update_data.province
         if update_data.gender is not None: user.gender = update_data.gender

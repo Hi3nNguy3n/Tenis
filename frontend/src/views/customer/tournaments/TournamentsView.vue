@@ -107,10 +107,22 @@ const groupedTournaments = computed(() => {
     filtered = filtered.filter(t => t.is_registered || t.is_mine || t.is_participant)
   }
 
-  // Sorting: Ongoing (0) -> Open (1) -> Pending (2) -> Finished (3)
+  // Sorting: manual display order first, then status/date fallback.
   const statusOrder = { 'ongoing': 0, 'open': 1, 'pending': 2, 'finished': 3 }
   
   return [...filtered].sort((a, b) => {
+    const displayOrderA = Number(a.display_order || 0)
+    const displayOrderB = Number(b.display_order || 0)
+    const hasDisplayOrderA = displayOrderA > 0
+    const hasDisplayOrderB = displayOrderB > 0
+
+    if (hasDisplayOrderA && hasDisplayOrderB && displayOrderA !== displayOrderB) {
+      return displayOrderA - displayOrderB
+    }
+    if (hasDisplayOrderA !== hasDisplayOrderB) {
+      return hasDisplayOrderA ? -1 : 1
+    }
+
     const orderA = statusOrder[a.status] ?? 99
     const orderB = statusOrder[b.status] ?? 99
     

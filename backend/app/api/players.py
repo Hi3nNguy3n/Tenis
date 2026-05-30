@@ -87,7 +87,10 @@ def admin_update_player(
     data: PlayerUpdate, 
     db: Session = Depends(get_db)
 ):
-    player = crud_player.admin_update_player_data(db, player_id, data)
+    try:
+        player = crud_player.admin_update_player_data(db, player_id, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
     return {"message": "Player updated"}
