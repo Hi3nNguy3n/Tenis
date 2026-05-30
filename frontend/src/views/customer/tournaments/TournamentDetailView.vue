@@ -28,7 +28,8 @@ const authStore = useAuthStore()
 const tournamentId = computed(() => route.params.id)
 const tournament = computed(() => tournamentStore.currentTournament)
 
-const activeTab = ref('bracket')
+const normalizeRouteTab = (value) => ['bracket', 'schedule', 'standings', 'participants', 'media', 'info'].includes(value) ? value : 'bracket'
+const activeTab = ref(normalizeRouteTab(route.query.tab))
 const publicMatches = ref([])
 const loadingBracket = ref(false)
 const standingsData = ref([])
@@ -50,7 +51,7 @@ const renderTournamentDescription = (value) => {
 watch(tournamentId, async (newId) => {
   if (newId) {
     // Reset state
-    activeTab.value = 'bracket'
+    activeTab.value = normalizeRouteTab(route.query.tab)
     publicMatches.value = []
     standingsData.value = []
     registrations.value = []
@@ -153,7 +154,7 @@ const scrollToAndHighlightMatch = () => {
   const matchId = route.query.matchId
   if (!matchId) return
   
-  activeTab.value = 'bracket'
+  activeTab.value = normalizeRouteTab(route.query.tab)
   
   nextTick(() => {
     setTimeout(() => {
@@ -176,6 +177,10 @@ watch(() => route.query.matchId, (newId) => {
   if (newId) {
     scrollToAndHighlightMatch()
   }
+})
+
+watch(() => route.query.tab, (newTab) => {
+  activeTab.value = normalizeRouteTab(newTab)
 })
 
 // Watch category change to re-fetch data
