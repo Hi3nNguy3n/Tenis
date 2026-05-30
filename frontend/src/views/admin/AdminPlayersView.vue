@@ -22,6 +22,7 @@ const createErrors = ref({
 })
 
 const editErrors = ref({
+  email: '',
   phone: ''
 })
 
@@ -131,6 +132,7 @@ const isEditDialogVisible = ref(false)
 const editForm = ref({
   id: null,
   full_name: '',
+  email: '',
   phone: '',
   gender: 'male',
   play_hand: 'right',
@@ -229,10 +231,11 @@ watch(() => route.path, (newPath) => {
 })
 
 const openEditDialog = (player) => {
-  editErrors.value = { phone: '' }
+  editErrors.value = { email: '', phone: '' }
   editForm.value = {
     id: player.id,
     full_name: player.user.full_name,
+    email: player.user.email || '',
     phone: player.user.phone || '',
     gender: player.player_profile?.gender || 'male',
     play_hand: player.player_profile?.play_hand || 'right',
@@ -299,9 +302,10 @@ const handleCreatePlayer = async () => {
 }
 
 const handleUpdatePlayer = async () => {
+  editErrors.value.email = validateEmail(editForm.value.email)
   editErrors.value.phone = validatePhone(editForm.value.phone)
 
-  if (editErrors.value.phone) {
+  if (editErrors.value.email || editErrors.value.phone) {
     ElMessage.error('Vui lòng sửa các lỗi trong form trước khi lưu!')
     return
   }
@@ -309,6 +313,7 @@ const handleUpdatePlayer = async () => {
   isSaving.value = true
   try {
     const payload = { ...editForm.value }
+    payload.email = payload.email.trim().toLowerCase()
     payload.phone = payload.phone.replace(/[\s\-\(\)]/g, '')
     if (!payload.date_of_birth) payload.date_of_birth = null
 
@@ -753,6 +758,7 @@ const getRegStatusType = (status) => {
 
         <el-row :gutter="24">
           <el-col :span="12"><el-form-item :label="$t('admin.fullName')"><el-input v-model="editForm.full_name" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.email')" :error="editErrors.email"><el-input v-model="editForm.email" placeholder="email@example.com" @input="editErrors.email = ''" @blur="editErrors.email = validateEmail(editForm.email)" /></el-form-item></el-col>
           <el-col :span="12"><el-form-item :label="$t('admin.phone')" :error="editErrors.phone"><el-input v-model="editForm.phone" @input="editErrors.phone = ''" @blur="editErrors.phone = validatePhone(editForm.phone)" /></el-form-item></el-col>
           <el-col :span="8">
             <el-form-item :label="$t('admin.skillLevel')">

@@ -8,6 +8,7 @@ from datetime import date
 
 class PlayerUpdate(BaseModel):
     full_name: Optional[str] = None
+    email: Optional[str] = Field(None, max_length=255)
     phone: Optional[str] = Field(None, max_length=15)
     gender: Optional[str] = Field(None, description="male, female, other")
     date_of_birth: Optional[date] = None

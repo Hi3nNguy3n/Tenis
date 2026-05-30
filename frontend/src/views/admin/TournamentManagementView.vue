@@ -186,6 +186,7 @@ const openEditDialog = (row) => {
     end_date: row.end_date || '',
     description: row.description || '',
     banner_url: row.banner_url || '',
+    display_order: row.display_order || 0,
     categories: sanitizedCategories
   }
   isDialogOpen.value = true
@@ -363,6 +364,7 @@ const saveTournament = async () => {
       entry_fee_team: payload.entry_fee_team,
       description: normalizeTournamentDescription(payload.description),
       banner_url: payload.banner_url || null,
+      display_order: payload.display_order || 0,
     }
 
     let tourId = form.value.id
@@ -449,7 +451,7 @@ const createDefaultForm = () => ({
   location: '', surface_type: 'Hard', registration_open_at: '',
   registration_close_at: '', start_date: '', end_date: '',
   entry_fee: 100000, entry_fee_team: 200000, description: '',
-  banner_url: '',
+  banner_url: '', display_order: 0,
   categories: [
     { name: 'Đơn Nam', category_type: 'mens_singles', max_points: 1200, max_participants: 32 }
   ]
@@ -617,6 +619,13 @@ onMounted(() => {
           </template>
         </el-table-column>
 
+        <el-table-column label="Thứ tự" width="110" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.display_order > 0" type="success" effect="plain">#{{ row.display_order }}</el-tag>
+            <span v-else class="muted-order">Mặc định</span>
+          </template>
+        </el-table-column>
+
         <!-- REMOVED REDUNDANT CATEGORY TYPE COLUMN -->
         
         <el-table-column :label="$t('admin.drawSize')" width="100" align="center">
@@ -692,6 +701,7 @@ onMounted(() => {
             <div class="info-grid">
               <div class="info-item"><span>{{ $t('admin.tournamentFormat') }}</span><strong>{{ selectedTournament.format_type }}</strong></div>
               <div class="info-item"><span>{{ $t('admin.drawSize') }}</span><strong>{{ selectedTournament.draw_size }}</strong></div>
+              <div class="info-item"><span>Thứ tự hiển thị</span><strong>{{ selectedTournament.display_order > 0 ? `#${selectedTournament.display_order}` : 'Mặc định' }}</strong></div>
               <div class="info-item"><span>{{ $t('admin.surface') }}</span><strong>{{ selectedTournament.surface_type }}</strong></div>
               <div class="info-item"><span>{{ $t('admin.location') }}</span><strong>{{ selectedTournament.location || 'N/A' }}</strong></div>
             </div>
@@ -858,6 +868,12 @@ onMounted(() => {
                   <el-option label="Singles" value="Singles" />
                   <el-option label="Doubles" value="Doubles" />
                 </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="Thứ tự hiển thị">
+                <el-input-number v-model="form.display_order" :min="0" :step="1" :precision="0" style="width: 100%" />
+                <p class="form-help-text">Nhập 1 để giải đấu hiển thị ở vị trí số 1 trên trang giải đấu/trang chủ. Để 0 nếu muốn hệ thống sắp xếp mặc định.</p>
               </el-form-item>
             </el-col>
           </el-row>
@@ -1191,6 +1207,12 @@ onMounted(() => {
 .status-indicator.is-draft { color: #f59e0b; background: #fffbeb; }
 
 .status-indicator .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.muted-order {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
 
 .elo-badge {
   font-weight: 800;

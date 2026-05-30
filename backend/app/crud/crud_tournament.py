@@ -1,7 +1,7 @@
 # backend/app/crud/crud_tournament.py
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List, Dict, Any
-from sqlalchemy import func, desc, or_
+from sqlalchemy import func, desc, or_, case
 from fastapi import HTTPException
 from datetime import datetime
 import math
@@ -61,7 +61,12 @@ def get_tournaments_with_counts(db: Session, skip: int = 0, limit: int = 10, sta
     if status:
         query = query.filter(Tournament.status == status)
     
-    tournaments = query.offset(skip).limit(limit).all()
+    tournaments = query.order_by(
+        case((Tournament.display_order > 0, 0), else_=1),
+        Tournament.display_order.asc(),
+        Tournament.start_date.desc(),
+        Tournament.id.desc()
+    ).offset(skip).limit(limit).all()
     
     # TÃ­nh sá»‘ slot Ä‘Ã£ Ä‘Äƒng kÃ½ cho tá»«ng giáº£i
     for t in tournaments:
