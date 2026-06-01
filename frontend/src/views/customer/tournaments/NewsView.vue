@@ -5,6 +5,7 @@ import { newsService } from '../../../services/newsService'
 import { playerService } from '../../../services/playerService' 
 import { Search, VideoPlay, ArrowDown } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../../utils/locale'
+import MarketingBannerStrip from '../../../components/MarketingBannerStrip.vue'
 
 const router = useRouter()
 const newsList = ref([])
@@ -148,6 +149,14 @@ onMounted(fetchNewsAndRankings)
               <span class="post-date">{{ formatDate(featuredPost.publish_at || featuredPost.created_at) }}</span>
             </div>
           </div>
+
+          <div v-if="featuredPost" class="news-ad-banner">
+            <div class="news-ad-heading">
+              <span>Quảng cáo</span>
+              <strong>Banner nổi bật</strong>
+            </div>
+            <MarketingBannerStrip placement="home_top" variant="compact" :max="3" />
+          </div>
           
           <div v-if="remainingPosts.length > 0" class="news-grid">
             <article 
@@ -209,6 +218,10 @@ onMounted(fetchNewsAndRankings)
             </div>
           </div>
 
+          <div class="sidebar-store-banner">
+            <MarketingBannerStrip placement="home_sidebar_store" variant="sidebar" :max="1" />
+          </div>
+
         </aside>
 
       </div>
@@ -240,6 +253,41 @@ onMounted(fetchNewsAndRankings)
 .featured-title { font-size: 2.2rem; line-height: 1.2; font-weight: 800; color: #0f172a; margin-bottom: 1rem; letter-spacing: -0.02em; }
 .featured-excerpt { font-size: 1.1rem; line-height: 1.6; color: #475569; margin-bottom: 1.5rem; }
 .post-date, .grid-date { font-size: 0.8rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
+.news-ad-banner {
+  padding: 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  box-shadow: 0 14px 32px rgba(0, 40, 85, 0.08);
+}
+.news-ad-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 0.85rem;
+}
+.news-ad-heading span {
+  color: #00b0f0;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.news-ad-heading strong {
+  color: #002855;
+  font-size: 1.15rem;
+  font-style: italic;
+  font-weight: 900;
+}
+.news-ad-banner :deep(.marketing-strip) { margin-bottom: 0; }
+.news-ad-banner :deep(.marketing-strip-grid) { gap: 1rem; }
+.news-ad-banner :deep(.marketing-strip-card) {
+  border-radius: 10px;
+  min-height: 170px;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
+}
+.sidebar-store-banner :deep(.marketing-strip) { margin-bottom: 0; }
+.sidebar-store-banner :deep(.marketing-strip-card) { border-radius: 8px; }
 .news-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
 .grid-news-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; transition: transform 0.3s, box-shadow 0.3s; }
 .grid-news-card:hover { transform: translateY(-4px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); border-color: #002855; }

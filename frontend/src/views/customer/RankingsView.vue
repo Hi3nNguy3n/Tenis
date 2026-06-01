@@ -17,6 +17,8 @@ const activeRankingTab = ref('Singles')
 const activeScoreTab = ref('sgt')
 const scorePage = ref(1)
 const SCORE_PAGE_SIZE = 1
+const rankingPage = ref(1)
+const RANKING_PAGE_SIZE = 15
 
 const filters = ref({
   category: '',
@@ -219,6 +221,13 @@ const displayedRankings = computed(() => {
     .map((player, index) => ({ ...player, rank: index + 1 }))
 })
 
+const totalRankingPages = computed(() => Math.max(1, Math.ceil(displayedRankings.value.length / RANKING_PAGE_SIZE)))
+
+const paginatedRankings = computed(() => {
+  const start = (rankingPage.value - 1) * RANKING_PAGE_SIZE
+  return displayedRankings.value.slice(start, start + RANKING_PAGE_SIZE)
+})
+
 const scoreTabMatches = computed(() => {
   const isSgtTour = activeScoreTab.value === 'sgt'
   return resultMatches.value.filter(match => isSgtTour ? Boolean(match.tournament_id) : !match.tournament_id)
@@ -352,12 +361,22 @@ const rankingTableLabels = computed(() => {
 
 const setRankingTab = (tab) => {
   activeRankingTab.value = tab
+  rankingPage.value = 1
   if (tab === 'Singles') filters.value.category = ''
   if (tab === 'Doubles') filters.value.category = ''
 }
 // TỰ ĐỘNG LỌC LẠI KHI NGƯỜI DÙNG CHỌN MENU THẢ XUỐNG
 watch(() => [filters.value.category, filters.value.province], () => {
+  rankingPage.value = 1
   fetchRankings()
+})
+
+watch(() => filters.value.keyword, () => {
+  rankingPage.value = 1
+})
+
+watch(totalRankingPages, (total) => {
+  if (rankingPage.value > total) rankingPage.value = total
 })
 onMounted(async () => {
   await Promise.all([fetchRankings(), fetchFinalMatches()])
@@ -473,7 +492,7 @@ onMounted(async () => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="player in displayedRankings" :key="player.player_id">
+              <tr v-for="player in paginatedRankings" :key="player.player_id">
                 <td class="col-rank">
                   <span class="rank-num">{{ player.rank }}</span>
                 </td>
@@ -514,6 +533,15 @@ onMounted(async () => {
               </tr>
             </tbody>
           </table>
+          <div v-if="displayedRankings.length > RANKING_PAGE_SIZE" class="ranking-pagination">
+            <el-pagination
+              v-model:current-page="rankingPage"
+              :page-size="RANKING_PAGE_SIZE"
+              :total="displayedRankings.length"
+              layout="prev, pager, next"
+              background
+            />
+          </div>
         </div>
       </main>
 
@@ -874,6 +902,16 @@ onMounted(async () => {
 ========================================================= */
 .ranking-list-container {
   width: 100%;
+}
+
+.ranking-pagination {
+  display: flex;
+  justify-content: center;
+  padding-top: 1.5rem;
+}
+
+.ranking-pagination :deep(.el-pagination.is-background .el-pager li.is-active) {
+  background: #002855;
 }
 
 .atp-flat-table {
