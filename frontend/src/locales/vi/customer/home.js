@@ -27,7 +27,7 @@ export default {
   shopDesc: 'Trang bị thi đấu, phụ kiện và dịch vụ căng vợt được tuyển chọn cho người chơi bán chuyên và chuyên nghiệp.',
 
   // --- CÁC TỪ KHÓA MỚI CHO ATP THEME (HOME VIEW) ---
-  scores: 'THÔNG TIN TỔNG QUAN',
+  scores: 'TRỰC TIẾP',
   seeAllMatches: 'Xem tất cả',
   liveCompleted: 'Trực tiếp / Đã xong',
   schedule: 'Lịch thi đấu',

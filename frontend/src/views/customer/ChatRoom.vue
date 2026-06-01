@@ -67,6 +67,23 @@
             <div class="divider"></div>
 
             <!-- Kết quả tìm kiếm -->
+            <section class="zalo-qr-card" aria-label="QR Zalo Saigontennistours">
+              <div class="zalo-qr-copy">
+                <span class="zalo-badge">Zalo Official</span>
+                <h4>Quét QR để kết nối nhanh</h4>
+                <p>Mở ảnh QR hoặc tải xuống để quét bằng Zalo trên điện thoại.</p>
+                <div class="zalo-actions">
+                  <a href="/qrzalo.jpg" target="_blank" rel="noopener" class="zalo-action primary">Mở QR</a>
+                  <a href="/qrzalo.jpg" download="qrzalo-saigontennistours.jpg" class="zalo-action">Tải ảnh</a>
+                </div>
+              </div>
+              <a href="/qrzalo.jpg" target="_blank" rel="noopener" class="zalo-qr-preview" title="Mở mã QR Zalo">
+                <img src="/qrzalo.jpg" alt="Mã QR Zalo Saigontennistours" />
+              </a>
+            </section>
+
+            <div class="divider"></div>
+
             <div v-if="searchResults.length > 0" class="section-group">
               <span class="section-label">TÌM KIẾM</span>
               <div 
@@ -617,6 +634,105 @@ const disconnectAll = () => {
 .divider { height: 1px; background: var(--glass-border); margin: 0 20px; }
 .empty-state { padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.85rem; font-style: italic; }
 
+.zalo-qr-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 14px;
+  align-items: center;
+  margin: 18px 20px;
+  padding: 14px;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(6, 182, 212, 0.22), transparent 40%),
+    linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.035));
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
+}
+
+.zalo-qr-copy {
+  min-width: 0;
+}
+
+.zalo-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.16);
+  color: var(--accent-cyan);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.zalo-qr-copy h4 {
+  margin: 0 0 6px;
+  color: var(--text-main);
+  font-size: 0.95rem;
+  line-height: 1.25;
+  font-weight: 900;
+}
+
+.zalo-qr-copy p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.zalo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zalo-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text-main);
+  background: rgba(255,255,255,0.06);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 900;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.zalo-action.primary {
+  border-color: rgba(6, 182, 212, 0.45);
+  background: var(--gradient-main);
+  color: #fff;
+}
+
+.zalo-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-cyan);
+}
+
+.zalo-qr-preview {
+  display: block;
+  width: 112px;
+  aspect-ratio: 1;
+  padding: 8px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+}
+
+.zalo-qr-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
 /* =======================================================
    VIEW 2: CHAT ROOM VIEW
    ======================================================= */
@@ -694,6 +810,21 @@ const disconnectAll = () => {
   .chat-window {
     position: fixed; bottom: 0; right: 0; width: 100%; height: 100%; max-height: 100%;
     border-radius: 0; z-index: 10000; border: none;
+  }
+
+  .zalo-qr-card {
+    grid-template-columns: 1fr;
+    text-align: center;
+    margin: 14px 16px;
+  }
+
+  .zalo-actions {
+    justify-content: center;
+  }
+
+  .zalo-qr-preview {
+    width: min(180px, 58vw);
+    margin: 0 auto;
   }
   
   .chat-trigger-btn { bottom: 20px; right: 20px; z-index: 10001; }

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import apiClient from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
@@ -34,6 +34,25 @@ const activeRankingTab = ref('singles')
 const rawRankings = ref([])
 const recentMatches = ref([])
 const featuredTournaments = ref([])
+const isHomeLoading = ref(true)
+const isRankingsLoading = ref(false)
+const isMarketingBannersLoading = ref(false)
+const isHomeAdsLoading = ref(false)
+const isSidebarBannersLoading = ref(false)
+const isTournamentsLoading = ref(false)
+const isSponsorsLoading = ref(false)
+const didLoadRankings = ref(false)
+const didLoadMarketingBanners = ref(false)
+const didLoadHomeAds = ref(false)
+const didLoadSidebarBanners = ref(false)
+const didLoadTournaments = ref(false)
+const didLoadSponsors = ref(false)
+const marketingShowcaseRef = ref(null)
+const homeAdsRef = ref(null)
+const middleSectionRef = ref(null)
+const tournamentsSectionRef = ref(null)
+const sponsorsSectionRef = ref(null)
+const observers = []
 
 const topPlayers = computed(() => {
   return rawRankings.value.slice(0, 10).map((p, index) => ({
@@ -210,82 +229,208 @@ const getMatchContext = (match) => {
   return `${tournament} · ${round}`
 }
 
-onMounted(async () => {
-  authStore.hydrate()
-  
+const getMatchStatusPriority = (status) => {
+  const normalized = String(status || '').toLowerCase()
+  if (normalized === 'ongoing') return 0
+  if (normalized === 'completed' || normalized === 'finished') return 1
+  return 2
+}
+
+const getMatchSortTime = (match) => {
+  return match?.start_time || match?.scheduled_at || match?.date || match?.start || ''
+}
+
+const processNewsData = (newsData) => {
+  if (newsData) {
+    rawNewsPosts.value = newsData.sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
+  }
+}
+
+const processRankingsData = (rankingsData) => {
+  const filteredRankings = (rankingsData || []).filter(p => !p.full_name?.toLowerCase().includes('admin'))
+  rawRankings.value = filteredRankings.map((p, index) => ({
+    ...p,
+    rank: index + 1
+  }))
+}
+
+const processMatchesData = (matchesData) => {
+  const filteredMatches = (Array.isArray(matchesData) ? matchesData : []).filter(m => {
+    const isP1Admin = m.p1_name?.toLowerCase().includes('admin')
+    const isP2Admin = m.p2_name?.toLowerCase().includes('admin')
+    const status = String(m.status || '').toLowerCase()
+    return !isP1Admin && !isP2Admin && hasDisplayableMatchData(m) && ['ongoing', 'completed', 'finished'].includes(status)
+  })
+  recentMatches.value = filteredMatches
+    .sort((a, b) => {
+      const priorityA = getMatchStatusPriority(a.status)
+      const priorityB = getMatchStatusPriority(b.status)
+      if (priorityA !== priorityB) return priorityA - priorityB
+      return String(getMatchSortTime(b)).localeCompare(String(getMatchSortTime(a)))
+    })
+    .slice(0, 5)
+}
+
+const processTournamentsData = (toursData) => {
+  if (toursData && Array.isArray(toursData)) {
+    const statusOrder = { 'ongoing': 0, 'open': 1, 'pending': 2, 'finished': 3 }
+    featuredTournaments.value = [...toursData]
+      .sort((a, b) => (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99))
+      .slice(0, 4)
+  }
+}
+
+const initializeH2H = () => {
+  if (h2hData.value || h2hLoading.value) return
+
+  let p1 = null;
+  let p2 = null;
+
+  if (recentMatches.value.length > 0) {
+    const highlightMatch = recentMatches.value[0];
+    p1 = topPlayers.value.find(p => p.full_name === highlightMatch.p1_name);
+    p2 = topPlayers.value.find(p => p.full_name === highlightMatch.p2_name);
+  }
+
+  if (!p1 || !p2) {
+    if (topPlayers.value.length >= 2) {
+      p1 = topPlayers.value[0];
+      p2 = topPlayers.value[1];
+    }
+  }
+
+  if (p1 && p2) {
+    h2hSelectedLeft.value = p1.player_id
+    h2hSelectedRight.value = p2.player_id
+    loadH2HForPair(p1, p2)
+  }
+}
+
+const loadTopSection = async () => {
+  isHomeLoading.value = true
   Promise.all([
     newsService.getAllPosts({ limit: 5 }),
-    playerService.getRankings({ limit: 10 }).catch(() => []),
-    apiClient.get('/api/tournaments/matches/all', { params: { show_on_homepage: true, limit: 5 } }).catch(() => []),
-    apiClient.get('/api/tournaments/', { params: { limit: 4 } }).catch(() => []),
-    apiClient.get('/api/marketing/banners', { params: { placement: 'home_top', limit: 3 } }).catch(() => []),
-    apiClient.get('/api/marketing/banners', { params: { placement: 'home_ad', limit: 3 } }).catch(() => []),
-    apiClient.get('/api/marketing/sponsors', { params: { limit: 100 } }).catch(() => []),
+    apiClient.get('/api/tournaments/matches/all', { params: { limit: 30 } }).catch(() => [])
+  ]).then(([newsData, matchesData]) => {
+    processNewsData(newsData)
+    processMatchesData(matchesData)
+  }).catch(err => console.error("Loi tai du lieu Home:", err))
+    .finally(() => { isHomeLoading.value = false })
+}
+
+const loadRankingsSection = async () => {
+  if (didLoadRankings.value || isRankingsLoading.value) return
+  isRankingsLoading.value = true
+  playerService.getRankings({ limit: 10 }).catch(() => [])
+    .then((rankingsData) => {
+      processRankingsData(rankingsData)
+      didLoadRankings.value = true
+      initializeH2H()
+    })
+    .finally(() => {
+      isRankingsLoading.value = false
+      observeSection(tournamentsSectionRef, loadTournamentsSection)
+    })
+}
+
+const loadMarketingBanners = async () => {
+  if (didLoadMarketingBanners.value || isMarketingBannersLoading.value) return
+  isMarketingBannersLoading.value = true
+  apiClient.get('/api/marketing/banners', { params: { placement: 'home_top', limit: 3 } }).catch(() => [])
+    .then((homeTopData) => {
+      homeTopBanners.value = Array.isArray(homeTopData) ? homeTopData : []
+      didLoadMarketingBanners.value = true
+    })
+    .finally(() => {
+      isMarketingBannersLoading.value = false
+      observeSection(homeAdsRef, loadHomeAds)
+    })
+}
+
+const loadHomeAds = async () => {
+  if (didLoadHomeAds.value || isHomeAdsLoading.value) return
+  isHomeAdsLoading.value = true
+  apiClient.get('/api/marketing/banners', { params: { placement: 'home_ad', limit: 3 } }).catch(() => [])
+    .then((homeAdData) => {
+      homeAdBanners.value = Array.isArray(homeAdData) ? homeAdData : []
+      didLoadHomeAds.value = true
+    })
+    .finally(() => {
+      isHomeAdsLoading.value = false
+      observeSection(middleSectionRef, () => {
+        loadRankingsSection()
+        loadSidebarBanners()
+      })
+    })
+}
+
+const loadSidebarBanners = async () => {
+  if (didLoadSidebarBanners.value || isSidebarBannersLoading.value) return
+  isSidebarBannersLoading.value = true
+  Promise.all([
     apiClient.get('/api/marketing/banners', { params: { placement: 'home_sidebar_newsletter', limit: 1 } }).catch(() => []),
     apiClient.get('/api/marketing/banners', { params: { placement: 'home_sidebar_store', limit: 1 } }).catch(() => [])
-  ]).then(async ([newsData, rankingsData, matchesData, toursData, homeTopData, homeAdData, sponsorsData, sidebarNewsletterData, sidebarStoreData]) => {
-    
-    // 1. Xử lý Tin tức
-    if (newsData) {
-      rawNewsPosts.value = newsData.sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
-    }
-    
-    // 2. Xử lý Rankings
-    const filteredRankings = (rankingsData || []).filter(p => !p.full_name?.toLowerCase().includes('admin'))
-    rawRankings.value = filteredRankings.map((p, index) => ({
-      ...p,
-      rank: index + 1
-    }))
-
-    // 3. Xử lý Matches
-    const filteredMatches = (Array.isArray(matchesData) ? matchesData : []).filter(m => {
-      const isP1Admin = m.p1_name?.toLowerCase().includes('admin')
-      const isP2Admin = m.p2_name?.toLowerCase().includes('admin')
-      return !isP1Admin && !isP2Admin && hasDisplayableMatchData(m) && m.show_on_homepage === true
-    })
-    recentMatches.value = filteredMatches.slice(0, 5)
-
-    // 2.5 Xử lý Tournaments
-    if (toursData && Array.isArray(toursData)) {
-      // Ưu tiên ONGOING -> OPEN -> FINISHED
-      const statusOrder = { 'ongoing': 0, 'open': 1, 'pending': 2, 'finished': 3 }
-      featuredTournaments.value = [...toursData]
-        .sort((a, b) => (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99))
-        .slice(0, 4)
-    }
-
-    homeTopBanners.value = Array.isArray(homeTopData) ? homeTopData : []
-    homeAdBanners.value = Array.isArray(homeAdData) ? homeAdData : []
+  ]).then(([sidebarNewsletterData, sidebarStoreData]) => {
     homeSidebarNewsletterBanners.value = Array.isArray(sidebarNewsletterData) ? sidebarNewsletterData : []
     homeSidebarStoreBanners.value = Array.isArray(sidebarStoreData) ? sidebarStoreData : []
-    marketingSponsors.value = Array.isArray(sponsorsData) ? sponsorsData : []
+    didLoadSidebarBanners.value = true
+  }).finally(() => { isSidebarBannersLoading.value = false })
+}
 
-    // 4. LOGIC H2H
-    let p1 = null;
-    let p2 = null;
+const loadTournamentsSection = async () => {
+  if (didLoadTournaments.value || isTournamentsLoading.value) return
+  isTournamentsLoading.value = true
+  apiClient.get('/api/tournaments/', { params: { limit: 4 } }).catch(() => [])
+    .then((toursData) => {
+      processTournamentsData(toursData)
+      didLoadTournaments.value = true
+    })
+    .finally(() => {
+      isTournamentsLoading.value = false
+      observeSection(sponsorsSectionRef, loadSponsorsSection)
+    })
+}
 
-    if (recentMatches.value.length > 0) {
-      const highlightMatch = recentMatches.value[0]; 
-      p1 = topPlayers.value.find(p => p.full_name === highlightMatch.p1_name);
-      p2 = topPlayers.value.find(p => p.full_name === highlightMatch.p2_name);
-    }
+const loadSponsorsSection = async () => {
+  if (didLoadSponsors.value || isSponsorsLoading.value) return
+  isSponsorsLoading.value = true
+  apiClient.get('/api/marketing/sponsors', { params: { limit: 100 } }).catch(() => [])
+    .then((sponsorsData) => {
+      marketingSponsors.value = Array.isArray(sponsorsData) ? sponsorsData : []
+      didLoadSponsors.value = true
+    })
+    .finally(() => { isSponsorsLoading.value = false })
+}
 
-    if (!p1 || !p2) {
-      if (topPlayers.value.length >= 2) {
-        p1 = topPlayers.value[0];
-        p2 = topPlayers.value[1];
-      }
-    }
+const observeSection = (targetRef, callback) => {
+  if (!targetRef.value || typeof IntersectionObserver === 'undefined') {
+    callback()
+    return
+  }
 
-    if (p1 && p2) {
-      h2hSelectedLeft.value = p1.player_id
-      h2hSelectedRight.value = p2.player_id
-      loadH2HForPair(p1, p2)
-    }
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some(entry => entry.isIntersecting)) return
+    callback()
+    observer.disconnect()
+  }, {
+    rootMargin: '240px 0px',
+    threshold: 0.01
+  })
 
-  }).catch(err => console.error("Lỗi tải dữ liệu Home:", err))
+  observer.observe(targetRef.value)
+  observers.push(observer)
+}
+
+onMounted(async () => {
+  authStore.hydrate()
+  loadTopSection()
+  observeSection(marketingShowcaseRef, loadMarketingBanners)
 })
 
+onBeforeUnmount(() => {
+  observers.forEach(observer => observer.disconnect())
+  observers.length = 0
+})
 const goToMatch = (match) => {
   if (match.tournament_id) {
     router.push({
@@ -371,6 +516,12 @@ const selectH2HPlayer = (side, player) => {
           <h1>{{ newsItems[0].title }}</h1>
         </div>
       </div>
+      <div v-else-if="isHomeLoading" class="main-hero-news loading-card">
+        <div class="loading-content">
+          <span class="loading-kicker">Tin tức</span>
+          <strong>Đang tải dữ liệu...</strong>
+        </div>
+      </div>
 
       <div class="scores-widget">
         <div class="widget-header">
@@ -382,14 +533,22 @@ const selectH2HPlayer = (side, player) => {
           <span @click="$router.push('/tournaments')" style="cursor: pointer;">{{ t('home.schedule') }}</span>
         </div>
         <div class="widget-body match-list">
-          <div v-for="match in recentMatches" :key="match.id" class="match-item" @click="goToMatch(match)" style="cursor: pointer;">
+          <template v-if="isHomeLoading">
+            <div v-for="index in 3" :key="'match-loading-' + index" class="match-item loading-row">
+              <div class="loading-line loading-line--wide"></div>
+              <div class="loading-line loading-line--short"></div>
+              <div class="loading-line"></div>
+              <div class="loading-line"></div>
+            </div>
+          </template>
+          <div v-else v-for="match in recentMatches" :key="match.id" class="match-item" @click="goToMatch(match)" style="cursor: pointer;">
             <div class="match-context" :title="getMatchContext(match)">
               {{ getMatchContext(match) }}
             </div>
             <div class="match-meta">
               <span class="round">#{{ match.id }}</span>
               <span class="status" :class="{ 'live-text': match.status === 'ongoing' }">
-                {{ match.status === 'completed' ? t('home.finished') : (match.status === 'ongoing' ? t('home.live') : match.start) }}
+                {{ ['completed', 'finished'].includes(match.status) ? t('home.finished') : (match.status === 'ongoing' ? t('home.live') : match.start) }}
               </span>
             </div>
             <div class="player-row" :class="{ 'is-winner': match.winner_side === 'side_a' }">
@@ -407,18 +566,23 @@ const selectH2HPlayer = (side, player) => {
               </div>
             </div>
           </div>
-          <div v-if="recentMatches.length === 0" class="empty-state">{{ t('home.noMatches') }}</div>
+          <div v-if="!isHomeLoading && recentMatches.length === 0" class="empty-state">{{ t('home.noMatches') }}</div>
         </div>
       </div>
     </section>
 
-    <section class="container marketing-showcase" v-if="hasHomeBanners">
+    <div ref="marketingShowcaseRef" class="lazy-section-anchor"></div>
+    <section class="container marketing-showcase" v-if="isMarketingBannersLoading || hasHomeBanners">
       <div class="marketing-heading">
         <span>Promotions</span>
         <h2>Banner nổi bật</h2>
       </div>
       <div class="marketing-banner-grid">
+        <template v-if="isMarketingBannersLoading">
+          <div v-for="index in 3" :key="'marketing-loading-' + index" class="marketing-banner-card loading-card"></div>
+        </template>
         <a
+          v-else
           v-for="(banner, index) in homeBannerItems"
           :key="banner.id"
           class="marketing-banner-card"
@@ -438,13 +602,18 @@ const selectH2HPlayer = (side, player) => {
       </div>
     </section>
 
-    <section class="container home-ads-section" v-if="hasHomeAds">
+    <div ref="homeAdsRef" class="lazy-section-anchor"></div>
+    <section class="container home-ads-section" v-if="isHomeAdsLoading || hasHomeAds">
       <div class="home-ads-heading">
         <span>Ads</span>
         <h2>Quảng cáo</h2>
       </div>
       <div class="home-ads-grid">
+        <template v-if="isHomeAdsLoading">
+          <div v-for="index in 3" :key="'home-ad-loading-' + index" class="home-ad-card loading-card"></div>
+        </template>
         <a
+          v-else
           v-for="banner in homeAdItems"
           :key="banner.id"
           class="home-ad-card"
@@ -463,7 +632,8 @@ const selectH2HPlayer = (side, player) => {
       </div>
     </section>
 
-    <section class="container atp-middle-section">
+    <div ref="middleSectionRef" class="lazy-section-anchor"></div>
+    <section class="container atp-middle-section" v-if="isRankingsLoading || didLoadRankings">
       
       <div class="rankings-widget">
         <div class="widget-header">
@@ -475,7 +645,14 @@ const selectH2HPlayer = (side, player) => {
           <span :class="{ active: activeRankingTab === 'doubles' }" @click="activeRankingTab = 'doubles'" style="cursor: pointer;">{{ t('home.doubles') }}</span>
         </div>
         <div class="widget-body ranking-list">
-          <div v-for="(player, index) in displayedRankings" :key="player.player_id" class="ranking-row">
+          <template v-if="isRankingsLoading">
+            <div v-for="index in 8" :key="'ranking-loading-' + index" class="ranking-row loading-ranking-row">
+              <div class="rank-pos">{{ index }}</div>
+              <div class="loading-line loading-line--name"></div>
+              <div class="loading-line loading-line--points"></div>
+            </div>
+          </template>
+          <div v-else v-for="(player, index) in displayedRankings" :key="player.player_id" class="ranking-row">
             <div class="rank-pos">{{ index + 1 }}</div>
             <div class="rank-name">
               <span class="flag"></span>
@@ -490,7 +667,7 @@ const selectH2HPlayer = (side, player) => {
             </div>
             <div class="rank-pts">{{ player.elo_points }}</div>
           </div>
-          <div v-if="displayedRankings.length === 0" class="empty-state">{{ t('home.noRanking') }}</div>
+          <div v-if="didLoadRankings && displayedRankings.length === 0" class="empty-state">{{ t('home.noRanking') }}</div>
         </div>
       </div>
 
@@ -586,6 +763,23 @@ const selectH2HPlayer = (side, player) => {
           </RouterLink>
         </div>
       </div>
+      <div class="h2h-widget h2h-widget--loading" v-else-if="isRankingsLoading">
+        <div class="h2h-header">
+          <button class="h2h-nav-btn" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h3>LEXUS <span class="h2h-logo">{{ t('home.h2h') }}</span></h3>
+          <button class="h2h-nav-btn" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="h2h-body">
+          <div class="loading-content loading-content--dark">
+            <span class="h2h-spinner"></span>
+            <strong>Đang tải dữ liệu đối đầu...</strong>
+          </div>
+        </div>
+      </div>
 
       <div class="right-widgets">
         <!-- Sidebar 1: Newsletter or Custom Banner -->
@@ -634,13 +828,24 @@ const selectH2HPlayer = (side, player) => {
       </div>
     </section>
 
-    <section class="container atp-tournaments-section" v-if="featuredTournaments.length > 0">
+    <div ref="tournamentsSectionRef" class="lazy-section-anchor"></div>
+    <section class="container atp-tournaments-section" v-if="isTournamentsLoading || featuredTournaments.length > 0">
       <div class="section-header">
         <h2>{{ t('home.featuredTournaments') || 'GIẢI ĐẤU TIÊU BIỂU' }}</h2>
         <RouterLink to="/tournaments" class="view-all-link">{{ t('home.viewAllTournaments') || 'Xem tất cả giải đấu' }} <el-icon><Right /></el-icon></RouterLink>
       </div>
       <div class="tournament-grid">
+        <template v-if="isTournamentsLoading">
+          <div v-for="index in 4" :key="'tour-loading-' + index" class="tour-card loading-tour-card">
+            <div class="tour-media"></div>
+            <div class="tour-info">
+              <div class="loading-line loading-line--wide"></div>
+              <div class="loading-line loading-line--short"></div>
+            </div>
+          </div>
+        </template>
         <div 
+          v-else
           v-for="tour in featuredTournaments" 
           :key="tour.id" 
           class="tour-card"
@@ -673,7 +878,16 @@ const selectH2HPlayer = (side, player) => {
       </div>
       
       <div class="news-cards-row">
-        <article v-for="news in newsItems.slice(1, 5)" :key="news.id" class="news-card" @click="$router.push('/news/' + news.slug)">
+        <template v-if="isHomeLoading">
+          <article v-for="index in 4" :key="'news-loading-' + index" class="news-card loading-news-card">
+            <div class="card-media"></div>
+            <div class="card-body">
+              <div class="loading-line loading-line--wide"></div>
+              <div class="loading-line loading-line--short"></div>
+            </div>
+          </article>
+        </template>
+        <article v-else v-for="news in newsItems.slice(1, 5)" :key="news.id" class="news-card" @click="$router.push('/news/' + news.slug)">
           <div class="card-media">
             <video v-if="isVideo(news.image)" :src="news.image" autoplay muted loop playsinline></video>
             <img v-else :src="news.image" referrerpolicy="no-referrer" />
@@ -686,7 +900,8 @@ const selectH2HPlayer = (side, player) => {
       </div>
     </section>
 
-    <section class="atp-sponsors">
+    <div ref="sponsorsSectionRef" class="lazy-section-anchor"></div>
+    <section class="atp-sponsors" v-if="isSponsorsLoading || didLoadSponsors">
       <div class="container">
         <div class="sponsors-heading">
           <span>Partners</span>
@@ -837,6 +1052,106 @@ const selectH2HPlayer = (side, player) => {
 .scores-widget, .rankings-widget {
   background: white; border: 1px solid #e2e8f0; border-radius: 8px;
   overflow: hidden; display: flex; flex-direction: column;
+}
+
+.lazy-section-anchor {
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+}
+
+.loading-card {
+  background: linear-gradient(135deg, #e2e8f0 0%, #f8fafc 45%, #e2e8f0 100%);
+  cursor: default;
+}
+
+.loading-card::after,
+.loading-row::after,
+.loading-ranking-row::after,
+.loading-tour-card .tour-media::after,
+.loading-news-card .card-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+  transform: translateX(-100%);
+  animation: loading-shimmer 1.4s infinite;
+}
+
+.loading-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 2rem;
+  color: var(--atp-blue);
+  z-index: 1;
+}
+
+.loading-content--dark {
+  position: static;
+  align-items: center;
+  justify-content: center;
+  min-height: 230px;
+  color: #cbd5e1;
+  text-align: center;
+}
+
+.loading-kicker {
+  width: fit-content;
+  padding: 5px 10px;
+  background: rgba(0, 40, 85, 0.1);
+  color: var(--atp-blue);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.loading-line {
+  height: 12px;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.loading-line--wide { width: 82%; }
+.loading-line--short { width: 48%; }
+.loading-line--name { flex: 1; max-width: 180px; }
+.loading-line--points { width: 52px; }
+
+.loading-row,
+.loading-ranking-row,
+.loading-tour-card .tour-media,
+.loading-news-card .card-media {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 116px;
+}
+
+.loading-ranking-row {
+  gap: 12px;
+  min-height: 48px;
+}
+
+.loading-tour-card,
+.loading-news-card {
+  cursor: default;
+}
+
+.loading-tour-card .tour-media,
+.loading-news-card .card-media {
+  background: #e2e8f0;
+}
+
+@keyframes loading-shimmer {
+  100% { transform: translateX(100%); }
 }
 
 .widget-header {
@@ -1328,15 +1643,19 @@ const selectH2HPlayer = (side, player) => {
 }
 
 .logos {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: 16px;
+  width: 100%;
 }
 
 .sponsor-link {
   min-height: 98px;
+  flex: 0 1 220px;
+  max-width: 220px;
+  min-width: 150px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1424,7 +1743,8 @@ const selectH2HPlayer = (side, player) => {
   .marketing-banner-card,
   .marketing-banner-card--primary { min-height: 230px; }
   .marketing-banner-content { padding: 22px; }
-  .logos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .logos { gap: 12px; }
+  .sponsor-link { flex-basis: calc(50% - 6px); max-width: 220px; min-width: 140px; }
   .sponsor-link { min-height: 86px; padding: 14px; }
   .sponsor-img { max-height: 40px; } 
   .premier-img { max-height: 62px; }
@@ -1439,7 +1759,7 @@ const selectH2HPlayer = (side, player) => {
   .h2h-players { gap: 1rem; }
   .score-number { font-size: 2rem; }
   .tournament-grid { grid-template-columns: 1fr; }
-  .logos { grid-template-columns: 1fr; }
+  .sponsor-link { flex-basis: 100%; max-width: 280px; }
 }
 
 .player-link:hover {

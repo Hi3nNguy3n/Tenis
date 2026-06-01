@@ -45,6 +45,110 @@ const renderTournamentDescription = (value) => {
   return value.replace(/\r\n/g, '\n').replace(/\n/g, '<br>')
 }
 
+const tournamentFieldLabels = {
+  name: 'Tên giải đấu',
+  slug: 'Đường dẫn',
+  category_type: 'Nội dung thi đấu',
+  gender_division: 'Giới tính',
+  format_type: 'Thể thức',
+  draw_size: 'Draw size',
+  registration_open_at: 'Thời gian mở đăng ký',
+  registration_close_at: 'Hạn chót đăng ký',
+  start_date: 'Ngày khai mạc',
+  end_date: 'Ngày kết thúc',
+  status: 'Trạng thái',
+  location: 'Địa điểm',
+  surface_type: 'Mặt sân',
+  entry_fee: 'Lệ phí cá nhân',
+  entry_fee_team: 'Lệ phí đội',
+  description: 'Mô tả giải đấu',
+  banner_url: 'Ảnh banner',
+  display_order: 'Thứ tự hiển thị',
+  categories: 'Các nội dung thi đấu',
+  max_points: 'Điểm tối đa',
+  max_participants: 'Số người tối đa'
+}
+
+const getTournamentFieldLabel = (loc = []) => {
+  const field = [...loc].reverse().find((item) => typeof item === 'string' && !['body', 'query', 'path'].includes(item))
+  return tournamentFieldLabels[field] || field || 'Dữ liệu'
+}
+
+const getTournamentFieldKey = (loc = []) => {
+  return [...loc].reverse().find((item) => typeof item === 'string' && !['body', 'query', 'path'].includes(item)) || ''
+}
+
+const formatTournamentValidationMessage = (item = {}) => {
+  const fieldKey = getTournamentFieldKey(item.loc || [])
+  const rawMessage = String(item.msg || item.message || '').toLowerCase()
+  const errorType = String(item.type || '').toLowerCase()
+  const dateFields = ['registration_open_at', 'registration_close_at', 'start_date', 'end_date']
+  const numberFields = ['draw_size', 'entry_fee', 'entry_fee_team', 'display_order', 'max_points', 'max_participants']
+
+  if (dateFields.includes(fieldKey)) {
+    if (rawMessage.includes('valid date') || rawMessage.includes('valid datetime') || rawMessage.includes('too short') || errorType.includes('date')) {
+      return 'Vui lòng chọn ngày/thời gian hợp lệ.'
+    }
+  }
+
+  if (numberFields.includes(fieldKey)) {
+    if (rawMessage.includes('valid integer') || rawMessage.includes('valid number') || rawMessage.includes('unable to parse') || errorType.includes('int') || errorType.includes('float')) {
+      return 'Vui lòng nhập số hợp lệ.'
+    }
+    if (rawMessage.includes('greater than') || rawMessage.includes('less than')) {
+      return 'Giá trị số đang ngoài phạm vi cho phép.'
+    }
+  }
+
+  if (rawMessage.includes('field required') || rawMessage.includes('missing')) {
+    return 'Vui lòng nhập đầy đủ thông tin.'
+  }
+
+  if (rawMessage.includes('string should have at least') || rawMessage.includes('too short')) {
+    return 'Nội dung nhập quá ngắn.'
+  }
+
+  if (rawMessage.includes('string should have at most') || rawMessage.includes('too long')) {
+    return 'Nội dung nhập quá dài.'
+  }
+
+  if (rawMessage.includes('input should be a valid')) {
+    return 'Dữ liệu nhập chưa đúng định dạng.'
+  }
+
+  return item.msg || item.message || 'Dữ liệu không hợp lệ.'
+}
+
+const formatTournamentApiError = (err) => {
+  const data = err?.response?.data
+  const detail = data?.detail || data?.message || err?.message
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        const fieldLabel = getTournamentFieldLabel(item?.loc || [])
+        const message = formatTournamentValidationMessage(item)
+        return `${fieldLabel}: ${message}`
+      })
+      .join('; ')
+  }
+
+  if (detail && typeof detail === 'object') {
+    return Object.entries(detail)
+      .map(([field, message]) => {
+        const readableMessage = Array.isArray(message) ? message.join(', ') : String(message)
+        return `${tournamentFieldLabels[field] || field}: ${readableMessage}`
+      })
+      .join('; ')
+  }
+
+  if (typeof detail === 'string' && detail.trim()) return detail
+
+  return isEditMode.value
+    ? 'Không thể cập nhật giải đấu. Vui lòng kiểm tra lại các trường đã nhập.'
+    : 'Không thể tạo giải đấu. Vui lòng kiểm tra lại các trường đã nhập.'
+}
+
 const search = ref('')
 const statusFilter = ref('')
 const formatFilter = ref('')
@@ -401,7 +505,8 @@ const saveTournament = async () => {
     loadTournaments()
     loadStats()
   } catch (err) {
-    ElMessage.error(t('admin.updateError') + ': ' + err.message)
+    const actionLabel = isEditMode.value ? t('admin.updateError') : 'Lỗi tạo giải đấu'
+    ElMessage.error(`${actionLabel}: ${formatTournamentApiError(err)}`)
   } finally {
     isSaving.value = false
   }

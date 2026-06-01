@@ -4,8 +4,9 @@ import { useRouter } from 'vue-router'
 import { useTournamentStore } from '../../../stores/tournament'
 import { newsService } from '../../../services/newsService'
 import { playerService } from '../../../services/playerService'
+import { apiClient } from '../../../services/apiClient'
 import MarketingBannerStrip from '../../../components/MarketingBannerStrip.vue'
-import { Search, Location, Clock, Trophy } from '@element-plus/icons-vue'
+import { Search, Location, Clock, Trophy, User, Check } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../../utils/locale'
 
 const router = useRouter()
@@ -20,6 +21,7 @@ const searchQuery = ref('')
 const activeFilter = ref('all')
 const latestNews = ref([])
 const topPlayers = ref([])
+const liveMatches = ref([])
 
 // Pagination
 const currentPage = ref(1)
@@ -48,12 +50,78 @@ onMounted(async () => {
   } catch (err) {
     console.error('Lỗi tải xếp hạng:', err)
   }
+
+  try {
+    const matches = await apiClient.get('/api/tournaments/matches/all')
+    liveMatches.value = Array.isArray(matches) ? matches : []
+  } catch (err) {
+    console.error('Lỗi tải trận trực tiếp:', err)
+  }
 })
+
+const formatDateKey = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const todayKey = formatDateKey(new Date())
 
 const normalizeDateKey = (value) => {
   if (!value || typeof value !== 'string') return ''
   const match = value.match(/^(\d{4}-\d{2}-\d{2})/)
   return match ? match[1] : value
+}
+
+const liveSidebarMatches = computed(() => {
+  const statusPriority = {
+    ongoing: 0,
+    completed: 1,
+    finished: 1
+  }
+
+  return liveMatches.value
+    .filter((match) => {
+      const status = String(match.status || '').toLowerCase()
+      const dateKey = normalizeDateKey(match.date || match.start_time || match.scheduled_at || '')
+      return ['ongoing', 'completed', 'finished'].includes(status) && dateKey === todayKey
+    })
+    .sort((a, b) => {
+      const statusA = statusPriority[String(a.status || '').toLowerCase()] ?? 99
+      const statusB = statusPriority[String(b.status || '').toLowerCase()] ?? 99
+      if (statusA !== statusB) return statusA - statusB
+      return String(a.start || a.start_time || '').localeCompare(String(b.start || b.start_time || ''))
+    })
+    .slice(0, 5)
+})
+
+const getMatchStatusLabel = (status) => {
+  const normalized = String(status || '').toLowerCase()
+  if (normalized === 'ongoing') return 'LIVE'
+  if (normalized === 'completed' || normalized === 'finished') return 'Đã xong'
+  return 'Sắp đấu'
+}
+
+const getMatchSideName = (match, side) => {
+  const names = side === 'a'
+    ? [match?.p1_name, match?.p1_partner_name]
+    : [match?.p2_name, match?.p2_partner_name]
+  return names.filter(Boolean).join(' / ') || 'Chưa xác định'
+}
+
+const openMatchTournament = (match) => {
+  if (!match?.tournament_id) return
+  router.push({
+    path: `/tournaments/${match.tournament_id}`,
+    query: { tab: 'schedule', matchId: match.id }
+  })
+}
+
+const openPlayerRanking = (player) => {
+  const playerId = player?.player_id || player?.id
+  if (!playerId) return
+  router.push(`/players/${playerId}`)
 }
 
 const getMonthLabel = (date) => {
@@ -162,13 +230,40 @@ const viewDetail = (id) => {
       <aside class="left-sidebar">
         <MarketingBannerStrip placement="tournaments_top" variant="sidebar" :max="2" />
 
-        <div class="partners-widget">
-          <h4 class="widget-title">{{ t('tournaments.partners') }}</h4>
-          <div class="partner-list">
-            <img src="/emirates.svg" alt="Partner 1" class="partner-img" onerror="this.style.display='none'"/>
-            <img src="/haier.jpg" alt="Partner 2" class="partner-img" onerror="this.style.display='none'"/>
-            <img src="/lexus.svg" alt="Partner 3" class="partner-img" onerror="this.style.display='none'"/>
-            <img src="/nitto.svg" alt="Partner 4" class="partner-img" onerror="this.style.display='none'"/>
+        <div class="live-widget">
+          <div class="widget-heading-row">
+            <h4 class="widget-title">TRỰC TIẾP</h4>
+            <button type="button" class="widget-link-btn" @click="router.push('/matches')">Xem tất cả</button>
+          </div>
+          <div v-if="liveSidebarMatches.length" class="live-match-list">
+            <button
+              v-for="match in liveSidebarMatches"
+              :key="match.id"
+              type="button"
+              class="live-match-card"
+              @click="openMatchTournament(match)"
+            >
+              <div class="live-card-top">
+                <span class="live-status" :class="String(match.status || '').toLowerCase()">
+                  {{ getMatchStatusLabel(match.status) }}
+                </span>
+                <span class="live-time">{{ match.start || '--:--' }}</span>
+              </div>
+              <strong>{{ match.tournament || 'Trận đấu' }}</strong>
+              <small>{{ match.round_code || 'TBA' }}</small>
+              <div class="live-side" :class="{ winner: match.winner_side === 'side_a' }">
+                <span>{{ getMatchSideName(match, 'a') }}</span>
+                <el-icon v-if="match.winner_side === 'side_a'"><Check /></el-icon>
+              </div>
+              <div class="live-side" :class="{ winner: match.winner_side === 'side_b' }">
+                <span>{{ getMatchSideName(match, 'b') }}</span>
+                <el-icon v-if="match.winner_side === 'side_b'"><Check /></el-icon>
+              </div>
+              <p v-if="match.score" class="live-score">{{ match.score }}</p>
+            </button>
+          </div>
+          <div v-else class="sidebar-empty">
+            Hôm nay chưa có trận đang diễn ra hoặc đã hoàn thành.
           </div>
         </div>
       </aside>
@@ -269,8 +364,30 @@ const viewDetail = (id) => {
       </main>
 
       <aside class="right-sidebar">
-        <div class="ad-banner mini">
-          <img src="/ad-mini.jpg" alt="Sponsor Ad" />
+        <div class="rankings-widget">
+          <div class="widget-heading-row">
+            <h4 class="widget-title">BẢNG XẾP HẠNG</h4>
+            <button type="button" class="widget-link-btn" @click="router.push('/rankings')">Xem tất cả</button>
+          </div>
+          <div v-if="topPlayers.length" class="ranking-mini-list">
+            <button
+              v-for="(player, index) in topPlayers.slice(0, 5)"
+              :key="player.player_id || player.id"
+              type="button"
+              class="ranking-mini-row"
+              @click="openPlayerRanking(player)"
+            >
+              <span class="ranking-mini-rank">#{{ index + 1 }}</span>
+              <el-avatar :size="34" :src="player.avatar_url">
+                <el-icon><User /></el-icon>
+              </el-avatar>
+              <span class="ranking-mini-name">{{ player.full_name }}</span>
+              <strong>{{ player.elo_points }}</strong>
+            </button>
+          </div>
+          <div v-else class="sidebar-empty">
+            Chưa có dữ liệu xếp hạng.
+          </div>
         </div>
 
         <div class="widget">
@@ -344,6 +461,36 @@ const viewDetail = (id) => {
 .ad-content p { margin: 0; font-size: 0.85rem; font-weight: 500; opacity: 0.9; }
 .widget-title { font-size: 1rem; color: #64748b; text-transform: uppercase; margin-bottom: 12px; }
 .partner-img { width: 100%; height: 120px; object-fit: contain; background: #fff; border-radius: 12px; margin-bottom: 16px; border: 1px solid #f1f5f9; padding: 10px;}
+.widget-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.widget-heading-row .widget-title { margin-bottom: 0; }
+.widget-link-btn { border: none; background: transparent; color: #002855; font-size: 0.75rem; font-weight: 800; cursor: pointer; white-space: nowrap; padding: 0; }
+.widget-link-btn:hover { color: #009b63; }
+.live-widget,
+.rankings-widget { background: #fff; border: 1px solid #eef2f7; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); padding: 16px; margin-bottom: 24px; }
+.live-match-list,
+.ranking-mini-list { display: flex; flex-direction: column; gap: 10px; }
+.live-match-card,
+.ranking-mini-row { width: 100%; border: 1px solid #e2e8f0; background: #fff; border-radius: 12px; cursor: pointer; text-align: left; transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
+.live-match-card:hover,
+.ranking-mini-row:hover { transform: translateY(-2px); border-color: #bfdbfe; box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08); }
+.live-match-card { padding: 12px; }
+.live-card-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.live-status { font-size: 0.68rem; font-weight: 900; border-radius: 999px; padding: 4px 8px; background: #e2e8f0; color: #475569; letter-spacing: 0; }
+.live-status.ongoing { background: #fee2e2; color: #dc2626; }
+.live-status.completed,
+.live-status.finished { background: #dcfce7; color: #15803d; }
+.live-time { color: #64748b; font-size: 0.72rem; font-weight: 800; }
+.live-match-card strong { display: block; color: #0f172a; font-size: 0.88rem; line-height: 1.35; margin-bottom: 4px; }
+.live-match-card small { display: block; color: #64748b; font-size: 0.72rem; font-weight: 700; margin-bottom: 8px; }
+.live-side { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #334155; font-size: 0.78rem; font-weight: 800; padding: 5px 0; }
+.live-side span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-side.winner { color: #15803d; }
+.live-score { margin: 8px 0 0; color: #002855; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 900; }
+.ranking-mini-row { display: grid; grid-template-columns: auto 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px; }
+.ranking-mini-rank { color: #0ea5e9; font-size: 0.78rem; font-weight: 900; }
+.ranking-mini-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #0f172a; font-size: 0.86rem; font-weight: 850; }
+.ranking-mini-row strong { color: #002855; font-size: 0.86rem; font-weight: 900; }
+.sidebar-empty { padding: 18px 10px; text-align: center; color: #94a3b8; background: #f8fafc; border-radius: 10px; font-size: 0.82rem; font-weight: 700; line-height: 1.5; }
 .widget { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.03); overflow: hidden; }
 .widget-header { padding: 16px; border-bottom: 1px solid #f1f5f9; }
 .widget-header h4 { margin: 0; font-size: 1rem; font-weight: 700; }

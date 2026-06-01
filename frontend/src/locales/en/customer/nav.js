@@ -4,7 +4,7 @@ export default {
   players: 'Players',
   challenges: 'Challenges',
   tournaments: 'Tournaments',
-  matches: 'Matches',
+  matches: 'Live',
   rankings: 'Rankings',
   profile: 'Profile',
   myTournaments: 'My Tournaments',
