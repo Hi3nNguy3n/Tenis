@@ -494,7 +494,7 @@ def register_tournament_with_otp(
         
         # 3. Lấy tên giải đấu và Kích hoạt tạo mã QR ngầm
         tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
-        tourn_name = tournament.name if tournament else "Saigon Tennis"
+        tourn_name = tournament.name if tournament else "Saigontennistours"
         background_tasks.add_task(update_qr, reg.id, tourn_name)
 
         return reg

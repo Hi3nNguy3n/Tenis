@@ -72,7 +72,7 @@ export const createCourt = ({
   id,
   name,
   surface = 'Hard',
-  location = 'Saigon Tennis Club',
+  location = 'Saigontennistours Club',
   status = CourtStatus.AVAILABLE,
 }) => ({
   id,

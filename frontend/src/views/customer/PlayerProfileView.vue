@@ -296,7 +296,7 @@ const tabs = [
             </div>
             <div class="official-stamp">
               <span class="stamp-dot"></span>
-              <span>Saigon Tennis Tours Official</span>
+              <span>Saigontennistours</span>
             </div>
           </div>
           
@@ -310,7 +310,7 @@ const tabs = [
             <div class="author-wrap">
               <div class="author-avatar">STT</div>
               <div class="author-info">
-                <strong>Ban chuyên môn Saigon Tennis Tours</strong>
+                <strong>Ban chuyên môn Saigontennistours</strong>
                 <span>Ban quản trị & Trọng tài chính</span>
               </div>
             </div>

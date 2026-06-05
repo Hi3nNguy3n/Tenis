@@ -27,7 +27,7 @@ def seed_data():
         db.commit() # Lưu Role trước để lấy ID cho User
 
         # 2. Tạo tài khoản Admin mặc định
-        admin_email = "admin@saigontennistour.com"
+        admin_email = "admin@saigontennistours.com"
         admin_user = db.query(User).filter(User.email == admin_email).first()
         
         if not admin_user:

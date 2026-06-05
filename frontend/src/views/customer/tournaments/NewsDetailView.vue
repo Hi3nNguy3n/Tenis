@@ -157,7 +157,7 @@ const getCategoryLabel = (val) => {
 
             <footer class="article-footer-tags">
               <div class="tags-container">
-                <el-tag v-for="tag in (post.tags || ['Tennis', 'SaigonTennis', 'ATP'])" :key="tag" class="news-tag" size="large" effect="plain">
+                <el-tag v-for="tag in (post.tags || ['Tennis', 'Saigontennistours', 'ATP'])" :key="tag" class="news-tag" size="large" effect="plain">
                   #{{ tag }}
                 </el-tag>
               </div>

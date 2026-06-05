@@ -550,7 +550,7 @@ const selectTab = (tab) => {
                   <div class="tour-meta-grid">
                     <div class="m-item"><span class="m-label">{{ t('profile.rank') }}</span><span class="m-val">{{ reg.category_type || 'Chuyên nghiệp' }}</span></div>
                     <div class="m-item"><span class="m-label">{{ t('profile.proposedDate') }}</span><span class="m-val">{{ reg.tournament_date ? new Date(reg.tournament_date).toLocaleDateString() : 'TBD' }}</span></div>
-                    <div class="m-item"><span class="m-label">{{ t('profile.province') }}</span><span class="m-val">{{ reg.location || 'Saigon Tennis Center' }}</span></div>
+                    <div class="m-item"><span class="m-label">{{ t('profile.province') }}</span><span class="m-val">{{ reg.location || 'Saigontennistours Center' }}</span></div>
                   </div>
                 </div>
                 <div class="atp-ticket-stub">

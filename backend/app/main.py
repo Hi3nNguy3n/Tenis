@@ -17,7 +17,7 @@ from app.models.models import Base
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Saigon Tennis Tour API")
+app = FastAPI(title="Saigontennistours API")
 
 @app.middleware("http")
 async def forward_proto_middleware(request: Request, call_next):
@@ -120,4 +120,4 @@ app.include_router(marketing.router, prefix="/api/marketing", tags=["Marketing"]
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to Saigon Tennis Tour API"}
+    return {"message": "Welcome to Saigontennistours API"}

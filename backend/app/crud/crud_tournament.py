@@ -618,7 +618,7 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
             "tournament": t.name if t else "Giao hữu tự do",
             "tournament_start_date": t.start_date.isoformat() if t and t.start_date else None,
             "tournament_end_date": t.end_date.isoformat() if t and t.end_date else None,
-            "location": (t.location if t else None) or "Saigon Tennis Club",
+            "location": (t.location if t else None) or "Saigontennistours Club",
             "round_code": m.round_code,
             "court": c.court_name if c else "Chua gan san",
             "date": match_date.isoformat() if match_date else None,

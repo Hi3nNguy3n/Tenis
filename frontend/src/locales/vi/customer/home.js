@@ -48,7 +48,7 @@ export default {
   showH2h: 'Xem chi tiết đối đầu',
   newsletter: 'BẢN TIN',
   newsletterDesc: 'Nhận thông tin cập nhật và sự kiện mới nhất từ Saigontennistours ngay trong hộp thư của bạn!',
-  emailPlaceholder: "contact{'@'}saigontennis.com",
+  emailPlaceholder: "contact{'@'}saigontennistours.com",
   subscribe: 'ĐĂNG KÝ NGAY',
   sgtStore: 'CỬA HÀNG SGT',
   shopNow: 'Mua sắm ngay',
