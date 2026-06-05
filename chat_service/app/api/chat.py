@@ -180,18 +180,18 @@ async def private_chat(websocket: WebSocket, token: str = Query(...), sender_nam
         manager.disconnect_private(user_id)
 
 @router.get("/history/global")
-def get_global_chat_history(db: Session = Depends(get_db)):
-    messages = crud_chat.get_global_history(db, limit=50)
+def get_global_chat_history(limit: int = Query(20, ge=1), skip: int = Query(0, ge=0), db: Session = Depends(get_db)):
+    messages = crud_chat.get_global_history(db, limit=limit, skip=skip)
     return [{"id": m.id, "sender_id": m.user_id, "sender_name": m.sender_name, "message": m.message, "time": format_datetime(m.created_at)} for m in messages]
 
 @router.get("/history/private/{receiver_id}")
-def get_private_chat_history(receiver_id: int, token: str = Query(...), db: Session = Depends(get_db)):
+def get_private_chat_history(receiver_id: int, token: str = Query(...), limit: int = Query(20, ge=1), skip: int = Query(0, ge=0), db: Session = Depends(get_db)):
     try:
         user_id = verify_token(token)
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid Token")
         
-    messages = crud_chat.get_private_history(db, user1_id=user_id, user2_id=receiver_id, limit=50)
+    messages = crud_chat.get_private_history(db, user1_id=user_id, user2_id=receiver_id, limit=limit, skip=skip)
     return [{"id": m.id, "sender_id": m.user_id, "sender_name": m.sender_name, "message": m.message, "time": format_datetime(m.created_at)} for m in messages]
 
 @router.get("/threads/private")

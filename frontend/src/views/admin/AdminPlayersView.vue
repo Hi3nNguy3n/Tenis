@@ -15,6 +15,8 @@ const isSaving = ref(false)
 const search = ref('')
 const skillFilter = ref('')
 const statusFilter = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 const createErrors = ref({
   email: '',
@@ -122,6 +124,31 @@ const filteredPlayers = computed(() => {
            emailNormalized.includes(searchNormalized) || 
            phoneNormalized.includes(searchNormalized)
   })
+})
+
+const paginatedPlayers = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredPlayers.value.slice(start, start + pageSize.value)
+})
+
+const handlePageSizeChange = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
+}
+
+watch(search, () => {
+  currentPage.value = 1
+})
+
+watch(filteredPlayers, () => {
+  const totalPages = Math.max(1, Math.ceil(filteredPlayers.value.length / pageSize.value))
+  if (currentPage.value > totalPages) {
+    currentPage.value = totalPages
+  }
+})
+
+watch([skillFilter, statusFilter], () => {
+  currentPage.value = 1
 })
 
 const disabledDate = (time) => {
@@ -241,7 +268,7 @@ const openEditDialog = (player) => {
     play_hand: player.player_profile?.play_hand || 'right',
     skill_level: player.player_profile?.skill_level || 'Beginner',
     preferred_category: player.player_profile?.preferred_category || 'Singles',
-    province: player.player_profile?.province || '',
+    province: player.user?.province || '',
     date_of_birth: player.player_profile?.date_of_birth || null,
     elo_points: player.player_profile?.elo_points || 1000,
     height_cm: player.player_profile?.height_cm || null,
@@ -265,6 +292,7 @@ const openCreateDialog = () => {
     avatar_url: '', skill_level: 'Beginner', preferred_category: 'Singles',
     province: '', date_of_birth: null, elo_points: 1000,
     height_cm: null, weight_kg: null,
+    admin_notes: '',
     ...playerStatDefaults
   }
   isCreateDialogVisible.value = true
@@ -513,7 +541,7 @@ const getRegStatusType = (status) => {
     <!-- Data Table Section -->
     <div class="saas-content">
       <el-table 
-        :data="filteredPlayers" 
+        :data="paginatedPlayers" 
         v-loading="loading" 
         class="saas-table"
         :header-cell-style="{ background: 'transparent', color: '#64748b', fontWeight: '700', borderBottom: '2px solid #f1f5f9' }"
@@ -604,6 +632,21 @@ const getRegStatusType = (status) => {
           </template>
         </el-table-column>
       </el-table>
+
+      <div v-if="filteredPlayers.length > 0" class="players-pagination">
+        <div class="pagination-summary">
+          Hiển thị {{ paginatedPlayers.length }} / {{ filteredPlayers.length }} vận động viên
+        </div>
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50]"
+          :total="filteredPlayers.length"
+          layout="sizes, prev, pager, next, jumper"
+          background
+          @size-change="handlePageSizeChange"
+        />
+      </div>
     </div>
 
     <!-- Dialogs -->
@@ -1060,6 +1103,25 @@ const getRegStatusType = (status) => {
   --el-table-tr-bg-color: transparent;
   --el-table-header-bg-color: transparent;
   --el-table-border-color: #f1f5f9;
+}
+
+.players-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0 0;
+  flex-wrap: wrap;
+}
+
+.pagination-summary {
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+:deep(.players-pagination .el-pagination.is-background .el-pager li.is-active) {
+  background-color: #059669;
 }
 
 :deep(.el-table__inner-wrapper::before) { display: none; }

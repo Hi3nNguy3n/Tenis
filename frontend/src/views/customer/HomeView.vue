@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import apiClient from '../../services/apiClient'
@@ -94,6 +94,10 @@ const h2hSelectedLeft = ref(null)
 const h2hSelectedRight = ref(null)
 const h2hShowSelectLeft = ref(false)
 const h2hShowSelectRight = ref(false)
+const h2hSearchKeyword = ref('')
+const h2hSearchResults = ref([])
+const h2hSearchLoading = ref(false)
+let h2hSearchTimer = null
 const homeTopBanners = ref([])
 const homeAdBanners = ref([])
 const homeSidebarNewsletterBanners = ref([])
@@ -194,11 +198,33 @@ const getTournamentImage = (tour) => {
 const hasHomeBanners = computed(() => homeBannerItems.value.length > 0)
 const hasHomeAds = computed(() => homeAdItems.value.length > 0)
 
-const getScorePart = (score, sideIndex) => {
-  if (!score) return '-'
-  const firstSet = String(score).split(',')[0] || ''
-  const parts = firstSet.split('-')
-  return parts[sideIndex]?.trim() || '-'
+const parseMatchSets = (match) => {
+  const score = String(match?.score_summary || match?.score || match?.result_note || '').trim()
+  if (score) {
+    const sets = score
+      .split(/[,\n;]/)
+      .map(part => part.trim())
+      .filter(Boolean)
+      .map(part => {
+        const normalized = part.replace(/[()]/g, '').trim()
+        const pieces = normalized.split(/\s*[-:\/]\s*/)
+        return pieces.length >= 2 ? { a: pieces[0], b: pieces[1] } : null
+      })
+      .filter(Boolean)
+
+    if (sets.length) return sets
+  }
+
+  const hasFallbackScore =
+    match?.score_a !== null && match?.score_a !== undefined &&
+    match?.score_b !== null && match?.score_b !== undefined
+
+  return hasFallbackScore ? [{ a: match.score_a, b: match.score_b }] : []
+}
+
+const getSetScorePart = (set, sideIndex) => {
+  const value = sideIndex === 0 ? set?.a : set?.b
+  return value !== null && value !== undefined && String(value).trim() !== '' ? value : '-'
 }
 
 const hasRealPlayerName = (name) => {
@@ -206,9 +232,9 @@ const hasRealPlayerName = (name) => {
   if (!normalized) return false
   return ![
     'dang cap nhat',
-    'đang cập nhật',
+    'dang cap nhat',
     'chua xac dinh',
-    'chưa xác định',
+    'chua xac dinh',
     'tba'
   ].includes(normalized)
 }
@@ -226,7 +252,7 @@ const hasDisplayableMatchData = (match) => {
 const getMatchContext = (match) => {
   const tournament = match.tournament || 'Giao hữu tự do'
   const round = match.round_code || t('home.round')
-  return `${tournament} · ${round}`
+  return `${tournament} Â· ${round}`
 }
 
 const getMatchStatusPriority = (status) => {
@@ -428,6 +454,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (h2hSearchTimer) clearTimeout(h2hSearchTimer)
   observers.forEach(observer => observer.disconnect())
   observers.length = 0
 })
@@ -479,20 +506,78 @@ const loadH2HForPair = (p1, p2) => {
     .finally(() => { h2hLoading.value = false })
 }
 
+const normalizeH2HPlayer = (item) => {
+  if (item?.user && item?.player_profile) {
+    const matchesPlayed = item.player_profile.matches_played || 0
+    return {
+      player_id: item.user.id,
+      full_name: item.user.full_name,
+      avatar_url: item.user.avatar_url,
+      elo_points: item.player_profile.elo_points,
+      wins: item.player_profile.wins || 0,
+      win_rate: matchesPlayed ? Math.round(((item.player_profile.wins || 0) / matchesPlayed) * 100) : 0
+    }
+  }
+
+  return {
+    ...item,
+    player_id: item.player_id || item.id,
+    elo_points: item.elo_points || 0,
+    wins: item.wins || 0,
+    win_rate: item.win_rate || 0
+  }
+}
+
+const openH2HSearch = (side) => {
+  h2hShowSelectLeft.value = side === 'left'
+  h2hShowSelectRight.value = side === 'right'
+  h2hSearchKeyword.value = ''
+  h2hSearchResults.value = []
+}
+
+const searchH2HPlayers = () => {
+  if (h2hSearchTimer) clearTimeout(h2hSearchTimer)
+  h2hSearchTimer = setTimeout(async () => {
+    const keyword = h2hSearchKeyword.value.trim()
+    if (!keyword) {
+      h2hSearchResults.value = []
+      return
+    }
+
+    h2hSearchLoading.value = true
+    try {
+      const data = await apiClient.get('/api/players/list', { params: { search: keyword, status: 'active' } })
+      h2hSearchResults.value = (Array.isArray(data) ? data : [])
+        .map(normalizeH2HPlayer)
+        .filter(player => player.player_id)
+    } catch (err) {
+      console.error('H2H player search error:', err)
+      h2hSearchResults.value = []
+    } finally {
+      h2hSearchLoading.value = false
+    }
+  }, 250)
+}
+
 const selectH2HPlayer = (side, player) => {
+  const selectedPlayer = normalizeH2HPlayer(player)
   if (side === 'left') {
-    h2hSelectedLeft.value = player.player_id
+    h2hSelectedLeft.value = selectedPlayer.player_id
     h2hShowSelectLeft.value = false
-    const rightPlayer = topPlayers.value.find(p => p.player_id === h2hSelectedRight.value)
-    if (rightPlayer && player.player_id !== rightPlayer.player_id) {
-      loadH2HForPair(player, rightPlayer)
+    h2hSearchKeyword.value = ''
+    h2hSearchResults.value = []
+    const rightPlayer = h2hData.value?.player2 || topPlayers.value.find(p => p.player_id === h2hSelectedRight.value)
+    if (rightPlayer && selectedPlayer.player_id !== rightPlayer.player_id) {
+      loadH2HForPair(selectedPlayer, rightPlayer)
     }
   } else {
-    h2hSelectedRight.value = player.player_id
+    h2hSelectedRight.value = selectedPlayer.player_id
     h2hShowSelectRight.value = false
-    const leftPlayer = topPlayers.value.find(p => p.player_id === h2hSelectedLeft.value)
-    if (leftPlayer && leftPlayer.player_id !== player.player_id) {
-      loadH2HForPair(leftPlayer, player)
+    h2hSearchKeyword.value = ''
+    h2hSearchResults.value = []
+    const leftPlayer = h2hData.value?.player1 || topPlayers.value.find(p => p.player_id === h2hSelectedLeft.value)
+    if (leftPlayer && leftPlayer.player_id !== selectedPlayer.player_id) {
+      loadH2HForPair(leftPlayer, selectedPlayer)
     }
   }
 }
@@ -555,14 +640,34 @@ const selectH2HPlayer = (side, player) => {
               <div class="p-name"><span class="flag"></span> {{ match.p1_name || t('home.tba') }}</div>
               <div class="p-score">
                 <span v-if="match.winner_side === 'side_a'" class="check-icon"><el-icon><Check /></el-icon></span>
-                <strong>{{ getScorePart(match.score, 0) }}</strong>
+                <div class="set-score-list" v-if="parseMatchSets(match).length">
+                  <strong
+                    v-for="(set, setIndex) in parseMatchSets(match)"
+                    :key="`a-${match.id}-${setIndex}`"
+                    class="set-score"
+                    :class="{ 'is-set-win': Number(getSetScorePart(set, 0)) > Number(getSetScorePart(set, 1)) }"
+                  >
+                    {{ getSetScorePart(set, 0) }}
+                  </strong>
+                </div>
+                <strong v-else>-</strong>
               </div>
             </div>
             <div class="player-row" :class="{ 'is-winner': match.winner_side === 'side_b' }">
               <div class="p-name"><span class="flag"></span> {{ match.p2_name || t('home.tba') }}</div>
               <div class="p-score">
                 <span v-if="match.winner_side === 'side_b'" class="check-icon"><el-icon><Check /></el-icon></span>
-                <strong>{{ getScorePart(match.score, 1) }}</strong>
+                <div class="set-score-list" v-if="parseMatchSets(match).length">
+                  <strong
+                    v-for="(set, setIndex) in parseMatchSets(match)"
+                    :key="`b-${match.id}-${setIndex}`"
+                    class="set-score"
+                    :class="{ 'is-set-win': Number(getSetScorePart(set, 1)) > Number(getSetScorePart(set, 0)) }"
+                  >
+                    {{ getSetScorePart(set, 1) }}
+                  </strong>
+                </div>
+                <strong v-else>-</strong>
               </div>
             </div>
           </div>
@@ -594,7 +699,7 @@ const selectH2HPlayer = (side, player) => {
         >
           <img :src="banner.image_url" :alt="banner.title" class="marketing-banner-img" referrerpolicy="no-referrer" />
           <div class="marketing-banner-content">
-            <span>Banner chính</span>
+            <span>Banner chinh</span>
             <strong>{{ banner.title }}</strong>
             <p v-if="banner.subtitle">{{ banner.subtitle }}</p>
           </div>
@@ -683,29 +788,12 @@ const selectH2HPlayer = (side, player) => {
         </div>
         <div class="h2h-body">
           <div class="h2h-players">
-            
             <div class="h2h-player">
-              <div class="h2h-avatar" @click="h2hShowSelectLeft = !h2hShowSelectLeft" style="cursor: pointer;" title="Chọn vận động viên">
+              <div class="h2h-avatar">
                 <img :src="h2hData.player1.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player1.full_name}&background=random`" referrerpolicy="no-referrer" />
-                <div class="h2h-avatar-edit">✎</div>
               </div>
               <h4 class="h2h-name">{{ h2hData.player1.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
-              <div class="h2h-player-select" v-if="h2hShowSelectLeft">
-                <div class="h2h-select-list">
-                  <div
-                    v-for="p in topPlayers.filter(x => x.player_id !== h2hSelectedRight)"
-                    :key="p.player_id"
-                    class="h2h-select-item"
-                    :class="{ active: p.player_id === h2hSelectedLeft }"
-                    @click="selectH2HPlayer('left', p)"
-                  >
-                    <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}&background=random&size=28`" referrerpolicy="no-referrer" />
-                    <span>{{ p.full_name }}</span>
-                    <small>{{ p.elo_points }} pts</small>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div class="h2h-score-board">
@@ -715,31 +803,13 @@ const selectH2HPlayer = (side, player) => {
             </div>
 
             <div class="h2h-player">
-              <div class="h2h-avatar" @click="h2hShowSelectRight = !h2hShowSelectRight" style="cursor: pointer;" title="Chọn vận động viên">
+              <div class="h2h-avatar">
                 <img :src="h2hData.player2.avatar_url || `https://ui-avatars.com/api/?name=${h2hData.player2.full_name}&background=random`" referrerpolicy="no-referrer" />
-                <div class="h2h-avatar-edit">✎</div>
               </div>
               <h4 class="h2h-name">{{ h2hData.player2.full_name }}</h4>
               <span class="h2h-loc"> VIE</span>
-              <div class="h2h-player-select" v-if="h2hShowSelectRight">
-                <div class="h2h-select-list">
-                  <div
-                    v-for="p in topPlayers.filter(x => x.player_id !== h2hSelectedLeft)"
-                    :key="p.player_id"
-                    class="h2h-select-item"
-                    :class="{ active: p.player_id === h2hSelectedRight }"
-                    @click="selectH2HPlayer('right', p)"
-                  >
-                    <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}&background=random&size=28`" referrerpolicy="no-referrer" />
-                    <span>{{ p.full_name }}</span>
-                    <small>{{ p.elo_points }} pts</small>
-                  </div>
-                </div>
-              </div>
             </div>
-
           </div>
-
           <div class="h2h-stats">
             <div class="stat-row">
               <span class="stat-left">{{ h2hData.player1.elo_points || '-' }}</span>
@@ -759,8 +829,67 @@ const selectH2HPlayer = (side, player) => {
           </div>
 
           <RouterLink to="/challenges" class="h2h-btn">
-            ⚡ Thách đấu ngay <el-icon><Right /></el-icon>
+            Thách đấu ngay <el-icon><Right /></el-icon>
           </RouterLink>
+          <div class="h2h-search-launcher">
+            <button
+              type="button"
+              class="h2h-search-target"
+              :class="{ active: h2hShowSelectLeft }"
+              @click="openH2HSearch('left')"
+            >
+              <span>Bên trái</span>
+              <strong>{{ h2hData.player1.full_name }}</strong>
+            </button>
+            <button
+              type="button"
+              class="h2h-search-main"
+              @click="openH2HSearch(h2hShowSelectRight ? 'right' : 'left')"
+            >
+              <span class="search-icon">⌕</span>
+              <span>Tìm vận động viên</span>
+            </button>
+            <button
+              type="button"
+              class="h2h-search-target"
+              :class="{ active: h2hShowSelectRight }"
+              @click="openH2HSearch('right')"
+            >
+              <span>Bên phải</span>
+              <strong>{{ h2hData.player2.full_name }}</strong>
+            </button>
+          </div>
+
+          <div class="h2h-select-panel" v-if="h2hShowSelectLeft || h2hShowSelectRight">
+            <div class="h2h-select-panel-head">
+              <span>{{ h2hShowSelectLeft ? 'Tìm vận động viên bên trái' : 'Tìm vận động viên bên phải' }}</span>
+              <button type="button" @click="h2hShowSelectLeft = false; h2hShowSelectRight = false">Đóng</button>
+            </div>
+            <div class="h2h-search-box">
+              <input
+                v-model="h2hSearchKeyword"
+                type="search"
+                placeholder="Nhập tên vận động viên..."
+                @input="searchH2HPlayers"
+              />
+            </div>
+            <div class="h2h-select-list">
+              <div
+                v-for="p in h2hSearchResults.filter(x => h2hShowSelectLeft ? x.player_id !== h2hSelectedRight : x.player_id !== h2hSelectedLeft)"
+                :key="p.player_id"
+                class="h2h-select-item"
+                :class="{ active: p.player_id === (h2hShowSelectLeft ? h2hSelectedLeft : h2hSelectedRight) }"
+                @click="selectH2HPlayer(h2hShowSelectLeft ? 'left' : 'right', p)"
+              >
+                <img :src="p.avatar_url || `https://ui-avatars.com/api/?name=${p.full_name}&background=random&size=28`" referrerpolicy="no-referrer" />
+                <span>{{ p.full_name }}</span>
+                <small>{{ p.elo_points }} pts</small>
+              </div>
+              <div v-if="h2hSearchLoading" class="h2h-select-empty">Đang tìm kiếm...</div>
+              <div v-else-if="h2hSearchKeyword && h2hSearchResults.length === 0" class="h2h-select-empty">Không tìm thấy vận động viên</div>
+              <div v-else-if="!h2hSearchKeyword" class="h2h-select-empty">Nhập tên để tìm vận động viên</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="h2h-widget h2h-widget--loading" v-else-if="isRankingsLoading">
@@ -831,7 +960,7 @@ const selectH2HPlayer = (side, player) => {
     <div ref="tournamentsSectionRef" class="lazy-section-anchor"></div>
     <section class="container atp-tournaments-section" v-if="isTournamentsLoading || featuredTournaments.length > 0">
       <div class="section-header">
-        <h2>{{ t('home.featuredTournaments') || 'GIẢI ĐẤU TIÊU BIỂU' }}</h2>
+        <h2>{{ t('home.featuredTournaments') || 'Giải đấu tiêu biểu' }}</h2>
         <RouterLink to="/tournaments" class="view-all-link">{{ t('home.viewAllTournaments') || 'Xem tất cả giải đấu' }} <el-icon><Right /></el-icon></RouterLink>
       </div>
       <div class="tournament-grid">
@@ -1180,7 +1309,27 @@ const selectH2HPlayer = (side, player) => {
 }
 .match-meta { display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600; }
 .live-text { color: #dc2626; }
-.player-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--atp-dark); }
+.player-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; font-size: 0.95rem; color: var(--atp-dark); }
+.p-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.p-score { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 72px; }
+.set-score-list { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.set-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 24px;
+  border-radius: 5px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+.set-score.is-set-win {
+  background: #ecfdf5;
+  color: #047857;
+}
 .is-winner { font-weight: 700; color: var(--atp-blue); }
 .check-icon { color: #16a34a; font-size: 0.9rem; display: inline-flex; align-items: center; }
 
@@ -1419,12 +1568,25 @@ const selectH2HPlayer = (side, player) => {
 
 /* HEAD-TO-HEAD WIDGET */
 .h2h-widget {
-  background: #002855;
-  border-radius: 8px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.28), transparent 34%),
+    linear-gradient(160deg, #07084f 0%, #002855 54%, #14213d 100%);
+  border-radius: 10px;
   color: white;
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
+  box-shadow: 0 18px 42px rgba(0, 40, 85, 0.18);
+}
+.h2h-widget::before {
+  content: '';
+  position: absolute;
+  inset: 64px 24px auto 24px;
+  height: 112px;
+  background: repeating-linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0 2px, transparent 2px 24px);
+  opacity: 0.6;
+  pointer-events: none;
 }
 .h2h-header {
   padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center;
@@ -1447,46 +1609,147 @@ const selectH2HPlayer = (side, player) => {
 }
 @keyframes h2h-spin { to { transform: rotate(360deg); } }
 
-.h2h-body { padding: 1.5rem; display: flex; flex-direction: column; align-items: center;}
+.h2h-body { padding: 1.5rem; display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1;}
 .h2h-players {
-  display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 2rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
-.h2h-player { display: flex; flex-direction: column; align-items: center; width: 90px; text-align: center; position: relative;}
+.h2h-player { display: flex; flex-direction: column; align-items: center; min-width: 0; text-align: center; position: relative;}
 .h2h-avatar {
-  width: 70px; height: 70px; border-radius: 50%; overflow: hidden; border: 2px solid #c1ff72; margin-bottom: 0.8rem;
+  width: 78px; height: 78px; border-radius: 50%; overflow: hidden; border: 2px solid #c1ff72; margin-bottom: 0.8rem;
   position: relative;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
 }
 .h2h-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.h2h-avatar-edit {
-  position: absolute; bottom: 0; right: 0;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: #c1ff72; color: #002855;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
-  opacity: 0; transition: opacity 0.2s ease;
-  pointer-events: none;
-}
-.h2h-avatar:hover .h2h-avatar-edit { opacity: 1; }
-.h2h-name { font-size: 0.85rem; font-weight: 700; margin: 0 0 4px 0; line-height: 1.2;}
+.h2h-name { width: 100%; min-height: 2.2em; font-size: 0.92rem; font-weight: 800; margin: 0 0 4px 0; line-height: 1.2; overflow-wrap: anywhere;}
 .h2h-loc { font-size: 0.7rem; color: #94a3b8;}
 
-/* H2H PLAYER SELECTOR DROPDOWN */
-/* H2H PLAYER SELECTOR DROPDOWN */
-.h2h-player-select {
-  position: absolute;
-  top: 100%;
-  z-index: 999;
-  margin-top: 10px;
-  width: 240px;
+.h2h-search-launcher {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 1.25fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border-radius: 999px;
+  background: #172236;
+  border: 2px solid #c1ff72;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
-.h2h-player:first-child .h2h-player-select {
-  left: 0;
-  transform: none;
+.h2h-search-target,
+.h2h-search-main {
+  min-width: 0;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
-.h2h-player:last-child .h2h-player-select {
-  right: 0;
-  left: auto;
-  transform: none;
+.h2h-search-target {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+}
+.h2h-search-target span {
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.h2h-search-target strong {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: #ffffff;
+}
+.h2h-search-target.active {
+  background: rgba(193, 255, 114, 0.16);
+  box-shadow: 0 0 0 1px rgba(193, 255, 114, 0.35);
+}
+.h2h-search-main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  background: #c1ff72;
+  color: #002855;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+.h2h-search-main:hover,
+.h2h-search-target:hover {
+  transform: translateY(-1px);
+}
+.search-icon {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #002855;
+  color: #c1ff72;
+  font-size: 1rem;
+  line-height: 1;
+}
+.h2h-select-panel {
+  width: 100%;
+  margin-top: 0.9rem;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(193, 255, 114, 0.28);
+  background: rgba(15, 23, 42, 0.44);
+}
+.h2h-select-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.h2h-select-panel-head span {
+  color: #c1ff72;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+.h2h-select-panel-head button {
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.h2h-search-box {
+  margin-bottom: 10px;
+}
+.h2h-search-box input {
+  width: 100%;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(193, 255, 114, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  padding: 0 12px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  outline: none;
+}
+.h2h-search-box input::placeholder {
+  color: #94a3b8;
+}
+.h2h-search-box input:focus {
+  border-color: #c1ff72;
+  box-shadow: 0 0 0 3px rgba(193, 255, 114, 0.14);
 }
 .h2h-select-list {
   background: rgba(15, 23, 42, 0.96);
@@ -1554,6 +1817,13 @@ const selectH2HPlayer = (side, player) => {
   padding: 2px 6px;
   border-radius: 4px;
 }
+.h2h-select-empty {
+  padding: 14px 16px;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
 
 .h2h-score-board { display: flex; align-items: center; gap: 1rem; }
 .score-number { font-size: 2.5rem; font-weight: 800; color: #c1ff72; }
@@ -1606,7 +1876,7 @@ const selectH2HPlayer = (side, player) => {
 .card-body h3 { font-size: 1rem; font-weight: 600; line-height: 1.4; color: var(--atp-dark); }
 
 /* =========================================================
-   SECTION 4: SPONSORS (HÌNH ẢNH LOGO) - ĐÃ BỎ HIỆU ỨNG MỜ
+   SECTION 4: SPONSORS
 ========================================================= */
 .atp-sponsors {
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
@@ -1740,6 +2010,13 @@ const selectH2HPlayer = (side, player) => {
   .atp-middle-section { grid-template-columns: 1fr; }
   .right-widgets { flex-direction: column; grid-column: span 1; }
   .hero-overlay h1 { font-size: 1.8rem; }
+  .h2h-search-launcher {
+    grid-template-columns: 1fr;
+    border-radius: 18px;
+  }
+  .h2h-search-main {
+    min-height: 42px;
+  }
   .marketing-banner-card,
   .marketing-banner-card--primary { min-height: 230px; }
   .marketing-banner-content { padding: 22px; }
@@ -1756,7 +2033,9 @@ const selectH2HPlayer = (side, player) => {
   .main-hero-news { min-height: 350px; }
   .marketing-heading { align-items: flex-start; flex-direction: column; }
   .marketing-banner-content strong { font-size: 1.25rem; }
-  .h2h-players { gap: 1rem; }
+  .h2h-players { gap: 0.75rem; }
+  .h2h-avatar { width: 64px; height: 64px; }
+  .h2h-name { font-size: 0.8rem; }
   .score-number { font-size: 2rem; }
   .tournament-grid { grid-template-columns: 1fr; }
   .sponsor-link { flex-basis: 100%; max-width: 280px; }
