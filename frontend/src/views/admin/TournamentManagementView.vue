@@ -51,7 +51,7 @@ const tournamentFieldLabels = {
   category_type: 'Nội dung thi đấu',
   gender_division: 'Giới tính',
   format_type: 'Thể thức',
-  draw_size: 'Draw size',
+  draw_size: 'Kích thước nhánh đấu',
   registration_open_at: 'Thời gian mở đăng ký',
   registration_close_at: 'Hạn chót đăng ký',
   start_date: 'Ngày khai mạc',
@@ -68,7 +68,6 @@ const tournamentFieldLabels = {
   max_points: 'Điểm tối đa',
   max_participants: 'Số người tối đa'
 }
-
 const getTournamentFieldLabel = (loc = []) => {
   const field = [...loc].reverse().find((item) => typeof item === 'string' && !['body', 'query', 'path'].includes(item))
   return tournamentFieldLabels[field] || field || 'Dữ liệu'
@@ -116,7 +115,26 @@ const formatTournamentValidationMessage = (item = {}) => {
     return 'Dữ liệu nhập chưa đúng định dạng.'
   }
 
-  return item.msg || item.message || 'Dữ liệu không hợp lệ.'
+  return repairTournamentText(item.msg || item.message || 'Dữ liệu không hợp lệ.')
+}
+
+const repairTournamentText = (value = '') => {
+  if (typeof value !== 'string') return value
+  let output = value
+  const hasMojibake = (text) => /Ã|Ä|Æ|Â|áº|á»|â/.test(text)
+
+  for (let i = 0; i < 3 && hasMojibake(output); i += 1) {
+    try {
+      const bytes = Uint8Array.from([...output].map((char) => char.charCodeAt(0) & 0xff))
+      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+      if (!decoded || decoded === output) break
+      output = decoded
+    } catch {
+      break
+    }
+  }
+
+  return output
 }
 
 const formatTournamentApiError = (err) => {
@@ -127,7 +145,7 @@ const formatTournamentApiError = (err) => {
     return detail
       .map((item) => {
         const fieldLabel = getTournamentFieldLabel(item?.loc || [])
-        const message = formatTournamentValidationMessage(item)
+        const message = repairTournamentText(formatTournamentValidationMessage(item))
         return `${fieldLabel}: ${message}`
       })
       .join('; ')
@@ -136,13 +154,13 @@ const formatTournamentApiError = (err) => {
   if (detail && typeof detail === 'object') {
     return Object.entries(detail)
       .map(([field, message]) => {
-        const readableMessage = Array.isArray(message) ? message.join(', ') : String(message)
+        const readableMessage = repairTournamentText(Array.isArray(message) ? message.join(', ') : String(message))
         return `${tournamentFieldLabels[field] || field}: ${readableMessage}`
       })
       .join('; ')
   }
 
-  if (typeof detail === 'string' && detail.trim()) return detail
+  if (typeof detail === 'string' && detail.trim()) return repairTournamentText(detail)
 
   return isEditMode.value
     ? 'Không thể cập nhật giải đấu. Vui lòng kiểm tra lại các trường đã nhập.'
@@ -413,23 +431,6 @@ const validateTournamentForm = () => {
   if (!f.name) return t('admin.tournamentNameLabel')
   if (!f.location) return t('admin.location')
   if (!f.draw_size) return t('admin.drawSize')
-
-  const regOpen = f.registration_open_at ? new Date(f.registration_open_at) : null
-  const regClose = f.registration_close_at ? new Date(f.registration_close_at) : null
-  const startDate = f.start_date ? new Date(f.start_date + 'T00:00:00') : null
-  const endDate = f.end_date ? new Date(f.end_date + 'T23:59:59') : null
-
-  if (regOpen && regClose && regClose <= regOpen) {
-    return "Hạn chót đăng ký phải sau thời gian bắt đầu đăng ký"
-  }
-  
-  if (startDate && endDate && endDate < startDate) {
-    return "Ngày kết thúc giải phải sau hoặc bằng ngày khai mạc"
-  }
-  
-  if (regClose && startDate && startDate < regClose) {
-    return "Ngày khai mạc giải không được trước hạn chót đăng ký"
-  }
 
   return null
 }
