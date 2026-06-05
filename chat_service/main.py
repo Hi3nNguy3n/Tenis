@@ -8,7 +8,7 @@ import os
 # Tự động tạo bảng khi chạy server
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Saigon Tennis - Chat Microservice")
+app = FastAPI(title="Saigontennistours - Chat Microservice")
 
 @app.on_event("startup")
 async def startup_event():

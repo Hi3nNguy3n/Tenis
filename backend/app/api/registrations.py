@@ -254,7 +254,7 @@ def admin_confirm_registration(
     
     # 2. Lấy tên giải đấu để in lên QR Code
     tourn = db.query(Tournament).filter(Tournament.id == reg.tournament_id).first()
-    tourn_name = tourn.name if tourn else "Saigon Tennis"
+    tourn_name = tourn.name if tourn else "Saigontennistours"
 
     # 3. Kích hoạt chạy ngầm tạo QR Code
     background_tasks.add_task(update_qr, reg.id, tourn_name)

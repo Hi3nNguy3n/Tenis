@@ -340,7 +340,7 @@ onMounted(fetchPosts)
                 style="width: 100%"
               >
                 <el-option label="Tennis" value="Tennis" />
-                <el-option label="SaigonTennis" value="SaigonTennis" />
+                <el-option label="Saigontennistours" value="Saigontennistours" />
                 <el-option label="Giải đấu" value="Giải đấu" />
               </el-select>
             </el-form-item>

@@ -220,7 +220,7 @@ const toggleSidebar = () => {
             <span class="brand-logo-wrap">
               <img
                 src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png"
-                alt="Saigon Tennis"
+                alt="Saigontennistours"
                 class="brand-logo"
               />
             </span>

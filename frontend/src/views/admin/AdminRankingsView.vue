@@ -134,7 +134,7 @@ onMounted(fetchData)
               </div>
               <div class="cell-meta">
                 <span class="cell-title">{{ scope.row.full_name }}</span>
-                <span class="cell-subtitle">{{ scope.row.email || 'Saigon Tennis Member' }}</span>
+                <span class="cell-subtitle">{{ scope.row.email || 'Saigontennistours Member' }}</span>
               </div>
             </div>
           </template>

@@ -37,7 +37,7 @@ const closeMenus = () => {
   <header class="site-navbar">
     <div class="container nav-shell">
       <RouterLink id="global-logo-link" to="/" class="brand-mark" @click="closeMenus">
-        <img src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png" alt="Saigon Tennis" class="site-logo" />
+        <img src="https://res.cloudinary.com/dfs9o3bny/image/upload/v1776309753/z7730353029258_1dbe77285e553a1aa2ae1ab543a985c8-removebg-preview_nj3utv.png" alt="Saigontennistours" class="site-logo" />
       </RouterLink>
 
       <nav class="desktop-nav" aria-label="Main navigation">
