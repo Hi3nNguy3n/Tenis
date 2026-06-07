@@ -6,7 +6,8 @@ import {
   Search, Refresh, Check, Close, 
   User, Trophy, Tickets, Timer, 
   CircleCheckFilled, CircleCloseFilled, Filter,
-  Clock, DataAnalysis, Calendar as CalendarIcon
+  Clock, DataAnalysis, Calendar as CalendarIcon,
+  Lock, Unlock
 } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 import { useRoute } from 'vue-router'
@@ -75,6 +76,7 @@ const statusOptions = [
 ]
 
 const translateStatus = (status, row = {}) => {
+  if (row.is_locked) return 'ĐÃ KHÓA'
   if (!status) return 'KHÔNG XÁC ĐỊNH'
   const s = status.toLowerCase()
   const ps = (row.payment_status || '').toLowerCase()
@@ -120,6 +122,26 @@ const cancelRegistration = (id) => {
   })
 }
 
+const lockRegistration = async (id) => {
+  try {
+    await apiClient.post(`/api/registrations/${id}/lock`)
+    ElMessage.success('Khóa vận động viên thành công!')
+    loadRegistrations()
+  } catch (err) {
+    ElMessage.error('Lỗi khi khóa: ' + (err.response?.data?.detail || err.message))
+  }
+}
+
+const unlockRegistration = async (id) => {
+  try {
+    await apiClient.post(`/api/registrations/${id}/unlock`)
+    ElMessage.success('Mở khóa vận động viên thành công!')
+    loadRegistrations()
+  } catch (err) {
+    ElMessage.error('Lỗi khi mở khóa: ' + (err.response?.data?.detail || err.message))
+  }
+}
+
 onMounted(async () => {
   await loadRegistrations()
   const queryId = route.query.tournamentId
@@ -162,7 +184,8 @@ watch([search, statusFilter], () => {
   currentPage.value = 1
 })
 
-const getStatusType = (status) => {
+const getStatusType = (status, row = {}) => {
+  if (row.is_locked) return 'info'
   const s = status?.toLowerCase()
   if (s === 'confirmed' || s === 'paid' || s === 'checked_in') return 'success'
   if (s === 'cancelled' || s === 'rejected') return 'danger'
@@ -304,42 +327,72 @@ const formatTime = (val) => {
 
         <el-table-column label="TRẠNG THÁI" width="140" align="center">
           <template #default="{ row }">
-            <div class="status-indicator" :class="[`is-${getStatusType(row.status)}`, { 'is-waiting-payment': row.status === 'confirmed' && row.payment_status === 'pending' }]">
+            <div class="status-indicator" :class="[`is-${getStatusType(row.status, row)}`, { 'is-waiting-payment': row.status === 'confirmed' && row.payment_status === 'pending' && !row.is_locked }]">
               <span class="dot"></span>
               <span>{{ translateStatus(row.status, row) }}</span>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="THAO TÁC" width="120" fixed="right" align="center">
+        <el-table-column label="THAO TÁC" width="160" fixed="right" align="center">
           <template #default="{ row }">
-            <div class="saas-row-actions-compact" v-if="['pending', 'waiting', 'confirmed'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid'">
-              <el-button 
-                type="success" 
-                size="small"
-                circle
-                @click="confirmRegistration(row.id)" 
-                class="compact-btn confirm"
-                title="Xác nhận"
-              >
-                <el-icon><Check /></el-icon>
-              </el-button>
-              
-              <el-button 
-                type="danger" 
-                size="small"
-                circle
-                plain 
-                @click="cancelRegistration(row.id)" 
-                class="compact-btn cancel"
-                title="Hủy"
-              >
-                <el-icon><Close /></el-icon>
-              </el-button>
-            </div>
-            <div v-else class="done-label compact">
-              <el-icon v-if="['confirmed', 'paid', 'checked_in'].includes((row.status || '').toLowerCase())" color="#059669"><CircleCheckFilled /></el-icon>
-              <el-icon v-else color="#dc2626"><CircleCloseFilled /></el-icon>
+            <div class="saas-row-actions-compact" style="display: flex; gap: 8px; justify-content: center; align-items: center;">
+              <!-- Nút Duyệt / Hủy cho đơn chờ xử lý -->
+              <template v-if="['pending', 'waiting', 'confirmed'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid' && !row.is_locked">
+                <el-button 
+                  type="success" 
+                  size="small"
+                  circle
+                  @click="confirmRegistration(row.id)" 
+                  class="compact-btn confirm"
+                  title="Xác nhận"
+                >
+                  <el-icon><Check /></el-icon>
+                </el-button>
+                
+                <el-button 
+                  type="danger" 
+                  size="small"
+                  circle
+                  plain 
+                  @click="cancelRegistration(row.id)" 
+                  class="compact-btn cancel"
+                  title="Hủy"
+                >
+                  <el-icon><Close /></el-icon>
+                </el-button>
+              </template>
+              <span v-else-if="!row.is_locked" class="done-label compact" style="margin-right: 4px;">
+                <el-icon v-if="['confirmed', 'paid', 'checked_in'].includes((row.status || '').toLowerCase())" color="#059669"><CircleCheckFilled /></el-icon>
+                <el-icon v-else color="#dc2626"><CircleCloseFilled /></el-icon>
+              </span>
+
+              <!-- Nút Khóa / Mở khóa -->
+              <template v-if="!['cancelled', 'rejected', 'expired'].includes((row.status || '').toLowerCase())">
+                <el-button
+                  v-if="!row.is_locked"
+                  type="warning"
+                  size="small"
+                  circle
+                  plain
+                  @click="lockRegistration(row.id)"
+                  class="compact-btn lock"
+                  title="Khóa VĐV"
+                >
+                  <el-icon><Lock /></el-icon>
+                </el-button>
+                <el-button
+                  v-else
+                  type="info"
+                  size="small"
+                  circle
+                  @click="unlockRegistration(row.id)"
+                  class="compact-btn unlock"
+                  title="Mở khóa VĐV"
+                >
+                  <el-icon><Unlock /></el-icon>
+                </el-button>
+              </template>
             </div>
           </template>
         </el-table-column>

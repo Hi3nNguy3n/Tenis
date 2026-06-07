@@ -184,6 +184,7 @@ class Registration(Base):
     team_members_data = Column(JSONB)
     deleted_at = Column(DateTime, index=True)
     qr_code_url = Column(String(255))
+    is_locked = Column(Boolean, default=False, server_default="false", nullable=False, index=True)
     
 class Payment(Base):
     __tablename__ = "payments"

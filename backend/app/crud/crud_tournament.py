@@ -64,12 +64,13 @@ def get_tournaments_with_counts(db: Session, skip: int = 0, limit: int = 10, sta
         Tournament.id.desc()
     ).offset(skip).limit(limit).all()
     
-    # Tính s� slot �ã �Ēng ký cho từng giải
+    # Tính s  slot  ã  Ēng ký cho từng giải
     for t in tournaments:
         t.current_participants = db.query(Registration).filter(
             Registration.tournament_id == t.id,
             Registration.status.in_(["confirmed", "pending"]),
-            Registration.deleted_at.is_(None)
+            Registration.deleted_at.is_(None),
+            Registration.is_locked == False
         ).count()
     return tournaments
 
@@ -81,7 +82,8 @@ def get_tournament_with_count(db: Session, tournament_id: int):
     t.current_participants = db.query(Registration).filter(
         Registration.tournament_id == t.id,
         Registration.status.in_(["confirmed", "pending"]),
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     ).count()
     return t
 
@@ -128,7 +130,8 @@ def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optiona
     query = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
         Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     )
     if category_id:
         query = query.filter(Registration.tournament_category_id == category_id)
@@ -903,14 +906,15 @@ def export_tournament_data_to_excel(db: Session, tournament_id: int):
     ws_players.column_dimensions['F'].width = 15
     ws_players.column_dimensions['G'].width = 15
 
-    # Lấy dữ li�!u VĐV
+    # Lấy dữ liệu VĐV
     regs = db.query(Registration, Player, User).join(
         Player, Registration.player_id == Player.id
     ).join(
         User, Player.user_id == User.id
     ).filter(
         Registration.tournament_id == tournament_id,
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     ).all()
 
     for idx, (reg, player, user) in enumerate(regs, start=1):
@@ -1037,7 +1041,8 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
     query = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
         Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     )
     if category_id:
         query = query.filter(Registration.tournament_category_id == category_id)

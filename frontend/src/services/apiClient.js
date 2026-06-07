@@ -2,6 +2,7 @@ import { getActivePinia } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import { getStoredAccessToken, getStoredTokenType } from '../utils/authStorage'
 import { getApiBaseUrl, getChatApiBaseUrl } from '../utils/apiUrls'
+import { ElMessage } from 'element-plus'
 
 export const MAIN_API_URL = getApiBaseUrl()
 export const CHAT_API_URL = getChatApiBaseUrl()
@@ -116,6 +117,38 @@ export const apiClient = {
     const data = await parseResponse(response)
 
     if (!response.ok) {
+      if (response.status === 401) {
+        const pinia = getActivePinia()
+        if (pinia) {
+          const authStore = useAuthStore(pinia)
+          authStore.logout()
+        }
+        
+        // Hiển thị thông báo thân thiện hơn
+        ElMessage.error('Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.')
+        
+        // Điều hướng sau 1.5s
+        setTimeout(() => {
+          const currentPath = window.location.pathname
+          const currentSearch = window.location.search
+          const redirectQuery = encodeURIComponent(currentPath + currentSearch)
+          
+          if (currentPath.startsWith('/admin')) {
+            window.location.href = `/admin/login?redirect=${redirectQuery}`
+          } else {
+            window.location.href = `/login?redirect=${redirectQuery}`
+          }
+        }, 1500)
+
+        const error = new Error('Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.')
+        error.status = 401
+        error.response = {
+          status: 401,
+          data: { detail: 'Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.' }
+        }
+        throw error
+      }
+
       const message =
         typeof data === 'object' && data !== null
           ? data.detail || data.message || 'Yêu cầu API thất bại.'

@@ -521,7 +521,8 @@ def get_public_registrations(
     ).filter(
         Registration.tournament_id == tournament_id,
         Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     )
     
     if category_id:
