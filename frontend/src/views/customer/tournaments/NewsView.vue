@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { newsService } from '../../../services/newsService'
 import { playerService } from '../../../services/playerService' 
-import { Search, VideoPlay, ArrowDown } from '@element-plus/icons-vue'
+import { Search, VideoPlay, ArrowDown, Loading } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../../utils/locale'
 import MarketingBannerStrip from '../../../components/MarketingBannerStrip.vue'
 
@@ -13,6 +13,14 @@ const topPlayers = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
 const selectedCategory = ref('all') 
+
+// Pagination states
+const page = ref(1)
+const limit = ref(6)
+const hasMore = ref(true)
+const isInfiniteLoading = ref(false)
+const loadMoreTrigger = ref(null)
+let observer = null
 
 // Sử dụng thuần hàm t()
 const categories = computed(() => [
@@ -28,11 +36,29 @@ const isVideo = (url) => {
   return url.match(/\.(mp4|webm|ogg)$/i) !== null
 }
 
-const fetchNewsAndRankings = async () => {
-  loading.value = true
+const fetchRankings = async () => {
   try {
-    const params = { limit: 100 }
-    
+    const rankingsData = await playerService.getRankings().catch(() => [])
+    topPlayers.value = (rankingsData || []).slice(0, 5)
+  } catch (err) {
+    console.error('Lỗi tải bảng xếp hạng:', err)
+  }
+}
+
+const fetchNews = async (isLoadMore = false) => {
+  if (isLoadMore) {
+    isInfiniteLoading.value = true
+  } else {
+    loading.value = true
+    page.value = 1
+    hasMore.value = true
+    newsList.value = []
+  }
+
+  try {
+    const skip = (page.value - 1) * limit.value
+    const params = { skip, limit: limit.value }
+
     if (selectedCategory.value !== 'all') {
       params.category = selectedCategory.value
     }
@@ -40,31 +66,69 @@ const fetchNewsAndRankings = async () => {
       params.search = searchQuery.value
     }
 
-    const [newsData, rankingsData] = await Promise.all([
-      newsService.getAllPosts(params),
-      playerService.getRankings().catch(() => [])
-    ])
-
-    let results = (newsData || [])
+    const newsData = await newsService.getAllPosts(params)
+    const results = (newsData || [])
       .filter(item => item.status === 'published')
       .sort((a, b) => new Date(b.publish_at || b.created_at) - new Date(a.publish_at || a.created_at))
-    newsList.value = results
 
-    topPlayers.value = (rankingsData || []).slice(0, 5)
+    if (isLoadMore) {
+      newsList.value.push(...results)
+    } else {
+      newsList.value = results
+    }
 
+    if (results.length < limit.value) {
+      hasMore.value = false
+    }
   } catch (err) {
-    console.error('Lỗi tải dữ liệu:', err)
+    console.error('Lỗi tải tin tức:', err)
   } finally {
     loading.value = false
+    isInfiniteLoading.value = false
   }
 }
 
-watch(selectedCategory, () => fetchNewsAndRankings())
+const handleLoadMore = () => {
+  if (isInfiniteLoading.value || !hasMore.value || loading.value) return
+  page.value++
+  fetchNews(true)
+}
+
+const initObserver = () => {
+  if (observer) {
+    observer.disconnect()
+  }
+
+  observer = new IntersectionObserver((entries) => {
+    const target = entries[0]
+    if (target.isIntersecting) {
+      handleLoadMore()
+    }
+  }, {
+    rootMargin: '150px'
+  })
+
+  nextTick(() => {
+    if (loadMoreTrigger.value) {
+      observer.observe(loadMoreTrigger.value)
+    }
+  })
+}
+
+watch(selectedCategory, () => {
+  fetchNews().then(() => {
+    initObserver()
+  })
+})
 
 let searchTimeout = null
 watch(searchQuery, () => {
   clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => fetchNewsAndRankings(), 500)
+  searchTimeout = setTimeout(() => {
+    fetchNews().then(() => {
+      initObserver()
+    })
+  }, 500)
 })
 
 const featuredPost = computed(() => newsList.value[0])
@@ -80,7 +144,18 @@ const getCategoryLabel = (val) => {
   return cat ? cat.label : t('news.news')
 }
 
-onMounted(fetchNewsAndRankings)
+onMounted(() => {
+  fetchRankings()
+  fetchNews().then(() => {
+    initObserver()
+  })
+})
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect()
+  }
+})
 </script>
 
 <template>
@@ -188,6 +263,17 @@ onMounted(fetchNewsAndRankings)
 
           <div v-if="!featuredPost" class="empty-placeholder">
             <el-empty :description="t('news.noNews')" />
+          </div>
+
+          <!-- Sentinel element for infinite scroll -->
+          <div ref="loadMoreTrigger" class="infinite-scroll-trigger">
+            <div v-if="isInfiniteLoading" class="infinite-loading-spinner">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span>{{ t('news.loadingMore') || 'Đang tải thêm...' }}</span>
+            </div>
+            <div v-else-if="!hasMore && newsList.length > 0" class="infinite-no-more">
+              <span>{{ t('news.noMoreNews') || 'Đã hiển thị tất cả tin tức.' }}</span>
+            </div>
           </div>
         </main>
 
@@ -321,4 +407,34 @@ onMounted(fetchNewsAndRankings)
 .input-group button:hover { background: white; }
 @media (max-width: 1024px) { .magazine-layout { grid-template-columns: 1fr; } .featured-visual { height: 350px; } }
 @media (max-width: 768px) { .news-inner-nav { flex-direction: column; align-items: flex-start; gap: 1rem; } .minimal-search { width: 100%; } .news-grid { grid-template-columns: 1fr; } .featured-visual { height: 250px; } .featured-title { font-size: 1.6rem; } .featured-excerpt { display: none; } .featured-content { padding: 1.5rem; } }
+
+/* Infinite Scroll styles */
+.infinite-scroll-trigger {
+  padding: 2rem 0;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.infinite-loading-spinner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.infinite-loading-spinner .el-icon {
+  font-size: 1.2rem;
+  animation: rotating 2s linear infinite;
+}
+.infinite-no-more {
+  color: #94a3b8;
+  font-style: italic;
+}
+@keyframes rotating {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 </style>

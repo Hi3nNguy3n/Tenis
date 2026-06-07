@@ -1,11 +1,30 @@
 <script setup>
 import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { apiClient } from '../../services/apiClient'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { DocumentAdd, Edit, Delete, Picture } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
+import { DocumentAdd, Edit, Delete, Picture, VideoPlay } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
+
+// Register Custom Video Blot for HTML5 <video> tag
+const BlockEmbed = Quill.import('blots/block/embed')
+class VideoBlot extends BlockEmbed {
+  static create(value) {
+    const node = super.create()
+    node.setAttribute('src', value)
+    node.setAttribute('controls', 'true')
+    node.setAttribute('width', '100%')
+    node.setAttribute('style', 'border-radius: 8px; margin: 10px 0; max-height: 400px; object-fit: contain;')
+    return node
+  }
+  static value(node) {
+    return node.getAttribute('src')
+  }
+}
+VideoBlot.blotName = 'video'
+VideoBlot.tagName = 'video'
+Quill.register(VideoBlot, true)
 
 const posts = ref([])
 const isLoading = ref(false)
@@ -44,6 +63,12 @@ const imageHandler = () => {
     const formData = new FormData()
     formData.append('file', file)
 
+    const loadingInstance = ElLoading.service({
+      lock: true,
+      text: 'Đang tải ảnh lên hệ thống, vui lòng chờ...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+
     try {
       const res = await apiClient.request('/api/upload/image', {
         method: 'POST',
@@ -54,11 +79,57 @@ const imageHandler = () => {
       const range = quillInstance.getSelection()
       if (range) {
         quillInstance.insertEmbed(range.index, 'image', res.url)
+        quillInstance.setSelection(range.index + 1)
       } else {
         quillInstance.insertEmbed(quillInstance.getLength(), 'image', res.url)
       }
+      ElMessage.success('Tải ảnh lên thành công!')
     } catch (err) {
       ElMessage.error(t('admin.uploadError') || 'Upload failed')
+    } finally {
+      loadingInstance.close()
+    }
+  }
+}
+
+const videoHandler = () => {
+  const input = document.createElement('input')
+  input.setAttribute('type', 'file')
+  input.setAttribute('accept', 'video/*')
+  input.click()
+
+  input.onchange = async () => {
+    const file = input.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const loadingInstance = ElLoading.service({
+      lock: true,
+      text: 'Đang tải video lên hệ thống (dung lượng tối đa 80MB), vui lòng chờ...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+
+    try {
+      const res = await apiClient.request('/api/upload/media', {
+        method: 'POST',
+        body: formData,
+        includeJson: false
+      })
+      
+      const range = quillInstance.getSelection()
+      if (range) {
+        quillInstance.insertEmbed(range.index, 'video', res.url)
+        quillInstance.setSelection(range.index + 1)
+      } else {
+        quillInstance.insertEmbed(quillInstance.getLength(), 'video', res.url)
+      }
+      ElMessage.success('Tải video lên thành công!')
+    } catch (err) {
+      ElMessage.error(t('admin.uploadError') || 'Upload failed')
+    } finally {
+      loadingInstance.close()
     }
   }
 }
@@ -85,7 +156,8 @@ const initQuill = () => {
           ['link', 'image', 'video']
         ],
         handlers: {
-          image: imageHandler
+          image: imageHandler,
+          video: videoHandler
         }
       }
     }
@@ -309,6 +381,16 @@ onMounted(fetchPosts)
             </el-form-item>
 
             <el-form-item :label="$t('admin.postContentLabel')" required>
+              <div class="editor-quick-actions" style="margin-bottom: 8px; display: flex; gap: 10px;">
+                <el-button type="success" size="small" plain @click="imageHandler">
+                  <el-icon style="margin-right: 4px;"><Picture /></el-icon>
+                  Chèn hình ảnh từ máy
+                </el-button>
+                <el-button type="warning" size="small" plain @click="videoHandler">
+                  <el-icon style="margin-right: 4px;"><VideoPlay /></el-icon>
+                  Chèn video từ máy
+                </el-button>
+              </div>
               <div class="editor-wrapper">
                 <div ref="editorRef" style="height: 400px;"></div>
               </div>
