@@ -45,6 +45,7 @@ class RegistrationResponse(RegistrationBase):
     registered_at: datetime
     qr_code_url: Optional[str] = None
     category_id: Optional[int] = None
+    is_locked: Optional[bool] = False
     
     # Optional fields for display
     player_name: Optional[str] = None

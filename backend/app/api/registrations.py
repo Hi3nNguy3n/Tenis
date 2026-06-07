@@ -261,3 +261,17 @@ def admin_confirm_registration(
     
     db.commit()
     return {"message": "Đã duyệt vận động viên và tạo mã QR thành công!"}
+
+@router.post("/{registration_id}/lock", dependencies=[Depends(get_current_admin)])
+def lock_registration(registration_id: int, db: Session = Depends(get_db)):
+    reg = crud_registration.lock_registration(db, registration_id)
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
+    return {"message": "Đã khóa vận động viên khỏi giải đấu thành công.", "is_locked": reg.is_locked}
+
+@router.post("/{registration_id}/unlock", dependencies=[Depends(get_current_admin)])
+def unlock_registration(registration_id: int, db: Session = Depends(get_db)):
+    reg = crud_registration.unlock_registration(db, registration_id)
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
+    return {"message": "Đã mở khóa vận động viên thành công.", "is_locked": reg.is_locked}

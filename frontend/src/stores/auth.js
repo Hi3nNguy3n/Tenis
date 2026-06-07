@@ -8,6 +8,7 @@ import {
   persistAuthSession,
 } from '../utils/authStorage'
 import { getApiBaseUrl } from '../utils/apiUrls'
+import { ElMessage } from 'element-plus'
 
 const API_BASE_URL = getApiBaseUrl()
 
@@ -89,6 +90,19 @@ export const useAuthStore = defineStore('auth', () => {
     if (!response.ok) {
       if (response.status === 401) {
         logout()
+        ElMessage.error('Phiên đăng nhập của bạn đã hết hạn. Vui lòng đăng nhập lại.')
+        
+        setTimeout(() => {
+          const currentPath = window.location.pathname
+          const currentSearch = window.location.search
+          const redirectQuery = encodeURIComponent(currentPath + currentSearch)
+          
+          if (currentPath.startsWith('/admin')) {
+            window.location.href = `/admin/login?redirect=${redirectQuery}`
+          } else {
+            window.location.href = `/login?redirect=${redirectQuery}`
+          }
+        }, 1500)
       }
       return null
     }

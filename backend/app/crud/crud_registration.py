@@ -215,3 +215,21 @@ def update_registration_qr_url(db: Session, reg_id: int, url: str):
     if r:
         r.qr_code_url = url
         db.commit()
+
+def lock_registration(db: Session, registration_id: int):
+    reg = db.query(Registration).filter(Registration.id == registration_id).first()
+    if not reg:
+        return None
+    reg.is_locked = True
+    db.commit()
+    db.refresh(reg)
+    return reg
+
+def unlock_registration(db: Session, registration_id: int):
+    reg = db.query(Registration).filter(Registration.id == registration_id).first()
+    if not reg:
+        return None
+    reg.is_locked = False
+    db.commit()
+    db.refresh(reg)
+    return reg
