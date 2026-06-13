@@ -1,19 +1,29 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { apiClient } from '../../services/apiClient'
 import { ElMessage } from 'element-plus'
-import { Trophy, Check, ArrowRight } from '@element-plus/icons-vue'
+import { Trophy, Check, ArrowRight, Search } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 import MarketingBannerStrip from '../../components/MarketingBannerStrip.vue'
 
+const router = useRouter()
 const rankings = ref([])
+const allRankings = ref([])
 const finalMatches = ref([])
+const resultMatches = ref([])
 const isLoading = ref(true)
 const activeRankingTab = ref('Singles')
+const activeScoreTab = ref('sgt')
+const scorePage = ref(1)
+const SCORE_PAGE_SIZE = 1
+const rankingPage = ref(1)
+const RANKING_PAGE_SIZE = 15
 
 const filters = ref({
   category: '',
-  province: ''
+  province: '',
+  keyword: ''
 })
 
 const provinceOptions = ref([])
@@ -44,16 +54,30 @@ const buildFilterOptions = (items = []) => {
   categoryOptions.value = [...categorySet].sort((a, b) => a.localeCompare(b))
 }
 
+const featuredPlayers = computed(() => {
+  const source = allRankings.value.length ? allRankings.value : rankings.value
+  return [...source]
+    .sort((a, b) => {
+      if ((b.elo_points || 0) !== (a.elo_points || 0)) return (b.elo_points || 0) - (a.elo_points || 0)
+      return (b.win_rate || 0) - (a.win_rate || 0)
+    })
+    .slice(0, 10)
+})
+
 const fetchFinalMatches = async () => {
   try {
-    const response = await apiClient.get('/api/matches/')
+    const response = await apiClient.get('/api/tournaments/matches/all')
     const matches = Array.isArray(response) ? response : []
+    resultMatches.value = matches
+      .filter(hasMatchResult)
+      .sort(sortMatchesByRecent)
     finalMatches.value = matches.filter((match) => {
       const round = String(match.round_code || '').toUpperCase()
       return round === 'FINAL' || round === 'F' || round.includes('CHUNG KET') || round.includes('CHUNG KẾT')
     })
   } catch (error) {
     finalMatches.value = []
+    resultMatches.value = []
   }
 }
 
@@ -80,6 +104,7 @@ const fetchRankings = async () => {
 
     // Chỉ tạo danh sách tuỳ chọn Tỉnh/Thành ở lần load đầu tiên (khi chưa có filter)
     if (!filters.value.category && !filters.value.province) {
+      allRankings.value = rankings.value
       buildFilterOptions(rankings.value)
     }
   } catch (error) {
@@ -176,9 +201,137 @@ const raceToFinalsRankings = computed(() => {
 })
 
 const displayedRankings = computed(() => {
-  if (activeRankingTab.value === 'Doubles') return doublesRankings.value
-  if (activeRankingTab.value === 'Race') return raceToFinalsRankings.value
-  return rankings.value
+  let rows = rankings.value
+  if (activeRankingTab.value === 'Doubles') rows = doublesRankings.value
+  if (activeRankingTab.value === 'Race') rows = raceToFinalsRankings.value
+
+  const keyword = filters.value.keyword.trim().toLowerCase()
+  if (!keyword) return rows
+
+  return rows
+    .filter((player) => {
+      return [
+        player.full_name,
+        player.partner_name,
+        player.skill_level,
+        player.province,
+        player.category
+      ].some(value => String(value || '').toLowerCase().includes(keyword))
+    })
+    .map((player, index) => ({ ...player, rank: index + 1 }))
+})
+
+const totalRankingPages = computed(() => Math.max(1, Math.ceil(displayedRankings.value.length / RANKING_PAGE_SIZE)))
+
+const paginatedRankings = computed(() => {
+  const start = (rankingPage.value - 1) * RANKING_PAGE_SIZE
+  return displayedRankings.value.slice(start, start + RANKING_PAGE_SIZE)
+})
+
+const scoreTabMatches = computed(() => {
+  const isSgtTour = activeScoreTab.value === 'sgt'
+  return resultMatches.value.filter(match => isSgtTour ? Boolean(match.tournament_id) : !match.tournament_id)
+})
+
+const totalScorePages = computed(() => Math.max(1, Math.ceil(scoreTabMatches.value.length / SCORE_PAGE_SIZE)))
+const featuredResultMatch = computed(() => scoreTabMatches.value[(scorePage.value - 1) * SCORE_PAGE_SIZE] || null)
+
+const hasMatchResult = (match) => {
+  if (!match) return false
+  const score = String(match.score_summary || match.score || '').trim()
+  return Boolean(
+    match.winner_side ||
+    score ||
+    (match.score_a !== null && match.score_a !== undefined && Number.isFinite(Number(match.score_a))) ||
+    (match.score_b !== null && match.score_b !== undefined && Number.isFinite(Number(match.score_b)))
+  )
+}
+
+const sortMatchesByRecent = (a, b) => {
+  const dateA = new Date(`${a.date || a.tournament_start_date || '1970-01-01'}T${a.start || '00:00'}`).getTime()
+  const dateB = new Date(`${b.date || b.tournament_start_date || '1970-01-01'}T${b.start || '00:00'}`).getTime()
+  return dateB - dateA
+}
+
+const getMatchTitle = (match) => match?.tournament || match?.tournament_name || 'Giải đấu'
+const getMatchLocation = (match) => match?.court || match?.location || 'Chưa cập nhật sân'
+const getMatchRoundLabel = (match) => match?.round_code || match?.category_name || 'Trận đấu'
+const getMatchTime = (match) => match?.start || match?.start_time || '--:--'
+const getMatchReferee = (match) => match?.referee_name ? `Trọng tài: ${match.referee_name}` : 'Trọng tài: Chưa cập nhật'
+
+const getSideName = (match, side) => {
+  const names = side === 'side_a'
+    ? [match?.p1_name, match?.p1_partner_name]
+    : [match?.p2_name, match?.p2_partner_name]
+  return names.filter(Boolean).join(' / ') || 'Chưa xác định'
+}
+
+const parseScoreSets = (match) => {
+  const scoreText = String(match?.score_summary || match?.score || '').trim()
+  const parsedScores = scoreText
+    ? scoreText
+      .split(/[,;]+/)
+      .map((part) => {
+        const values = part.match(/\d+/g)
+        return values && values.length >= 2 ? { a: values[0], b: values[1] } : null
+      })
+      .filter(Boolean)
+    : []
+
+  if (parsedScores.length) return parsedScores.slice(0, 3)
+
+  if (match?.score_a !== null && match?.score_a !== undefined && match?.score_b !== null && match?.score_b !== undefined) {
+    return [{ a: match.score_a, b: match.score_b }]
+  }
+  return []
+}
+
+const getMatchSummary = (match) => {
+  const winner = match?.winner_side ? getSideName(match, match.winner_side) : ''
+  const score = match?.score_summary || match?.score
+  if (winner && score) return `${winner} giành chiến thắng ${score}.`
+  if (winner) return `${winner} giành chiến thắng.`
+  return 'Trận đấu đã có dữ liệu kết quả.'
+}
+
+const setScoreTab = (tab) => {
+  activeScoreTab.value = tab
+  scorePage.value = 1
+}
+
+const changeScorePage = (direction) => {
+  const nextPage = scorePage.value + direction
+  if (nextPage < 1 || nextPage > totalScorePages.value) return
+  scorePage.value = nextPage
+}
+
+const openTournamentTab = (match, tab = 'bracket') => {
+  if (!match?.tournament_id) {
+    ElMessage.info('Trận này chưa thuộc giải đấu nên không có nhánh/lịch giải.')
+    return
+  }
+  router.push({
+    path: `/tournaments/${match.tournament_id}`,
+    query: {
+      tab,
+      matchId: match.id
+    }
+  })
+}
+
+const openAllMatches = () => {
+  router.push('/matches')
+}
+
+const canOpenPlayerProfile = (player) => Number.isInteger(Number(player?.player_id))
+
+const openPlayerProfile = (player) => {
+  if (!canOpenPlayerProfile(player)) return
+  router.push(`/players/${player.player_id}`)
+}
+
+watch(scoreTabMatches, () => {
+  if (scorePage.value > totalScorePages.value) scorePage.value = totalScorePages.value
 })
 
 const rankingTableLabels = computed(() => {
@@ -208,13 +361,23 @@ const rankingTableLabels = computed(() => {
 
 const setRankingTab = (tab) => {
   activeRankingTab.value = tab
+  rankingPage.value = 1
   if (tab === 'Singles') filters.value.category = ''
   if (tab === 'Doubles') filters.value.category = ''
 }
 // TỰ ĐỘNG LỌC LẠI KHI NGƯỜI DÙNG CHỌN MENU THẢ XUỐNG
-watch(filters, () => {
+watch(() => [filters.value.category, filters.value.province], () => {
+  rankingPage.value = 1
   fetchRankings()
-}, { deep: true })
+})
+
+watch(() => filters.value.keyword, () => {
+  rankingPage.value = 1
+})
+
+watch(totalRankingPages, (total) => {
+  if (rankingPage.value > total) rankingPage.value = total
+})
 onMounted(async () => {
   await Promise.all([fetchRankings(), fetchFinalMatches()])
 })
@@ -226,6 +389,34 @@ onMounted(async () => {
     <div class="top-ad-banner">
       <MarketingBannerStrip placement="rankings_top" variant="compact" :max="3" />
     </div>
+
+    <section v-if="featuredPlayers.length" class="featured-players-strip container">
+      <div class="featured-head">
+        <span>10 vận động viên tiêu biểu</span>
+        <strong>Nổi bật</strong>
+      </div>
+      <div class="featured-scroll">
+        <article
+          v-for="player in featuredPlayers"
+          :key="`featured-${player.player_id}`"
+          class="featured-player-card"
+          :class="{ clickable: canOpenPlayerProfile(player) }"
+          tabindex="0"
+          role="button"
+          @click="openPlayerProfile(player)"
+          @keydown.enter.prevent="openPlayerProfile(player)"
+          @keydown.space.prevent="openPlayerProfile(player)"
+        >
+          <span class="featured-rank">#{{ player.rank }}</span>
+          <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="featured-avatar" referrerpolicy="no-referrer" />
+          <div class="featured-meta">
+            <strong>{{ player.full_name }}</strong>
+            <small>{{ player.province || 'Chưa cập nhật CLB' }}</small>
+          </div>
+          <span class="featured-points">{{ player.elo_points }}</span>
+        </article>
+      </div>
+    </section>
 
     <div class="container layout-grid">
       
@@ -246,26 +437,24 @@ onMounted(async () => {
             <div class="filter-dropdowns">
               <el-select
                 v-model="filters.category"
-                :placeholder="t('rankings.searchPlaceholder')"
+                placeholder="Tất cả nội dung"
                 clearable
                 class="flat-select"
-                @change="fetchRankings"
               >
                 <el-option
                   v-for="category in categoryOptions"
-                  :key="category"
+                  :key="category.value || category"
                   :label="formatCategoryLabel(category)"
-                  :value="category"
+                  :value="category.value || category"
                 />
               </el-select>
 
               <el-select
                 v-model="filters.province"
-                :placeholder="t('rankings.regionPlaceholder')"
+                placeholder="Tất cả câu lạc bộ"
                 clearable
                 filterable
                 class="flat-select"
-                @change="fetchRankings"
               >
                 <el-option
                   v-for="province in provinceOptions"
@@ -274,6 +463,14 @@ onMounted(async () => {
                   :value="province"
                 />
               </el-select>
+
+              <el-input
+                v-model="filters.keyword"
+                :prefix-icon="Search"
+                placeholder="Tìm vận động viên"
+                clearable
+                class="flat-search"
+              />
             </div>
           </div>
         </div>
@@ -295,12 +492,20 @@ onMounted(async () => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="player in displayedRankings" :key="player.player_id">
+              <tr v-for="player in paginatedRankings" :key="player.player_id">
                 <td class="col-rank">
                   <span class="rank-num">{{ player.rank }}</span>
                 </td>
                 <td class="col-player">
-                  <div class="player-info-cell" :class="{ 'is-pair': player.isDoublesPair }">
+                  <div
+                    class="player-info-cell"
+                    :class="{ 'is-pair': player.isDoublesPair, clickable: canOpenPlayerProfile(player) }"
+                    tabindex="0"
+                    role="button"
+                    @click="openPlayerProfile(player)"
+                    @keydown.enter.prevent="openPlayerProfile(player)"
+                    @keydown.space.prevent="openPlayerProfile(player)"
+                  >
                     <div class="avatar-stack" v-if="player.isDoublesPair">
                       <img :src="player.avatar_url || `https://ui-avatars.com/api/?name=${player.full_name}`" class="player-ava" referrerpolicy="no-referrer" />
                       <img :src="player.partner_avatar_url || `https://ui-avatars.com/api/?name=${player.partner_name}`" class="player-ava partner-ava" referrerpolicy="no-referrer" />
@@ -328,6 +533,15 @@ onMounted(async () => {
               </tr>
             </tbody>
           </table>
+          <div v-if="displayedRankings.length > RANKING_PAGE_SIZE" class="ranking-pagination">
+            <el-pagination
+              v-model:current-page="rankingPage"
+              :page-size="RANKING_PAGE_SIZE"
+              :total="displayedRankings.length"
+              layout="prev, pager, next"
+              background
+            />
+          </div>
         </div>
       </main>
 
@@ -335,51 +549,67 @@ onMounted(async () => {
         <div class="widget-scores">
           <div class="ws-header">
             <h3>{{ t('rankings.scores') }}</h3>
-            <a href="#" class="ws-link">{{ t('rankings.seeAll') }} <el-icon><ArrowRight /></el-icon></a>
+            <button type="button" class="ws-link" @click="openAllMatches">{{ t('rankings.seeAll') }} <el-icon><ArrowRight /></el-icon></button>
           </div>
           <div class="ws-tabs">
-            <span class="ws-tab active">{{ t('rankings.sgtTour') }}</span>
-            <span class="ws-tab">{{ t('rankings.challenger') }}</span>
+            <button type="button" class="ws-tab" :class="{ active: activeScoreTab === 'sgt' }" @click="setScoreTab('sgt')">{{ t('rankings.sgtTour') }}</button>
+            <button type="button" class="ws-tab" :class="{ active: activeScoreTab === 'challenger' }" @click="setScoreTab('challenger')">{{ t('rankings.challenger') }}</button>
           </div>
           
-          <div class="ws-body">
+          <div v-if="featuredResultMatch" class="ws-body">
             <div class="ws-tour-name">
-              <h4>{{ t('rankings.saigonMasters') }}</h4>
-              <p>{{ t('rankings.hcmc') }}</p>
+              <h4>{{ getMatchTitle(featuredResultMatch) }}</h4>
+              <p>{{ getMatchLocation(featuredResultMatch) }}</p>
             </div>
             
             <div class="ws-subtabs">
-              <span class="ws-sub active">{{ t('rankings.allScores') }}</span>
-              <span class="ws-sub">{{ t('rankings.schedule') }}</span>
-              <span class="ws-sub">{{ t('rankings.draw') }}</span>
+              <button type="button" class="ws-sub active" @click="openAllMatches">{{ t('rankings.allScores') }}</button>
+              <button type="button" class="ws-sub" @click="openTournamentTab(featuredResultMatch, 'schedule')">{{ t('rankings.schedule') }}</button>
+              <button type="button" class="ws-sub" @click="openTournamentTab(featuredResultMatch, 'bracket')">{{ t('rankings.draw') }}</button>
             </div>
 
             <div class="ws-match">
-              <div class="match-status">{{ t('rankings.finalCenterCourt') }} <span>01:15:20</span></div>
+              <div class="match-status">{{ getMatchRoundLabel(featuredResultMatch) }} <span>{{ getMatchTime(featuredResultMatch) }}</span></div>
               
               <div class="match-player">
-                <div class="mp-name"><span class="flag-mini"></span> Nguyễn M. Phú <span class="seed">(1)</span> <el-icon class="winner-check"><Check /></el-icon></div>
+                <div class="mp-name">
+                  <span class="flag-mini"></span>
+                  {{ getSideName(featuredResultMatch, 'side_a') }}
+                  <el-icon v-if="featuredResultMatch.winner_side === 'side_a'" class="winner-check"><Check /></el-icon>
+                </div>
                 <div class="mp-score">
-                  <span>6</span><span>6</span>
+                  <span v-for="(set, index) in parseScoreSets(featuredResultMatch)" :key="`a-${index}`">{{ set.a }}</span>
                 </div>
               </div>
               
               <div class="match-player">
-                <div class="mp-name"><span class="flag-mini"></span> Nguyễn M. Anh <span class="seed">(2)</span></div>
+                <div class="mp-name">
+                  <span class="flag-mini"></span>
+                  {{ getSideName(featuredResultMatch, 'side_b') }}
+                  <el-icon v-if="featuredResultMatch.winner_side === 'side_b'" class="winner-check"><Check /></el-icon>
+                </div>
                 <div class="mp-score">
-                  <span>4</span><span>2</span>
+                  <span v-for="(set, index) in parseScoreSets(featuredResultMatch)" :key="`b-${index}`">{{ set.b }}</span>
                 </div>
               </div>
 
               <div class="match-footer">
-                <span class="umpire">{{ t('rankings.umpire') }}</span>
+                <span class="umpire">{{ getMatchReferee(featuredResultMatch) }}</span>
                 <div class="mf-links">
                   <a href="#">{{ t('rankings.h2h') }}</a>
                   <a href="#">{{ t('rankings.stats') }}</a>
                 </div>
               </div>
-              <p class="match-summary">{{ t('rankings.matchSummary') }}</p>
+              <p class="match-summary">{{ getMatchSummary(featuredResultMatch) }}</p>
             </div>
+          </div>
+          <div v-else class="ws-empty">
+            Chưa có kết quả trận đấu.
+          </div>
+          <div class="ws-pagination" v-if="scoreTabMatches.length > 1">
+            <button type="button" :disabled="scorePage === 1" @click="changeScorePage(-1)">&lt;</button>
+            <span>{{ scorePage }} / {{ totalScorePages }}</span>
+            <button type="button" :disabled="scorePage === totalScorePages" @click="changeScorePage(1)">&gt;</button>
           </div>
         </div>
       </aside>
@@ -426,6 +656,106 @@ onMounted(async () => {
   max-width: 100%;
   height: auto;
   max-height: 90px;
+}
+
+.featured-players-strip {
+  padding-top: 1.25rem;
+}
+
+.featured-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 0.85rem;
+}
+
+.featured-head span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.featured-head strong {
+  color: #002855;
+  font-size: 1.15rem;
+  font-style: italic;
+}
+
+.featured-scroll {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.featured-player-card {
+  display: grid;
+  grid-template-columns: auto 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+}
+
+.featured-player-card.clickable {
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.featured-player-card.clickable:hover,
+.featured-player-card.clickable:focus-visible {
+  transform: translateY(-2px);
+  border-color: #00b0f0;
+  box-shadow: 0 12px 26px rgba(0, 40, 85, 0.12);
+  outline: none;
+}
+
+.featured-rank {
+  color: #00b0f0;
+  font-weight: 900;
+  font-size: 0.8rem;
+}
+
+.featured-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+}
+
+.featured-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.featured-meta strong {
+  color: #002855;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.featured-meta small {
+  color: #64748b;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.featured-points {
+  color: #002855;
+  font-weight: 900;
+  font-size: 0.9rem;
 }
 
 /* =========================================================
@@ -506,25 +836,65 @@ onMounted(async () => {
 }
 
 .filter-dropdowns {
-  display: flex;
-  gap: 1rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 500px;
+}
+
+.flat-select,
+.flat-search {
+  width: 100%;
 }
 
 /* Select Box không viền cứng */
 :deep(.flat-select .el-input__wrapper) {
-  box-shadow: none !important;
-  background: transparent;
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  background: #fff;
   border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  padding: 4px 12px;
+  border-radius: 8px;
+  padding: 0 12px;
 }
 :deep(.flat-select .el-input__wrapper.is-focus) {
   border-color: #002855;
+  box-shadow: 0 0 0 3px rgba(0, 40, 85, 0.08) !important;
 }
 :deep(.flat-select .el-input__inner) {
-  font-weight: 600;
+  font-weight: 800;
   color: #0f172a;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
+}
+
+:deep(.flat-search .el-input__wrapper) {
+  height: 42px;
+  min-height: 42px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 12px;
+}
+
+:deep(.flat-search .el-input__wrapper.is-focus) {
+  border-color: #002855;
+  box-shadow: 0 0 0 3px rgba(0, 40, 85, 0.08) !important;
+}
+
+:deep(.flat-search .el-input__inner) {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+
+:deep(.flat-select .el-input__inner::placeholder),
+:deep(.flat-search .el-input__inner::placeholder) {
+  color: #64748b;
+  font-weight: 800;
 }
 
 /* =========================================================
@@ -532,6 +902,16 @@ onMounted(async () => {
 ========================================================= */
 .ranking-list-container {
   width: 100%;
+}
+
+.ranking-pagination {
+  display: flex;
+  justify-content: center;
+  padding-top: 1.5rem;
+}
+
+.ranking-pagination :deep(.el-pagination.is-background .el-pager li.is-active) {
+  background: #002855;
 }
 
 .atp-flat-table {
@@ -566,6 +946,21 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.player-info-cell.clickable {
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.player-info-cell.clickable:hover .player-name,
+.player-info-cell.clickable:focus-visible .player-name {
+  color: #00b0f0;
+}
+
+.player-info-cell.clickable:focus-visible {
+  outline: 2px solid rgba(0, 176, 240, 0.35);
+  outline-offset: 4px;
 }
 
 .player-info-cell.is-pair {
@@ -657,6 +1052,9 @@ onMounted(async () => {
 }
 
 .ws-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
   font-size: 0.75rem;
   color: #00b0f0;
   text-decoration: none;
@@ -672,6 +1070,8 @@ onMounted(async () => {
 }
 
 .ws-tab {
+  border: 0;
+  background: transparent;
   flex: 1;
   text-align: center;
   padding: 0.8rem 0;
@@ -700,6 +1100,7 @@ onMounted(async () => {
 }
 
 .ws-sub {
+  background: #fff;
   border: 1px solid #cbd5e1;
   border-radius: 20px;
   padding: 4px 12px;
@@ -776,10 +1177,56 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
+.ws-empty {
+  padding: 1.25rem;
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.ws-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0.85rem 1.25rem 1.15rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.ws-pagination button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: #fff;
+  color: #002855;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ws-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ws-pagination span {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 /* =========================================================
    RESPONSIVE
 ========================================================= */
 @media (max-width: 1024px) {
+  .featured-scroll {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .layout-grid {
     grid-template-columns: 1fr;
     gap: 2.5rem;
@@ -818,9 +1265,14 @@ onMounted(async () => {
 
   .filter-dropdowns {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 0.75rem;
     margin-top: 0.5rem;
+    min-width: 0;
+  }
+
+  .flat-search {
+    width: 100%;
   }
 
   .ranking-list-container {
@@ -852,6 +1304,10 @@ onMounted(async () => {
 }
 
 @media (max-width: 480px) {
+  .featured-scroll {
+    grid-template-columns: 1fr;
+  }
+
   .filter-dropdowns { 
     grid-template-columns: 1fr; 
     gap: 0.5rem;

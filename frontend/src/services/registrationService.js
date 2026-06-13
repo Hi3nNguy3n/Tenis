@@ -3,7 +3,7 @@ import { apiClient } from './apiClient'
 
 export const registrationService = {
   async getAll(params) {
-    return apiClient.get('/api/registrations', { params })
+    return apiClient.get('/api/registrations/', { params })
   },
   async confirm(id) {
     return apiClient.post(`/api/registrations/${id}/confirm-payment`)

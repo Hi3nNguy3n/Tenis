@@ -87,6 +87,7 @@ def user_cancel_registration(
     return {"message": "Hủy đăng ký thành công. Slot của bạn đã được giải phóng."}
 
 # 5. ADMIN XEM TẤT CẢ ĐƠN ĐĂNG KÝ
+@router.get("", response_model=List[registration_schemas.RegistrationResponse], include_in_schema=False)
 @router.get("/", response_model=List[registration_schemas.RegistrationResponse])
 def admin_get_all_registrations(
     current_admin: User = Depends(get_current_admin),
@@ -253,10 +254,24 @@ def admin_confirm_registration(
     
     # 2. Lấy tên giải đấu để in lên QR Code
     tourn = db.query(Tournament).filter(Tournament.id == reg.tournament_id).first()
-    tourn_name = tourn.name if tourn else "Saigon Tennis"
+    tourn_name = tourn.name if tourn else "Saigontennistours"
 
     # 3. Kích hoạt chạy ngầm tạo QR Code
     background_tasks.add_task(update_qr, reg.id, tourn_name)
     
     db.commit()
     return {"message": "Đã duyệt vận động viên và tạo mã QR thành công!"}
+
+@router.post("/{registration_id}/lock", dependencies=[Depends(get_current_admin)])
+def lock_registration(registration_id: int, db: Session = Depends(get_db)):
+    reg = crud_registration.lock_registration(db, registration_id)
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
+    return {"message": "Đã khóa vận động viên khỏi giải đấu thành công.", "is_locked": reg.is_locked}
+
+@router.post("/{registration_id}/unlock", dependencies=[Depends(get_current_admin)])
+def unlock_registration(registration_id: int, db: Session = Depends(get_db)):
+    reg = crud_registration.unlock_registration(db, registration_id)
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
+    return {"message": "Đã mở khóa vận động viên thành công.", "is_locked": reg.is_locked}

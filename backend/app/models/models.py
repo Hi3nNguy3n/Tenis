@@ -138,6 +138,7 @@ class Tournament(Base):
     max_participants = Column(Integer)
     description = Column(Text) # Thông tin chi tiết, điều lệ giải đấu
     banner_url = Column(String(255), nullable=True)
+    display_order = Column(Integer, default=0, index=True, nullable=False)
     version = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -183,6 +184,7 @@ class Registration(Base):
     team_members_data = Column(JSONB)
     deleted_at = Column(DateTime, index=True)
     qr_code_url = Column(String(255))
+    is_locked = Column(Boolean, default=False, server_default="false", nullable=False, index=True)
     
 class Payment(Base):
     __tablename__ = "payments"

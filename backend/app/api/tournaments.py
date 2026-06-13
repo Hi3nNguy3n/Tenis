@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 INTERNAL_ERROR_MESSAGE = "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."
 
 # 1. TẠO GIẢI ĐẤU (CHỈ ADMIN)
+@router.post("", response_model=tournament_schemas.TournamentResponse, include_in_schema=False)
 @router.post("/", response_model=tournament_schemas.TournamentResponse)
 @audit_log(module="TOURNAMENT", action="CREATE", event_name="Khởi tạo giải đấu mới")
 def create_tournament(
@@ -57,6 +58,7 @@ def delete_tournament(
 
 
 # 2. XEM DANH SÁCH GIẢI ĐẤU (PUBLIC)
+@router.get("", response_model=List[tournament_schemas.TournamentResponse], include_in_schema=False)
 @router.get("/", response_model=List[tournament_schemas.TournamentResponse])
 def read_tournaments(
     skip: int = Query(0, description="Bỏ qua bao nhiêu bản ghi đầu"),
@@ -492,7 +494,7 @@ def register_tournament_with_otp(
         
         # 3. Lấy tên giải đấu và Kích hoạt tạo mã QR ngầm
         tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
-        tourn_name = tournament.name if tournament else "Saigon Tennis"
+        tourn_name = tournament.name if tournament else "Saigontennistours"
         background_tasks.add_task(update_qr, reg.id, tourn_name)
 
         return reg
@@ -519,7 +521,8 @@ def get_public_registrations(
     ).filter(
         Registration.tournament_id == tournament_id,
         Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     )
     
     if category_id:

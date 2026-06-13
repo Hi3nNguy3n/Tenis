@@ -1,12 +1,12 @@
-# 🚀 Hướng Dẫn Triển Khai (Deploy) Saigon Tennis Lên VPS Bằng Docker
+# 🚀 Hướng Dẫn Triển Khai (Deploy) Saigontennistours Lên VPS Bằng Docker
 
-Tài liệu này cung cấp hướng dẫn chi tiết, từng bước một để bạn tự động hóa quy trình đóng gói và triển khai (deploy) toàn bộ hệ thống Saigon Tennis lên VPS chạy Linux (Ubuntu/Debian...) bằng **Docker** và **Docker Compose**.
+Tài liệu này cung cấp hướng dẫn chi tiết, từng bước một để bạn tự động hóa quy trình đóng gói và triển khai (deploy) toàn bộ hệ thống Saigontennistours lên VPS chạy Linux (Ubuntu/Debian...) bằng **Docker** và **Docker Compose**.
 
 ---
 
 ## 🏗️ 1. Kiến Trúc Triển Khai & Giải Pháp Tránh Trùng Cổng (Port Conflict)
 
-Để tránh xung đột với rất nhiều container hiện có trên VPS của bạn (đang chiếm giữ các dải cổng như `3001-3005`, `3010`, `3011`, `5001-5005`, `6006-6009`, `7001-7011`, `8081-8088`, `3307`), hệ thống Saigon Tennis được cấu hình theo kiến trúc **Mạng Cô Lập Nội Bộ (Isolated Docker Network)** cực kỳ an toàn:
+Để tránh xung đột với rất nhiều container hiện có trên VPS của bạn (đang chiếm giữ các dải cổng như `3001-3005`, `3010`, `3011`, `5001-5005`, `6006-6009`, `7001-7011`, `8081-8088`, `3307`), hệ thống Saigontennistours được cấu hình theo kiến trúc **Mạng Cô Lập Nội Bộ (Isolated Docker Network)** cực kỳ an toàn:
 
 ```mermaid
 graph TD
@@ -218,4 +218,4 @@ Khi đó:
 
 ---
 
-Chúc bạn triển khai dự án **Saigon Tennis** lên VPS thành công rực rỡ! Nếu gặp bất kỳ khó khăn nào trong quá trình cài đặt, hãy gọi `jarvis` để được hỗ trợ gỡ lỗi ngay lập tức. 🎾🔥
+Chúc bạn triển khai dự án **Saigontennistours** lên VPS thành công rực rỡ! Nếu gặp bất kỳ khó khăn nào trong quá trình cài đặt, hãy gọi `jarvis` để được hỗ trợ gỡ lỗi ngay lập tức. 🎾🔥

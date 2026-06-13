@@ -20,10 +20,10 @@ def full_seed():
 
         # 2. Admin
         admin_role = db.query(Role).filter(Role.role_key == "admin").first()
-        admin = db.query(User).filter(User.email == "admin@saigontennistour.com").first()
+        admin = db.query(User).filter(User.email == "admin@saigontennistours.com").first()
         if not admin:
             admin = User(
-                email="admin@saigontennistour.com",
+                email="admin@saigontennistours.com",
                 password_hash=get_password_hash("admin@123"),
                 full_name="System Admin",
                 account_type="admin",
@@ -37,11 +37,11 @@ def full_seed():
             db.commit()
 
         # 3. Sample Tournament
-        tour = db.query(Tournament).filter(Tournament.slug == "saigon-open-2026").first()
+        tour = db.query(Tournament).filter(Tournament.slug == "saigontennistours-open-2026").first()
         if not tour:
             tour = Tournament(
-                name="Saigon Tennis Open 2026",
-                slug="saigon-open-2026",
+                name="Saigontennistours Open 2026",
+                slug="saigontennistours-open-2026",
                 category_type="Open",
                 gender_division="Mixed",
                 format_type="Doubles",
@@ -51,7 +51,7 @@ def full_seed():
                 start_date=date.today() + timedelta(days=10),
                 end_date=date.today() + timedelta(days=12),
                 status="open",
-                location="Saigon Tennis Center",
+                location="Saigontennistours Center",
                 surface_type="Hard",
                 entry_fee=500000,
                 entry_fee_team=1000000

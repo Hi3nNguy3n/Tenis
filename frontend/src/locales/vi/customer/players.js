@@ -27,7 +27,7 @@ export default {
   upcomingTournament: 'Giải đấu sắp tới',
   tournamentDesc: 'Hệ thống giải đấu chuyên nghiệp đang mở đăng ký. Đăng ký ngay để cọ xát và cải thiện điểm Elo.',
   viewSchedule: 'XEM LỊCH THI ĐẤU',
-  playerEyebrow: 'Hồ sơ vận động viên Saigon Tennis Tours',
+  playerEyebrow: 'Hồ sơ vận động viên Saigontennistours',
   profileOverview: 'Tổng quan',
   profileBio: 'Tiểu sử',
   profileActivity: 'Hoạt động',

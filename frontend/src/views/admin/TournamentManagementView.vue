@@ -45,6 +45,128 @@ const renderTournamentDescription = (value) => {
   return value.replace(/\r\n/g, '\n').replace(/\n/g, '<br>')
 }
 
+const tournamentFieldLabels = {
+  name: 'Tên giải đấu',
+  slug: 'Đường dẫn',
+  category_type: 'Nội dung thi đấu',
+  gender_division: 'Giới tính',
+  format_type: 'Thể thức',
+  draw_size: 'Kích thước nhánh đấu',
+  registration_open_at: 'Thời gian mở đăng ký',
+  registration_close_at: 'Hạn chót đăng ký',
+  start_date: 'Ngày khai mạc',
+  end_date: 'Ngày kết thúc',
+  status: 'Trạng thái',
+  location: 'Địa điểm',
+  surface_type: 'Mặt sân',
+  entry_fee: 'Lệ phí cá nhân',
+  entry_fee_team: 'Lệ phí đội',
+  description: 'Mô tả giải đấu',
+  banner_url: 'Ảnh banner',
+  display_order: 'Thứ tự hiển thị',
+  categories: 'Các nội dung thi đấu',
+  max_points: 'Điểm tối đa',
+  max_participants: 'Số người tối đa'
+}
+const getTournamentFieldLabel = (loc = []) => {
+  const field = [...loc].reverse().find((item) => typeof item === 'string' && !['body', 'query', 'path'].includes(item))
+  return tournamentFieldLabels[field] || field || 'Dữ liệu'
+}
+
+const getTournamentFieldKey = (loc = []) => {
+  return [...loc].reverse().find((item) => typeof item === 'string' && !['body', 'query', 'path'].includes(item)) || ''
+}
+
+const formatTournamentValidationMessage = (item = {}) => {
+  const fieldKey = getTournamentFieldKey(item.loc || [])
+  const rawMessage = String(item.msg || item.message || '').toLowerCase()
+  const errorType = String(item.type || '').toLowerCase()
+  const dateFields = ['registration_open_at', 'registration_close_at', 'start_date', 'end_date']
+  const numberFields = ['draw_size', 'entry_fee', 'entry_fee_team', 'display_order', 'max_points', 'max_participants']
+
+  if (dateFields.includes(fieldKey)) {
+    if (rawMessage.includes('valid date') || rawMessage.includes('valid datetime') || rawMessage.includes('too short') || errorType.includes('date')) {
+      return 'Vui lòng chọn ngày/thời gian hợp lệ.'
+    }
+  }
+
+  if (numberFields.includes(fieldKey)) {
+    if (rawMessage.includes('valid integer') || rawMessage.includes('valid number') || rawMessage.includes('unable to parse') || errorType.includes('int') || errorType.includes('float')) {
+      return 'Vui lòng nhập số hợp lệ.'
+    }
+    if (rawMessage.includes('greater than') || rawMessage.includes('less than')) {
+      return 'Giá trị số đang ngoài phạm vi cho phép.'
+    }
+  }
+
+  if (rawMessage.includes('field required') || rawMessage.includes('missing')) {
+    return 'Vui lòng nhập đầy đủ thông tin.'
+  }
+
+  if (rawMessage.includes('string should have at least') || rawMessage.includes('too short')) {
+    return 'Nội dung nhập quá ngắn.'
+  }
+
+  if (rawMessage.includes('string should have at most') || rawMessage.includes('too long')) {
+    return 'Nội dung nhập quá dài.'
+  }
+
+  if (rawMessage.includes('input should be a valid')) {
+    return 'Dữ liệu nhập chưa đúng định dạng.'
+  }
+
+  return repairTournamentText(item.msg || item.message || 'Dữ liệu không hợp lệ.')
+}
+
+const repairTournamentText = (value = '') => {
+  if (typeof value !== 'string') return value
+  let output = value
+  const hasMojibake = (text) => /Ã|Ä|Æ|Â|áº|á»|â/.test(text)
+
+  for (let i = 0; i < 3 && hasMojibake(output); i += 1) {
+    try {
+      const bytes = Uint8Array.from([...output].map((char) => char.charCodeAt(0) & 0xff))
+      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+      if (!decoded || decoded === output) break
+      output = decoded
+    } catch {
+      break
+    }
+  }
+
+  return output
+}
+
+const formatTournamentApiError = (err) => {
+  const data = err?.response?.data
+  const detail = data?.detail || data?.message || err?.message
+
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        const fieldLabel = getTournamentFieldLabel(item?.loc || [])
+        const message = repairTournamentText(formatTournamentValidationMessage(item))
+        return `${fieldLabel}: ${message}`
+      })
+      .join('; ')
+  }
+
+  if (detail && typeof detail === 'object') {
+    return Object.entries(detail)
+      .map(([field, message]) => {
+        const readableMessage = repairTournamentText(Array.isArray(message) ? message.join(', ') : String(message))
+        return `${tournamentFieldLabels[field] || field}: ${readableMessage}`
+      })
+      .join('; ')
+  }
+
+  if (typeof detail === 'string' && detail.trim()) return repairTournamentText(detail)
+
+  return isEditMode.value
+    ? 'Không thể cập nhật giải đấu. Vui lòng kiểm tra lại các trường đã nhập.'
+    : 'Không thể tạo giải đấu. Vui lòng kiểm tra lại các trường đã nhập.'
+}
+
 const search = ref('')
 const statusFilter = ref('')
 const formatFilter = ref('')
@@ -186,6 +308,7 @@ const openEditDialog = (row) => {
     end_date: row.end_date || '',
     description: row.description || '',
     banner_url: row.banner_url || '',
+    display_order: row.display_order || 0,
     categories: sanitizedCategories
   }
   isDialogOpen.value = true
@@ -309,23 +432,6 @@ const validateTournamentForm = () => {
   if (!f.location) return t('admin.location')
   if (!f.draw_size) return t('admin.drawSize')
 
-  const regOpen = f.registration_open_at ? new Date(f.registration_open_at) : null
-  const regClose = f.registration_close_at ? new Date(f.registration_close_at) : null
-  const startDate = f.start_date ? new Date(f.start_date + 'T00:00:00') : null
-  const endDate = f.end_date ? new Date(f.end_date + 'T23:59:59') : null
-
-  if (regOpen && regClose && regClose <= regOpen) {
-    return "Hạn chót đăng ký phải sau thời gian bắt đầu đăng ký"
-  }
-  
-  if (startDate && endDate && endDate < startDate) {
-    return "Ngày kết thúc giải phải sau hoặc bằng ngày khai mạc"
-  }
-  
-  if (regClose && startDate && startDate < regClose) {
-    return "Ngày khai mạc giải không được trước hạn chót đăng ký"
-  }
-
   return null
 }
 
@@ -363,6 +469,7 @@ const saveTournament = async () => {
       entry_fee_team: payload.entry_fee_team,
       description: normalizeTournamentDescription(payload.description),
       banner_url: payload.banner_url || null,
+      display_order: payload.display_order || 0,
     }
 
     let tourId = form.value.id
@@ -399,7 +506,8 @@ const saveTournament = async () => {
     loadTournaments()
     loadStats()
   } catch (err) {
-    ElMessage.error(t('admin.updateError') + ': ' + err.message)
+    const actionLabel = isEditMode.value ? t('admin.updateError') : 'Lỗi tạo giải đấu'
+    ElMessage.error(`${actionLabel}: ${formatTournamentApiError(err)}`)
   } finally {
     isSaving.value = false
   }
@@ -449,7 +557,7 @@ const createDefaultForm = () => ({
   location: '', surface_type: 'Hard', registration_open_at: '',
   registration_close_at: '', start_date: '', end_date: '',
   entry_fee: 100000, entry_fee_team: 200000, description: '',
-  banner_url: '',
+  banner_url: '', display_order: 0,
   categories: [
     { name: 'Đơn Nam', category_type: 'mens_singles', max_points: 1200, max_participants: 32 }
   ]
@@ -617,6 +725,13 @@ onMounted(() => {
           </template>
         </el-table-column>
 
+        <el-table-column label="Thứ tự" width="110" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.display_order > 0" type="success" effect="plain">#{{ row.display_order }}</el-tag>
+            <span v-else class="muted-order">Mặc định</span>
+          </template>
+        </el-table-column>
+
         <!-- REMOVED REDUNDANT CATEGORY TYPE COLUMN -->
         
         <el-table-column :label="$t('admin.drawSize')" width="100" align="center">
@@ -692,6 +807,7 @@ onMounted(() => {
             <div class="info-grid">
               <div class="info-item"><span>{{ $t('admin.tournamentFormat') }}</span><strong>{{ selectedTournament.format_type }}</strong></div>
               <div class="info-item"><span>{{ $t('admin.drawSize') }}</span><strong>{{ selectedTournament.draw_size }}</strong></div>
+              <div class="info-item"><span>Thứ tự hiển thị</span><strong>{{ selectedTournament.display_order > 0 ? `#${selectedTournament.display_order}` : 'Mặc định' }}</strong></div>
               <div class="info-item"><span>{{ $t('admin.surface') }}</span><strong>{{ selectedTournament.surface_type }}</strong></div>
               <div class="info-item"><span>{{ $t('admin.location') }}</span><strong>{{ selectedTournament.location || 'N/A' }}</strong></div>
             </div>
@@ -858,6 +974,12 @@ onMounted(() => {
                   <el-option label="Singles" value="Singles" />
                   <el-option label="Doubles" value="Doubles" />
                 </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="Thứ tự hiển thị">
+                <el-input-number v-model="form.display_order" :min="0" :step="1" :precision="0" style="width: 100%" />
+                <p class="form-help-text">Nhập 1 để giải đấu hiển thị ở vị trí số 1 trên trang giải đấu/trang chủ. Để 0 nếu muốn hệ thống sắp xếp mặc định.</p>
               </el-form-item>
             </el-col>
           </el-row>
@@ -1191,6 +1313,12 @@ onMounted(() => {
 .status-indicator.is-draft { color: #f59e0b; background: #fffbeb; }
 
 .status-indicator .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.muted-order {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
 
 .elo-badge {
   font-weight: 800;

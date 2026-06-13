@@ -16,19 +16,25 @@ def create_message(db: Session, user_id: int, sender_name: str, message: str, re
     db.refresh(new_msg)
     return new_msg
 
-def get_global_history(db: Session, limit: int = 50):
+def get_global_history(db: Session, limit: int = 20, skip: int = 0):
     # Lấy tin nhắn không có người nhận (Chat hệ thống)
-    return db.query(ChatMessage).filter(ChatMessage.receiver_id == None)\
-             .order_by(ChatMessage.created_at.asc()).limit(limit).all()
+    messages = db.query(ChatMessage).filter(ChatMessage.receiver_id == None)\
+                 .order_by(ChatMessage.created_at.desc())\
+                 .offset(skip).limit(limit).all()
+    messages.reverse()
+    return messages
 
-def get_private_history(db: Session, user1_id: int, user2_id: int, limit: int = 50):
+def get_private_history(db: Session, user1_id: int, user2_id: int, limit: int = 20, skip: int = 0):
     # Lấy tin nhắn qua lại giữa 2 người
-    return db.query(ChatMessage).filter(
+    messages = db.query(ChatMessage).filter(
         or_(
             and_(ChatMessage.user_id == user1_id, ChatMessage.receiver_id == user2_id),
             and_(ChatMessage.user_id == user2_id, ChatMessage.receiver_id == user1_id)
         )
-    ).order_by(ChatMessage.created_at.asc()).limit(limit).all()
+    ).order_by(ChatMessage.created_at.desc())\
+     .offset(skip).limit(limit).all()
+    messages.reverse()
+    return messages
 
 def mark_private_messages_as_read(db: Session, reader_id: int, other_user_id: int):
     updated = db.query(ChatMessage).filter(

@@ -25,6 +25,8 @@ const tabLoading = ref(false)
 const players = ref([])
 const recentWinners = ref([])
 const searchQuery = ref('')
+const playerPage = ref(1)
+const PLAYER_PAGE_SIZE = 12
 const activeTab = ref('ranking') // Default to 'ranking' (Vận động viên & Xếp hạng)
 
 // --- AUTH STORE ---
@@ -247,6 +249,21 @@ const visiblePlayers = computed(() => {
   return players.value.filter(p => p.full_name?.toLowerCase().includes(keyword))
 })
 
+const totalPlayerPages = computed(() => Math.max(1, Math.ceil(visiblePlayers.value.length / PLAYER_PAGE_SIZE)))
+
+const paginatedPlayers = computed(() => {
+  const start = (playerPage.value - 1) * PLAYER_PAGE_SIZE
+  return visiblePlayers.value.slice(start, start + PLAYER_PAGE_SIZE)
+})
+
+watch(searchQuery, () => {
+  playerPage.value = 1
+})
+
+watch(totalPlayerPages, (total) => {
+  if (playerPage.value > total) playerPage.value = total
+})
+
 const loadPlayers = async () => {
   try {
     const rankings = await apiClient.get('/api/players/rankings')
@@ -357,7 +374,7 @@ onMounted(async () => {
           <!-- TAB 1: VẬN ĐỘNG VIÊN & XẾP HẠNG -->
           <div v-if="activeTab === 'ranking'" class="tab-content">
             <div class="talent-grid">
-              <div v-for="p in visiblePlayers" :key="p.id" class="talent-card group">
+              <div v-for="p in paginatedPlayers" :key="p.player_id || p.id" class="talent-card group">
                 <div class="talent-image-box">
                   <img :src="p.avatar_url" alt="" class="talent-img" referrerpolicy="no-referrer" />
                 </div>
@@ -409,6 +426,15 @@ onMounted(async () => {
           </div>
 
           <!-- TAB 2: KẾT QUẢ GẦN ĐÂY -->
+            <div v-if="activeTab === 'ranking' && visiblePlayers.length > PLAYER_PAGE_SIZE" class="list-pagination">
+              <el-pagination
+                v-model:current-page="playerPage"
+                :page-size="PLAYER_PAGE_SIZE"
+                :total="visiblePlayers.length"
+                layout="prev, pager, next"
+                background
+              />
+            </div>
           <div v-if="activeTab === 'results'" class="tab-content results-tab-content">
             <div class="results-list">
               <div v-for="match in finishedMatches" :key="match.id" class="result-match-card">
@@ -915,6 +941,16 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.75rem;
+}
+
+.list-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.list-pagination :deep(.el-pagination.is-background .el-pager li.is-active) {
+  background: var(--text-main);
 }
 
 .talent-card {

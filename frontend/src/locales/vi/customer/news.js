@@ -2,7 +2,7 @@ export default {
   typeNews: 'Tin tức',
   typeAnnouncement: 'Thông báo',
   admin: 'Ban Quản Trị',
-  editorial: 'Saigon Tennis Editorial',
+  editorial: 'Saigontennistours Editorial',
   backToNews: 'Quay lại trang tin',
   latest: 'Mới nhất',
   readMore: 'Xem thêm',

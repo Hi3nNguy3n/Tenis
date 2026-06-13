@@ -67,6 +67,23 @@
             <div class="divider"></div>
 
             <!-- Kết quả tìm kiếm -->
+            <section class="zalo-qr-card" aria-label="QR Zalo Saigontennistours">
+              <div class="zalo-qr-copy">
+                <span class="zalo-badge">Zalo Official</span>
+                <h4>Quét QR để kết nối nhanh</h4>
+                <p>Mở ảnh QR hoặc tải xuống để quét bằng Zalo trên điện thoại.</p>
+                <div class="zalo-actions">
+                  <a href="/qrzalo.jpg" target="_blank" rel="noopener" class="zalo-action primary">Mở QR</a>
+                  <a href="/qrzalo.jpg" download="qrzalo-saigontennistours.jpg" class="zalo-action">Tải ảnh</a>
+                </div>
+              </div>
+              <a href="/qrzalo.jpg" target="_blank" rel="noopener" class="zalo-qr-preview" title="Mở mã QR Zalo">
+                <img src="/qrzalo.jpg" alt="Mã QR Zalo Saigontennistours" />
+              </a>
+            </section>
+
+            <div class="divider"></div>
+
             <div v-if="searchResults.length > 0" class="section-group">
               <span class="section-label">TÌM KIẾM</span>
               <div 
@@ -107,7 +124,7 @@
 
         <!-- VIEW 2: KHUNG CHAT -->
         <div class="chat-body chat-room-view" v-show="currentView === 'chat'">
-          <div class="messages-area" ref="messagesBox">
+          <div class="messages-area" ref="messagesBox" @scroll="handleScroll">
             <div v-if="currentMessages.length === 0" class="empty-chat-room">
               <el-icon class="empty-icon"><ChatLineRound /></el-icon>
               <p>Khởi tạo kết nối bảo mật. Gửi lời chào!</p>
@@ -150,7 +167,7 @@ import { ChatDotRound, Close, ArrowLeft, Search, User, Position, ChatLineRound ,
 const isOpen = ref(false);
 const currentView = ref('list'); // 'list' hoặc 'chat'
 
-const isLoading = ref(true);
+const isLoading = ref(false);
 const isConnected = ref(false);
 const token = ref('');
 const myProfile = ref({ id: null, full_name: '' }); 
@@ -165,6 +182,10 @@ const messagesBox = ref(null);
 const isLoggedIn = ref(false);
 const globalMessages = ref([]);
 const privateMessages = ref({});
+
+const hasMoreMessages = ref(true);
+const isLoadMoreLoading = ref(false);
+const hasInitialized = ref(false);
 
 let wsGlobal = null;
 let wsPrivate = null;
@@ -208,7 +229,7 @@ watch(searchKeyword, (newVal) => {
   }, 500);
 });
 
-// --- KHỞI CHẠY ---
+// --- LAZY INITIALIZATION & LIFECYCLE ---
 onMounted(async () => {
   token.value = localStorage.getItem('saigon_tennis_access_token'); 
   const userStr = localStorage.getItem('saigon_tennis_user');
@@ -227,13 +248,8 @@ onMounted(async () => {
         id: Number(userObj.user_id), 
         full_name: userObj.full_name
     };
-
-    await loadGlobalHistory();
-    connectAll(); 
   } catch (error) {
-    console.error("Lỗi khởi tạo:", error);
-  } finally {
-    isLoading.value = false;
+    console.error("Initialization error:", error);
   }
 });
 
@@ -241,12 +257,73 @@ onBeforeUnmount(() => {
   disconnectAll();
 });
 
-// --- QUẢN LÝ INBOX ---
+// Watch isOpen to load chat data and open WS connections on demand
+watch(isOpen, async (newVal) => {
+  if (newVal) {
+    if (!hasInitialized.value) {
+      await initializeChat();
+    }
+    if (currentView.value === 'chat') {
+      scrollToBottom();
+    }
+  }
+});
+
+const initializeChat = async () => {
+  try {
+    isLoading.value = true;
+    await loadRecentChats();
+    await loadGlobalHistory();
+    connectAll(); 
+    hasInitialized.value = true;
+  } catch (error) {
+    console.error("Error initializing chat room:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// --- LOAD DATA ---
+const loadRecentChats = async () => {
+  try {
+    const res = await fetch(`${getChatApiBaseUrl()}/api/chat/threads/private?token=${token.value}`);
+    if (res.ok) {
+      const data = await res.json();
+      recentChats.value = data.map(item => ({
+        id: item.id,
+        full_name: item.sender_name,
+        lastMsg: item.lastMsg || 'Nhấn để bắt đầu chat...',
+        hasNew: item.unreadCount > 0
+      }));
+    }
+  } catch (error) {
+    console.error("Error loading recent chats:", error);
+  }
+};
+
+const loadGlobalHistory = async () => {
+  hasMoreMessages.value = true;
+  try {
+    const history = await apiClient.get('/api/chat/history/global?limit=20&skip=0', { useChatApi: true });
+    globalMessages.value = history.map(msg => ({
+        text: msg.message,
+        senderName: msg.sender_name,
+        isMine: Number(msg.sender_id) === Number(myProfile.value.id)
+    }));
+    if (history.length < 20) {
+      hasMoreMessages.value = false;
+    }
+  } catch (error) {
+    console.error("Error loading global history:", error.message);
+  }
+};
+
+// --- INBOX MANAGEMENT ---
 const updateInbox = (senderId, senderName, message) => {
     const existing = recentChats.value.find(c => Number(c.id) === Number(senderId));
     if (existing) {
         existing.lastMsg = message;
-        // Chỉ hiện chấm đỏ nếu đang không mở đúng tab đó
+        // Only show red unread dot if chat room is closed or not matching the sender
         if (activeTab.value !== senderId || currentView.value !== 'chat' || !isOpen.value) {
           existing.hasNew = true;
         }
@@ -261,7 +338,7 @@ const updateInbox = (senderId, senderName, message) => {
     }
 };
 
-// --- KẾT NỐI WEBSOCKET ---
+// --- WEBSOCKET CONNECTION ---
 const connectAll = () => {
   const baseWsUrl = `${getWsChatBaseUrl()}/api/chat/ws`;
   const safeName = encodeURIComponent(myProfile.value.full_name);
@@ -309,11 +386,13 @@ const connectAll = () => {
   };
 };
 
-// --- CHUYỂN ĐỔI TAB CHAT ---
+// --- SWITCH CHAT ROOMS ---
 const selectGlobalChat = () => {
     activeTab.value = 'global';
     activeTabName.value = 'Cộng Đồng';
     currentView.value = 'chat';
+    hasMoreMessages.value = true;
+    loadGlobalHistory();
     scrollToBottom();
 };
 
@@ -321,6 +400,7 @@ const openPrivateChat = async (user) => {
   activeTab.value = user.id;
   activeTabName.value = user.full_name;
   currentView.value = 'chat';
+  hasMoreMessages.value = true;
   
   const chat = recentChats.value.find(c => Number(c.id) === Number(user.id));
   if (chat) chat.hasNew = false;
@@ -331,7 +411,7 @@ const openPrivateChat = async (user) => {
   if (!privateMessages.value[user.id]) privateMessages.value[user.id] = [];
   
   try {
-      const res = await fetch(`${getChatApiBaseUrl()}/api/chat/history/private/${user.id}?token=${token.value}`);
+      const res = await fetch(`${getChatApiBaseUrl()}/api/chat/history/private/${user.id}?token=${token.value}&limit=20&skip=0`);
       if (res.ok) {
           const history = await res.json();
           privateMessages.value[user.id] = history.map(msg => ({
@@ -339,24 +419,86 @@ const openPrivateChat = async (user) => {
               senderName: msg.sender_name,
               isMine: Number(msg.sender_id) === Number(myProfile.value.id)
           }));
+          if (history.length < 20) {
+              hasMoreMessages.value = false;
+          }
       }
-  } catch(e) { console.error(e); }
+  } catch(e) { 
+      console.error(e); 
+  }
   scrollToBottom();
 };
 
-const loadGlobalHistory = async () => {
-  try {
-    const history = await apiClient.get('/api/chat/history/global', { useChatApi: true })
-    globalMessages.value = history.map(msg => ({
-        text: msg.message,
-        senderName: msg.sender_name,
-        isMine: Number(msg.sender_id) === Number(myProfile.value.id)
-    }))
-  } catch (error) {
-    console.error("Lỗi tải lịch sử:", error.message)
+// --- PAGINATION & SCROLL ---
+const handleScroll = async () => {
+  if (!messagesBox.value) return;
+  // Trigger loading older messages when scrolling to top
+  if (messagesBox.value.scrollTop === 0 && !isLoadMoreLoading.value && hasMoreMessages.value && currentMessages.value.length > 0) {
+    await loadMoreMessages();
   }
 };
 
+const loadMoreMessages = async () => {
+  if (isLoadMoreLoading.value || !hasMoreMessages.value) return;
+  isLoadMoreLoading.value = true;
+
+  const container = messagesBox.value;
+  const oldScrollHeight = container.scrollHeight;
+  const oldScrollTop = container.scrollTop;
+
+  try {
+    const currentCount = currentMessages.value.length;
+    let fetchedMessages = [];
+
+    if (activeTab.value === 'global') {
+      const history = await apiClient.get(`/api/chat/history/global?limit=20&skip=${currentCount}`, { useChatApi: true });
+      fetchedMessages = history.map(msg => ({
+        text: msg.message,
+        senderName: msg.sender_name,
+        isMine: Number(msg.sender_id) === Number(myProfile.value.id)
+      }));
+
+      if (history.length < 20) {
+        hasMoreMessages.value = false;
+      }
+
+      if (fetchedMessages.length > 0) {
+        globalMessages.value = [...fetchedMessages, ...globalMessages.value];
+      }
+    } else {
+      const userId = activeTab.value;
+      const res = await fetch(`${getChatApiBaseUrl()}/api/chat/history/private/${userId}?token=${token.value}&limit=20&skip=${currentCount}`);
+      if (res.ok) {
+        const history = await res.json();
+        fetchedMessages = history.map(msg => ({
+          text: msg.message,
+          senderName: msg.sender_name,
+          isMine: Number(msg.sender_id) === Number(myProfile.value.id)
+        }));
+
+        if (history.length < 20) {
+          hasMoreMessages.value = false;
+        }
+
+        if (fetchedMessages.length > 0) {
+          if (!privateMessages.value[userId]) privateMessages.value[userId] = [];
+          privateMessages.value[userId] = [...fetchedMessages, ...privateMessages.value[userId]];
+        }
+      }
+    }
+
+    // Maintain scroll position smoothly
+    nextTick(() => {
+      container.scrollTop = container.scrollHeight - oldScrollHeight + oldScrollTop;
+    });
+  } catch (error) {
+    console.error("Error loading older messages:", error);
+  } finally {
+    isLoadMoreLoading.value = false;
+  }
+};
+
+// --- CHAT INTERACTION & UTILS ---
 const sendMessage = () => {
   if (!newMessage.value.trim()) return;
   const myName = myProfile.value.full_name;
@@ -617,6 +759,105 @@ const disconnectAll = () => {
 .divider { height: 1px; background: var(--glass-border); margin: 0 20px; }
 .empty-state { padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.85rem; font-style: italic; }
 
+.zalo-qr-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 14px;
+  align-items: center;
+  margin: 18px 20px;
+  padding: 14px;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, rgba(6, 182, 212, 0.22), transparent 40%),
+    linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.035));
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22);
+}
+
+.zalo-qr-copy {
+  min-width: 0;
+}
+
+.zalo-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.16);
+  color: var(--accent-cyan);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.zalo-qr-copy h4 {
+  margin: 0 0 6px;
+  color: var(--text-main);
+  font-size: 0.95rem;
+  line-height: 1.25;
+  font-weight: 900;
+}
+
+.zalo-qr-copy p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.zalo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zalo-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text-main);
+  background: rgba(255,255,255,0.06);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 900;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.zalo-action.primary {
+  border-color: rgba(6, 182, 212, 0.45);
+  background: var(--gradient-main);
+  color: #fff;
+}
+
+.zalo-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-cyan);
+}
+
+.zalo-qr-preview {
+  display: block;
+  width: 112px;
+  aspect-ratio: 1;
+  padding: 8px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+}
+
+.zalo-qr-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
 /* =======================================================
    VIEW 2: CHAT ROOM VIEW
    ======================================================= */
@@ -694,6 +935,21 @@ const disconnectAll = () => {
   .chat-window {
     position: fixed; bottom: 0; right: 0; width: 100%; height: 100%; max-height: 100%;
     border-radius: 0; z-index: 10000; border: none;
+  }
+
+  .zalo-qr-card {
+    grid-template-columns: 1fr;
+    text-align: center;
+    margin: 14px 16px;
+  }
+
+  .zalo-actions {
+    justify-content: center;
+  }
+
+  .zalo-qr-preview {
+    width: min(180px, 58vw);
+    margin: 0 auto;
   }
   
   .chat-trigger-btn { bottom: 20px; right: 20px; z-index: 10001; }

@@ -1,11 +1,30 @@
 <script setup>
 import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { apiClient } from '../../services/apiClient'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { DocumentAdd, Edit, Delete, Picture } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
+import { DocumentAdd, Edit, Delete, Picture, VideoPlay } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 import Quill from 'quill'
 import 'quill/dist/quill.snow.css'
+
+// Register Custom Video Blot for HTML5 <video> tag
+const BlockEmbed = Quill.import('blots/block/embed')
+class VideoBlot extends BlockEmbed {
+  static create(value) {
+    const node = super.create()
+    node.setAttribute('src', value)
+    node.setAttribute('controls', 'true')
+    node.setAttribute('width', '100%')
+    node.setAttribute('style', 'border-radius: 8px; margin: 10px 0; max-height: 400px; object-fit: contain;')
+    return node
+  }
+  static value(node) {
+    return node.getAttribute('src')
+  }
+}
+VideoBlot.blotName = 'video'
+VideoBlot.tagName = 'video'
+Quill.register(VideoBlot, true)
 
 const posts = ref([])
 const isLoading = ref(false)
@@ -44,6 +63,12 @@ const imageHandler = () => {
     const formData = new FormData()
     formData.append('file', file)
 
+    const loadingInstance = ElLoading.service({
+      lock: true,
+      text: 'Đang tải ảnh lên hệ thống, vui lòng chờ...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+
     try {
       const res = await apiClient.request('/api/upload/image', {
         method: 'POST',
@@ -54,12 +79,99 @@ const imageHandler = () => {
       const range = quillInstance.getSelection()
       if (range) {
         quillInstance.insertEmbed(range.index, 'image', res.url)
+        quillInstance.setSelection(range.index + 1)
       } else {
         quillInstance.insertEmbed(quillInstance.getLength(), 'image', res.url)
       }
+      ElMessage.success('Tải ảnh lên thành công!')
     } catch (err) {
       ElMessage.error(t('admin.uploadError') || 'Upload failed')
+    } finally {
+      loadingInstance.close()
     }
+  }
+}
+
+const videoHandler = () => {
+  const input = document.createElement('input')
+  input.setAttribute('type', 'file')
+  input.setAttribute('accept', 'video/*')
+  input.click()
+
+  input.onchange = async () => {
+    const file = input.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const loadingInstance = ElLoading.service({
+      lock: true,
+      text: 'Đang tải video lên hệ thống (dung lượng tối đa 80MB), vui lòng chờ...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+
+    try {
+      const res = await apiClient.request('/api/upload/media', {
+        method: 'POST',
+        body: formData,
+        includeJson: false
+      })
+      
+      const range = quillInstance.getSelection()
+      if (range) {
+        quillInstance.insertEmbed(range.index, 'video', res.url)
+        quillInstance.setSelection(range.index + 1)
+      } else {
+        quillInstance.insertEmbed(quillInstance.getLength(), 'video', res.url)
+      }
+      ElMessage.success('Tải video lên thành công!')
+    } catch (err) {
+      ElMessage.error(t('admin.uploadError') || 'Upload failed')
+    } finally {
+      loadingInstance.close()
+    }
+  }
+}
+
+const addQuillTooltips = () => {
+  const toolbar = editorRef.value.previousSibling
+  if (!toolbar) return
+
+  const tooltips = {
+    'bold': 'Chữ đậm (Ctrl+B)',
+    'italic': 'Chữ nghiêng (Ctrl+I)',
+    'underline': 'Gạch chân (Ctrl+U)',
+    'strike': 'Gạch ngang chữ',
+    'blockquote': 'Trích dẫn đoạn văn',
+    'code-block': 'Chèn khối mã code',
+    'header[value="1"]': 'Tiêu đề lớn (H1)',
+    'header[value="2"]': 'Tiêu đề vừa (H2)',
+    'list[value="ordered"]': 'Danh sách số thứ tự',
+    'list[value="bullet"]': 'Danh sách dấu chấm',
+    'indent[value="-1"]': 'Giảm thụt lề trái',
+    'indent[value="+1"]': 'Tăng thụt lề phải',
+    'size': 'Kích thước cỡ chữ',
+    'header': 'Định dạng Tiêu đề',
+    'color': 'Màu chữ',
+    'background': 'Màu nền của chữ',
+    'align': 'Căn lề văn bản',
+    'clean': 'Xóa toàn bộ định dạng chữ',
+    'link': 'Chèn liên kết trang web',
+    'image': 'Chèn hình ảnh từ link',
+    'video': 'Chèn video từ link nhúng'
+  }
+
+  for (const key in tooltips) {
+    let selector = `.ql-${key}`
+    if (key.includes('[')) {
+      const parts = key.split('[')
+      selector = `.ql-${parts[0]}[value=${parts[1].replace(']', '')}`
+    }
+    const elements = toolbar.querySelectorAll(selector)
+    elements.forEach(el => {
+      el.setAttribute('title', tooltips[key])
+    })
   }
 }
 
@@ -85,7 +197,8 @@ const initQuill = () => {
           ['link', 'image', 'video']
         ],
         handlers: {
-          image: imageHandler
+          image: imageHandler,
+          video: videoHandler
         }
       }
     }
@@ -99,6 +212,11 @@ const initQuill = () => {
   // Sync content back to form
   quillInstance.on('text-change', () => {
     form.value.content = quillInstance.root.innerHTML
+  })
+
+  // Add descriptive tooltips to toolbar buttons
+  nextTick(() => {
+    addQuillTooltips()
   })
 }
 
@@ -309,6 +427,22 @@ onMounted(fetchPosts)
             </el-form-item>
 
             <el-form-item :label="$t('admin.postContentLabel')" required>
+              <div class="media-uploader-bar" style="margin-bottom: 12px; padding: 10px 16px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <span style="font-size: 0.85rem; color: #475569; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                  <el-icon style="font-size: 1.1rem; color: #002855;"><Picture /></el-icon>
+                  Công cụ chèn nhanh file phương tiện từ máy tính:
+                </span>
+                <div style="display: flex; gap: 10px;">
+                  <el-button type="success" size="default" plain @click="imageHandler" style="font-weight: 700; border-radius: 8px;">
+                    <el-icon style="margin-right: 4px;"><Picture /></el-icon>
+                    Chèn ảnh từ máy
+                  </el-button>
+                  <el-button type="warning" size="default" plain @click="videoHandler" style="font-weight: 700; border-radius: 8px;">
+                    <el-icon style="margin-right: 4px;"><VideoPlay /></el-icon>
+                    Chèn video từ máy
+                  </el-button>
+                </div>
+              </div>
               <div class="editor-wrapper">
                 <div ref="editorRef" style="height: 400px;"></div>
               </div>
@@ -340,7 +474,7 @@ onMounted(fetchPosts)
                 style="width: 100%"
               >
                 <el-option label="Tennis" value="Tennis" />
-                <el-option label="SaigonTennis" value="SaigonTennis" />
+                <el-option label="Saigontennistours" value="Saigontennistours" />
                 <el-option label="Giải đấu" value="Giải đấu" />
               </el-select>
             </el-form-item>
@@ -470,8 +604,9 @@ onMounted(fetchPosts)
   overflow-y: auto;
   font-family: 'Inter', sans-serif;
   font-size: 16px;
-  border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  border-color: #cbd5e1 !important;
 }
 
 :deep(.ql-editor) {
@@ -500,9 +635,39 @@ onMounted(fetchPosts)
 :deep(.ql-editor .ql-bg-purple) { background-color: #d85d00; color: #fff; }
 
 :deep(.ql-toolbar) {
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
   background: #f8fafc;
+  border-color: #cbd5e1 !important;
+  padding: 10px 14px !important;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+:deep(.ql-toolbar button) {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:deep(.ql-toolbar button:hover), :deep(.ql-toolbar button.ql-active) {
+  background-color: #e2e8f0 !important;
+  color: #002855 !important;
+}
+
+:deep(.ql-toolbar .ql-picker) {
+  border-radius: 6px;
+  height: 28px;
+}
+
+:deep(.ql-toolbar .ql-picker-label:hover) {
+  background-color: #e2e8f0;
+  border-radius: 6px;
 }
 
 .thumbnail-uploader {

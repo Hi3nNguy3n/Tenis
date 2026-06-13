@@ -15,7 +15,7 @@ const filterTournament = ref(null)
 
 const fetchTournaments = async () => {
   try {
-    tournaments.value = await apiClient.get('/api/tournaments?limit=100')
+    tournaments.value = await apiClient.get('/api/tournaments/', { params: { limit: 100 } })
   } catch (err) {}
 }
 

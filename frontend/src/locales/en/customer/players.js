@@ -29,7 +29,7 @@ export default {
   upcomingTournament: 'Upcoming Tournaments',
   tournamentDesc: 'The professional tournament system is open for registration. Register now to compete and improve your Elo.',
   viewSchedule: 'VIEW SCHEDULE',
-  playerEyebrow: 'Saigon Tennis Tours Player Profile',
+  playerEyebrow: 'Saigontennistours Player Profile',
   profileOverview: 'Overview',
   profileBio: 'Bio',
   profileActivity: 'Activity',

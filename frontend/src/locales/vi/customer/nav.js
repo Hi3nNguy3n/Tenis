@@ -4,7 +4,7 @@ export default {
   players: 'Vận động viên',
   challenges: 'Thách đấu',
   tournaments: 'Giải đấu',
-  matches: 'Lịch thi đấu',
+  matches: 'Trực tiếp',
   rankings: 'Bảng xếp hạng',
   profile: 'Hồ sơ cá nhân',
   myTournaments: 'Giải đấu của tôi',

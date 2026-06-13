@@ -1,6 +1,6 @@
-# HƯỚNG DẪN CÀI ĐẶT VÀ SỬ DỤNG MÃ NGUỒN FRONTEND (Saigon Tennis)
+# HƯỚNG DẪN CÀI ĐẶT VÀ SỬ DỤNG MÃ NGUỒN FRONTEND (Saigontennistours)
 
-Tài liệu này hướng dẫn cách thiết lập môi trường, cài đặt thư viện và chạy mã nguồn Frontend cho dự án Saigon Tennis. Đây là tài liệu lý tưởng để bạn gửi cho bạn bè hoặc thành viên trong nhóm để họ có thể chạy dự án trên máy của mình.
+Tài liệu này hướng dẫn cách thiết lập môi trường, cài đặt thư viện và chạy mã nguồn Frontend cho dự án Saigontennistours. Đây là tài liệu lý tưởng để bạn gửi cho bạn bè hoặc thành viên trong nhóm để họ có thể chạy dự án trên máy của mình.
 
 ---
 

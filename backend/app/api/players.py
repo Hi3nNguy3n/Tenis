@@ -87,7 +87,10 @@ def admin_update_player(
     data: PlayerUpdate, 
     db: Session = Depends(get_db)
 ):
-    player = crud_player.admin_update_player_data(db, player_id, data)
+    try:
+        player = crud_player.admin_update_player_data(db, player_id, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
     return {"message": "Player updated"}
@@ -518,3 +521,11 @@ def admin_create_player(
         raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
     
     return {"message": "Tạo tài khoản VĐV thành công!", "user_id": user.id}
+
+@router.delete("/{player_id}", dependencies=[Depends(get_current_admin)])
+@audit_log(module="PLAYER", action="DELETE", event_name="Admin xóa mềm VĐV")
+def delete_player(player_id: int, db: Session = Depends(get_db)):
+    player = crud_player.delete_player_db(db, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Không tìm thấy vận động viên")
+    return {"message": "Đã xóa vận động viên thành công"}

@@ -1,9 +1,9 @@
 <script setup>
 import { onMounted, ref, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { playerService } from '../../services/playerService'
 import apiClient from '../../services/apiClient' 
-import { Plus, Camera, User, Search, Filter, EditPen } from '@element-plus/icons-vue' 
+import { Plus, Camera, User, Search, Filter, EditPen, Delete } from '@element-plus/icons-vue' 
 import { t } from '../../utils/locale'
 import { useRoute } from 'vue-router'
 
@@ -15,6 +15,8 @@ const isSaving = ref(false)
 const search = ref('')
 const skillFilter = ref('')
 const statusFilter = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 const createErrors = ref({
   email: '',
@@ -22,6 +24,7 @@ const createErrors = ref({
 })
 
 const editErrors = ref({
+  email: '',
   phone: ''
 })
 
@@ -123,6 +126,31 @@ const filteredPlayers = computed(() => {
   })
 })
 
+const paginatedPlayers = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredPlayers.value.slice(start, start + pageSize.value)
+})
+
+const handlePageSizeChange = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
+}
+
+watch(search, () => {
+  currentPage.value = 1
+})
+
+watch(filteredPlayers, () => {
+  const totalPages = Math.max(1, Math.ceil(filteredPlayers.value.length / pageSize.value))
+  if (currentPage.value > totalPages) {
+    currentPage.value = totalPages
+  }
+})
+
+watch([skillFilter, statusFilter], () => {
+  currentPage.value = 1
+})
+
 const disabledDate = (time) => {
   return time.getTime() > Date.now()
 }
@@ -131,6 +159,7 @@ const isEditDialogVisible = ref(false)
 const editForm = ref({
   id: null,
   full_name: '',
+  email: '',
   phone: '',
   gender: 'male',
   play_hand: 'right',
@@ -139,6 +168,8 @@ const editForm = ref({
   province: '',
   date_of_birth: null, 
   elo_points: 1000,
+  height_cm: null,
+  weight_kg: null,
   avatar_url: '',
   is_active: true,
   admin_notes: '',
@@ -157,6 +188,8 @@ const createForm = ref({
   province: '',
   date_of_birth: null, 
   elo_points: 1000,
+  height_cm: null,
+  weight_kg: null,
   admin_notes: '',
   ...playerStatDefaults
 })
@@ -225,18 +258,21 @@ watch(() => route.path, (newPath) => {
 })
 
 const openEditDialog = (player) => {
-  editErrors.value = { phone: '' }
+  editErrors.value = { email: '', phone: '' }
   editForm.value = {
     id: player.id,
     full_name: player.user.full_name,
+    email: player.user.email || '',
     phone: player.user.phone || '',
     gender: player.player_profile?.gender || 'male',
     play_hand: player.player_profile?.play_hand || 'right',
     skill_level: player.player_profile?.skill_level || 'Beginner',
     preferred_category: player.player_profile?.preferred_category || 'Singles',
-    province: player.player_profile?.province || '',
+    province: player.user?.province || '',
     date_of_birth: player.player_profile?.date_of_birth || null,
     elo_points: player.player_profile?.elo_points || 1000,
+    height_cm: player.player_profile?.height_cm || null,
+    weight_kg: player.player_profile?.weight_kg || null,
     avatar_url: player.user.avatar_url || '',
     is_active: player.user.is_active,
     admin_notes: player.player_profile?.admin_notes || '',
@@ -255,6 +291,8 @@ const openCreateDialog = () => {
     otp_code: 'bypass_otp',
     avatar_url: '', skill_level: 'Beginner', preferred_category: 'Singles',
     province: '', date_of_birth: null, elo_points: 1000,
+    height_cm: null, weight_kg: null,
+    admin_notes: '',
     ...playerStatDefaults
   }
   isCreateDialogVisible.value = true
@@ -292,9 +330,10 @@ const handleCreatePlayer = async () => {
 }
 
 const handleUpdatePlayer = async () => {
+  editErrors.value.email = validateEmail(editForm.value.email)
   editErrors.value.phone = validatePhone(editForm.value.phone)
 
-  if (editErrors.value.phone) {
+  if (editErrors.value.email || editErrors.value.phone) {
     ElMessage.error('Vui lòng sửa các lỗi trong form trước khi lưu!')
     return
   }
@@ -302,6 +341,7 @@ const handleUpdatePlayer = async () => {
   isSaving.value = true
   try {
     const payload = { ...editForm.value }
+    payload.email = payload.email.trim().toLowerCase()
     payload.phone = payload.phone.replace(/[\s\-\(\)]/g, '')
     if (!payload.date_of_birth) payload.date_of_birth = null
 
@@ -313,6 +353,27 @@ const handleUpdatePlayer = async () => {
     ElMessage.error(t('admin.updateError') + ': ' + err.message)
   } finally {
     isSaving.value = false
+  }
+}
+
+const deletePlayer = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `Bạn có chắc chắn muốn xóa vận động viên ${row.user?.full_name}? Việc này sẽ không xóa các dữ liệu thi đấu lịch sử nhưng tài khoản của vận động viên sẽ bị vô hiệu hóa.`,
+      'Xác nhận xóa',
+      {
+        confirmButtonText: 'Đồng ý',
+        cancelButtonText: 'Hủy',
+        type: 'warning',
+      }
+    )
+    await playerService.delete(row.user.id)
+    ElMessage.success('Đã xóa vận động viên thành công!')
+    fetchPlayers()
+  } catch (err) {
+    if (err !== 'cancel') {
+      ElMessage.error(err.message || 'Lỗi khi xóa vận động viên')
+    }
   }
 }
 
@@ -480,7 +541,7 @@ const getRegStatusType = (status) => {
     <!-- Data Table Section -->
     <div class="saas-content">
       <el-table 
-        :data="filteredPlayers" 
+        :data="paginatedPlayers" 
         v-loading="loading" 
         class="saas-table"
         :header-cell-style="{ background: 'transparent', color: '#64748b', fontWeight: '700', borderBottom: '2px solid #f1f5f9' }"
@@ -537,7 +598,7 @@ const getRegStatusType = (status) => {
            </template>
         </el-table-column>
 
-        <el-table-column :label="$t('admin.action')" width="180" fixed="right" align="center">
+        <el-table-column :label="$t('admin.action')" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-btns">
               <el-button 
@@ -558,10 +619,34 @@ const getRegStatusType = (status) => {
                 <el-icon><EditPen /></el-icon>
                 <span>{{ $t('admin.edit') }}</span>
               </el-button>
+              <el-button 
+                size="small" 
+                type="danger" 
+                circle
+                @click="deletePlayer(row)"
+                title="Xóa vận động viên"
+              >
+                <el-icon><Delete /></el-icon>
+              </el-button>
             </div>
           </template>
         </el-table-column>
       </el-table>
+
+      <div v-if="filteredPlayers.length > 0" class="players-pagination">
+        <div class="pagination-summary">
+          Hiển thị {{ paginatedPlayers.length }} / {{ filteredPlayers.length }} vận động viên
+        </div>
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50]"
+          :total="filteredPlayers.length"
+          layout="sizes, prev, pager, next, jumper"
+          background
+          @size-change="handlePageSizeChange"
+        />
+      </div>
     </div>
 
     <!-- Dialogs -->
@@ -613,6 +698,25 @@ const getRegStatusType = (status) => {
           <el-col :span="12">
             <el-form-item :label="$t('admin.dob')">
               <el-date-picker v-model="createForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" :disabled-date="disabledDate" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Tay thuận">
+              <el-select v-model="createForm.play_hand" style="width: 100%">
+                <el-option label="Tay phải" value="right" />
+                <el-option label="Tay trái" value="left" />
+                <el-option label="Cả hai tay" value="both" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Chiều cao (cm)">
+              <el-input-number v-model="createForm.height_cm" :min="80" :max="250" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Cân nặng (kg)">
+              <el-input-number v-model="createForm.weight_kg" :min="25" :max="250" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -697,6 +801,7 @@ const getRegStatusType = (status) => {
 
         <el-row :gutter="24">
           <el-col :span="12"><el-form-item :label="$t('admin.fullName')"><el-input v-model="editForm.full_name" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item :label="$t('admin.email')" :error="editErrors.email"><el-input v-model="editForm.email" placeholder="email@example.com" @input="editErrors.email = ''" @blur="editErrors.email = validateEmail(editForm.email)" /></el-form-item></el-col>
           <el-col :span="12"><el-form-item :label="$t('admin.phone')" :error="editErrors.phone"><el-input v-model="editForm.phone" @input="editErrors.phone = ''" @blur="editErrors.phone = validatePhone(editForm.phone)" /></el-form-item></el-col>
           <el-col :span="8">
             <el-form-item :label="$t('admin.skillLevel')">
@@ -718,6 +823,25 @@ const getRegStatusType = (status) => {
           <el-col :span="12">
             <el-form-item :label="$t('admin.dob')">
               <el-date-picker v-model="editForm.date_of_birth" type="date" format="DD/MM/YYYY" value-format="YYYY-MM-DD" style="width: 100%" :disabled-date="disabledDate" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Tay thuận">
+              <el-select v-model="editForm.play_hand" style="width: 100%">
+                <el-option label="Tay phải" value="right" />
+                <el-option label="Tay trái" value="left" />
+                <el-option label="Cả hai tay" value="both" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Chiều cao (cm)">
+              <el-input-number v-model="editForm.height_cm" :min="80" :max="250" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="Cân nặng (kg)">
+              <el-input-number v-model="editForm.weight_kg" :min="25" :max="250" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -823,6 +947,8 @@ const getRegStatusType = (status) => {
             <el-descriptions-item label="Tay thuận">{{ formatPlayHand(selectedPlayer.player_profile?.play_hand) }}</el-descriptions-item>
             <el-descriptions-item label="Trình độ">{{ formatSkillLevel(selectedPlayer.player_profile?.skill_level) }}</el-descriptions-item>
             <el-descriptions-item label="Sở trường">{{ selectedPlayer.player_profile?.preferred_category === 'Singles' ? 'Đơn' : (selectedPlayer.player_profile?.preferred_category === 'Doubles' ? 'Đôi' : 'Chưa cập nhật') }}</el-descriptions-item>
+            <el-descriptions-item label="Chiều cao">{{ selectedPlayer.player_profile?.height_cm ? selectedPlayer.player_profile.height_cm + ' cm' : 'Chưa cập nhật' }}</el-descriptions-item>
+            <el-descriptions-item label="Cân nặng">{{ selectedPlayer.player_profile?.weight_kg ? selectedPlayer.player_profile.weight_kg + ' kg' : 'Chưa cập nhật' }}</el-descriptions-item>
             <el-descriptions-item label="Ghi chú của Ban quản trị" :span="2">
               <div style="white-space: pre-line; min-height: 50px; font-style: italic;">{{ selectedPlayer.player_profile?.admin_notes || 'Không có ghi chú' }}</div>
             </el-descriptions-item>
@@ -977,6 +1103,25 @@ const getRegStatusType = (status) => {
   --el-table-tr-bg-color: transparent;
   --el-table-header-bg-color: transparent;
   --el-table-border-color: #f1f5f9;
+}
+
+.players-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0 0;
+  flex-wrap: wrap;
+}
+
+.pagination-summary {
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+:deep(.players-pagination .el-pagination.is-background .el-pager li.is-active) {
+  background-color: #059669;
 }
 
 :deep(.el-table__inner-wrapper::before) { display: none; }

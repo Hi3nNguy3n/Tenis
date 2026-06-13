@@ -86,6 +86,12 @@ function selectDate(key) {
   scrollToActive()
 }
 
+const matchStatusPriority = (status) => {
+  if (status === 'Live') return 0
+  if (status === 'Finished') return 1
+  return 2
+}
+
 // ── Data fetching ─────────────────────────────────────────────────
 const fetchAllMatchesData = async (silent = false) => {
   if (!silent) loading.value = true
@@ -150,21 +156,7 @@ const fetchAllMatchesData = async (silent = false) => {
     matchDays.value = days
     tournamentsWithMatches.value = Object.values(buckets).filter(t => t.matches.length > 0)
 
-    if (days.size > 0) {
-      const sorted = [...days].sort()
-      const countOnActive = Object.values(buckets).reduce(
-        (sum, t) => sum + t.matches.filter(m => m.matchDate === activeDate.value).length, 0
-      )
-      if (countOnActive === 0) {
-        if (days.has(todayKey)) {
-          activeDate.value = todayKey
-        } else {
-          const future = sorted.find(d => d >= todayKey)
-          const past   = [...sorted].reverse().find(d => d < todayKey)
-          activeDate.value = future || past || sorted[0]
-        }
-      }
-    }
+    if (!activeDate.value) activeDate.value = todayKey
 
     scrollToActive()
 
@@ -185,7 +177,16 @@ const fetchAllMatchesData = async (silent = false) => {
 
 const filteredTournaments = computed(() =>
   tournamentsWithMatches.value
-    .map(t => ({ ...t, matches: t.matches.filter(m => m.matchDate === activeDate.value) }))
+    .map(t => ({
+      ...t,
+      matches: t.matches
+        .filter(m => m.matchDate === activeDate.value)
+        .sort((a, b) => {
+          const statusDiff = matchStatusPriority(a.status) - matchStatusPriority(b.status)
+          if (statusDiff !== 0) return statusDiff
+          return String(a.time || '').localeCompare(String(b.time || ''))
+        })
+    }))
     .filter(t => t.matches.length > 0)
 )
 

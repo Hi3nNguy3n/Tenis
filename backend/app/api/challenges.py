@@ -9,6 +9,7 @@ from app.models.models import MatchChallenge, Player, User
 
 router = APIRouter()
 
+@router.post("", include_in_schema=False)
 @router.post("/")
 def send_challenge(
     obj_in: ChallengeCreate,

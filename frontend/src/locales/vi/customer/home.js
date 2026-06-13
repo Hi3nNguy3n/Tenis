@@ -27,7 +27,7 @@ export default {
   shopDesc: 'Trang bị thi đấu, phụ kiện và dịch vụ căng vợt được tuyển chọn cho người chơi bán chuyên và chuyên nghiệp.',
 
   // --- CÁC TỪ KHÓA MỚI CHO ATP THEME (HOME VIEW) ---
-  scores: 'THÔNG TIN TỔNG QUAN',
+  scores: 'TRỰC TIẾP',
   seeAllMatches: 'Xem tất cả',
   liveCompleted: 'Trực tiếp / Đã xong',
   schedule: 'Lịch thi đấu',
@@ -48,7 +48,7 @@ export default {
   showH2h: 'Xem chi tiết đối đầu',
   newsletter: 'BẢN TIN',
   newsletterDesc: 'Nhận thông tin cập nhật và sự kiện mới nhất từ Saigontennistours ngay trong hộp thư của bạn!',
-  emailPlaceholder: "contact{'@'}saigontennis.com",
+  emailPlaceholder: "contact{'@'}saigontennistours.com",
   subscribe: 'ĐĂNG KÝ NGAY',
   sgtStore: 'CỬA HÀNG SGT',
   shopNow: 'Mua sắm ngay',

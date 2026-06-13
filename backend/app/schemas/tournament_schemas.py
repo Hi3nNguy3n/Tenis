@@ -21,8 +21,8 @@ class TournamentCategoryResponse(TournamentCategoryBase):
         from_attributes = True
 
 class TournamentBase(BaseModel):
-    name: str = Field(..., example="Saigon Tennis Open 2026")
-    slug: str = Field(..., example="saigon-tennis-open-2026")
+    name: str = Field(..., example="Saigontennistours Open 2026")
+    slug: str = Field(..., example="saigontennistours-open-2026")
     category_type: str = Field(..., example="mens_singles")
     gender_division: str = Field(..., example="men")
     format_type: str = Field(..., example="knockout")
@@ -39,6 +39,7 @@ class TournamentBase(BaseModel):
     max_participants: Optional[int] = None
     description: Optional[str] = None
     banner_url: Optional[str] = None
+    display_order: int = Field(default=0, ge=0, example=1)
 
 class TournamentCreate(TournamentBase):
     pass
@@ -63,6 +64,7 @@ class TournamentUpdate(BaseModel):
     max_participants: Optional[int] = None
     description: Optional[str] = None
     banner_url: Optional[str] = None
+    display_order: Optional[int] = Field(None, ge=0)
 
 class TournamentResponse(TournamentBase):
     id: int

@@ -8,7 +8,13 @@ import os
 # Tự động tạo bảng khi chạy server
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Saigon Tennis - Chat Microservice")
+app = FastAPI(title="Saigontennistours - Chat Microservice")
+
+@app.on_event("startup")
+async def startup_event():
+    from app.core.tasks import start_cleanup_task
+    print("[INIT] Khởi động trình dọn dẹp tin nhắn chat tự động (tasks)...")
+    start_cleanup_task()
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { newsService } from '../../../services/newsService'
 import { playerService } from '../../../services/playerService' 
@@ -15,31 +15,43 @@ const scrollPercent = ref(0)
 
 const relatedNews = ref([])
 const topPlayers = ref([])
+const sidebarLoaded = ref(false)
+const sidebarTrigger = ref(null)
+let sidebarObserver = null
 
 const isVideo = (url) => {
   if (!url) return false
   return url.match(/\.(mp4|webm|ogg)$/i) !== null
 }
 
+const fetchSidebarData = async () => {
+  if (sidebarLoaded.value || !post.value) return
+  try {
+    const [newsData, rankingsData] = await Promise.all([
+      newsService.getAllPosts({ limit: 6, category: post.value.category }), 
+      playerService.getRankings().catch(() => [])
+    ])
+    
+    relatedNews.value = (newsData || [])
+      .filter(item => item.id !== post.value.id && item.status === 'published')
+      .slice(0, 4) 
+
+    topPlayers.value = (rankingsData || []).slice(0, 5) 
+    sidebarLoaded.value = true
+  } catch (err) {
+    console.error('Lỗi tải dữ liệu phụ:', err)
+  }
+}
+
 const fetchData = async () => {
   loading.value = true
+  sidebarLoaded.value = false
+  relatedNews.value = []
+  topPlayers.value = []
   try {
     const postData = await newsService.getPost(route.params.slug)
     post.value = postData
     window.scrollTo(0, 0)
-
-    Promise.all([
-      newsService.getAllPosts({ limit: 6, category: postData.category }), 
-      playerService.getRankings().catch(() => [])
-    ]).then(([newsData, rankingsData]) => {
-      
-      relatedNews.value = (newsData || [])
-        .filter(item => item.id !== postData.id && item.status === 'published')
-        .slice(0, 4) 
-
-      topPlayers.value = (rankingsData || []).slice(0, 5) 
-    })
-
   } catch (err) {
     console.error('Lỗi tải bài viết:', err)
     router.push('/news') 
@@ -48,8 +60,34 @@ const fetchData = async () => {
   }
 }
 
+const initSidebarObserver = () => {
+  if (sidebarObserver) {
+    sidebarObserver.disconnect()
+  }
+
+  sidebarObserver = new IntersectionObserver((entries) => {
+    const target = entries[0]
+    if (target.isIntersecting) {
+      fetchSidebarData()
+      if (sidebarObserver) {
+        sidebarObserver.disconnect()
+      }
+    }
+  }, {
+    rootMargin: '250px'
+  })
+
+  nextTick(() => {
+    if (sidebarTrigger.value) {
+      sidebarObserver.observe(sidebarTrigger.value)
+    }
+  })
+}
+
 watch(() => route.params.slug, () => {
-  fetchData()
+  fetchData().then(() => {
+    initSidebarObserver()
+  })
 })
 
 const handleScroll = () => {
@@ -59,12 +97,17 @@ const handleScroll = () => {
 }
 
 onMounted(() => {
-  fetchData()
+  fetchData().then(() => {
+    initSidebarObserver()
+  })
   window.addEventListener('scroll', handleScroll)
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  if (sidebarObserver) {
+    sidebarObserver.disconnect()
+  }
 })
 
 const formatDate = (dateStr) => {
@@ -155,9 +198,12 @@ const getCategoryLabel = (val) => {
 
             <div class="article-content-rich ql-editor" v-html="post.content"></div>
 
+            <!-- Trigger for lazy loading sidebar data -->
+            <div ref="sidebarTrigger" style="height: 1px; width: 100%;"></div>
+
             <footer class="article-footer-tags">
               <div class="tags-container">
-                <el-tag v-for="tag in (post.tags || ['Tennis', 'SaigonTennis', 'ATP'])" :key="tag" class="news-tag" size="large" effect="plain">
+                <el-tag v-for="tag in (post.tags || ['Tennis', 'Saigontennistours', 'ATP'])" :key="tag" class="news-tag" size="large" effect="plain">
                   #{{ tag }}
                 </el-tag>
               </div>

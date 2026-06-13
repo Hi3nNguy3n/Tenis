@@ -14,6 +14,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 INTERNAL_ERROR_MESSAGE = "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ quản trị viên."
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 def list_matches(
     tournament_id: int = Query(None),
@@ -137,6 +138,7 @@ class MatchCreate(BaseModel):
     match_date: Optional[date] = None
     start_time: Optional[time] = None
 # 2. API TẠO TRẬN ĐẤU (CHỈ ADMIN)
+@router.post("", include_in_schema=False)
 @router.post("/")
 def create_match(
     match_in: MatchCreate, 

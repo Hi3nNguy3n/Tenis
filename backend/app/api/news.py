@@ -13,6 +13,7 @@ from app.core.audit import audit_log # Nếu bạn đang dùng hệ thống ghi 
 
 router = APIRouter()
 
+@router.get("", response_model=List[PostResponse], include_in_schema=False)
 @router.get("/", response_model=List[PostResponse])
 def read_posts(
     skip: int = 0, 
@@ -27,6 +28,7 @@ def read_posts(
     posts = crud_post.get_posts(db, skip=skip, limit=limit, search=search, category=category)
     return posts
 
+@router.post("", response_model=PostResponse, include_in_schema=False)
 @router.post("/", response_model=PostResponse)
 @audit_log(module="NEWS", action="CREATE", event_name="Đăng bài viết mới")
 def create_post(

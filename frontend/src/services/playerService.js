@@ -28,5 +28,8 @@ export const playerService = {
     formData.append('file', file)
     // Note: apiClient.post handles JSON by default, for multipart/form-data we pass includeJson: false
     return apiClient.post('/api/players/me/avatar', formData, { includeJson: false })
+  },
+  async delete(id) {
+    return apiClient.request(`/api/players/${id}`, { method: 'DELETE' })
   }
 }

@@ -38,11 +38,11 @@ async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = D
     r.setex(f"otp:{email_key}", 300, otp_code) 
     
     # Gửi email qua SMTP/app password
-    subject = "Mã xác nhận OTP - Saigon Tennis Tours"
+    subject = "Mã xác nhận OTP - Saigontennistours"
     html_content = f"""
     <div style="font-family: Arial, sans-serif; padding: 20px;">
         <h2>Xin chào,</h2>
-        <p>Bạn vừa yêu cầu mã OTP để xác thực tài khoản tại Saigon Tennis Tours.</p>
+        <p>Bạn vừa yêu cầu mã OTP để xác thực tài khoản tại Saigontennistours.</p>
         <p>Mã xác nhận của bạn là: <strong style="font-size: 24px; color: #10b981;">{otp_code}</strong></p>
         <p>Mã này sẽ hết hạn sau 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>
     </div>
@@ -124,7 +124,7 @@ async def forgot_password(request: SendOTPRequest, db: Session = Depends(get_db)
     otp = str(random.randint(100000, 999999))
     r.setex(f"reset_otp:{request.email}", 600, otp) # Thời hạn 10 phút
 
-    subject = "Khôi phục mật khẩu - Saigon Tennis Tours"
+    subject = "Khôi phục mật khẩu - Saigontennistours"
     html_content = f"""
     <div style="font-family: Arial, sans-serif; padding: 20px;">
         <h2>Xin chào,</h2>

@@ -97,6 +97,8 @@ def create_user_and_player_transaction(db: Session, request: RegisterRequest, ro
             skill_level=request.skill_level,               # BỔ SUNG TRÌNH ĐỘ
             preferred_category=request.preferred_category, # BỔ SUNG SỞ TRƯỜNG
             elo_points=request.elo_points,
+            height_cm=request.height_cm,                   # BỔ SUNG CHIỀU CAO
+            weight_kg=request.weight_kg,                   # BỔ SUNG CÂN NẶNG
             **{field: getattr(request, field) or 0 for field in PLAYER_STAT_FIELDS}
         )
         db.add(new_player)

@@ -1,7 +1,7 @@
 # backend/app/crud/crud_tournament.py
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional, List, Dict, Any
-from sqlalchemy import func, desc, or_
+from sqlalchemy import func, desc, or_, case
 from fastapi import HTTPException
 from datetime import datetime
 import math
@@ -16,44 +16,40 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 
 def create_tournament(db: Session, tournament: TournamentCreate):
-    # 1. KIá»‚M TRA TRÃ™NG SLUG TRÆ¯á»šC KHI LÆ¯U
     existing_slug = db.query(Tournament).filter(Tournament.slug == tournament.slug).first()
     if existing_slug:
-        # Náº¿u trÃ¹ng, tráº£ vá» lá»—i 400 (Bad Request) thay vÃ¬ Ä‘á»ƒ DB sáº­p (500)
         raise HTTPException(
-            status_code=400, 
-            detail="ÄÆ°á»ng dáº«n (Slug) nÃ y Ä‘Ã£ Ä‘Æ°á»£c sá»­ dá»¥ng cho má»™t giáº£i Ä‘áº¥u khÃ¡c. Vui lÃ²ng chá»n Ä‘Æ°á»ng dáº«n khÃ¡c!"
+            status_code=400,
+            detail="Đường dẫn (Slug) này đã được sử dụng cho một giải đấu khác. Vui lòng chọn đường dẫn khác!"
         )
 
-    # 2. Náº¾U KHÃ”NG TRÃ™NG THÃŒ Má»šI CHO Táº O
     db_tournament = Tournament(**tournament.model_dump())
     db.add(db_tournament)
     db.commit()
     db.refresh(db_tournament)
     return db_tournament
-
 def delete_tournament_db(db: Session, tournament_id: int):
-    """XÃ³a toÃ n bá»™ giáº£i Ä‘áº¥u vÃ  cÃ¡c dá»¯ liá»‡u liÃªn quan (Cascade manual)"""
+    """Xóa toàn b�" giải �ấu và các dữ li�!u liên quan (Cascade manual)"""
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
-        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y giáº£i Ä‘áº¥u Ä‘á»ƒ xÃ³a.")
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu để xóa.")
 
-    # 1. XÃ³a cÃ¡c tráº­n Ä‘áº¥u liÃªn quan
+    # 1. Xóa các trận �ấu liên quan
     db.query(Match).filter(Match.tournament_id == tournament_id).delete()
     
-    # 2. XÃ³a cÃ¡c lÆ°á»£t Ä‘Äƒng kÃ½
+    # 2. Xóa các lượt �Ēng ký
     db.query(Registration).filter(Registration.tournament_id == tournament_id).delete()
     
-    # 3. XÃ³a cÃ¡c ná»™i dung thi Ä‘áº¥u
+    # 3. Xóa các n�"i dung thi �ấu
     db.query(TournamentCategory).filter(TournamentCategory.tournament_id == tournament_id).delete()
     
-    # 4. XÃ³a cÃ¡c chiáº¿n dá»‹ch email
+    # 4. Xóa các chiến d�9ch email
     db.query(MailCampaign).filter(MailCampaign.tournament_id == tournament_id).delete()
 
-    # 5. Cuá»‘i cÃ¹ng má»›i xÃ³a giáº£i Ä‘áº¥u
+    # 5. Cu�i cùng m�:i xóa giải �ấu
     db.delete(tournament)
     db.commit()
-    return {"message": "ÄÃ£ xÃ³a giáº£i Ä‘áº¥u thÃ nh cÃ´ng!", "id": tournament_id}
+    return {"message": "Đã xóa giải đấu thành công!", "id": tournament_id}
 
 
 def get_tournaments_with_counts(db: Session, skip: int = 0, limit: int = 10, status: str = None):
@@ -61,26 +57,33 @@ def get_tournaments_with_counts(db: Session, skip: int = 0, limit: int = 10, sta
     if status:
         query = query.filter(Tournament.status == status)
     
-    tournaments = query.offset(skip).limit(limit).all()
+    tournaments = query.order_by(
+        case((Tournament.display_order > 0, 0), else_=1),
+        Tournament.display_order.asc(),
+        Tournament.start_date.desc(),
+        Tournament.id.desc()
+    ).offset(skip).limit(limit).all()
     
-    # TÃ­nh sá»‘ slot Ä‘Ã£ Ä‘Äƒng kÃ½ cho tá»«ng giáº£i
+    # Tính s  slot  ã  Ēng ký cho từng giải
     for t in tournaments:
         t.current_participants = db.query(Registration).filter(
             Registration.tournament_id == t.id,
             Registration.status.in_(["confirmed", "pending"]),
-            Registration.deleted_at.is_(None)
+            Registration.deleted_at.is_(None),
+            Registration.is_locked == False
         ).count()
     return tournaments
 
 def get_tournament_with_count(db: Session, tournament_id: int):
     t = db.query(Tournament).options(joinedload(Tournament.categories)).filter(Tournament.id == tournament_id).first()
     if not t:
-        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y giáº£i Ä‘áº¥u")
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu")
     
     t.current_participants = db.query(Registration).filter(
         Registration.tournament_id == t.id,
         Registration.status.in_(["confirmed", "pending"]),
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     ).count()
     return t
 
@@ -113,13 +116,7 @@ def get_system_stats(db: Session):
 def update_tournament_info(db: Session, tournament_id: int, tournament_in: TournamentCreate, admin_id: int):
     db_tour = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not db_tour:
-        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y giáº£i Ä‘áº¥u")
-
-    today = datetime.utcnow().date()
-    if tournament_in.start_date and tournament_in.start_date < today:
-        raise HTTPException(status_code=400, detail="NgÃ y khai máº¡c khÃ´ng Ä‘Æ°á»£c náº±m trong quÃ¡ khá»©.")
-    if tournament_in.end_date and tournament_in.start_date and tournament_in.end_date < tournament_in.start_date:
-        raise HTTPException(status_code=400, detail="NgÃ y káº¿t thÃºc pháº£i sau ngÃ y khai máº¡c.")
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu")
 
     for var, value in vars(tournament_in).items():
         setattr(db_tour, var, value)
@@ -127,14 +124,14 @@ def update_tournament_info(db: Session, tournament_id: int, tournament_in: Tourn
     db.commit()
     db.refresh(db_tour)
     
-    log_action(db, admin_id, "TOURNAMENT", "UPDATE", "Tournament", db_tour.id, None, {"name": db_tour.name}, "Cáº­p nháº­t giáº£i Ä‘áº¥u")
+    log_action(db, admin_id, "TOURNAMENT", "UPDATE", "Tournament", db_tour.id, None, {"name": db_tour.name}, "Cập nhật giải đấu")
     return db_tour
-
 def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optional[int] = None, draw_size: Optional[int] = None, round_names: Optional[List[str]] = None):
     query = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
         Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     )
     if category_id:
         query = query.filter(Registration.tournament_category_id == category_id)
@@ -145,7 +142,7 @@ def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optiona
     # plus 1 bye branch that admins can complete manually.
     participant_count = draw_size if draw_size and draw_size > 0 else len(regs)
     if participant_count <= 1:
-        raise HTTPException(status_code=400, detail="Khong du so doi de tao nhanh dau.")
+        raise HTTPException(status_code=400, detail="Không đủ số đội để tạo nhánh đấu.")
 
     round_match_counts = []
     current_participants = participant_count
@@ -370,21 +367,21 @@ def validate_next_match_assignment(db: Session, match: Match, next_match_id: Opt
     if not next_match_id:
         return
     if next_match_id == match.id:
-        raise HTTPException(status_code=400, detail="Khong the noi tran dau den chinh no.")
+        raise HTTPException(status_code=400, detail="Không thể nối trận đấu đến chính nó.")
 
     next_match = db.query(Match).filter(Match.id == next_match_id).first()
     if not next_match:
-        raise HTTPException(status_code=404, detail="Khong tim thay tran dau tiep theo.")
+        raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu tiếp theo.")
     if next_match.tournament_id != match.tournament_id:
-        raise HTTPException(status_code=400, detail="Tran dau tiep theo phai thuoc cung giai dau.")
+        raise HTTPException(status_code=400, detail="Trận đấu tiếp theo phải thuộc cùng giải đấu.")
     if match.tournament_category_id and next_match.tournament_category_id and next_match.tournament_category_id != match.tournament_category_id:
-        raise HTTPException(status_code=400, detail="Tran dau tiep theo phai thuoc cung noi dung.")
+        raise HTTPException(status_code=400, detail="Trận đấu tiếp theo phải thuộc cùng nội dung.")
 
     visited = {match.id}
     cursor = next_match
     while cursor and cursor.next_match_id:
         if cursor.next_match_id in visited:
-            raise HTTPException(status_code=400, detail="Lien ket nhanh dau tao vong lap.")
+            raise HTTPException(status_code=400, detail="Liên kết nhánh đấu tạo vòng lặp.")
         visited.add(cursor.id)
         cursor = db.query(Match).filter(Match.id == cursor.next_match_id).first()
 
@@ -421,15 +418,15 @@ def _advance_winner_to_next_match(db: Session, match: Match, win_reg_id: Optiona
 def create_manual_match_db(db: Session, tournament_id: int, payload: ManualMatchCreate):
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
-        raise HTTPException(status_code=404, detail="Khong tim thay giai dau")
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu")
     if payload.next_match_id:
         next_match = db.query(Match).filter(Match.id == payload.next_match_id).first()
         if not next_match:
-            raise HTTPException(status_code=404, detail="Khong tim thay tran dau tiep theo.")
+            raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu tiếp theo.")
         if next_match.tournament_id != tournament_id:
-            raise HTTPException(status_code=400, detail="Tran dau tiep theo phai thuoc cung giai dau.")
+            raise HTTPException(status_code=400, detail="Trận đấu tiếp theo phải thuộc cùng giải đấu.")
         if payload.category_id and next_match.tournament_category_id and next_match.tournament_category_id != payload.category_id:
-            raise HTTPException(status_code=400, detail="Tran dau tiep theo phai thuoc cung noi dung.")
+            raise HTTPException(status_code=400, detail="Trận đấu tiếp theo phải thuộc cùng nội dung.")
 
     category_id = payload.category_id
     round_code = (payload.round_code or "Vong moi").strip()
@@ -475,16 +472,16 @@ def create_manual_match_db(db: Session, tournament_id: int, payload: ManualMatch
         _auto_link_manual_match(db, match)
     db.commit()
     db.refresh(match)
-    return {"message": "ÄÃ£ thÃªm tráº­n thá»§ cÃ´ng vÃ o nhÃ¡nh Ä‘áº¥u", "id": match.id}
+    return {"message": "Đã thêm trận thủ công vào nhánh đấu", "id": match.id}
 
 def update_match_admin_db(db: Session, match_id: int, payload: AdminMatchUpdate):
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match:
-        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y tráº­n Ä‘áº¥u")
+        raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu")
 
     data = payload.model_dump(exclude_unset=True)
     if data.get("side_a_registration_id") and data.get("side_a_registration_id") == data.get("side_b_registration_id"):
-        raise HTTPException(status_code=400, detail="KhÃ´ng thá»ƒ xáº¿p cÃ¹ng má»™t VÄV/cáº·p Ä‘áº¥u á»Ÿ cáº£ hai bÃªn.")
+        raise HTTPException(status_code=400, detail="Không thể xếp cùng một VĐV/cặp đấu ở cả hai bên.")
     if "next_match_id" in data:
         validate_next_match_assignment(db, match, data["next_match_id"])
 
@@ -508,12 +505,12 @@ def update_match_admin_db(db: Session, match_id: int, payload: AdminMatchUpdate)
         _advance_winner_to_next_match(db, match, match.winner_registration_id)
 
     db.commit()
-    return {"message": "ÄÃ£ cáº­p nháº­t thÃ´ng tin Ä‘iá»u hÃ nh tráº­n Ä‘áº¥u"}
+    return {"message": "Đã cập nhật thông tin điều hành trận đấu"}
 
 def delete_match_from_draw_db(db: Session, match_id: int):
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match:
-        raise HTTPException(status_code=404, detail="Khong tim thay tran dau")
+        raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu")
 
     db.query(Match).filter(Match.next_match_id == match_id).update(
         {Match.next_match_id: match.next_match_id},
@@ -521,20 +518,20 @@ def delete_match_from_draw_db(db: Session, match_id: int):
     )
     db.delete(match)
     db.commit()
-    return {"message": "Da xoa khung tran dau khoi so do"}
+    return {"message": "Đã xóa khung trận đấu khỏi sơ đồ"}
 
 def schedule_match_db(db: Session, match_id: int, payload: MatchScheduleUpdate):
     db_match = db.query(Match).filter(Match.id == match_id).first()
     if not db_match:
-        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y tráº­n Ä‘áº¥u")
+        raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu")
     
     tournament = db.query(Tournament).filter(Tournament.id == db_match.tournament_id).first()
     if tournament:
         schedule_date = payload.start_time.date()
         if tournament.start_date and schedule_date < tournament.start_date:
-            raise HTTPException(status_code=400, detail=f"Giáº£i Ä‘áº¥u báº¯t Ä‘áº§u tá»« ngÃ y {tournament.start_date.strftime('%d/%m/%Y')}.")
+            raise HTTPException(status_code=400, detail=f"Giải đấu bắt đầu từ ngày {tournament.start_date.strftime('%d/%m/%Y')}.")
         if tournament.end_date and schedule_date > tournament.end_date:
-            raise HTTPException(status_code=400, detail=f"Giáº£i Ä‘áº¥u káº¿t thÃºc vÃ o ngÃ y {tournament.end_date.strftime('%d/%m/%Y')}.")
+            raise HTTPException(status_code=400, detail=f"Giải đấu kết thúc vào ngày {tournament.end_date.strftime('%d/%m/%Y')}.")
             
     db_match.court_id = payload.court_id
     db_match.start_time = payload.start_time
@@ -543,7 +540,7 @@ def schedule_match_db(db: Session, match_id: int, payload: MatchScheduleUpdate):
     db_match.referee_name = payload.referee_name
     db_match.referee_phone = payload.referee_phone
     db.commit()
-    return {"message": "ÄÃ£ cáº­p nháº­t lá»‹ch thi Ä‘áº¥u"}
+    return {"message": "Đã cập nhật lịch thi đấu"}
 
 def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_homepage: Optional[bool] = None):
     query = db.query(Match, Tournament, Court).outerjoin(
@@ -558,7 +555,7 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
         query = query.limit(limit)
     matches = query.all()
 
-    # Helper láº¥y thÃ´ng tin Ä‘áº§y Ä‘á»§ cá»§a team tá»« match vÃ  side
+    # Helper lấy thông tin �ầy �ủ của team từ match và side
     def get_match_players_data(m, side):
         if side == "a":
             reg_id = m.side_a_registration_id
@@ -571,7 +568,7 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
 
         data = {"name": None, "avatar": None, "partner_name": None, "partner_avatar": None}
 
-        # CÃ¡ch 1: Qua registration (cho giáº£i Ä‘áº¥u)
+        # Cách 1: Qua registration (cho giải �ấu)
         if reg_id:
             reg = db.query(Registration).filter(Registration.id == reg_id).first()
             if reg:
@@ -590,7 +587,7 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
                         data["partner_avatar"] = p_user.avatar_url
             return data
 
-        # CÃ¡ch 2: Qua direct player_id (cho tráº­n giao há»¯u/thÃ¡ch Ä‘áº¥u)
+        # Cách 2: Qua direct player_id (cho trận giao hữu/thách �ấu)
         if p_id:
             user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == p_id).first()
             if user:
@@ -607,7 +604,7 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
 
     results = []
     for m, t, c in matches:
-        # Æ¯u tiÃªn match_date cá»§a tráº­n, fallback vá» start_time.date(), cuá»‘i cÃ¹ng lÃ  start_date giáº£i
+        # Ưu tiên match_date của trận, fallback về start_time.date(), cu�i cùng là start_date giải
         if m.match_date:
             match_date = m.match_date
         elif m.start_time:
@@ -624,7 +621,7 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
             "tournament": t.name if t else "Giao hữu tự do",
             "tournament_start_date": t.start_date.isoformat() if t and t.start_date else None,
             "tournament_end_date": t.end_date.isoformat() if t and t.end_date else None,
-            "location": (t.location if t else None) or "Saigon Tennis Club",
+            "location": (t.location if t else None) or "Saigontennistours Club",
             "round_code": m.round_code,
             "court": c.court_name if c else "Chua gan san",
             "date": match_date.isoformat() if match_date else None,
@@ -647,14 +644,14 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
     return results
 
 def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchScoreUpdate):
-    # 1. TÃ¬m tráº­n Ä‘áº¥u vÃ  kiá»ƒm tra tráº¡ng thÃ¡i
+    # 1. Tìm trận �ấu và kiỒm tra trạng thái
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match or match.status == "completed":
-        raise HTTPException(status_code=400, detail="Tráº­n Ä‘áº¥u khÃ´ng tá»“n táº¡i hoáº·c Ä‘Ã£ káº¿t thÃºc.")
+        raise HTTPException(status_code=400, detail="Trận đấu không tồn tại hoặc đã kết thúc.")
 
-    # 0. Kiá»ƒm tra xem tráº­n Ä‘áº¥u cÃ³ Ä‘Æ°á»£c phÃ©p tÃ­nh ELO khÃ´ng
+    # 0. KiỒm tra xem trận �ấu có �ược phép tính ELO không
     if not getattr(match, 'elo_affected', False):
-        # Náº¿u khÃ´ng tÃ­nh ELO, chÃºng ta chá»‰ cáº­p nháº­t tráº¡ng thÃ¡i tráº­n Ä‘áº¥u
+        # Nếu không tính ELO, chúng ta ch�0 cập nhật trạng thái trận �ấu
         match.status = "completed"
         match.score_summary = payload.score
         match.winner_side = payload.winner_side
@@ -663,30 +660,30 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchSco
         match.referee_name = payload.referee_name
         match.referee_phone = payload.referee_phone
         db.commit()
-        return {"message": "Cáº­p nháº­t tá»· sá»‘ thÃ nh cÃ´ng (KhÃ´ng tÃ­nh ELO)"}
+        return {"message": "Cập nhật tỷ số thành công (Không tính ELO)"}
 
-    # 1. Láº¤Y PLAYER ID Cá»¦A 2 BÃŠN
+    # 1. LẤY PLAYER ID CỦA 2 B�`N
     p1_id = None
     p2_id = None
 
     if match.tournament_id:
-        # TrÆ°á»ng há»£p tráº­n Ä‘áº¥u GIáº¢I: Láº¥y Player ID thÃ´ng qua báº£ng Registration
+        # Trường hợp trận �ấu GIẢI: Lấy Player ID thông qua bảng Registration
         reg_a = db.query(Registration).filter(Registration.id == match.side_a_registration_id).first()
         reg_b = db.query(Registration).filter(Registration.id == match.side_b_registration_id).first()
         if reg_a: p1_id = reg_a.player_id
         if reg_b: p2_id = reg_b.player_id
         
-        # Fallback: Náº¿u khÃ´ng tÃ¬m tháº¥y qua Registration, láº¥y trá»±c tiáº¿p tá»« match (cho cÃ¡c tráº­n táº¡o thá»§ cÃ´ng)
+        # Fallback: Nếu không tìm thấy qua Registration, lấy trực tiếp từ match (cho các trận tạo thủ công)
         if not p1_id: p1_id = match.player_a_id
         if not p2_id: p2_id = match.player_b_id
     else:
-        # TrÆ°á»ng há»£p tráº­n GIAO Há»®U: Láº¥y trá»±c tiáº¿p tá»« player_a_id vÃ  player_b_id
+        # Trường hợp trận GIAO HỮU: Lấy trực tiếp từ player_a_id và player_b_id
         p1_id = match.player_a_id
         p2_id = match.player_b_id
 
-    # 3. Kiá»ƒm tra tÃ­nh Ä‘áº§y Ä‘á»§ cá»§a 2 váº­n Ä‘á»™ng viÃªn
+    # 3. KiỒm tra tính �ầy �ủ của 2 vận ��"ng viên
     if not p1_id or not p2_id:
-        # Náº¿u thiáº¿u 1 bÃªn (láº» Ä‘á»™i, tháº¯ng bye), ta chá»‰ cáº­p nháº­t káº¿t quáº£ mÃ  khÃ´ng tÃ­nh ELO
+        # Nếu thiếu 1 bên (lẻ ��"i, thắng bye), ta ch�0 cập nhật kết quả mà không tính ELO
         match.status = "completed"
         match.winner_side = payload.winner_side
         win_reg_id = match.side_a_registration_id if payload.winner_side == "side_a" else match.side_b_registration_id
@@ -704,57 +701,63 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchSco
         _advance_winner_to_next_match(db, match, win_reg_id)
         
         db.commit()
-        return {"message": "Cáº­p nháº­t tá»· sá»‘ thÃ nh cÃ´ng cho tráº­n Ä‘áº¥u láº» (Tháº¯ng bye/Láº» Ä‘á»™i)!"}
+        return {"message": "Cập nhật tỷ số thành công cho trận đấu lẻ (Thắng bye/Lẻ đội)!"}
 
 
-    # 4. XÃ¡c Ä‘á»‹nh ai tháº¯ng ai thua dá»±a trÃªn payload gá»­i lÃªn
+    # 4. Xác ��9nh ai thắng ai thua dựa trên payload gửi lên
     win_p_id = p1_id if payload.winner_side == "side_a" else p2_id
     lose_p_id = p2_id if payload.winner_side == "side_a" else p1_id
     
-    # XÃ¡c Ä‘á»‹nh registration_id cá»§a ngÆ°á»i tháº¯ng (chá»‰ dÃ¹ng cho logic tiáº¿n vÃ o vÃ²ng sau cá»§a Giáº£i)
+    # Xác ��9nh registration_id của người thắng (ch�0 dùng cho logic tiến vào vòng sau của Giải)
     win_reg_id = match.side_a_registration_id if payload.winner_side == "side_a" else match.side_b_registration_id
 
     winner_p = db.query(Player).filter(Player.id == win_p_id).first()
     loser_p = db.query(Player).filter(Player.id == lose_p_id).first()
 
     if not winner_p or not loser_p:
-        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y há»“ sÆ¡ váº­n Ä‘á»™ng viÃªn.")
+        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ vận động viên.")
 
-    # 5. THUáº¬T TOÃN ELO
-    K = 32
-    Ra = winner_p.elo_points
-    Rb = loser_p.elo_points
-    E_winner = 1 / (1 + 10 ** ((Rb - Ra) / 400))
-    elo_gain = round(K * (1 - E_winner))
+    # 5. THUẬT TOÁN ELO
+    # ELO points are now managed manually by admins.
+    # Keep the old automatic formula here for future reuse if needed:
+    #
+    # K = 32
+    # Ra = winner_p.elo_points
+    # Rb = loser_p.elo_points
+    # E_winner = 1 / (1 + 10 ** ((Rb - Ra) / 400))
+    # elo_gain = round(K * (1 - E_winner))
     
-    # Cáº­p nháº­t chá»‰ sá»‘ cho ngÆ°á»i tháº¯ng (vÃ  Ä‘á»“ng Ä‘á»™i náº¿u cÃ³)
-    def update_p_stats(p, gain, is_win):
-        p.elo_points += gain if is_win else -gain
-        if is_win: p.wins += 1
-        else: p.losses += 1
+    # Cập nhật ch�0 s� cho người thắng (và ��ng ��"i nếu có)
+    def update_p_stats(p, is_win):
+        if is_win:
+            p.wins += 1
+        else:
+            p.losses += 1
         p.matches_played += 1
 
-    update_p_stats(winner_p, elo_gain, True)
-    update_p_stats(loser_p, elo_gain, False)
+    update_p_stats(winner_p, True)
+    update_p_stats(loser_p, False)
 
-    # Náº¿u lÃ  Ä‘Ã¡nh Ä‘Ã´i, cáº­p nháº­t cho cáº£ Ä‘á»“ng Ä‘á»™i
+    # Nếu là �ánh �ôi, cập nhật cho cả ��ng ��"i
     if match.tournament_id:
         reg_win = db.query(Registration).filter(Registration.id == win_reg_id).first()
         lose_reg_id = match.side_b_registration_id if payload.winner_side == "side_a" else match.side_a_registration_id
         reg_lose = db.query(Registration).filter(Registration.id == lose_reg_id).first()
-        
+
         if reg_win and reg_win.partner_player_id:
             partner_win = db.query(Player).filter(Player.id == reg_win.partner_player_id).first()
-            if partner_win: update_p_stats(partner_win, elo_gain, True)
-            
+            if partner_win:
+                update_p_stats(partner_win, True)
+
         if reg_lose and reg_lose.partner_player_id:
             partner_lose = db.query(Player).filter(Player.id == reg_lose.partner_player_id).first()
-            if partner_lose: update_p_stats(partner_lose, elo_gain, False)
+            if partner_lose:
+                update_p_stats(partner_lose, False)
 
-    # 6. Cáº­p nháº­t thÃ´ng tin tráº­n Ä‘áº¥u
+    # 6. Cập nhật thông tin trận �ấu
     match.status = "completed"
     match.winner_side = payload.winner_side
-    match.winner_registration_id = win_reg_id # LÆ°u reg_id náº¿u cÃ³
+    match.winner_registration_id = win_reg_id # Lưu reg_id nếu có
     match.result_note = payload.score
     if payload.video_url is not None:
         match.video_url = payload.video_url
@@ -765,13 +768,13 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchSco
     match.referee_name = payload.referee_name
     match.referee_phone = payload.referee_phone
 
-    # 7. Xá»­ lÃ½ logic thÄƒng háº¡ng náº¿u lÃ  tráº­n Ä‘áº¥u giáº£i[cite: 33]
+    # 7. Xử lý logic thĒng hạng nếu là trận �ấu giải[cite: 33]
     message_suffix = ""
     if match.tournament_id:
-        # Kiá»ƒm tra xem cÃ²n tráº­n Ä‘áº¥u nÃ o chÆ°a xong khÃ´ng
+        # KiỒm tra xem còn trận �ấu nào chưa xong không
         remaining_matches = db.query(Match).filter(
             Match.tournament_id == match.tournament_id,
-            Match.id != match.id, # Trá»« tráº­n hiá»‡n táº¡i vá»«a xong
+            Match.id != match.id, # Trừ trận hi�!n tại vừa xong
             Match.status.in_(["pending", "scheduled", "ongoing"])
         ).count()
 
@@ -779,15 +782,15 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchSco
             tournament = db.query(Tournament).filter(Tournament.id == match.tournament_id).first()
             if tournament and tournament.status != "finished":
                 tournament.status = "finished"
-                # Cáº­p nháº­t ID nhÃ  vÃ´ Ä‘á»‹ch náº¿u lÃ  tráº­n Chung káº¿t
+                # Cập nhật ID nhà vô ��9ch nếu là trận Chung kết
                 if match.round_code in ["FINAL", "F"] and hasattr(tournament, 'winner_player_id'):
                     tournament.winner_player_id = winner_p.id
-                message_suffix = f" Giáº£i Ä‘áº¥u Ä‘Ã£ chÃ­nh thá»©c khÃ©p láº¡i. ChÃºc má»«ng {winner_p.full_name if hasattr(winner_p, 'full_name') else winner_p.id}!"
+                message_suffix = f" Giải đấu đã chính thức khép lại. Chúc mừng {winner_p.full_name if hasattr(winner_p, 'full_name') else winner_p.id}!"
         else:
             _advance_winner_to_next_match(db, match, win_reg_id)
 
     db.commit()
-    return {"message": f"Cáº­p nháº­t káº¿t quáº£ thÃ nh cÃ´ng! {message_suffix}"}
+    return {"message": f"Cập nhật kết quả thành công! {message_suffix}"}
 
 def get_public_bracket_detail(db: Session, tournament_id: int, category_id: Optional[int] = None):
     query = db.query(Match).filter(Match.tournament_id == tournament_id)
@@ -869,24 +872,24 @@ def get_public_bracket_detail(db: Session, tournament_id: int, category_id: Opti
     return results
 
 def export_tournament_data_to_excel(db: Session, tournament_id: int):
-    # 1. Láº¥y thÃ´ng tin giáº£i Ä‘áº¥u
+    # 1. Lấy thông tin giải �ấu
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
-        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y giáº£i Ä‘áº¥u")
+        raise HTTPException(status_code=404, detail="Không tìm thấy giải đấu")
 
-    # Táº¡o Workbook Excel má»›i
+    # Tạo Workbook Excel m�:i
     wb = Workbook()
     
-    # SHEET 1: DANH SÃCH Váº¬N Äá»˜NG VIÃŠN ÄÄ‚NG KÃ
+    # SHEET 1: DANH SÁCH VẬN Đ��NG VI�`N Đ�NG KÝ
     ws_players = wb.active
-    ws_players.title = "Danh sÃ¡ch VÄV"
+    ws_players.title = "Danh sách VĐV"
     
-    # Style cho tiÃªu Ä‘á»
+    # Style cho tiêu �ề
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
     center_align = Alignment(horizontal="center", vertical="center")
 
-    headers = ["STT", "Há» TÃªn", "Sá»‘ Ä‘iá»‡n thoáº¡i", "Email", "TrÃ¬nh Ä‘á»™", "Tráº¡ng thÃ¡i", "Thanh toÃ¡n"]
+    headers = ["STT", "Họ Tên", "Số điện thoại", "Email", "Trình độ", "Trạng thái", "Thanh toán"]
     ws_players.append(headers)
     
     for col in range(1, len(headers) + 1):
@@ -895,7 +898,7 @@ def export_tournament_data_to_excel(db: Session, tournament_id: int):
         cell.fill = header_fill
         cell.alignment = center_align
 
-    # Set Ä‘á»™ rá»™ng cá»™t
+    # Set ��" r�"ng c�"t
     ws_players.column_dimensions['B'].width = 25
     ws_players.column_dimensions['C'].width = 15
     ws_players.column_dimensions['D'].width = 25
@@ -903,14 +906,15 @@ def export_tournament_data_to_excel(db: Session, tournament_id: int):
     ws_players.column_dimensions['F'].width = 15
     ws_players.column_dimensions['G'].width = 15
 
-    # Láº¥y dá»¯ liá»‡u VÄV
+    # Lấy dữ liệu VĐV
     regs = db.query(Registration, Player, User).join(
         Player, Registration.player_id == Player.id
     ).join(
         User, Player.user_id == User.id
     ).filter(
         Registration.tournament_id == tournament_id,
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     ).all()
 
     for idx, (reg, player, user) in enumerate(regs, start=1):
@@ -920,14 +924,14 @@ def export_tournament_data_to_excel(db: Session, tournament_id: int):
             user.phone,
             user.email,
             player.skill_level or "N/A",
-            "ÄÃ£ Check-in" if reg.status == "checked_in" else "ÄÃ£ duyá»‡t" if reg.status == "confirmed" else "Chá» duyá»‡t",
-            "ÄÃ£ thanh toÃ¡n" if reg.payment_status == "paid" else "ChÆ°a thanh toÃ¡n"
+            "Đã Check-in" if reg.status == "checked_in" else "Đã duyệt" if reg.status == "confirmed" else "Chờ duyệt",
+            "Đã thanh toán" if reg.payment_status == "paid" else "Chưa thanh toán"
         ])
 
-    # SHEET 2: Káº¾T QUáº¢ TRáº¬N Äáº¤U (BRACKET)
+    # SHEET 2: KẾT QUẢ TRẬN ĐẤU (BRACKET)
 
-    ws_matches = wb.create_sheet(title="Káº¿t quáº£ Thi Ä‘áº¥u")
-    matches_headers = ["Tráº­n sá»‘", "VÃ²ng Ä‘áº¥u", "VÄV A", "VÄV B", "Tá»· sá»‘", "NgÆ°á»i tháº¯ng", "Tráº¡ng thÃ¡i"]
+    ws_matches = wb.create_sheet(title="Kết quả Thi đấu")
+    matches_headers = ["Trận số", "Vòng đấu", "VĐV A", "VĐV B", "Tỷ số", "Người thắng", "Trạng thái"]
     ws_matches.append(matches_headers)
 
     for col in range(1, len(matches_headers) + 1):
@@ -941,15 +945,15 @@ def export_tournament_data_to_excel(db: Session, tournament_id: int):
     ws_matches.column_dimensions['E'].width = 20
     ws_matches.column_dimensions['F'].width = 25
 
-    # Láº¥y dá»¯ liá»‡u Match
+    # Lấy dữ li�!u Match
     matches = db.query(Match).filter(Match.tournament_id == tournament_id).order_by(Match.match_no).all()
     
     def get_player_name(reg_id):
-        if not reg_id: return "Chá» xáº¿p nhÃ¡nh"
+        if not reg_id: return "Chờ xếp nhánh"
         r = db.query(Registration).filter(Registration.id == reg_id).first()
         if not r: return "N/A"
         u = db.query(User).join(Player).filter(Player.id == r.player_id).first()
-        if not u: return "VÄV"
+        if not u: return "VĐV"
         return f"{u.full_name} - {r.partner_name}" if r.partner_name else u.full_name
 
     for m in matches:
@@ -967,27 +971,27 @@ def export_tournament_data_to_excel(db: Session, tournament_id: int):
             p2_name,
             m.result_note or "-",
             winner_name,
-            "ÄÃ£ xong" if m.status == "completed" else "ChÆ°a Ä‘áº¥u"
+            "Đã xong" if m.status == "completed" else "Chưa đấu"
         ])
 
-    # LÆ°u vÃ o bá»™ nhá»› táº¡m (BytesIO) Ä‘á»ƒ gá»­i tháº³ng vá» Frontend mÃ  khÃ´ng cáº§n lÆ°u rÃ¡c trong á»• cá»©ng mÃ¡y chá»§
+    # Lưu vào b�" nh�: tạm (BytesIO) �Ồ gửi thẳng về Frontend mà không cần lưu rác trong �" cứng máy chủ
     stream = io.BytesIO()
     wb.save(stream)
     stream.seek(0)
     
-    # Tráº£ vá» file stream vÃ  tÃªn file an toÃ n
+    # Trả về file stream và tên file an toàn
     safe_name = "".join([c if c.isalnum() else "_" for c in tournament.name])
     file_name = f"BaoCao_{safe_name}.xlsx"
     
     return stream, file_name
 
 def get_tournament_and_valid_emails(db: Session, tournament_id: int):
-    # Láº¥y thÃ´ng tin giáº£i Ä‘áº¥u
+    # Lấy thông tin giải �ấu
     tournament = db.query(Tournament).filter(Tournament.id == tournament_id).first()
     if not tournament:
         return None, []
 
-    # Láº¥y danh sÃ¡ch email há»£p lá»‡
+    # Lấy danh sách email hợp l�!
     valid_regs = db.query(User.email).join(
         Player, User.id == Player.user_id
     ).join(
@@ -997,7 +1001,7 @@ def get_tournament_and_valid_emails(db: Session, tournament_id: int):
         Registration.deleted_at.is_(None)
     ).all()
     
-    # Lá»c bá» cÃ¡c pháº§n tá»­ rá»—ng
+    # Lọc bỏ các phần tử r�ng
     bcc_emails = [reg[0] for reg in valid_regs if reg[0]]
     
     return tournament, bcc_emails
@@ -1008,16 +1012,16 @@ def save_mail_campaign(
     subject: str, 
     message: str, 
     total_recipients: int,
-    scheduled_at = None,   # <--- ThÃªm dÃ²ng nÃ y
-    status: str = "pending" # <--- ThÃªm dÃ²ng nÃ y
+    scheduled_at = None,   # <--- Thêm dòng này
+    status: str = "pending" # <--- Thêm dòng này
 ):
     new_campaign = MailCampaign(
         tournament_id=tournament_id,
         subject=subject,
         message=message,
         total_recipients=total_recipients,
-        scheduled_at=scheduled_at, # <--- LÆ°u vÃ o DB
-        status=status              # <--- LÆ°u vÃ o DB
+        scheduled_at=scheduled_at, # <--- Lưu vào DB
+        status=status              # <--- Lưu vào DB
     )
     db.add(new_campaign)
     db.commit()
@@ -1037,7 +1041,8 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
     query = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
         Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
-        Registration.deleted_at.is_(None)
+        Registration.deleted_at.is_(None),
+        Registration.is_locked == False
     )
     if category_id:
         query = query.filter(Registration.tournament_category_id == category_id)
@@ -1045,7 +1050,7 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
 
     participant_count = draw_size if draw_size and draw_size > 0 else len(players)
     if participant_count < 2:
-        raise HTTPException(status_code=400, detail="Khong du so doi de tao lich thi dau vong tron.")
+        raise HTTPException(status_code=400, detail="Không đủ số đội để tạo lịch thi đấu vòng tròn.")
 
     match_del_query = db.query(Match).filter(
         Match.tournament_id == tournament_id,
@@ -1108,8 +1113,8 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
     }
 
 def calculate_tournament_standings(db: Session, tournament_id: int, category_id: Optional[int] = None):
-    """HÃ m lÃµi tÃ­nh Ä‘iá»ƒm (DÃ¹ng cho cáº£ VÃ²ng trÃ²n vÃ  Xáº¿p háº¡ng tá»•ng thá»ƒ)"""
-    # 1. Thá»­ láº¥y cÃ¡c tráº­n vÃ²ng báº£ng trÆ°á»›c
+    """Hàm lõi tính �iỒm (Dùng cho cả Vòng tròn và Xếp hạng t�"ng thỒ)"""
+    # 1. Thử lấy các trận vòng bảng trư�:c
     query = db.query(Match).filter(
         Match.tournament_id == tournament_id,
         Match.stage_type == "group_stage",
@@ -1120,7 +1125,7 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
     
     matches = query.all()
 
-    # 2. Náº¿u khÃ´ng cÃ³ tráº­n vÃ²ng báº£ng nÃ o, láº¥y táº¥t cáº£ cÃ¡c tráº­n Ä‘Ã£ xong cá»§a giáº£i (cho Knockout/Playoff)
+    # 2. Nếu không có trận vòng bảng nào, lấy tất cả các trận �ã xong của giải (cho Knockout/Playoff)
     if not matches:
         query = db.query(Match).filter(
             Match.tournament_id == tournament_id,
@@ -1136,11 +1141,11 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
         return int(val) if val is not None else 0
 
     for match in matches:
-        # XÃ¡c Ä‘á»‹nh tÃªn báº£ng
+        # Xác ��9nh tên bảng
         if match.stage_type == "group_stage" and match.group_id:
-            group = f"Báº£ng {match.group_id}"
+            group = f"Bảng {match.group_id}"
         else:
-            group = "Xáº¿p háº¡ng tá»•ng thá»ƒ"
+            group = "Xếp hạng tổng thể"
 
         if group not in standings:
             standings[group] = {}
@@ -1176,7 +1181,7 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
                 partner_user_id_reg = user_record[4] if user_record else None
                 player_user_id = user_record[6] if user_record else None
                 
-                # Náº¿u cÃ³ mapping ID Ä‘á»“ng Ä‘á»™i, láº¥y User ID cá»§a Ä‘á»“ng Ä‘á»™i
+                # Nếu có mapping ID ��ng ��"i, lấy User ID của ��ng ��"i
                 partner_user_id = partner_user_id_reg
                 partner_avatar = None
                 
@@ -1460,10 +1465,10 @@ def generate_playoff_draw(db: Session, tournament_id: int, category_id: int, adv
     }
 
 def auto_update_tournament_statuses(db: Session):
-    """HÃ m cháº¡y ngáº§m Ä‘á»ƒ quÃ©t vÃ  cáº­p nháº­t tráº¡ng thÃ¡i giáº£i Ä‘áº¥u dá»±a trÃªn thá»i gian thá»±c táº¿."""
+    """Hàm chạy ngầm �Ồ quét và cập nhật trạng thái giải �ấu dựa trên thời gian thực tế."""
     today = datetime.utcnow().date()
     
-    # 1. Chuyá»ƒn tá»« 'open' sang 'ongoing' náº¿u Ä‘Ã£ Ä‘áº¿n ngÃ y khai máº¡c
+    # 1. ChuyỒn từ 'open' sang 'ongoing' nếu �ã �ến ngày khai mạc
     open_tours = db.query(Tournament).filter(
         Tournament.status == "open",
         Tournament.start_date <= today
@@ -1471,8 +1476,8 @@ def auto_update_tournament_statuses(db: Session):
     for tour in open_tours:
         tour.status = "ongoing"
         
-    # 2. Chuyá»ƒn sang 'finished' náº¿u quÃ¡ ngÃ y káº¿t thÃºc
-    # Chá»‰ quÃ©t cÃ¡c giáº£i Ä‘ang má»Ÿ hoáº·c Ä‘ang diá»…n ra mÃ  Ä‘Ã£ quÃ¡ háº¡n
+    # 2. ChuyỒn sang 'finished' nếu quá ngày kết thúc
+    # Ch�0 quét các giải �ang m�x hoặc �ang di�&n ra mà �ã quá hạn
     past_tours = db.query(Tournament).filter(
         Tournament.status.in_(["open", "ongoing"]),
         Tournament.end_date < today
