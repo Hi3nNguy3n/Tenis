@@ -375,13 +375,17 @@ onMounted(async () => {
           <div v-if="activeTab === 'ranking'" class="tab-content">
             <div class="talent-grid">
               <div v-for="p in paginatedPlayers" :key="p.player_id || p.id" class="talent-card group">
-                <div class="talent-image-box">
+                <RouterLink :to="`/players/${p.player_id || p.id}`" class="talent-image-box">
                   <img :src="p.avatar_url" alt="" class="talent-img" referrerpolicy="no-referrer" />
-                </div>
+                </RouterLink>
                 
                 <div class="talent-info">
                   <div class="talent-header">
-                    <h3 class="talent-name">{{ p.full_name }}</h3>
+                    <h3 class="talent-name">
+                      <RouterLink :to="`/players/${p.player_id || p.id}`" class="talent-link-name">
+                        {{ p.full_name }}
+                      </RouterLink>
+                    </h3>
                     <span class="talent-badge">Hạng #{{ p.displayRank || '--' }}</span>
                   </div>
                   
@@ -972,6 +976,7 @@ onMounted(async () => {
 }
 
 .talent-image-box {
+  display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 14px;
@@ -1002,6 +1007,16 @@ onMounted(async () => {
 .talent-name {
   font-size: 1.2rem; font-weight: 800; margin: 0; color: var(--text-main);
   line-height: 1.3;
+}
+
+.talent-link-name {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.talent-link-name:hover {
+  color: #0066cc;
 }
 
 .talent-badge {
