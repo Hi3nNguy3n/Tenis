@@ -31,5 +31,11 @@ export const playerService = {
   },
   async delete(id) {
     return apiClient.request(`/api/players/${id}`, { method: 'DELETE' })
+  },
+  async getDeleted(params) {
+    return apiClient.get('/api/players/deleted', { params })
+  },
+  async restore(id) {
+    return apiClient.post(`/api/players/${id}/restore`)
   }
 }

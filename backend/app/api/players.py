@@ -488,6 +488,22 @@ def get_h2h_compare(user_a_id: int, user_b_id: int, db: Session = Depends(get_db
 
     return {"wins_a": wins_a, "wins_b": wins_b}
 
+@router.get("/deleted", dependencies=[Depends(get_current_admin)])
+def list_deleted_players(
+    search: Optional[str] = Query(None),
+    skill: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    players_data = crud_player.get_deleted_players_list(db, search, skill)
+    results = []
+    for p, u in players_data:
+        results.append({
+            "id": p.id,
+            "user": u,
+            "player_profile": p
+        })
+    return results
+
 # 2. API Lấy hồ sơ công khai của 1 người
 @router.get("/{player_id}", response_model=PlayerProfileDetailResponse)
 def get_public_profile(player_id: int, db: Session = Depends(get_db)):
@@ -522,10 +538,26 @@ def admin_create_player(
     
     return {"message": "Tạo tài khoản VĐV thành công!", "user_id": user.id}
 
-@router.delete("/{player_id}", dependencies=[Depends(get_current_admin)])
+@router.delete("/{player_id}")
 @audit_log(module="PLAYER", action="DELETE", event_name="Admin xóa mềm VĐV")
-def delete_player(player_id: int, db: Session = Depends(get_db)):
+def delete_player(
+    player_id: int, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
     player = crud_player.delete_player_db(db, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Không tìm thấy vận động viên")
-    return {"message": "Đã xóa vận động viên thành công"}
+    return {"message": "Đã xóa vận động viên thành công", "id": player.user_id}
+
+@router.post("/{player_id}/restore")
+@audit_log(module="PLAYER", action="RESTORE", event_name="Admin khôi phục tài khoản VĐV")
+def restore_player(
+    player_id: int, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    player = crud_player.restore_player_db(db, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Không tìm thấy vận động viên")
+    return {"message": "Đã khôi phục tài khoản vận động viên thành công", "id": player.user_id}
