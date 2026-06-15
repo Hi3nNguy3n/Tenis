@@ -306,3 +306,36 @@ def get_player_by_id(db: Session, player_id: int):
             **{field: float(getattr(p, field) or 0) for field in PLAYER_STAT_FIELDS}
         }
     }
+
+def get_deleted_players_list(db: Session, search: str = None, skill: str = None):
+    query = db.query(Player, User).join(User, Player.user_id == User.id).filter(
+        Player.deleted_at.is_not(None),
+        User.deleted_at.is_not(None)
+    )
+    
+    if search:
+        query = query.filter(or_(
+            User.full_name.ilike(f"%{search}%"),
+            User.email.ilike(f"%{search}%"),
+            User.phone.ilike(f"%{search}%")
+        ))
+    if skill:
+        query = query.filter(Player.skill_level == skill)
+        
+    return query.all()
+
+def restore_player_db(db: Session, player_id: int):
+    # player_id ở đây đại diện cho User ID theo quy chuẩn hiện tại
+    player = db.query(Player).join(User, Player.user_id == User.id).filter(User.id == player_id).first()
+    if not player:
+        return None
+    
+    player.deleted_at = None
+    
+    user = db.query(User).filter(User.id == player.user_id).first()
+    if user:
+        user.deleted_at = None
+        user.is_active = True # Mở khóa tài khoản
+        
+    db.commit()
+    return player
