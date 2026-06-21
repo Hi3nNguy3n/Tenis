@@ -33,6 +33,7 @@ def register_with_otp_flow(db: Session, tournament_id: int, category_id: int, pl
         Registration.tournament_id == tournament_id,
         Registration.tournament_category_id == category_id,
         Registration.deleted_at.is_(None),
+        Registration.status.notin_(["rejected", "cancelled"]),
         or_(
             Registration.player_id == player_id,
             Registration.partner_player_id == player_id
@@ -56,6 +57,7 @@ def register_with_otp_flow(db: Session, tournament_id: int, category_id: int, pl
             Registration.tournament_id == tournament_id,
             Registration.tournament_category_id == category_id,
             Registration.deleted_at.is_(None),
+            Registration.status.notin_(["rejected", "cancelled"]),
             or_(
                 Registration.player_id == partner_player_id,
                 Registration.partner_player_id == partner_player_id
@@ -173,7 +175,7 @@ def admin_cancel_registration(db: Session, registration_id: int):
     
     reg.status = "rejected"
     reg.payment_status = "refunded"
-    reg.deleted_at = datetime.utcnow()
+    # Bỏ dòng gán deleted_at để đơn bị từ chối vẫn nằm trên giao diện quản trị
     db.commit()
     return reg
 
