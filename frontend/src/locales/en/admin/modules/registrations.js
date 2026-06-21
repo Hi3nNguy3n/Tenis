@@ -30,4 +30,9 @@ export default {
   playerPresentTip: 'Player presence has been confirmed.',
   authError: 'Authentication Error',
   qrScanPrompt: 'Please scan the QR code to display the authentication result here.',
+  confirmCheckInPaid: 'Confirm Check-in for this player?',
+  confirmCheckInUnpaid: 'This player has not paid the entry fee. Confirm cash payment and Check-in onsite?',
+  checkInDirectTitle: 'Confirm Check-in',
+  payAndCheckInSuccess: 'Cash collected and Checked-in successfully!',
+  checkInBtnTooltip: 'Check-in / Pay onsite',
 }

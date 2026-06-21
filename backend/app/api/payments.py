@@ -90,6 +90,7 @@ def list_payments(
             "payment_method": payment.payment_method,
             "status": payment.status,
             "paid_at": payment.paid_at.isoformat() if payment.paid_at else None,
+            "notes": payment.notes,
             "payer_name": user.full_name if user else "Khách vãng lai",
             "tournament_name": tour.name if tour else "Phí dịch vụ 1vs1 (Giao hữu)"
         })

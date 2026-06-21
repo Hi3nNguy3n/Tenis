@@ -197,6 +197,7 @@ class Payment(Base):
     transaction_ref = Column(String(100), unique=True)
     status = Column(String(20), index=True, nullable=False)
     paid_at = Column(DateTime, index=True)
+    notes = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
