@@ -107,13 +107,13 @@ const confirmRegistration = async (id) => {
 }
 
 const cancelRegistration = (id) => {
-  ElMessageBox.confirm(t('admin.confirmCancelRegistration'), t('admin.action'), {
+  ElMessageBox.confirm(t('admin.cancelRegConfirm'), t('admin.action') || 'Xác nhận', {
     type: 'warning',
     confirmButtonText: t('admin.confirm'),
     cancelButtonText: t('admin.cancel'),
   }).then(async () => {
     try {
-      await apiClient.post(`/api/registrations/${id}/cancel`) 
+      await apiClient.delete(`/api/registrations/${id}`) 
       ElMessage.success(t('admin.cancelSuccess'))
       loadRegistrations()
     } catch (err) {
@@ -393,35 +393,36 @@ const formatTime = (val) => {
         <el-table-column label="THAO TÁC" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <div class="saas-row-actions-compact" style="display: flex; gap: 8px; justify-content: center; align-items: center;">
-              <!-- Nút Duyệt / Hủy cho đơn chờ xử lý -->
-              <template v-if="['pending', 'waiting', 'confirmed'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid' && !row.is_locked">
-                <el-button 
-                  type="success" 
-                  size="small"
-                  circle
-                  @click="confirmRegistration(row.id)" 
-                  class="compact-btn confirm"
-                  title="Xác nhận"
-                >
-                  <el-icon><Check /></el-icon>
-                </el-button>
-                
-                <el-button 
-                  type="danger" 
-                  size="small"
-                  circle
-                  plain 
-                  @click="cancelRegistration(row.id)" 
-                  class="compact-btn cancel"
-                  title="Hủy"
-                >
-                  <el-icon><Close /></el-icon>
-                </el-button>
-              </template>
+              <!-- Nút Duyệt (Xác nhận) -->
+              <el-button 
+                v-if="['pending', 'waiting', 'confirmed', 'rejected'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid' && !row.is_locked"
+                type="success" 
+                size="small"
+                circle
+                @click="confirmRegistration(row.id)" 
+                class="compact-btn confirm"
+                title="Xác nhận"
+              >
+                <el-icon><Check /></el-icon>
+              </el-button>
+              
+              <!-- Nút Hủy (Từ chối) -->
+              <el-button 
+                v-if="['pending', 'waiting', 'confirmed'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid' && !row.is_locked"
+                type="danger" 
+                size="small"
+                circle
+                plain 
+                @click="cancelRegistration(row.id)" 
+                class="compact-btn cancel"
+                title="Hủy"
+              >
+                <el-icon><Close /></el-icon>
+              </el-button>
 
               <!-- Nút Check-in trực tiếp -->
               <el-button 
-                v-if="!['checked_in', 'cancelled', 'rejected', 'expired'].includes((row.status || '').toLowerCase()) && !row.is_locked"
+                v-if="!['checked_in', 'cancelled', 'expired'].includes((row.status || '').toLowerCase()) && !row.is_locked"
                 type="primary" 
                 size="small"
                 circle
