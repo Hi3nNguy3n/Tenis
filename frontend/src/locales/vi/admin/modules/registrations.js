@@ -30,4 +30,9 @@ export default {
   playerPresentTip: 'Vận động viên đã được xác nhận có mặt.',
   authError: 'Lỗi xác thực',
   qrScanPrompt: 'Yêu cầu quét mã QR để hiển thị kết quả xác thực tại đây.',
+  confirmCheckInPaid: 'Xác nhận Check-in cho vận động viên này?',
+  confirmCheckInUnpaid: 'Vận động viên này chưa thanh toán lệ phí. Bạn có xác nhận đã thu tiền mặt và Check-in trực tiếp tại chỗ?',
+  checkInDirectTitle: 'Xác nhận Check-in',
+  payAndCheckInSuccess: 'Thu tiền mặt và Check-in thành công!',
+  checkInBtnTooltip: 'Check-in / Thu tiền mặt',
 }

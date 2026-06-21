@@ -1,7 +1,7 @@
 # backend/app/api/registrations.py
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 import logging
 
@@ -197,6 +197,7 @@ def admin_check_in(registration_id: int, db: Session = Depends(get_db)):
 @router.post("/{registration_id}/pay-and-check-in")
 def admin_pay_and_check_in(
     registration_id: int,
+    notes: Optional[str] = Query(None),
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
@@ -217,7 +218,8 @@ def admin_pay_and_check_in(
             payment_method="cash_onsite",
             status="completed",
             transaction_ref=f"CASH-ADM{current_admin.id}-{int(datetime.utcnow().timestamp())}",
-            paid_at=datetime.utcnow()
+            paid_at=datetime.utcnow(),
+            notes=notes
         )
         db.add(new_payment)
         
@@ -225,6 +227,8 @@ def admin_pay_and_check_in(
         reg.payment_status = "paid"
         reg.status = "checked_in"
         reg.notes = (reg.notes or "") + f" | Admin {current_admin.full_name} thu tiền mặt & Check-in lúc {datetime.utcnow()}"
+        if notes:
+            reg.notes += f" (Ghi chú: {notes})"
         
         db.commit()
         

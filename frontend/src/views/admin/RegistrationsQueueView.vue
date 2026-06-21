@@ -7,7 +7,7 @@ import {
   User, Trophy, Tickets, Timer, 
   CircleCheckFilled, CircleCloseFilled, Filter,
   Clock, DataAnalysis, Calendar as CalendarIcon,
-  Lock, Unlock
+  Lock, Unlock, Checked, MoreFilled
 } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 import { useRoute } from 'vue-router'
@@ -142,6 +142,47 @@ const unlockRegistration = async (id) => {
   }
 }
 
+const checkInRegistration = async (row) => {
+  const isPaid = (row.payment_status || '').toLowerCase() === 'paid'
+  
+  if (isPaid) {
+    ElMessageBox.confirm(t('admin.confirmCheckInPaid'), t('admin.checkInDirectTitle') || 'Xác nhận Check-in', {
+      type: 'success',
+      confirmButtonText: t('admin.confirm') || 'Đồng ý',
+      cancelButtonText: t('admin.cancel') || 'Hủy',
+    }).then(async () => {
+      try {
+        await apiClient.post(`/api/registrations/${row.id}/check-in`)
+        ElMessage.success(t('admin.checkInSuccess') || 'Check-in thành công!')
+        loadRegistrations()
+      } catch (err) {
+        ElMessage.error(t('admin.updateError') + ': ' + (err.response?.data?.detail || err.message))
+      }
+    })
+  } else {
+    ElMessageBox.prompt(
+      t('admin.confirmCheckInUnpaid'),
+      t('admin.checkInDirectTitle') || 'Xác nhận Check-in',
+      {
+        confirmButtonText: t('admin.confirm') || 'Đồng ý',
+        cancelButtonText: t('admin.cancel') || 'Hủy',
+        inputPlaceholder: 'Nhập ghi chú thanh toán (không bắt buộc)...',
+      }
+    ).then(async ({ value }) => {
+      try {
+        const notesParam = value ? value.trim() : ''
+        await apiClient.post(`/api/registrations/${row.id}/pay-and-check-in`, null, {
+          params: { notes: notesParam }
+        })
+        ElMessage.success(t('admin.payAndCheckInSuccess') || 'Thu tiền và Check-in thành công!')
+        loadRegistrations()
+      } catch (err) {
+        ElMessage.error(t('admin.updateError') + ': ' + (err.response?.data?.detail || err.message))
+      }
+    })
+  }
+}
+
 onMounted(async () => {
   await loadRegistrations()
   const queryId = route.query.tournamentId
@@ -195,8 +236,23 @@ const getStatusType = (status, row = {}) => {
 
 const parseDate = (val) => {
   if (!val) return null
-  const d = new Date(val)
+  
+  let dateStr = val
+  if (typeof val === 'string') {
+    // Nếu là chuỗi thời gian chưa kèm timezone, tự động append 'Z' (giờ UTC)
+    // giúp trình duyệt ở Việt Nam (UTC+7) hiển thị đúng giờ Việt Nam (cộng thêm 7 tiếng).
+    if (!val.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(val) && !/[+-]\d{4}$/.test(val)) {
+      if (val.includes('T')) {
+        dateStr = val + 'Z'
+      } else if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(val)) {
+        dateStr = val.replace(' ', 'T') + 'Z'
+      }
+    }
+  }
+  
+  const d = new Date(dateStr)
   if (!isNaN(d.getTime())) return d
+  
   if (typeof val === 'string' && val.includes('/')) {
     const p = val.split(/[\/\s:]/)
     if (p.length >= 3) {
@@ -334,7 +390,7 @@ const formatTime = (val) => {
           </template>
         </el-table-column>
 
-        <el-table-column label="THAO TÁC" width="160" fixed="right" align="center">
+        <el-table-column label="THAO TÁC" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <div class="saas-row-actions-compact" style="display: flex; gap: 8px; justify-content: center; align-items: center;">
               <!-- Nút Duyệt / Hủy cho đơn chờ xử lý -->
@@ -362,8 +418,22 @@ const formatTime = (val) => {
                   <el-icon><Close /></el-icon>
                 </el-button>
               </template>
+
+              <!-- Nút Check-in trực tiếp -->
+              <el-button 
+                v-if="!['checked_in', 'cancelled', 'rejected', 'expired'].includes((row.status || '').toLowerCase()) && !row.is_locked"
+                type="primary" 
+                size="small"
+                circle
+                @click="checkInRegistration(row)" 
+                class="compact-btn checkin"
+                :title="$t('admin.checkInBtnTooltip') || 'Check-in / Thu tiền'"
+              >
+                <el-icon><Checked /></el-icon>
+              </el-button>
+
               <span v-else-if="!row.is_locked" class="done-label compact" style="margin-right: 4px;">
-                <el-icon v-if="['confirmed', 'paid', 'checked_in'].includes((row.status || '').toLowerCase())" color="#059669"><CircleCheckFilled /></el-icon>
+                <el-icon v-if="['checked_in'].includes((row.status || '').toLowerCase())" color="#059669"><CircleCheckFilled /></el-icon>
                 <el-icon v-else color="#dc2626"><CircleCloseFilled /></el-icon>
               </span>
 
@@ -500,5 +570,51 @@ const formatTime = (val) => {
   .saas-stats-grid.compact { grid-template-columns: 1fr; }
   .saas-header { flex-direction: column; align-items: stretch; }
   .saas-search, .saas-filter { width: 100%; }
+}
+
+.more-actions-btn {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #64748b !important;
+  transition: all 0.2s ease;
+}
+.more-actions-btn:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+:deep(.saas-dropdown-menu) {
+  padding: 6px !important;
+  border-radius: 12px !important;
+  border: 1px solid #f1f5f9 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+}
+
+:deep(.el-dropdown-menu__item) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 16px !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+  border-radius: 8px !important;
+  margin: 2px 0 !important;
+  transition: all 0.15s ease !important;
+}
+
+:deep(.el-dropdown-menu__item:hover) {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+:deep(.el-dropdown-menu__item.danger-item) {
+  color: #ef4444 !important;
+}
+
+:deep(.el-dropdown-menu__item.danger-item:hover) {
+  background-color: #fef2f2 !important;
+  color: #dc2626 !important;
 }
 </style>
