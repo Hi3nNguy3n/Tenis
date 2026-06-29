@@ -62,6 +62,40 @@ def upload_avatar(
         logger.exception("Player avatar upload failed")
         raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
 
+def get_recent_match_result(db: Session, player_id: int) -> int:
+    # Tra ve: 1 neu thang, -1 neu thua, 0 neu khong co/chua completed
+    from app.models.models import Registration, Match
+    from sqlalchemy import or_, desc
+    
+    reg_ids = [r[0] for r in db.query(Registration.id).filter(Registration.player_id == player_id).all()]
+    
+    query = db.query(Match).filter(Match.status == "completed")
+    conditions = [
+        Match.player_a_id == player_id,
+        Match.player_b_id == player_id,
+        Match.player_a2_id == player_id,
+        Match.player_b2_id == player_id
+    ]
+    if reg_ids:
+        conditions.append(Match.side_a_registration_id.in_(reg_ids))
+        conditions.append(Match.side_b_registration_id.in_(reg_ids))
+        
+    recent_match = query.filter(or_(*conditions)).order_by(desc(Match.start_time), desc(Match.created_at)).first()
+    if not recent_match:
+        return 0
+        
+    is_side_a = False
+    if recent_match.tournament_id and (recent_match.side_a_registration_id or recent_match.side_b_registration_id):
+        is_side_a = recent_match.side_a_registration_id in reg_ids
+        if is_side_a:
+            return 1 if recent_match.winner_side == "side_a" or recent_match.winner_registration_id == recent_match.side_a_registration_id else -1
+        else:
+            return 1 if recent_match.winner_side == "side_b" or recent_match.winner_registration_id == recent_match.side_b_registration_id else -1
+    else:
+        is_side_a = (recent_match.player_a_id == player_id) or (recent_match.player_a2_id == player_id)
+        my_side = "side_a" if is_side_a else "side_b"
+        return 1 if recent_match.winner_side == my_side else -1
+
 @router.get("/list")
 def list_players(
     search: Optional[str] = Query(None),
@@ -73,10 +107,12 @@ def list_players(
     
     results = []
     for p, u in players_data:
+        recent_change = get_recent_match_result(db, p.id)
         results.append({
             "id": p.id,
             "user": u,
-            "player_profile": p
+            "player_profile": p,
+            "recent_elo_change": recent_change
         })
     return results
 
@@ -110,6 +146,7 @@ def get_global_rankings(
         if p.matches_played > 0:
             win_rate = round((p.wins / p.matches_played) * 100, 1)
 
+        recent_change = get_recent_match_result(db, p.id)
         results.append({
             "rank": rank,
             "player_id": u.id,
@@ -122,7 +159,8 @@ def get_global_rankings(
             "win_rate": win_rate,
             "skill_level": p.skill_level or "Unranked",
             "province": u.province,
-            "category": p.preferred_category
+            "category": p.preferred_category,
+            "recent_elo_change": recent_change
         })
     return results
 
@@ -497,10 +535,12 @@ def list_deleted_players(
     players_data = crud_player.get_deleted_players_list(db, search, skill)
     results = []
     for p, u in players_data:
+        recent_change = get_recent_match_result(db, p.id)
         results.append({
             "id": p.id,
             "user": u,
-            "player_profile": p
+            "player_profile": p,
+            "recent_elo_change": recent_change
         })
     return results
 

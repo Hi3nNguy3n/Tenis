@@ -154,39 +154,7 @@ const goToOTP = async () => {
 
   isSubmitting.value = true
   try {
-    // 1. Kiểm tra giới tính sớm (Frontend)
-    if (isDoubles.value && partners.value[0]?.gender) {
-      const partnerGender = partners.value[0].gender.toLowerCase()
-      const catType = selectedCategory.value?.category_type || ''
-      
-      let isMismatch = false
-      let expectedGender = ''
-      
-      if (catType === 'mens_doubles' && (partnerGender === 'female' || partnerGender === 'nữ')) {
-        isMismatch = true
-        expectedGender = 'Nam'
-      } else if (catType === 'womens_doubles' && (partnerGender === 'male' || partnerGender === 'nam')) {
-        isMismatch = true
-        expectedGender = 'Nữ'
-      }
-      
-      if (isMismatch) {
-        try {
-          await ElMessageBox.confirm(
-            `Người đồng đội bạn chọn có giới tính khác với nội dung thi đấu (${expectedGender}). Bạn có chắc chắn muốn tiếp tục không?`,
-            'Cảnh báo giới tính',
-            {
-              confirmButtonText: 'Tiếp tục',
-              cancelButtonText: 'Chọn lại',
-              type: 'warning'
-            }
-          )
-        } catch (e) {
-          isSubmitting.value = false
-          return // User cancelled
-        }
-      }
-    }
+
 
     // 2. Gọi API kiểm tra sớm điều kiện đăng ký
     const partnerId = isDoubles.value && partners.value[0]?.player_id ? partners.value[0].player_id : null

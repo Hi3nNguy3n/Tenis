@@ -206,24 +206,7 @@ def validate_registration_early(
     if not category:
         raise HTTPException(status_code=404, detail="Không tìm thấy nội dung thi đấu.")
     
-    # Normalize gender
-    def normalize_gender(g):
-        if not g: return "unknown"
-        g = g.lower()
-        if g in ["nam", "male"]: return "male"
-        if g in ["nữ", "female"]: return "female"
-        return g
-
     cat_type = category.category_type.lower()
-    user_gender = normalize_gender(current_user.gender)
-
-    # Validation cho Đơn
-    if cat_type == "mens_singles":
-        if user_gender != "male":
-            raise HTTPException(status_code=400, detail="Nội dung này chỉ dành cho Nam.")
-    elif cat_type == "womens_singles":
-        if user_gender != "female":
-            raise HTTPException(status_code=400, detail="Nội dung này chỉ dành cho Nữ.")
 
     if payload.partner_player_id:
         if payload.partner_player_id == player_id:
@@ -242,21 +225,6 @@ def validate_registration_early(
         if existing_partner:
             raise HTTPException(status_code=400, detail=f"Đồng đội {payload.partner_name or ''} đã đăng ký tham gia nội dung này rồi.")
             
-        # Kiểm tra giới tính đồng đội
-        partner_user = db.query(User).join(Player).filter(Player.id == payload.partner_player_id).first()
-        partner_gender = normalize_gender(partner_user.gender) if partner_user else "unknown"
-        
-        if cat_type == "mens_doubles":
-            if user_gender != "male" or partner_gender != "male":
-                raise HTTPException(status_code=400, detail="Nội dung Đôi Nam yêu cầu cả 2 thành viên đều là Nam.")
-        elif cat_type == "womens_doubles":
-            if user_gender != "female" or partner_gender != "female":
-                raise HTTPException(status_code=400, detail="Nội dung Đôi Nữ yêu cầu cả 2 thành viên đều là Nữ.")
-        elif cat_type == "mixed_doubles":
-            is_valid_mixed = (user_gender == "male" and partner_gender == "female") or \
-                             (user_gender == "female" and partner_gender == "male")
-            if not is_valid_mixed:
-                raise HTTPException(status_code=400, detail="Nội dung Đôi Nam Nữ yêu cầu 1 thành viên Nam và 1 thành viên Nữ.")
     elif "doubles" in cat_type:
         raise HTTPException(status_code=400, detail="Nội dung đánh đôi yêu cầu chọn đồng đội đã liên kết tài khoản.")
             

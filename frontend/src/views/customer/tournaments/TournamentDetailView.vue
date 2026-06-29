@@ -449,44 +449,52 @@ const goToRegister = () => {
   router.push({ name: 'tournament-register', params: { id: tournamentId.value } })
 }
 
-const formatDate = (val) => {
-  if (!val) return t('tournaments.notUpdated')
-  const d = new Date(val)
-  if (!isNaN(d.getTime())) {
-    return d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    })
+const parseDate = (val) => {
+  if (!val) return null
+  
+  let dateStr = val
+  if (typeof val === 'string') {
+    // Tự động append 'Z' nếu thiếu múi giờ để hiển thị đúng giờ Việt Nam (UTC+7)
+    if (!val.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(val) && !/[+-]\d{4}$/.test(val)) {
+      if (val.includes('T')) {
+        dateStr = val + 'Z'
+      } else if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(val)) {
+        dateStr = val.replace(' ', 'T') + 'Z'
+      }
+    }
   }
-  // Thử parse thủ công nếu là định dạng dd/mm/yyyy
+  
+  const d = new Date(dateStr)
+  if (!isNaN(d.getTime())) return d
+  
   if (typeof val === 'string' && val.includes('/')) {
     const p = val.split(/[\/\s:]/)
     if (p.length >= 3) {
       const d2 = new Date(p[2], p[1]-1, p[0])
-      if (!isNaN(d2.getTime())) {
-        return d2.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        })
-      }
+      if (!isNaN(d2.getTime())) return d2
     }
   }
-  return t('tournaments.notUpdated')
+  return null
+}
+
+const formatDate = (val) => {
+  const d = parseDate(val)
+  return d ? d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }) : t('tournaments.notUpdated')
 }
 
 const formatDateTime = (val) => {
-  if (!val) return '---'
-  const d = new Date(val)
-  if (isNaN(d.getTime())) return formatDate(val)
-  return d.toLocaleString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
+  const d = parseDate(val)
+  return d ? d.toLocaleString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
-  })
+  }) : '---'
 }
 
 const selectedCategory = computed(() => {
@@ -669,12 +677,25 @@ const parseSets = (scoreSummary) => {
         <div class="hero-glow glow-2" v-if="!tournament.banner_url"></div>
         
         <div class="container hero-inner">
-          <div class="hero-meta-top">
-            <span class="neo-badge" :class="tournament.status">
-              <span class="badge-dot"></span>
-              {{ tournament.status.toUpperCase() }}
-            </span>
-            <span class="tour-type">{{ selectedCategoryName }}</span>
+          <div class="hero-meta-top" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="neo-badge" :class="tournament.status">
+                <span class="badge-dot"></span>
+                {{ tournament.status.toUpperCase() }}
+              </span>
+              <span class="tour-type">{{ selectedCategoryName }}</span>
+            </div>
+            <div v-if="isRegistrationOpen" class="desktop-register-btn-wrap">
+              <button 
+                class="neo-btn-primary desktop-reg-btn" 
+                @click="goToRegister" 
+                :disabled="isTournamentFull"
+                :class="{ 'is-disabled': isTournamentFull }"
+              >
+                <span v-if="isTournamentFull">{{ t('tournaments.fullyBooked') }}</span>
+                <span v-else>{{ t('tournaments.registerNow') }} <el-icon><ArrowRight /></el-icon></span>
+              </button>
+            </div>
           </div>
           
           <h1 class="hero-title">{{ tournament.name }}</h1>
@@ -1302,7 +1323,7 @@ const parseSets = (scoreSummary) => {
                               <th class="col-rank">#</th>
                               <th>{{ t('tournaments.athlete') }}</th>
                               <th class="text-center">W-L</th>
-                              <th class="text-center">+/-</th>
+                              <th class="text-center">{{ currentLocale === 'vi' ? 'Hiệu số' : '+/-' }}</th>
                               <th class="text-center">PTS</th>
                             </tr>
                           </thead>
@@ -1378,8 +1399,8 @@ const parseSets = (scoreSummary) => {
                           <tr>
                             <th width="60" class="text-center">#</th>
                             <th>{{ t('tournaments.athlete') }}</th>
-                            <th>{{ t('tournaments.category') }}</th>
-                            <th class="text-right">{{ t('tournaments.registrationTime') || 'Thời gian đăng ký' }}</th>
+                            <th>{{ currentLocale === 'vi' ? 'Trạng thái thanh toán' : 'Payment Status' }}</th>
+                            <th>{{ t('tournaments.registrationTime') || 'Thời gian đăng ký' }}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1409,9 +1430,11 @@ const parseSets = (scoreSummary) => {
                               </div>
                             </td>
                             <td>
-                              <span class="category-text">{{ reg.category_name || (reg.registrant_type === 'team' ? 'Đôi' : 'Đơn') }}</span>
+                              <el-tag :type="reg.payment_status === 'paid' ? 'success' : 'warning'" size="small" effect="light" style="font-weight: 700;">
+                                {{ reg.payment_status === 'paid' ? (currentLocale === 'vi' ? 'Đã thanh toán' : 'Paid') : (currentLocale === 'vi' ? 'Chưa thanh toán' : 'Unpaid') }}
+                              </el-tag>
                             </td>
-                            <td class="text-right time-cell">
+                            <td class="time-cell">
                               {{ formatDateTime(reg.registered_at) }}
                             </td>
                           </tr>
@@ -1764,7 +1787,7 @@ const parseSets = (scoreSummary) => {
 .hd-divider { width: 1px; height: 30px; background: rgba(255,255,255,0.2); }
 .main-overlap { position: relative; z-index: 10; margin-top: -4rem; }
 .detail-wide-shell { width: min(100% - 48px, 1680px); max-width: none; }
-.neo-grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(280px, 1fr); gap: 2rem; align-items: start; }
+.neo-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; align-items: start; }
 .neo-col-main { min-width: 0; width: 100%; }
 .neo-tabs-container { background: var(--bg-surface); border-radius: 24px; padding: 2rem; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); min-height: 620px; overflow: hidden; }
 :deep(.neo-tabs .el-tabs__nav-wrap::after) { display: none; }
@@ -2221,7 +2244,7 @@ const parseSets = (scoreSummary) => {
 .diff-cell span.pos { color: #16a34a; }
 .diff-cell span.neg { color: #dc2626; }
 .pts-cell { color: var(--accent); font-size: 1.05rem; }
-.neo-col-sidebar { position: relative; }
+.neo-col-sidebar { display: none; }
 .sticky { position: sticky; top: 24px; }
 .neo-action-card { background: var(--bg-surface); border-radius: var(--radius-xl); padding: 2rem; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.1); border: 1px solid var(--border-light); }
 .ac-header { margin-bottom: 2rem; }
@@ -2783,5 +2806,28 @@ const parseSets = (scoreSummary) => {
   z-index: 100 !important;
   transform: scale(1.02);
   transition: transform 0.3s ease;
+}
+.desktop-register-btn-wrap {
+  display: block;
+}
+.desktop-reg-btn {
+  width: auto !important;
+  padding: 10px 24px !important;
+  font-size: 0.85rem !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--accent) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2) !important;
+}
+.desktop-reg-btn:hover:not(.is-disabled) {
+  background: #1d4ed8 !important;
+}
+@media (max-width: 768px) {
+  .desktop-register-btn-wrap {
+    display: none;
+  }
+}
+.pg-table th.text-center {
+  text-align: center !important;
 }
 </style>

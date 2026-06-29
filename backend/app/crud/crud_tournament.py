@@ -1112,6 +1112,39 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
         "matches_created": match_no - 1
     }
 
+def parse_score_string(score_str: str):
+    # Tra ve tuple (sets_a, sets_b, games_a, games_b)
+    if not score_str:
+        return 0, 0, 0, 0
+    score_str = score_str.strip()
+    if not score_str:
+        return 0, 0, 0, 0
+    sets_a = 0
+    sets_b = 0
+    games_a = 0
+    games_b = 0
+    set_tokens = score_str.split()
+    for token in set_tokens:
+        if "-" not in token:
+            continue
+        try:
+            parts = token.split("-")
+            if len(parts) != 2:
+                continue
+            str_a = parts[0].split("(")[0].strip()
+            str_b = parts[1].split("(")[0].strip()
+            val_a = int(str_a)
+            val_b = int(str_b)
+            games_a += val_a
+            games_b += val_b
+            if val_a > val_b:
+                sets_a += 1
+            elif val_b > val_a:
+                sets_b += 1
+        except Exception:
+            continue
+    return sets_a, sets_b, games_a, games_b
+
 def calculate_tournament_standings(db: Session, tournament_id: int, category_id: Optional[int] = None):
     """Hàm lõi tính �iỒm (Dùng cho cả Vòng tròn và Xếp hạng t�"ng thỒ)"""
     # 1. Thử lấy các trận vòng bảng trư�:c
@@ -1220,6 +1253,11 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
         elif safe_int(match.set2_b) > safe_int(match.set2_a): p2_sets += 1
         if safe_int(match.set3_a) > safe_int(match.set3_b): p1_sets += 1
         elif safe_int(match.set3_b) > safe_int(match.set3_a): p2_sets += 1
+
+        # Neu khong co diem set/game nao o database phi chuan (bi NULL), tu dong parse tu chuoi ty so
+        if p1_games == 0 and p2_games == 0 and p1_sets == 0 and p2_sets == 0:
+            score_str = match.score_summary or match.result_note
+            p1_sets, p2_sets, p1_games, p2_games = parse_score_string(score_str)
 
         is_p1_winner = match.winner_registration_id == p1_id
         standings[group][p1_id]["played"] += 1
