@@ -362,7 +362,11 @@ onMounted(async () => {
               <div class="rank-ring"><span>#{{ i + 1 }}</span></div>
             </div>
             <h4 class="featured-name">{{ p.full_name }}</h4>
-            <p class="featured-pts">{{ p.elo_points }} Điểm</p>
+            <p class="featured-pts" style="display: inline-flex; align-items: center; gap: 4px; justify-content: center;">
+              {{ p.elo_points }} Điểm
+              <span v-if="p.recent_elo_change === 1" style="color: #22c55e; font-size: 0.8rem; font-weight: bold;">▲</span>
+              <span v-if="p.recent_elo_change === -1" style="color: #ef4444; font-size: 0.8rem; font-weight: bold;">▼</span>
+            </p>
           </RouterLink>
         </div>
       </section>
@@ -392,7 +396,11 @@ onMounted(async () => {
                   <div class="talent-metrics">
                     <div class="metric">
                       <span class="m-label">ELO</span>
-                      <span class="m-value highlighted-val">{{ p.elo_points }}</span>
+                      <span class="m-value highlighted-val" style="display: inline-flex; align-items: center; gap: 4px; justify-content: center;">
+                        {{ p.elo_points }}
+                        <span v-if="p.recent_elo_change === 1" style="color: #22c55e; font-size: 0.8rem; font-weight: bold; display: inline-flex; align-items: center;">▲</span>
+                        <span v-if="p.recent_elo_change === -1" style="color: #ef4444; font-size: 0.8rem; font-weight: bold; display: inline-flex; align-items: center;">▼</span>
+                      </span>
                     </div>
                     <div class="metric-divider"></div>
                     <div class="metric">

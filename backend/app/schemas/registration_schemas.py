@@ -68,3 +68,7 @@ class RegistrationResponse(RegistrationBase):
     
     class Config:
         from_attributes = True
+
+class AdminChangeCategoryRequest(BaseModel):
+    category_id: int
+    partner_player_id: Optional[int] = None

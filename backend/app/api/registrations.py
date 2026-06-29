@@ -176,6 +176,27 @@ def admin_cancel_registration(registration_id: int, db: Session = Depends(get_db
         raise HTTPException(status_code=404, detail="Không tìm thấy đơn.")
     return {"message": "Đã hủy đơn và cập nhật trạng thái hoàn tiền."}
 
+@router.delete("/{registration_id}/delete", dependencies=[Depends(get_current_admin)])
+def admin_delete_registration(registration_id: int, db: Session = Depends(get_db)):
+    reg = crud_registration.admin_delete_registration(db, registration_id)
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn.")
+    return {"message": "Đã xóa đăng ký khỏi danh sách thành công."}
+
+@router.put("/{registration_id}/change-category", dependencies=[Depends(get_current_admin)])
+def admin_change_registration_category(
+    registration_id: int,
+    payload: registration_schemas.AdminChangeCategoryRequest,
+    db: Session = Depends(get_db)
+):
+    reg = crud_registration.admin_change_registration_category(
+        db=db,
+        registration_id=registration_id,
+        category_id=payload.category_id,
+        partner_player_id=payload.partner_player_id
+    )
+    return {"message": "Đã thay đổi nội dung thi đấu thành công.", "registration_id": reg.id}
+
 # 7. ADMIN QUÉT QR CHECK-IN
 @router.post("/{registration_id}/check-in", dependencies=[Depends(get_current_admin)])
 def admin_check_in(registration_id: int, db: Session = Depends(get_db)):

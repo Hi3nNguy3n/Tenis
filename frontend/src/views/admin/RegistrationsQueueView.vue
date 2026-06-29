@@ -7,7 +7,8 @@ import {
   User, Trophy, Tickets, Timer, 
   CircleCheckFilled, CircleCloseFilled, Filter,
   Clock, DataAnalysis, Calendar as CalendarIcon,
-  Lock, Unlock, Checked, MoreFilled
+  Lock, Unlock, Checked, MoreFilled,
+  Delete, Edit, Loading
 } from '@element-plus/icons-vue'
 import { t } from '../../utils/locale'
 import { useRoute } from 'vue-router'
@@ -68,11 +69,12 @@ const handlePageChange = (val) => {
 }
 
 const statusOptions = [
-  { label: 'CHỜ XỬ LÝ', value: 'pending' },
-  { label: 'ĐÃ XÁC NHẬN', value: 'confirmed' },
+  { label: 'TẤT CẢ TRẠNG THÁI', value: '' },
+  { label: 'CHỜ DUYỆT', value: 'pending' },
+  { label: 'CHƯA THANH TOÁN', value: 'unpaid' },
   { label: 'ĐÃ THANH TOÁN', value: 'paid' },
-  { label: 'ĐÃ HỦY', value: 'cancelled' },
-  { label: 'TỪ CHỐI', value: 'rejected' }
+  { label: 'ĐÃ CHECK-IN', value: 'checked_in' },
+  { label: 'ĐÃ HỦY / TỪ CHỐI', value: 'cancelled_rejected' }
 ]
 
 const translateStatus = (status, row = {}) => {
@@ -210,7 +212,25 @@ const filteredRows = computed(() => {
     )
   }
   if (statusFilter.value) {
-    result = result.filter(r => r.status?.toLowerCase() === statusFilter.value.toLowerCase())
+    const filter = statusFilter.value.toLowerCase()
+    if (filter === 'pending') {
+      result = result.filter(r => r.status?.toLowerCase() === 'pending')
+    } else if (filter === 'unpaid') {
+      // Chưa thanh toán: status không phải cancelled/rejected/expired và payment_status !== 'paid'
+      result = result.filter(r => 
+        !['cancelled', 'rejected', 'expired'].includes(r.status?.toLowerCase()) && 
+        (r.payment_status || '').toLowerCase() !== 'paid'
+      )
+    } else if (filter === 'paid') {
+      // Đã thanh toán: payment_status === 'paid' hoặc status === 'paid' (trừ khi checked_in)
+      result = result.filter(r => (r.payment_status || '').toLowerCase() === 'paid' || r.status?.toLowerCase() === 'paid')
+    } else if (filter === 'checked_in') {
+      result = result.filter(r => r.status?.toLowerCase() === 'checked_in')
+    } else if (filter === 'cancelled_rejected') {
+      result = result.filter(r => ['cancelled', 'rejected', 'expired'].includes(r.status?.toLowerCase()))
+    } else {
+      result = result.filter(r => r.status?.toLowerCase() === filter)
+    }
   }
   return result
 })
@@ -271,6 +291,125 @@ const formatDate = (val) => {
 const formatTime = (val) => {
   const d = parseDate(val)
   return d ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'
+}
+// Delete registration
+const deleteRegistration = (id) => {
+  ElMessageBox.confirm('Bạn có chắc chắn muốn xóa đăng ký này khỏi danh sách? Hành động này sẽ không thể khôi phục.', 'Xác nhận xóa', {
+    type: 'warning',
+    confirmButtonText: 'Xóa',
+    cancelButtonText: 'Hủy',
+  }).then(async () => {
+    try {
+      await apiClient.delete(`/api/registrations/${id}/delete`)
+      ElMessage.success('Xóa đăng ký khỏi danh sách thành công!')
+      loadRegistrations()
+    } catch (err) {
+      ElMessage.error('Lỗi khi xóa đăng ký: ' + (err.response?.data?.detail || err.message))
+    }
+  })
+}
+
+// Edit category logic
+const editDialogVisible = ref(false)
+const isSavingEdit = ref(false)
+const currentEditRow = ref(null)
+const tournamentCategories = ref([])
+const editForm = ref({
+  category_id: null,
+  partner_player_id: null,
+  partner_name: ''
+})
+const selectedPartner = ref(null)
+const partnerSearchLoading = ref(false)
+
+const editIsDoubles = computed(() => {
+  if (!editForm.value.category_id || !tournamentCategories.value.length) return false
+  const cat = tournamentCategories.value.find(c => c.id === editForm.value.category_id)
+  return cat?.category_type?.toLowerCase()?.includes('doubles') || false
+})
+
+const openEditDialog = async (row) => {
+  currentEditRow.value = row
+  editDialogVisible.value = true
+  tournamentCategories.value = []
+  
+  editForm.value = {
+    category_id: row.category_id,
+    partner_player_id: row.partner_player_id || null,
+    partner_name: row.partner_name || ''
+  }
+  selectedPartner.value = row.partner_name ? { player_id: row.partner_player_id, full_name: row.partner_name } : null
+  
+  try {
+    const res = await apiClient.get(`/api/tournaments/${row.tournament_id}`)
+    tournamentCategories.value = res.categories || []
+  } catch (err) {
+    ElMessage.error('Không thể tải danh sách nội dung thi đấu: ' + err.message)
+    editDialogVisible.value = false
+  }
+}
+
+const querySearchPartner = async (queryString, cb) => {
+  if (!queryString || queryString.length < 2) return cb([])
+  partnerSearchLoading.value = true
+  try {
+    const res = await apiClient.get(`/api/players/search?keyword=${queryString}`)
+    const filtered = res.filter(p => p.player_id !== currentEditRow.value.player_id)
+    const results = filtered.map(p => ({
+      value: p.full_name,
+      player_id: p.player_id,
+      full_name: p.full_name,
+      phone: p.phone,
+      avatar_url: p.avatar_url,
+      level: p.level,
+      gender: p.gender
+    }))
+    cb(results)
+  } catch (err) {
+    console.error(err)
+    cb([])
+  } finally {
+    partnerSearchLoading.value = false
+  }
+}
+
+const handleSelectPartner = (item) => {
+  editForm.value.partner_player_id = item.player_id
+  editForm.value.partner_name = item.full_name
+  selectedPartner.value = item
+}
+
+const handlePartnerNameInput = () => {
+  if (editForm.value.partner_player_id) {
+    editForm.value.partner_player_id = null
+    selectedPartner.value = null
+  }
+}
+
+const submitEditCategory = async () => {
+  if (!editForm.value.category_id) {
+    return ElMessage.warning('Vui lòng chọn nội dung thi đấu.')
+  }
+  
+  if (editIsDoubles.value && !editForm.value.partner_player_id) {
+    return ElMessage.warning('Vui lòng chọn đồng đội cho nội dung đánh đôi.')
+  }
+  
+  isSavingEdit.value = true
+  try {
+    const payload = {
+      category_id: editForm.value.category_id,
+      partner_player_id: editIsDoubles.value ? editForm.value.partner_player_id : null
+    }
+    await apiClient.put(`/api/registrations/${currentEditRow.value.id}/change-category`, payload)
+    ElMessage.success('Đã cập nhật nội dung thi đấu thành công!')
+    editDialogVisible.value = false
+    loadRegistrations()
+  } catch (err) {
+    ElMessage.error('Lỗi khi cập nhật nội dung thi đấu: ' + (err.response?.data?.detail || err.message))
+  } finally {
+    isSavingEdit.value = false
+  }
 }
 </script>
 
@@ -390,81 +529,80 @@ const formatTime = (val) => {
           </template>
         </el-table-column>
 
-        <el-table-column label="THAO TÁC" width="220" fixed="right" align="center">
+        <el-table-column label="THAO TÁC" width="100" fixed="right" align="center">
           <template #default="{ row }">
-            <div class="saas-row-actions-compact" style="display: flex; gap: 8px; justify-content: center; align-items: center;">
-              <!-- Nút Duyệt (Xác nhận) -->
-              <el-button 
-                v-if="['pending', 'waiting', 'confirmed', 'rejected'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid' && !row.is_locked"
-                type="success" 
-                size="small"
-                circle
-                @click="confirmRegistration(row.id)" 
-                class="compact-btn confirm"
-                title="Xác nhận"
-              >
-                <el-icon><Check /></el-icon>
+            <el-dropdown trigger="click">
+              <el-button size="small" circle class="more-actions-btn">
+                <el-icon><MoreFilled /></el-icon>
               </el-button>
-              
-              <!-- Nút Hủy (Từ chối) -->
-              <el-button 
-                v-if="['pending', 'waiting', 'confirmed'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid' && !row.is_locked"
-                type="danger" 
-                size="small"
-                circle
-                plain 
-                @click="cancelRegistration(row.id)" 
-                class="compact-btn cancel"
-                title="Hủy"
-              >
-                <el-icon><Close /></el-icon>
-              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu class="saas-dropdown-menu">
+                  <!-- Duyệt (Xác nhận) -->
+                  <el-dropdown-item 
+                    v-if="['pending', 'waiting', 'confirmed', 'rejected'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid' && !row.is_locked"
+                    @click="confirmRegistration(row.id)"
+                  >
+                    <el-icon color="#10b981"><Check /></el-icon>
+                    <span>Duyệt đăng ký</span>
+                  </el-dropdown-item>
+                  
+                  <!-- Hủy (Từ chối) -->
+                  <el-dropdown-item 
+                    v-if="['pending', 'waiting', 'confirmed'].includes((row.status || '').toLowerCase()) && (row.payment_status || '').toLowerCase() !== 'paid' && !row.is_locked"
+                    @click="cancelRegistration(row.id)"
+                  >
+                    <el-icon color="#ef4444"><Close /></el-icon>
+                    <span>Từ chối / Hủy</span>
+                  </el-dropdown-item>
 
-              <!-- Nút Check-in trực tiếp -->
-              <el-button 
-                v-if="!['checked_in', 'cancelled', 'expired'].includes((row.status || '').toLowerCase()) && !row.is_locked"
-                type="primary" 
-                size="small"
-                circle
-                @click="checkInRegistration(row)" 
-                class="compact-btn checkin"
-                :title="$t('admin.checkInBtnTooltip') || 'Check-in / Thu tiền'"
-              >
-                <el-icon><Checked /></el-icon>
-              </el-button>
+                  <!-- Check-in trực tiếp -->
+                  <el-dropdown-item 
+                    v-if="!['checked_in', 'cancelled', 'expired'].includes((row.status || '').toLowerCase()) && !row.is_locked"
+                    @click="checkInRegistration(row)"
+                  >
+                    <el-icon color="#3b82f6"><Checked /></el-icon>
+                    <span>Check-in / Thu tiền</span>
+                  </el-dropdown-item>
 
-              <span v-else-if="!row.is_locked" class="done-label compact" style="margin-right: 4px;">
-                <el-icon v-if="['checked_in'].includes((row.status || '').toLowerCase())" color="#059669"><CircleCheckFilled /></el-icon>
-                <el-icon v-else color="#dc2626"><CircleCloseFilled /></el-icon>
-              </span>
+                  <!-- Chỉnh sửa nội dung -->
+                  <el-dropdown-item 
+                    v-if="!row.is_locked"
+                    @click="openEditDialog(row)"
+                  >
+                    <el-icon color="#3b82f6"><Edit /></el-icon>
+                    <span>Đổi nội dung thi đấu</span>
+                  </el-dropdown-item>
 
-              <!-- Nút Khóa / Mở khóa -->
-              <template v-if="!['cancelled', 'rejected', 'expired'].includes((row.status || '').toLowerCase())">
-                <el-button
-                  v-if="!row.is_locked"
-                  type="warning"
-                  size="small"
-                  circle
-                  plain
-                  @click="lockRegistration(row.id)"
-                  class="compact-btn lock"
-                  title="Khóa VĐV"
-                >
-                  <el-icon><Lock /></el-icon>
-                </el-button>
-                <el-button
-                  v-else
-                  type="info"
-                  size="small"
-                  circle
-                  @click="unlockRegistration(row.id)"
-                  class="compact-btn unlock"
-                  title="Mở khóa VĐV"
-                >
-                  <el-icon><Unlock /></el-icon>
-                </el-button>
+                  <!-- Khóa / Mở khóa -->
+                  <template v-if="!['cancelled', 'rejected', 'expired'].includes((row.status || '').toLowerCase())">
+                    <el-dropdown-item
+                      v-if="!row.is_locked"
+                      @click="lockRegistration(row.id)"
+                    >
+                      <el-icon color="#f59e0b"><Lock /></el-icon>
+                      <span>Khóa VĐV</span>
+                    </el-dropdown-item>
+                    <el-dropdown-item
+                      v-else
+                      @click="unlockRegistration(row.id)"
+                    >
+                      <el-icon color="#6b7280"><Unlock /></el-icon>
+                      <span>Mở khóa VĐV</span>
+                    </el-dropdown-item>
+                  </template>
+
+                  <!-- Xóa đăng ký -->
+                  <el-dropdown-item 
+                    divided
+                    class="danger-item"
+                    @click="deleteRegistration(row.id)"
+                  >
+                    <el-icon color="#ef4444"><Delete /></el-icon>
+                    <span>Xóa khỏi danh sách</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
               </template>
-            </div>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -479,6 +617,68 @@ const formatTime = (val) => {
         />
       </div>
     </div>
+
+    <!-- Dialog chỉnh sửa nội dung thi đấu -->
+    <el-dialog
+      v-model="editDialogVisible"
+      title="Chỉnh sửa nội dung thi đấu"
+      width="500px"
+      destroy-on-close
+      append-to-body
+    >
+      <el-form label-position="top">
+        <el-form-item label="Nội dung thi đấu" required>
+          <el-select v-model="editForm.category_id" style="width: 100%" placeholder="Chọn nội dung">
+            <el-option
+              v-for="cat in tournamentCategories"
+              :key="cat.id"
+              :label="cat.name"
+              :value="cat.id"
+            />
+          </el-select>
+        </el-form-item>
+
+        <!-- Nếu là đánh đôi, hiện chọn đồng đội -->
+        <el-form-item v-if="editIsDoubles" label="Đồng đội" required>
+          <div v-if="selectedPartner" class="partner-selected-box">
+            <el-avatar :size="32" :src="selectedPartner.avatar_url || '/default-avatar.png'" style="margin-right: 8px;" />
+            <div class="partner-info">
+              <div class="partner-name">{{ selectedPartner.full_name }}</div>
+              <div class="partner-meta">SĐT: {{ selectedPartner.phone || 'N/A' }} | Trình độ: {{ selectedPartner.level || 'N/A' }}</div>
+            </div>
+            <el-button type="danger" size="small" circle icon="Close" @click="handlePartnerNameInput" />
+          </div>
+          <el-autocomplete
+            v-else
+            v-model="editForm.partner_name"
+            :fetch-suggestions="querySearchPartner"
+            placeholder="Nhập tên hoặc SĐT tìm đồng đội..."
+            @select="handleSelectPartner"
+            style="width: 100%"
+          >
+            <template #suffix>
+              <el-icon v-if="partnerSearchLoading"><Loading /></el-icon>
+              <el-icon v-else><Search /></el-icon>
+            </template>
+            <template #default="{ item }">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <el-avatar :size="24" :src="item.avatar_url || '/default-avatar.png'" />
+                <div>
+                  <div style="font-weight: bold; font-size: 0.85rem;">{{ item.full_name }}</div>
+                  <div style="font-size: 0.75rem; color: #64748b;">{{ item.phone }} ({{ item.level || 'N/A' }} pts)</div>
+                </div>
+              </div>
+            </template>
+          </el-autocomplete>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="editDialogVisible = false">Hủy</el-button>
+          <el-button type="primary" :loading="isSavingEdit" @click="submitEditCategory">Lưu thay đổi</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -617,5 +817,30 @@ const formatTime = (val) => {
 :deep(.el-dropdown-menu__item.danger-item:hover) {
   background-color: #fef2f2 !important;
   color: #dc2626 !important;
+}
+.partner-selected-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  width: 100%;
+}
+.partner-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.partner-name {
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+.partner-meta {
+  font-size: 0.75rem;
+  color: #64748b;
 }
 </style>

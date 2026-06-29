@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from fastapi import HTTPException
 from datetime import datetime, timedelta
+from typing import Optional
 
 from app.models.models import Tournament, Player, Registration, User, Payment, TournamentCategory
 from app.schemas.registration_schemas import RegistrationCreate
@@ -67,44 +68,17 @@ def register_with_otp_flow(db: Session, tournament_id: int, category_id: int, pl
         if existing_partner:
             raise HTTPException(status_code=400, detail=f"Đồng đội {partner_name} đã đăng ký tham gia nội dung này rồi.")
 
-    # 3. Kiểm tra Giới tính (Gender Validation)
+    # 3. Validate category and partner requirements
     category = db.query(TournamentCategory).filter(TournamentCategory.id == category_id).first()
     if not category:
         raise HTTPException(status_code=404, detail="Không tìm thấy nội dung thi đấu.")
     
-    # Lấy thông tin user của người đăng ký chính
-    user = db.query(User).join(Player).filter(Player.id == player_id).first()
-    user_gender = user.gender.lower() if user and user.gender else "unknown"
-    
     cat_type = category.category_type.lower()
     
-    # Validation cho Đơn
-    if cat_type == "mens_singles":
-        if user_gender != "male":
-            raise HTTPException(status_code=400, detail="Nội dung này chỉ dành cho Nam.")
-    elif cat_type == "womens_singles":
-        if user_gender != "female":
-            raise HTTPException(status_code=400, detail="Nội dung này chỉ dành cho Nữ.")
-            
-    # Validation cho Đôi
-    elif "doubles" in cat_type:
+    # Validation for doubles
+    if "doubles" in cat_type:
         if not partner_player_id:
              raise HTTPException(status_code=400, detail="Đăng ký đánh đôi yêu cầu thông tin đồng đội (đã liên kết tài khoản).")
-        
-        partner_user = db.query(User).join(Player).filter(Player.id == partner_player_id).first()
-        partner_gender = partner_user.gender.lower() if partner_user and partner_user.gender else "unknown"
-        
-        if cat_type == "mens_doubles":
-            if user_gender != "male" or partner_gender != "male":
-                raise HTTPException(status_code=400, detail="Nội dung Đôi Nam yêu cầu cả 2 thành viên đều là Nam.")
-        elif cat_type == "womens_doubles":
-            if user_gender != "female" or partner_gender != "female":
-                raise HTTPException(status_code=400, detail="Nội dung Đôi Nữ yêu cầu cả 2 thành viên đều là Nữ.")
-        elif cat_type == "mixed_doubles":
-            is_valid_mixed = (user_gender == "male" and partner_gender == "female") or \
-                             (user_gender == "female" and partner_gender == "male")
-            if not is_valid_mixed:
-                raise HTTPException(status_code=400, detail="Nội dung Đôi Nam Nữ yêu cầu 1 thành viên Nam và 1 thành viên Nữ.")
 
     # 4. Xác định registrant_type (đơn/đôi)
     registrant_type = "single" if "singles" in cat_type else "team"
@@ -232,6 +206,67 @@ def unlock_registration(db: Session, registration_id: int):
     if not reg:
         return None
     reg.is_locked = False
+    db.commit()
+    db.refresh(reg)
+    return reg
+
+def admin_delete_registration(db: Session, registration_id: int):
+    # Soft delete the registration by setting deleted_at
+    reg = db.query(Registration).filter(Registration.id == registration_id).first()
+    if not reg:
+        return None
+    reg.deleted_at = datetime.utcnow()
+    db.commit()
+    return reg
+
+def admin_change_registration_category(db: Session, registration_id: int, category_id: int, partner_player_id: Optional[int] = None):
+    # Change category and update partner information accordingly
+    reg = db.query(Registration).filter(Registration.id == registration_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đơn đăng ký.")
+        
+    category = db.query(TournamentCategory).filter(
+        TournamentCategory.id == category_id,
+        TournamentCategory.tournament_id == reg.tournament_id
+    ).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Không tìm thấy nội dung thi đấu thuộc giải đấu hiện tại.")
+        
+    cat_type = category.category_type.lower()
+    
+    # Update registration category and registrant type
+    reg.tournament_category_id = category_id
+    reg.registrant_type = "single" if "singles" in cat_type else "team"
+    
+    # Handle partner details based on singles/doubles format
+    if "doubles" in cat_type:
+        if not partner_player_id:
+            raise HTTPException(status_code=400, detail="Nội dung đánh đôi yêu cầu thông tin đồng đội (đã liên kết tài khoản).")
+        
+        if partner_player_id == reg.player_id:
+            raise HTTPException(status_code=400, detail="Không thể chọn chính mình làm đồng đội.")
+            
+        partner = db.query(Player).filter(Player.id == partner_player_id).first()
+        if not partner:
+            raise HTTPException(status_code=404, detail="Không tìm thấy đồng đội.")
+            
+        partner_user = db.query(User).filter(User.id == partner.user_id).first()
+        if not partner_user:
+            raise HTTPException(status_code=404, detail="Đồng đội chưa được liên kết tài khoản User.")
+            
+        reg.partner_player_id = partner.id
+        reg.partner_user_id = partner_user.id
+        reg.partner_name = partner_user.full_name
+        reg.partner_phone = partner_user.phone
+        reg.partner_email = partner_user.email
+    else:
+        # Clear partner details for singles format
+        reg.partner_player_id = None
+        reg.partner_user_id = None
+        reg.partner_name = None
+        reg.partner_phone = None
+        reg.partner_email = None
+        
     db.commit()
     db.refresh(reg)
     return reg
