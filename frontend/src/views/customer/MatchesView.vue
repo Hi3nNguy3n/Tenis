@@ -119,7 +119,8 @@ const fetchAllMatchesData = async (silent = false) => {
         }
       }
 
-      buckets[bucketKey].matches.push({
+      if (matchItem.round_code && (matchItem.p1_name || matchItem.p2_name)) {
+          buckets[bucketKey].matches.push({
         id: matchItem.id,
         matchDate: dateKey,
         round: matchItem.round_code || matchItem.round || 'TBA',
@@ -132,27 +133,73 @@ const fetchAllMatchesData = async (silent = false) => {
           ? 'Finished'
           : matchItem.status === 'ongoing' ? 'Live' : 'Scheduled',
         video_url: matchItem.video_url,
-        players: [
-          {
-            name: matchItem.p1_name || t('matches.undetermined'),
-            avatar: matchItem.p1_avatar,
-            partner_name: matchItem.p1_partner_name,
-            partner_avatar: matchItem.p1_partner_avatar,
-            winner: matchItem.winner_side === 'side_a',
-            sets: matchItem.score ? matchItem.score.split(',').map(s => s.trim().split('-')[0]) : [],
-          },
-          {
-            name: matchItem.p2_name || t('matches.undetermined'),
-            avatar: matchItem.p2_avatar,
-            partner_name: matchItem.p2_partner_name,
-            partner_avatar: matchItem.p2_partner_avatar,
-            winner: matchItem.winner_side === 'side_b',
-            sets: matchItem.score ? matchItem.score.split(',').map(s => s.trim().split('-')[1]) : [],
-          },
-        ],
-      })
-    })
+        players: (() => {
+          const setsA = []
+          const setsB = []
 
+          if (matchItem.set1_a !== null && matchItem.set1_a !== undefined) {
+            setsA.push({ val: matchItem.set1_a, tb: matchItem.tie_break_1_a })
+            setsB.push({ val: matchItem.set1_b, tb: matchItem.tie_break_1_b })
+          }
+          if (matchItem.set2_a !== null && matchItem.set2_a !== undefined) {
+            setsA.push({ val: matchItem.set2_a, tb: matchItem.tie_break_2_a })
+            setsB.push({ val: matchItem.set2_b, tb: matchItem.tie_break_2_b })
+          }
+          if (matchItem.set3_a !== null && matchItem.set3_a !== undefined) {
+            setsA.push({ val: matchItem.set3_a, tb: matchItem.tie_break_3_a })
+            setsB.push({ val: matchItem.set3_b, tb: matchItem.tie_break_3_b })
+          }
+
+          // Fallback parse từ score string
+          if (setsA.length === 0 && matchItem.score) {
+            const parts = matchItem.score.split(',')
+            parts.forEach(part => {
+              const scores = part.trim().split('-')
+              if (scores.length === 2) {
+                let valA = scores[0].trim()
+                let valB = scores[1].trim()
+                let tbA = null
+                let tbB = null
+
+                const matchA = valA.match(/^(\d+)\((\d+)\)$/)
+                if (matchA) {
+                  valA = parseInt(matchA[1])
+                  tbA = parseInt(matchA[2])
+                }
+                const matchB = valB.match(/^(\d+)\((\d+)\)$/)
+                if (matchB) {
+                  valB = parseInt(matchB[1])
+                  tbB = parseInt(matchB[2])
+                }
+
+                setsA.push({ val: valA, tb: tbA })
+                setsB.push({ val: valB, tb: tbB })
+              }
+            })
+          }
+
+          return [
+            {
+              name: matchItem.p1_name || t('matches.undetermined'),
+              avatar: matchItem.p1_avatar,
+              partner_name: matchItem.p1_partner_name,
+              partner_avatar: matchItem.p1_partner_avatar,
+              winner: matchItem.winner_side === 'side_a',
+              sets: setsA,
+            },
+            {
+              name: matchItem.p2_name || t('matches.undetermined'),
+              avatar: matchItem.p2_avatar,
+              partner_name: matchItem.p2_partner_name,
+              partner_avatar: matchItem.p2_partner_avatar,
+              winner: matchItem.winner_side === 'side_b',
+              sets: setsB,
+            },
+          ]
+        })(),
+    })
+    }
+    })
     matchDays.value = days
     tournamentsWithMatches.value = Object.values(buckets).filter(t => t.matches.length > 0)
 
@@ -340,7 +387,12 @@ onUnmounted(() => {
                       <el-icon v-if="pSide.winner" class="winner-tick"><Check /></el-icon>
                     </div>
                     <div class="p-score-wrap">
-                      <span v-for="(s, i) in pSide.sets" :key="i" class="p-score">{{ s }}</span>
+                      <span v-for="(s, i) in pSide.sets" :key="i" class="p-score" style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;">
+                        {{ s.val !== null ? s.val : '-' }}
+                        <sup v-if="s.tb !== null && s.tb !== undefined" style="position: absolute; top: -2px; right: -2px; font-size: 0.55rem; font-weight: 900; color: #ef4444; background: #fee2e2; border-radius: 3px; padding: 0 1px; line-height: 1;">
+                          {{ s.tb }}
+                        </sup>
+                      </span>
                     </div>
                   </div>
                 </div>

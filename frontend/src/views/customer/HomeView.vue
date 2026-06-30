@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import apiClient from '../../services/apiClient'
@@ -336,7 +336,7 @@ const loadTopSection = async () => {
   isHomeLoading.value = true
   Promise.all([
     newsService.getAllPosts({ limit: 5 }),
-    apiClient.get('/api/tournaments/matches/all', { params: { limit: 30 } }).catch(() => [])
+    apiClient.get('/api/tournaments/matches/all', { params: { limit: 30, status: 'ongoing,completed,finished' } }).catch(() => [])
   ]).then(([newsData, matchesData]) => {
     processNewsData(newsData)
     processMatchesData(matchesData)

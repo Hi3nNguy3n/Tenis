@@ -66,7 +66,7 @@ export default {
   valEmailRequired: 'Email không được để trống.',
   valPhoneRequired: 'Số điện thoại không được để trống.',
   valPasswordRequired: 'Mật khẩu không được để trống.',
-  valEmailInvalid: 'Email không đúng định dạng. VD: example@gmail.com',
+  valEmailInvalid: 'Email không đúng định dạng. VD: example{\'@\'}gmail.com',
   valPhoneInvalid: 'Số điện thoại không hợp lệ (Phải là 10-11 chữ số).',
   valPasswordLength: 'Mật khẩu phải có ít nhất 6 ký tự.',
   

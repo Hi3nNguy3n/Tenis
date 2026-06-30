@@ -181,6 +181,12 @@ const router = createRouter({
       name: 'matches',
       component: MatchesView,
     },
+    {
+      path: '/referee/matches/:id',
+      name: 'referee-match',
+      component: () => import('../views/admin/RefereeMatchView.vue'),
+      meta: { requiresAuth: true, refereeLayout: true }
+    },
   ],
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
