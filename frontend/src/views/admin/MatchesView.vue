@@ -119,7 +119,7 @@ const fetchMatches = async () => {
     }
     
     const data = await apiClient.get('/api/matches/', { params })
-    matches.value = data
+    matches.value = data.filter(m => m.round_code && m.p1_name && m.p2_name)
   } catch (err) { 
     ElMessage.error(t('admin.loadMatchesError')) 
   } finally { 

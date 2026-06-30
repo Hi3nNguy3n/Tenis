@@ -9,6 +9,7 @@ import { t, currentLocale } from '../../utils/locale'
 const router = useRouter()
 const loading = ref(false)
 const showPassword = ref(false)
+const currentStep = ref(1) // 1: Nhập email, 2: Điền thông tin cá nhân
 
 const form = ref({
   full_name: '',
@@ -22,43 +23,22 @@ const form = ref({
   account_type: 'user',
 })
 
-const handleNext = async () => {
-  // Xóa khoảng trắng thừa 2 đầu
-  form.value.full_name = form.value.full_name?.trim() || ''
-  form.value.phone = form.value.phone?.trim() || ''
+const handleSendOtp = async () => {
   form.value.email = form.value.email?.trim() || ''
 
   // 1. Kiểm tra rỗng
-  if (!form.value.full_name) return ElMessage.warning(t('auth.valNameRequired'))
   if (!form.value.email) return ElMessage.warning(t('auth.valEmailRequired'))
-  if (!form.value.phone) return ElMessage.warning(t('auth.valPhoneRequired'))
-  if (!form.value.password) return ElMessage.warning(t('auth.valPasswordRequired'))
 
-  // 2. Kiểm tra định dạng Email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  // 2. Kiểm tra định dạng Email chuẩn xác
+  const emailRegex = /^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/
   if (!emailRegex.test(form.value.email)) {
     return ElMessage.warning(t('auth.valEmailInvalid'))
   }
 
-  // 3. Kiểm tra số điện thoại (chỉ chứa số, độ dài 10-11 số)
-  const phoneRegex = /^[0-9]{10,11}$/
-  if (!phoneRegex.test(form.value.phone)) {
-    return ElMessage.warning(t('auth.valPhoneInvalid'))
-  }
-
-  // 4. Kiểm tra độ dài mật khẩu (ít nhất 6 ký tự)
-  if (form.value.password.length < 6) {
-    return ElMessage.warning(t('auth.valPasswordLength'))
-  }
-
-  // Nếu hợp lệ thì gọi API gửi OTP
   loading.value = true
   let isSuccess = false // Cờ đánh dấu API gọi thành công
 
   try {
-    // Lưu tạm form xuống sessionStorage theo chuẩn cũ hệ thống đang dùng
-    sessionStorage.setItem('pending_registration', JSON.stringify({ ...form.value }))
-    
     await authService.sendOtp(form.value.email)
     isSuccess = true
   } catch (err) {
@@ -68,15 +48,47 @@ const handleNext = async () => {
     loading.value = false
   }
 
-  // Chỉ chuyển trang và báo thành công KHI VÀ CHỈ KHI API không lỗi
+  // Chỉ chuyển bước KHI VÀ CHỈ KHI API gửi OTP thành công
   if (isSuccess) {
     ElMessage.success(t('auth.otpSent', { email: form.value.email }))
-    
-    // Chuyển trang theo đúng Name Route
-    router.push({ name: 'register-otp-verify' }).catch(err => {
-      console.error("Lỗi chuyển trang:", err)
-    })
+    currentStep.value = 2
   }
+}
+
+const handleNext = async () => {
+  if (currentStep.value === 1) {
+    await handleSendOtp()
+    return
+  }
+
+  // Xóa khoảng trắng thừa 2 đầu
+  form.value.full_name = form.value.full_name?.trim() || ''
+  form.value.phone = form.value.phone?.trim() || ''
+  form.value.email = form.value.email?.trim() || ''
+
+  // 1. Kiểm tra rỗng các trường bắt buộc ở bước 2
+  if (!form.value.full_name) return ElMessage.warning(t('auth.valNameRequired'))
+  if (!form.value.phone) return ElMessage.warning(t('auth.valPhoneRequired'))
+  if (!form.value.password) return ElMessage.warning(t('auth.valPasswordRequired'))
+
+  // 2. Kiểm tra số điện thoại (chỉ chứa số, độ dài 10-11 số)
+  const phoneRegex = /^[0-9]{10,11}$/
+  if (!phoneRegex.test(form.value.phone)) {
+    return ElMessage.warning(t('auth.valPhoneInvalid'))
+  }
+
+  // 3. Kiểm tra độ dài mật khẩu (ít nhất 6 ký tự)
+  if (form.value.password.length < 6) {
+    return ElMessage.warning(t('auth.valPasswordLength'))
+  }
+
+  // Lưu tạm form xuống sessionStorage theo chuẩn cũ hệ thống đang dùng
+  sessionStorage.setItem('pending_registration', JSON.stringify({ ...form.value }))
+  
+  // Chuyển trang đến màn verify nhập OTP
+  router.push({ name: 'register-otp-verify' }).catch(err => {
+    console.error("Lỗi chuyển trang:", err)
+  })
 }
 </script>
 
@@ -114,107 +126,135 @@ const handleNext = async () => {
         </div>
 
         <div class="card-form">
-          <div class="form-header">
+          <!-- Form Header Step 1 -->
+          <div v-if="currentStep === 1" class="form-header">
             <h2>{{ $t('auth.registerTitle') }}</h2>
-            <p>{{ $t('auth.registerSubtitle') }}</p>
+            <p>Nhập email của bạn để nhận mã xác thực OTP tạo tài khoản</p>
+          </div>
+          <!-- Form Header Step 2 -->
+          <div v-else class="form-header">
+            <h2>Hoàn thiện thông tin</h2>
+            <p>Vui lòng điền thông tin tài khoản và kiểm tra hòm thư của bạn</p>
           </div>
 
           <div class="form-body">
-            <div class="form-row">
-              <div class="form-group">
-                <label>{{ $t('auth.fullName') }} <span class="required">*</span></label>
-                <el-input 
-                  v-model="form.full_name" 
-                  placeholder="VD: Nguyễn Văn A" 
-                  class="modern-input"
-                  size="large"
-                />
-              </div>
-            </div>
-
-            <div class="form-row two-col">
+            <!-- BƯỚC 1: CHỈ NHẬP EMAIL -->
+            <div v-if="currentStep === 1" class="form-row">
               <div class="form-group">
                 <label>{{ $t('auth.email') }} <span class="required">*</span></label>
                 <el-input 
                   v-model="form.email" 
                   type="email" 
-                  placeholder="tennis@example.com" 
+                  placeholder="tennis@gmail.com" 
                   class="modern-input"
                   size="large"
+                  @keyup.enter="handleNext"
                 />
-              </div>
-              <div class="form-group">
-                <label>{{ $t('auth.phone') }} <span class="required">*</span></label>
-                <el-input 
-                  v-model="form.phone" 
-                  type="tel" 
-                  placeholder="09xx xxx xxx" 
-                  class="modern-input"
-                  size="large"
-                />
+                <small style="color: var(--text-muted); margin-top: 4px; font-size: 0.82rem; line-height: 1.4;">
+                  * Vui lòng nhập email hợp lệ. Ví dụ: tennis@gmail.com
+                </small>
               </div>
             </div>
 
-            <div class="form-row two-col">
-              <div class="form-group">
-                <label>{{ $t('auth.province') }}</label>
-                 <el-input 
-                  v-model="form.province" 
-                  placeholder="VD: TP. Hồ Chí Minh" 
-                  class="modern-input"
-                  size="large"
-                />
+            <!-- BƯỚC 2: NHẬP THÔNG TIN CÁ NHÂN -->
+            <template v-else>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>{{ $t('auth.fullName') }} <span class="required">*</span></label>
+                  <el-input 
+                    v-model="form.full_name" 
+                    placeholder="VD: Nguyễn Văn A" 
+                    class="modern-input"
+                    size="large"
+                  />
+                </div>
               </div>
-               <div class="form-group">
-                <label>{{ $t('auth.dob') }}</label>
-                <el-input 
-                  type="date" 
-                  v-model="form.date_of_birth" 
-                  class="modern-input"
-                  size="large"
-                />
-              </div>
-            </div>
 
-            <div class="form-row two-col">
-               <div class="form-group">
-                <label>{{ $t('auth.gender') }}</label>
-                <el-select v-model="form.gender" class="modern-select" size="large">
-                  <el-option :label="$t('auth.male')" value="male" />
-                  <el-option :label="$t('auth.female')" value="female" />
-                </el-select>
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label>{{ $t('auth.email') }}</label>
+                  <el-input 
+                    v-model="form.email" 
+                    type="email" 
+                    class="modern-input"
+                    size="large"
+                    disabled
+                  />
+                </div>
+                <div class="form-group">
+                  <label>{{ $t('auth.phone') }} <span class="required">*</span></label>
+                  <el-input 
+                    v-model="form.phone" 
+                    type="tel" 
+                    placeholder="09xx xxx xxx" 
+                    class="modern-input"
+                    size="large"
+                  />
+                </div>
               </div>
-               <div class="form-group">
-                <label>{{ $t('auth.playHand') }}</label>
-                <el-select v-model="form.play_hand" class="modern-select" size="large">
-                  <el-option :label="$t('auth.right')" value="right" />
-                  <el-option :label="$t('auth.left')" value="left" />
-                  <el-option :label="$t('auth.both')" value="both" />
-                </el-select>
-              </div>
-            </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label>{{ $t('auth.password') }} <span class="required">*</span></label>
-                <el-input 
-                  v-model="form.password" 
-                  :type="showPassword ? 'text' : 'password'" 
-                  :placeholder="$t('auth.passwordHint')" 
-                  class="modern-input"
-                  size="large"
-                >
-                  <template #suffix>
-                    <span 
-                      class="password-toggle" 
-                      @click="showPassword = !showPassword"
-                    >
-                      {{ showPassword ? $t('auth.hide') : $t('auth.show') }}
-                    </span>
-                  </template>
-                </el-input>
+              <div class="form-row two-col">
+                <div class="form-group">
+                  <label>{{ $t('auth.province') }}</label>
+                   <el-input 
+                    v-model="form.province" 
+                    placeholder="VD: TP. Hồ Chí Minh" 
+                    class="modern-input"
+                    size="large"
+                  />
+                </div>
+                 <div class="form-group">
+                  <label>{{ $t('auth.dob') }}</label>
+                  <el-input 
+                    type="date" 
+                    v-model="form.date_of_birth" 
+                    class="modern-input"
+                    size="large"
+                  />
+                </div>
               </div>
-            </div>
+
+              <div class="form-row two-col">
+                 <div class="form-group">
+                  <label>{{ $t('auth.gender') }}</label>
+                  <el-select v-model="form.gender" class="modern-select" size="large">
+                    <el-option :label="$t('auth.male')" value="male" />
+                    <el-option :label="$t('auth.female')" value="female" />
+                  </el-select>
+                </div>
+                 <div class="form-group">
+                  <label>{{ $t('auth.playHand') }}</label>
+                  <el-select v-model="form.play_hand" class="modern-select" size="large">
+                    <el-option :label="$t('auth.right')" value="right" />
+                    <el-option :label="$t('auth.left')" value="left" />
+                    <el-option :label="$t('auth.both')" value="both" />
+                  </el-select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>{{ $t('auth.password') }} <span class="required">*</span></label>
+                  <el-input 
+                    v-model="form.password" 
+                    :type="showPassword ? 'text' : 'password'" 
+                    :placeholder="$t('auth.passwordHint')" 
+                    class="modern-input"
+                    size="large"
+                    @keyup.enter="handleNext"
+                  >
+                    <template #suffix>
+                      <span 
+                        class="password-toggle" 
+                        @click="showPassword = !showPassword"
+                      >
+                        {{ showPassword ? $t('auth.hide') : $t('auth.show') }}
+                      </span>
+                    </template>
+                  </el-input>
+                </div>
+              </div>
+            </template>
           </div>
 
           <div class="form-actions">
@@ -225,9 +265,18 @@ const handleNext = async () => {
               @click="handleNext"
               size="large"
             >
-              <span v-if="!loading">{{ $t('auth.getOtp') }}</span>
+              <span v-if="!loading">{{ currentStep === 1 ? 'Nhận mã xác thực OTP' : 'Tiếp tục xác thực OTP' }}</span>
               <el-icon v-if="!loading" class="el-icon--right"><Right /></el-icon>
             </el-button>
+            
+            <button 
+              v-if="currentStep === 2" 
+              class="resend-btn"
+              style="border: none; background: transparent; cursor: pointer; color: var(--text-muted); font-weight: 600; text-align: center; margin-top: -10px; font-size: 0.92rem;"
+              @click="currentStep = 1"
+            >
+              Quay lại nhập email
+            </button>
             
             <p class="login-prompt">
               {{ $t('auth.hasAccount') }} 
@@ -268,7 +317,6 @@ const handleNext = async () => {
 .bg-image {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  /* Bạn có thể thay thế link ảnh nền bằng một ảnh sân tennis đẹp hơn nếu muốn */
   background-image: url('https://images.unsplash.com/photo-1595435934249-5df7ed86e1f4?q=80&w=2070&auto=format&fit=crop');
   background-size: cover;
   background-position: center;
@@ -296,7 +344,9 @@ const handleNext = async () => {
   border-radius: 24px;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   overflow: hidden;
-  min-height: 650px;
+  min-height: 520px;
+  height: auto;
+  transition: all 0.3s ease;
 }
 
 /* Left Side: Branding */
@@ -400,6 +450,7 @@ const handleNext = async () => {
   padding: 48px 56px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   background: #ffffff;
 }
 
@@ -568,6 +619,34 @@ const handleNext = async () => {
     padding: 16px;
   }
   
+  .register-card {
+    flex-direction: column;
+    min-height: auto;
+  }
+  
+  .card-brand {
+    flex: none;
+    padding: 24px 20px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+  
+  .brand-logo {
+    height: 48px;
+    margin-bottom: 0;
+  }
+  
+  .brand-title {
+    font-size: 1.5rem;
+    margin: 0;
+  }
+  
+  .brand-subtitle, .feature-list, .brand-footer {
+    display: none !important;
+  }
+  
   .card-form {
     padding: 32px 24px;
   }
@@ -575,18 +654,6 @@ const handleNext = async () => {
   .form-row.two-col {
     flex-direction: column;
     gap: 20px;
-  }
-  
-  .brand-title {
-    font-size: 1.8rem;
-  }
-  
-  .feature-list {
-    display: none; /* Ẩn bớt tính năng trên mobile để tiết kiệm không gian */
-  }
-  
-  .brand-subtitle {
-    margin-bottom: 0;
   }
 }
 
@@ -601,11 +668,20 @@ const handleNext = async () => {
   }
   
   .card-brand {
-    padding: 32px 20px;
+    padding: 20px 16px;
+    gap: 12px;
+  }
+  
+  .brand-logo {
+    height: 40px;
+  }
+
+  .brand-title {
+    font-size: 1.3rem;
   }
   
   .card-form {
-    padding: 24px 20px;
+    padding: 24px 16px;
   }
 }
 </style>

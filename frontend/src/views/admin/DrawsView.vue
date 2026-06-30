@@ -32,7 +32,9 @@ const drawForm = ref({
   format_type: 'knockout',
   num_groups: 1,
   draw_size: 16,
-  round_names: []
+  round_names: [],
+  draw_mode: 'manual',
+  representative_name: ''
 })
 
 const knockoutRoundCount = computed(() => {
@@ -163,11 +165,19 @@ const playoffForm = ref({
 
 const openDrawDialog = () => {
   drawForm.value.category_id = selectedCategoryId.value
+  drawForm.value.draw_mode = 'manual'
+  drawForm.value.representative_name = ''
   isDrawDialogOpen.value = true
 }
 const openPlayoffDialog = () => {
   playoffForm.value.category_id = selectedCategoryId.value
   isPlayoffDialogOpen.value = true
+}
+
+const goToRefereeMatch = (match) => {
+  if (!match?.id) return
+  const routeData = router.resolve({ name: 'referee-match', params: { id: match.id } })
+  window.open(routeData.href, '_blank')
 }
 
 const currentUserName = computed(() => {
@@ -223,6 +233,10 @@ const fetchCourts = async () => {
 
 const confirmGenerateDraw = async () => {
   if (!selectedTournamentId.value) return
+  if (drawForm.value.draw_mode === 'random' && !drawForm.value.representative_name?.trim()) {
+    ElMessage.warning("Vui lòng nhập tên người đại diện bốc thăm!")
+    return
+  }
   isDrawDialogOpen.value = false
   generating.value = true
   
@@ -469,6 +483,29 @@ const buildBracketLayout = (roundList) => {
 const groupBracketLayout = computed(() => buildBracketLayout(groupRounds.value))
 const bracketLayout = computed(() => buildBracketLayout(knockoutRounds.value))
 
+const viewMode = ref('bracket')
+const activeKnockoutRoundCode = ref('')
+const activeGroupRoundCode = ref('')
+
+onMounted(() => {
+  if (window.innerWidth <= 768) {
+    viewMode.value = 'list'
+  }
+})
+
+watch(() => bracketLayout.value?.roundHeaders, (newVal) => {
+  if (newVal && newVal.length > 0 && !activeKnockoutRoundCode.value) {
+    activeKnockoutRoundCode.value = newVal[0].roundCode
+  }
+}, { immediate: true })
+
+watch(() => groupBracketLayout.value?.roundHeaders, (newVal) => {
+  if (newVal && newVal.length > 0 && !activeGroupRoundCode.value) {
+    activeGroupRoundCode.value = newVal[0].roundCode
+  }
+}, { immediate: true })
+
+
 const getStageRounds = (stageType) => {
   return stageType === 'group_stage' ? groupRounds.value : knockoutRounds.value
 }
@@ -702,6 +739,39 @@ const deleteMatchNode = async (match) => {
 
 const openControlDialog = (m) => {
   currentControlMatch.value = m
+  
+  // Parse các set và tiebreak từ database
+  const sets = []
+  if (m.set1_a !== null || m.set1_b !== null) {
+    sets.push({ 
+      side_a: m.set1_a, 
+      side_b: m.set1_b, 
+      tie_a: m.tie_break_1_a !== undefined && m.tie_break_1_a !== null ? m.tie_break_1_a : null, 
+      tie_b: m.tie_break_1_b !== undefined && m.tie_break_1_b !== null ? m.tie_break_1_b : null 
+    })
+  }
+  if (m.set2_a !== null || m.set2_b !== null) {
+    sets.push({ 
+      side_a: m.set2_a, 
+      side_b: m.set2_b, 
+      tie_a: m.tie_break_2_a !== undefined && m.tie_break_2_a !== null ? m.tie_break_2_a : null, 
+      tie_b: m.tie_break_2_b !== undefined && m.tie_break_2_b !== null ? m.tie_break_2_b : null 
+    })
+  }
+  if (m.set3_a !== null || m.set3_b !== null) {
+    sets.push({ 
+      side_a: m.set3_a, 
+      side_b: m.set3_b, 
+      tie_a: m.tie_break_3_a !== undefined && m.tie_break_3_a !== null ? m.tie_break_3_a : null, 
+      tie_b: m.tie_break_3_b !== undefined && m.tie_break_3_b !== null ? m.tie_break_3_b : null 
+    })
+  }
+  
+  // Fallback nếu chưa có set nào thì khởi tạo set 1 trống
+  if (sets.length === 0) {
+    sets.push({ side_a: null, side_b: null, tie_a: null, tie_b: null })
+  }
+
   controlForm.value = {
     round_code: m.round_code || '',
     match_no: m.match_no || null,
@@ -721,7 +791,7 @@ const openControlDialog = (m) => {
     next_match_id: m.next_match_id || null,
     advance_note: m.advance_note || '',
     show_on_homepage: !!m.show_on_homepage,
-    sets: parseScoreToSets(m.score_summary || '')
+    sets: sets
   }
   controlDialogVisible.value = true
 }
@@ -732,7 +802,7 @@ const openMatchDetailDialog = (match) => {
 }
 
 const addControlSet = () => {
-  controlForm.value.sets.push({ side_a: 0, side_b: 0 })
+  controlForm.value.sets.push({ side_a: null, side_b: null, tie_a: null, tie_b: null })
 }
 
 const removeControlSet = (index) => {
@@ -826,8 +896,23 @@ const confirmControlMatch = async () => {
     ElMessage.warning('Trận đã kết thúc cần có tỉ số và bên thắng.')
     return
   }
+  const sets = controlForm.value.sets || []
   const payload = {
     ...controlForm.value,
+    set1_a: sets[0]?.side_a !== undefined ? sets[0].side_a : null,
+    set1_b: sets[0]?.side_b !== undefined ? sets[0].side_b : null,
+    set2_a: sets[1]?.side_a !== undefined ? sets[1].side_a : null,
+    set2_b: sets[1]?.side_b !== undefined ? sets[1].side_b : null,
+    set3_a: sets[2]?.side_a !== undefined ? sets[2].side_a : null,
+    set3_b: sets[2]?.side_b !== undefined ? sets[2].side_b : null,
+    
+    tie_break_1_a: sets[0]?.tie_a !== undefined ? sets[0].tie_a : null,
+    tie_break_1_b: sets[0]?.tie_b !== undefined ? sets[0].tie_b : null,
+    tie_break_2_a: sets[1]?.tie_a !== undefined ? sets[1].tie_a : null,
+    tie_break_2_b: sets[1]?.tie_b !== undefined ? sets[1].tie_b : null,
+    tie_break_3_a: sets[2]?.tie_a !== undefined ? sets[2].tie_a : null,
+    tie_break_3_b: sets[2]?.tie_b !== undefined ? sets[2].tie_b : null,
+
     status: formattedScore && controlForm.value.winner_side ? 'completed' : controlForm.value.status,
     score: formattedScore,
     court_id: controlForm.value.court_id || null,
@@ -915,11 +1000,22 @@ onMounted(async () => {
 
       <div class="bar-right">
         <div class="control-cluster">
-          <el-select v-model="selectedTournamentId" :placeholder="$t('admin.selectTournamentPlaceholder')" class="tournament-selector" @change="handleTournamentChange" filterable>
+          <el-select 
+            v-model="selectedTournamentId" 
+            :placeholder="$t('admin.selectTournamentPlaceholder')" 
+            class="tournament-selector premium-tournament-select" 
+            popper-class="premium-select-popper"
+            @change="handleTournamentChange" 
+            filterable
+          >
+            <template #prefix>
+              <el-icon class="select-prefix-icon"><Trophy /></el-icon>
+            </template>
             <el-option v-for="t in tournaments" :key="t.id" :label="t.name" :value="t.id">
               <div class="t-opt">
+                <el-icon class="t-opt-icon"><Trophy /></el-icon>
                 <span class="t-name">{{ t.name }}</span>
-                <el-tag size="small" :type="t.status === 'open' ? 'success' : 'info'" effect="plain">{{ t.status.toUpperCase() }}</el-tag>
+                <el-tag size="small" :type="t.status === 'open' ? 'success' : 'info'" effect="dark" class="t-status-tag">{{ t.status.toUpperCase() }}</el-tag>
               </div>
             </el-option>
           </el-select>
@@ -1028,6 +1124,9 @@ onMounted(async () => {
                       </span>
                     </div>
                     <div class="m-header-right" style="display: flex; gap: 8px; align-items: center">
+                      <el-button type="success" size="small" circle @click.stop="goToRefereeMatch(match)" title="Chuẩn bị trận đấu" style="padding: 4px; min-height: unset; background-color: #10b981; border-color: #10b981; color: white">
+                        <el-icon><VideoPlay /></el-icon>
+                      </el-button>
                       <el-button type="primary" size="small" circle plain @click.stop="openAssignDialog(match)" v-if="match.status === 'pending' || match.status === 'scheduled'" style="padding: 4px; min-height: unset">
                         <el-icon><Edit /></el-icon>
                       </el-button>
@@ -1092,15 +1191,148 @@ onMounted(async () => {
 
         <!-- Vòng Loại Trực Tiếp -->
         <div v-if="(knockoutRounds || []).length > 0" class="saas-stage-block knockout-stage">
-          <div class="stage-header-modern">
-            <div class="header-icon knockout"><el-icon><Finished /></el-icon></div>
-            <div class="header-text">
-              <h3>{{ $t('admin.stage2Title') }}</h3>
-              <span>{{ $t('admin.stage2Desc') }}</span>
+          <div class="stage-header-modern" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div class="header-icon knockout"><el-icon><Finished /></el-icon></div>
+              <div class="header-text">
+                <h3>{{ $t('admin.stage2Title') }}</h3>
+                <span>{{ $t('admin.stage2Desc') }}</span>
+              </div>
+            </div>
+            <div class="view-mode-toggle" style="margin-left: auto;">
+              <el-radio-group v-model="viewMode" class="segmented-control-premium">
+                <el-radio-button value="list">
+                  <div class="toggle-btn-content">
+                    <el-icon class="mr-1"><Menu /></el-icon>
+                    <span>Xem Danh sách theo Vòng</span>
+                  </div>
+                </el-radio-button>
+                <el-radio-button value="bracket">
+                  <div class="toggle-btn-content">
+                    <el-icon class="mr-1"><Finished /></el-icon>
+                    <span>Xem Sơ đồ Cây</span>
+                  </div>
+                </el-radio-button>
+              </el-radio-group>
             </div>
           </div>
           
-          <div class="bracket-viewport-wrapper">
+          <!-- MOBILE LIST VIEW -->
+          <div v-if="viewMode === 'list'" class="mobile-round-list-view">
+            <!-- Tabs chọn vòng đấu (Slide ngang) -->
+            <div class="mobile-rounds-tab-container">
+              <div 
+                v-for="round in bracketLayout.roundHeaders" 
+                :key="round.roundCode" 
+                class="mobile-round-tab-item"
+                :class="{ 'active': activeKnockoutRoundCode === round.roundCode }"
+                @click="activeKnockoutRoundCode = round.roundCode"
+              >
+                {{ round.roundCode }}
+              </div>
+            </div>
+
+            <!-- Nút thêm trận đấu cho vòng này -->
+            <div class="mobile-round-actions" style="margin-bottom: 12px; display: flex; justify-content: flex-end; gap: 8px;">
+              <el-button size="small" type="primary" plain @click="openRoundNameDialog(activeKnockoutRoundCode)">
+                <el-icon><Edit /></el-icon> Đổi tên vòng
+              </el-button>
+              <el-button size="small" type="success" @click="openManualMatchDialog({ stage_type: 'knockout', round_code: activeKnockoutRoundCode })">
+                <el-icon><Plus /></el-icon> Thêm trận
+              </el-button>
+            </div>
+
+            <!-- Danh sách trận đấu của vòng đang chọn -->
+            <div class="mobile-match-list">
+              <div 
+                v-for="node in bracketLayout.nodes.filter(n => n.roundCode === activeKnockoutRoundCode)" 
+                :key="node.id"
+                class="saas-match-card mobile-match-card clickable"
+                @click="openMatchDetailDialog(node.match)"
+              >
+                <!-- Card Header -->
+                <div class="m-card-header compact">
+                  <div class="m-header-left">
+                    <span class="m-id">#{{ node.match.match_no }}</span>
+                    <span class="m-court-tag" v-if="node.match.court" :title="node.match.court">
+                      <el-icon><Location /></el-icon> {{ node.match.court }}
+                    </span>
+                  </div>
+                  <div class="m-header-right" style="display: flex; gap: 8px; align-items: center">
+                    <el-button type="success" size="small" circle @click.stop="goToRefereeMatch(node.match)" title="Chuẩn bị trận đấu" style="padding: 4px; min-height: unset; background-color: #10b981; border-color: #10b981; color: white">
+                      <el-icon><VideoPlay /></el-icon>
+                    </el-button>
+                    <el-button type="primary" size="small" circle plain @click.stop="openAssignDialog(node.match)" v-if="node.match.status === 'pending' || node.match.status === 'scheduled'" style="padding: 4px; min-height: unset">
+                      <el-icon><Edit /></el-icon>
+                    </el-button>
+                    <el-button type="success" size="small" circle plain @click.stop="openControlDialog(node.match)" style="padding: 4px; min-height: unset">
+                      <el-icon><Calendar /></el-icon>
+                    </el-button>
+                    <el-button type="danger" size="small" circle plain @click.stop="deleteMatchNode(node.match)" style="padding: 4px; min-height: unset">
+                      <el-icon><Delete /></el-icon>
+                    </el-button>
+                    <span class="m-status-dot" :class="node.match.status"></span>
+                  </div>
+                </div>
+
+                <!-- Card Body (Cấu trúc dọc thoáng) -->
+                <div class="m-card-body">
+                  <div class="team-row compact" :class="{ 'is-winner': node.match.winner_side === 'side_a' }">
+                    <div class="team-meta-container compact">
+                      <div class="player-unit compact">
+                        <el-avatar :size="20" :src="node.match.p1_avatar" class="player-avatar-mini">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="team-name" style="font-size: 0.95rem; font-weight: 700;">{{ node.match.p1_name || '---' }}</span>
+                      </div>
+                      <div v-if="node.match.p1_partner_name" class="player-unit compact" style="margin-left: 24px; margin-top: 2px;">
+                        <el-avatar :size="16" :src="node.match.p1_partner_avatar" class="player-avatar-mini">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="team-name" style="font-size: 0.85rem; color: #64748b;">{{ node.match.p1_partner_name }}</span>
+                      </div>
+                    </div>
+                    <span class="team-score" v-if="node.match.score_a !== null" style="font-weight: 900; font-size: 1.1rem; color: #10b981;">{{ node.match.score_a }}</span>
+                  </div>
+
+                  <div style="height: 1px; background-color: #f1f5f9; margin: 8px 0;"></div>
+
+                  <div class="team-row compact" :class="{ 'is-winner': node.match.winner_side === 'side_b' }">
+                    <div class="team-meta-container compact">
+                      <div class="player-unit compact">
+                        <el-avatar :size="20" :src="node.match.p2_avatar" class="player-avatar-mini">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="team-name" style="font-size: 0.95rem; font-weight: 700;">{{ node.match.p2_name || '---' }}</span>
+                      </div>
+                      <div v-if="node.match.p2_partner_name" class="player-unit compact" style="margin-left: 24px; margin-top: 2px;">
+                        <el-avatar :size="16" :src="node.match.p2_partner_avatar" class="player-avatar-mini">
+                          <el-icon><User /></el-icon>
+                        </el-avatar>
+                        <span class="team-name" style="font-size: 0.85rem; color: #64748b;">{{ node.match.p2_partner_name }}</span>
+                      </div>
+                    </div>
+                    <span class="team-score" v-if="node.match.score_b !== null" style="font-weight: 900; font-size: 1.1rem; color: #10b981;">{{ node.match.score_b }}</span>
+                  </div>
+                </div>
+
+                <!-- Card Footer (nếu có thông tin tỉ số/trọng tài) -->
+                <div class="m-card-footer match-ops-footer" v-if="node.match.score_summary || node.match.advance_note || node.match.referee_name || node.match.live_stream_url" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 0.8rem; color: #64748b;">
+                  <span class="score-value">{{ node.match.score_summary || node.match.advance_note || node.match.referee_name || 'Thông tin trận' }}</span>
+                  <a v-if="node.match.live_stream_url" :href="node.match.live_stream_url" target="_blank" rel="noopener" class="stream-link" style="margin-left:auto; display:inline-flex; align-items:center; gap:4px; color:#3b82f6;">
+                    <el-icon><VideoPlay /></el-icon> Stream
+                  </a>
+                </div>
+              </div>
+
+              <!-- Empty State -->
+              <div v-if="bracketLayout.nodes.filter(n => n.roundCode === activeKnockoutRoundCode).length === 0" class="empty-matches-placeholder">
+                <el-empty description="Chưa có trận đấu nào được tạo trong vòng này" :image-size="80" />
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="viewMode === 'bracket'" class="bracket-viewport-wrapper">
             <div
               class="bracket-tree-board"
               :style="{ width: `${bracketLayout.width}px`, height: `${bracketLayout.height}px` }"
@@ -1150,6 +1382,9 @@ onMounted(async () => {
                       </span>
                     </div>
                     <div class="m-header-right" style="display: flex; gap: 8px; align-items: center">
+                      <el-button type="success" size="small" circle @click.stop="goToRefereeMatch(node.match)" title="Chuẩn bị trận đấu" style="padding: 4px; min-height: unset; background-color: #10b981; border-color: #10b981; color: white">
+                        <el-icon><VideoPlay /></el-icon>
+                      </el-button>
                       <el-button type="primary" size="small" circle plain @click.stop="openAssignDialog(node.match)" v-if="node.match.status === 'pending' || node.match.status === 'scheduled'" style="padding: 4px; min-height: unset">
                         <el-icon><Edit /></el-icon>
                       </el-button>
@@ -1407,16 +1642,25 @@ onMounted(async () => {
               </el-button>
             </div>
             <div class="sets-rows">
-              <div v-for="(set, index) in controlForm.sets" :key="index" class="set-row-premium">
-                <span class="set-index">Set {{ index + 1 }}</span>
-                <div class="set-inputs-wrap">
-                  <el-input-number v-model="set.side_a" :min="0" :max="30" controls-position="right" class="saas-number-input" />
-                  <span class="vs-dash">-</span>
-                  <el-input-number v-model="set.side_b" :min="0" :max="30" controls-position="right" class="saas-number-input" />
+              <div v-for="(set, index) in controlForm.sets" :key="index" class="set-row-premium" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                  <span class="set-index" style="font-weight: 800; font-size: 0.9rem; color: #475569; width: 50px;">Set {{ index + 1 }}</span>
+                  <div class="set-inputs-wrap" style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                    <el-input-number v-model="set.side_a" :min="0" :max="30" controls-position="right" class="saas-number-input" />
+                    <span class="vs-dash">-</span>
+                    <el-input-number v-model="set.side_b" :min="0" :max="30" controls-position="right" class="saas-number-input" />
+                  </div>
+                  <el-button v-if="controlForm.sets.length > 1" type="danger" circle plain link @click="removeControlSet(index)">
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
                 </div>
-                <el-button v-if="controlForm.sets.length > 1" type="danger" circle plain link @click="removeControlSet(index)">
-                  <el-icon><Delete /></el-icon>
-                </el-button>
+                <!-- Thêm ô nhập điểm Tie-break khi set có tỉ số chạm mốc 6-6 trở lên -->
+                <div v-if="(set.side_a >= 6 && set.side_b >= 6)" style="display: flex; align-items: center; gap: 8px; padding-left: 58px;">
+                  <span style="font-size: 0.75rem; font-weight: 700; color: #d97706; width: 65px;">Tie-break:</span>
+                  <el-input-number v-model="set.tie_a" :min="0" :max="99" size="small" controls-position="right" placeholder="TB A" style="width: 80px;" />
+                  <span style="font-size: 0.8rem; color: #94a3b8;">-</span>
+                  <el-input-number v-model="set.tie_b" :min="0" :max="99" size="small" controls-position="right" placeholder="TB B" style="width: 80px;" />
+                </div>
               </div>
             </div>
           </div>
@@ -1572,6 +1816,18 @@ onMounted(async () => {
           <el-radio :value="'knockout'">{{ $t('admin.knockout') }}</el-radio>
           <el-radio :value="'round_robin'">{{ $t('admin.roundRobin') }}</el-radio>
         </el-radio-group>
+      </el-form-item>
+      <el-form-item label="Phương thức bốc thăm">
+        <el-radio-group v-model="drawForm.draw_mode">
+          <el-radio :value="'manual'">Tạo khung rỗng (Thủ công)</el-radio>
+          <el-radio :value="'random'">Bốc thăm ngẫu nhiên (Bằng máy)</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item v-if="drawForm.draw_mode === 'random'" label="Người đại diện bốc thăm" required>
+        <el-input v-model="drawForm.representative_name" placeholder="Nhập tên người đại diện (VD: Trọng tài, BTC...)" />
+        <div style="font-size: 12px; color: #64748b; margin-top: 5px;">
+          Tên người chứng kiến/đại diện bốc thăm để ghi lại lịch sử bốc thăm minh bạch.
+        </div>
       </el-form-item>
       <el-form-item v-if="['knockout', 'round_robin'].includes(drawForm.format_type)" :label="$t('admin.drawSize', 'Quy mô bốc thăm')">
         <el-input-number v-model="drawForm.draw_size" :min="1" :max="256" style="width: 100%" />
@@ -2422,5 +2678,295 @@ onMounted(async () => {
   .form-grid-3 {
     grid-template-columns: 1fr;
   }
+}
+
+/* MOBILE ROUND LIST VIEW STYLES */
+.mobile-round-list-view {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 16px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+
+.mobile-rounds-tab-container {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  scrollbar-width: none; /* Firefox */
+}
+
+.mobile-rounds-tab-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.mobile-round-tab-item {
+  white-space: nowrap;
+  padding: 8px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  color: #475569;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobile-round-tab-item.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  transform: translateY(-1px);
+}
+
+.mobile-match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mobile-match-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02) !important;
+  border-radius: 18px !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.mobile-match-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06) !important;
+  border-color: #cbd5e1 !important;
+}
+
+.empty-matches-placeholder {
+  padding: 32px 0;
+  text-align: center;
+}
+
+/* FLATTEN DESIGN ON MOBILE (REMOVE NESTED CARDS/OVERLAYS) */
+@media (max-width: 768px) {
+  .saas-container {
+    padding: 10px !important;
+    gap: 16px !important;
+  }
+
+  .saas-action-bar {
+    background: transparent !important;
+    padding: 12px 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin-bottom: 0 !important;
+  }
+
+  .category-tabs-section {
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  
+  :deep(.draws-tabs-premium .el-tabs__header) {
+    margin-bottom: 12px !important;
+  }
+  
+  :deep(.draws-tabs-premium .el-tabs__item) {
+    padding: 0 14px !important;
+  }
+
+  .saas-stage-block {
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin-bottom: 24px !important;
+  }
+  
+  .stage-header-modern {
+    margin-bottom: 16px !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1px dashed #e2e8f0 !important;
+  }
+
+  .mobile-round-list-view {
+    background: transparent !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  
+  .mobile-rounds-tab-container {
+    margin-bottom: 12px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .round-robin-group-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    margin-bottom: 20px !important;
+  }
+  
+  .round-robin-group-header {
+    background: transparent !important;
+    padding: 10px 0 !important;
+    border-bottom: 1px dashed #cbd5e1 !important;
+  }
+  
+  .round-robin-rounds-scroll {
+    padding: 0 !important;
+  }
+
+  .control-cluster {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 10px !important;
+  }
+  
+  .saas-tournament-selector {
+    width: 100% !important;
+  }
+}
+
+/* PREMIUM SEGMENTED CONTROL STYLES */
+.segmented-control-premium :deep(.el-radio-button__inner) {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid #e2e8f0 !important;
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 10px 18px !important;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.25s ease;
+  border-radius: 0;
+}
+
+.segmented-control-premium :deep(.el-radio-button:first-child .el-radio-button__inner) {
+  border-top-left-radius: 12px !important;
+  border-bottom-left-radius: 12px !important;
+}
+
+.segmented-control-premium :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-top-right-radius: 12px !important;
+  border-bottom-right-radius: 12px !important;
+}
+
+.segmented-control-premium :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2) !important;
+}
+
+.toggle-btn-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* PREMIUM TOURNAMENT SELECT STYLES */
+.premium-tournament-select :deep(.el-select__wrapper) {
+  min-height: 46px;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid #e2e8f0 !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0 16px !important;
+}
+
+.premium-tournament-select :deep(.el-select__wrapper:hover) {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.1) !important;
+}
+
+.premium-tournament-select :deep(.el-select__wrapper.is-focused) {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15) !important;
+}
+
+.select-prefix-icon {
+  color: #ca8a04; /* Màu vàng Gold sang trọng cho Trophy */
+  font-size: 1.1rem;
+  margin-right: 6px;
+}
+
+/* Dropdown list popper (Global style) */
+:global(.premium-select-popper) {
+  border-radius: 16px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12) !important;
+  padding: 6px !important;
+  background: #ffffff !important;
+  max-width: 92vw !important; /* Đảm bảo không bị tràn trên điện thoại nhỏ */
+}
+
+:global(.premium-select-popper .el-select-dropdown__item) {
+  height: auto !important;
+  min-height: 48px !important;
+  line-height: normal !important;
+  padding: 10px 16px !important;
+  border-radius: 10px !important;
+  margin-bottom: 2px !important;
+  transition: all 0.15s ease;
+  display: flex !important;
+  align-items: center;
+}
+
+:global(.premium-select-popper .el-select-dropdown__item:hover) {
+  background: #f1f5f9 !important;
+  color: #2563eb !important;
+}
+
+:global(.premium-select-popper .el-select-dropdown__item.is-selected) {
+  background: #eff6ff !important;
+  color: #2563eb !important;
+  font-weight: 800;
+}
+
+/* Cặp đấu Option layout */
+.t-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.t-opt-icon {
+  color: #eab308;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.t-name {
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.t-status-tag {
+  font-weight: 800;
+  font-size: 0.7rem;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
 }
 </style>

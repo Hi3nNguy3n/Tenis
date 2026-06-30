@@ -11,7 +11,8 @@ const route = useRoute()
 
 const isAuthLayout = computed(() => Boolean(route.meta.authLayout))
 const isAdminLayout = computed(() => Boolean(route.meta.adminLayout))
-const shouldShowPublicChrome = computed(() => !isAuthLayout.value && !isAdminLayout.value)
+const isRefereeLayout = computed(() => Boolean(route.meta.refereeLayout))
+const shouldShowPublicChrome = computed(() => !isAuthLayout.value && !isAdminLayout.value && !isRefereeLayout.value)
 </script>
 
 <template>
@@ -22,6 +23,7 @@ const shouldShowPublicChrome = computed(() => !isAuthLayout.value && !isAdminLay
       'main-default': shouldShowPublicChrome,
       'main-auth': isAuthLayout,
       'main-admin': isAdminLayout,
+      'main-referee': isRefereeLayout,
     }"
   >
     <RouterView v-slot="{ Component }">
@@ -32,7 +34,7 @@ const shouldShowPublicChrome = computed(() => !isAuthLayout.value && !isAdminLay
   </main>
 
   <!-- CHÈN WIDGET CHAT VÀO ĐÂY -->
-  <!-- Thêm v-if để không hiện khung chat ở trang Login hoặc Admin nếu muốn -->
+  <!-- Thêm v-if để không hiện khung chat ở trang Login hoặc Admin hoặc Referee nếu muốn -->
   <ChatWidget v-if="shouldShowPublicChrome" />
 
   <TheFooter v-if="shouldShowPublicChrome" />
@@ -47,8 +49,13 @@ const shouldShowPublicChrome = computed(() => !isAuthLayout.value && !isAdminLay
 }
 
 .main-auth,
-.main-admin {
+.main-admin,
+.main-referee {
   min-height: 100vh;
+}
+
+.main-referee {
+  background-color: #0f172a;
 }
 
 /* Page Transitions */

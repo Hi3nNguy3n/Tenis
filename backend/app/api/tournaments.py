@@ -68,14 +68,21 @@ def read_tournaments(
 ):
     return crud_tournament.get_tournaments_with_counts(db, skip=skip, limit=limit, status=status)
 
-# 3. XEM CHI TIẾT 1 GIẢI ĐẤU (PUBLIC)
 @router.get("/matches/all")
 def read_all_matches(
     limit: Optional[int] = Query(None, ge=1, le=100),
     show_on_homepage: Optional[bool] = Query(None),
+    status: Optional[str] = Query(None, description="Lọc theo trạng thái: ongoing, completed, scheduled,... (cách nhau bởi dấu phẩy)"),
     db: Session = Depends(get_db)
 ):
-    return crud_tournament.get_all_matches_detail(db, limit=limit, show_on_homepage=show_on_homepage)
+    return crud_tournament.get_all_matches_detail(db, limit=limit, show_on_homepage=show_on_homepage, status=status)
+
+@router.get("/matches/{match_id}")
+def read_match_detail(match_id: int, db: Session = Depends(get_db)):
+    detail = crud_tournament.get_match_detail(db, match_id=match_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Không tìm thấy trận đấu")
+    return detail
 
 @router.get("/{tournament_id}", response_model=tournament_schemas.TournamentResponse)
 def read_tournament(tournament_id: int, db: Session = Depends(get_db)):
@@ -163,9 +170,25 @@ def update_tournament_category(
 def generate_draw(tournament_id: int, request: tournament_schemas.GenerateDrawRequest, db: Session = Depends(get_db)):
     try:
         if request.format_type == "round_robin":
-            return crud_tournament.generate_round_robin_draw(db, tournament_id, request.category_id, request.num_groups, request.draw_size)
+            return crud_tournament.generate_round_robin_draw(
+                db, 
+                tournament_id, 
+                request.category_id, 
+                request.num_groups, 
+                request.draw_size, 
+                request.draw_mode, 
+                request.representative_name
+            )
         else:
-            return crud_tournament.generate_knockout_draw(db, tournament_id, request.category_id, request.draw_size, request.round_names)
+            return crud_tournament.generate_knockout_draw(
+                db, 
+                tournament_id, 
+                request.category_id, 
+                request.draw_size, 
+                request.round_names, 
+                request.draw_mode, 
+                request.representative_name
+            )
             
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -291,6 +314,18 @@ def update_match_from_draw(match_id: int, payload: tournament_schemas.AdminMatch
             image_url=payload.image_url,
             referee_name=payload.referee_name,
             referee_phone=payload.referee_phone,
+            set1_a=payload.set1_a,
+            set1_b=payload.set1_b,
+            set2_a=payload.set2_a,
+            set2_b=payload.set2_b,
+            set3_a=payload.set3_a,
+            set3_b=payload.set3_b,
+            tie_break_1_a=payload.tie_break_1_a,
+            tie_break_1_b=payload.tie_break_1_b,
+            tie_break_2_a=payload.tie_break_2_a,
+            tie_break_2_b=payload.tie_break_2_b,
+            tie_break_3_a=payload.tie_break_3_a,
+            tie_break_3_b=payload.tie_break_3_b,
         )
         result = crud_tournament.calculate_elo_and_update_match(db, match_id, score_payload)
         match = db.query(Match).filter(Match.id == match_id).first()
