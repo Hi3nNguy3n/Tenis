@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { VideoPlay, PieChart, ArrowRight, ArrowDown, Search, Calendar, Check, Trophy } from '@element-plus/icons-vue'
+import { VideoPlay, PieChart, ArrowRight, ArrowDown, Search, Calendar, Check, Trophy, User } from '@element-plus/icons-vue'
 import { currentLocale, t } from '../../utils/locale'
 import { apiClient } from '../../services/apiClient'
 import { newsService } from '../../services/newsService'
@@ -15,7 +15,9 @@ const isVideo = (url) => {
   if (!url) return false
   return url.match(/\.(mp4|webm|ogg)$/i) !== null
 }
-const loading = ref(false)
+const matchesLoading = ref(false)
+const newsLoading = ref(false)
+const rankingsLoading = ref(false)
 const tournamentsWithMatches = ref([])
 const latestNews = ref([])
 const topPlayers = ref([])
@@ -93,132 +95,122 @@ const matchStatusPriority = (status) => {
 }
 
 // ── Data fetching ─────────────────────────────────────────────────
-const fetchAllMatchesData = async (silent = false) => {
-  if (!silent) loading.value = true
+const fetchMatchesData = async (silent = false) => {
+  if (!silent) matchesLoading.value = true
   try {
     const raw = await apiClient.get('/api/tournaments/matches/all')
     const normalizedMatches = Array.isArray(raw) ? raw : []
-
     const buckets = {}
     const days = new Set()
-
     normalizedMatches.forEach(matchItem => {
       const dateKey = normalizeDateKey(matchItem.date || matchItem.start_time || '')
       if (dateKey) days.add(dateKey)
-
       const tournamentId = matchItem.tournament_id || matchItem.tournament_name || 'unknown'
       const bucketKey = `${tournamentId}::${dateKey}`
-
       if (!buckets[bucketKey]) {
         buckets[bucketKey] = {
           id: tournamentId,
           name: matchItem.tournament || matchItem.tournament_name || t('nav.tournaments'),
           location: matchItem.location || 'Vietnam',
           matches: [],
-          isOpen: true // Trạng thái đóng/mở group
+          isOpen: true
         }
       }
-
       if (matchItem.round_code && (matchItem.p1_name || matchItem.p2_name)) {
-          buckets[bucketKey].matches.push({
-        id: matchItem.id,
-        matchDate: dateKey,
-        round: matchItem.round_code || matchItem.round || 'TBA',
-        time: matchItem.start
-          ? matchItem.start
-          : matchItem.start_time
-            ? new Date(matchItem.start_time).toLocaleTimeString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { hour: '2-digit', minute: '2-digit' })
-            : '--:--',
-        status: matchItem.status === 'completed'
-          ? 'Finished'
-          : matchItem.status === 'ongoing' ? 'Live' : 'Scheduled',
-        video_url: matchItem.video_url,
-        players: (() => {
-          const setsA = []
-          const setsB = []
-
-          if (matchItem.set1_a !== null && matchItem.set1_a !== undefined) {
-            setsA.push({ val: matchItem.set1_a, tb: matchItem.tie_break_1_a })
-            setsB.push({ val: matchItem.set1_b, tb: matchItem.tie_break_1_b })
-          }
-          if (matchItem.set2_a !== null && matchItem.set2_a !== undefined) {
-            setsA.push({ val: matchItem.set2_a, tb: matchItem.tie_break_2_a })
-            setsB.push({ val: matchItem.set2_b, tb: matchItem.tie_break_2_b })
-          }
-          if (matchItem.set3_a !== null && matchItem.set3_a !== undefined) {
-            setsA.push({ val: matchItem.set3_a, tb: matchItem.tie_break_3_a })
-            setsB.push({ val: matchItem.set3_b, tb: matchItem.tie_break_3_b })
-          }
-
-          // Fallback parse từ score string
-          if (setsA.length === 0 && matchItem.score) {
-            const parts = matchItem.score.split(',')
-            parts.forEach(part => {
-              const scores = part.trim().split('-')
-              if (scores.length === 2) {
-                let valA = scores[0].trim()
-                let valB = scores[1].trim()
-                let tbA = null
-                let tbB = null
-
-                const matchA = valA.match(/^(\d+)\((\d+)\)$/)
-                if (matchA) {
-                  valA = parseInt(matchA[1])
-                  tbA = parseInt(matchA[2])
+        buckets[bucketKey].matches.push({
+          id: matchItem.id,
+          matchDate: dateKey,
+          round: matchItem.round_code || matchItem.round || 'TBA',
+          time: matchItem.start
+            ? matchItem.start
+            : matchItem.start_time
+              ? new Date(matchItem.start_time).toLocaleTimeString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', { hour: '2-digit', minute: '2-digit' })
+              : '--:--',
+          status: matchItem.status === 'completed' ? 'Finished' : matchItem.status === 'ongoing' ? 'Live' : 'Scheduled',
+          video_url: matchItem.video_url,
+          players: (() => {
+            const setsA = []
+            const setsB = []
+            if (matchItem.set1_a !== null && matchItem.set1_a !== undefined) {
+              setsA.push({ val: matchItem.set1_a, tb: matchItem.tie_break_1_a })
+              setsB.push({ val: matchItem.set1_b, tb: matchItem.tie_break_1_b })
+            }
+            if (matchItem.set2_a !== null && matchItem.set2_a !== undefined) {
+              setsA.push({ val: matchItem.set2_a, tb: matchItem.tie_break_2_a })
+              setsB.push({ val: matchItem.set2_b, tb: matchItem.tie_break_2_b })
+            }
+            if (matchItem.set3_a !== null && matchItem.set3_a !== undefined) {
+              setsA.push({ val: matchItem.set3_a, tb: matchItem.tie_break_3_a })
+              setsB.push({ val: matchItem.set3_b, tb: matchItem.tie_break_3_b })
+            }
+            if (setsA.length === 0 && matchItem.score) {
+              const parts = matchItem.score.split(',')
+              parts.forEach(part => {
+                const scores = part.trim().split('-')
+                if (scores.length === 2) {
+                  let valA = scores[0].trim()
+                  let valB = scores[1].trim()
+                  let tbA = null
+                  let tbB = null
+                  const matchA = valA.match(/^(\d+)\((\d+)\)$/)
+                  if (matchA) { valA = parseInt(matchA[1]); tbA = parseInt(matchA[2]) }
+                  const matchB = valB.match(/^(\d+)\((\d+)\)$/)
+                  if (matchB) { valB = parseInt(matchB[1]); tbB = parseInt(matchB[2]) }
+                  setsA.push({ val: valA, tb: tbA })
+                  setsB.push({ val: valB, tb: tbB })
                 }
-                const matchB = valB.match(/^(\d+)\((\d+)\)$/)
-                if (matchB) {
-                  valB = parseInt(matchB[1])
-                  tbB = parseInt(matchB[2])
-                }
-
-                setsA.push({ val: valA, tb: tbA })
-                setsB.push({ val: valB, tb: tbB })
+              })
+            }
+            return [
+              {
+                name: matchItem.p1_name || t('matches.undetermined'),
+                avatar: matchItem.p1_avatar,
+                partner_name: matchItem.p1_partner_name,
+                partner_avatar: matchItem.p1_partner_avatar,
+                winner: matchItem.winner_side === 'side_a',
+                sets: setsA,
+              },
+              {
+                name: matchItem.p2_name || t('matches.undetermined'),
+                avatar: matchItem.p2_avatar,
+                partner_name: matchItem.p2_partner_name,
+                partner_avatar: matchItem.p2_partner_avatar,
+                winner: matchItem.winner_side === 'side_b',
+                sets: setsB,
               }
-            })
-          }
-
-          return [
-            {
-              name: matchItem.p1_name || t('matches.undetermined'),
-              avatar: matchItem.p1_avatar,
-              partner_name: matchItem.p1_partner_name,
-              partner_avatar: matchItem.p1_partner_avatar,
-              winner: matchItem.winner_side === 'side_a',
-              sets: setsA,
-            },
-            {
-              name: matchItem.p2_name || t('matches.undetermined'),
-              avatar: matchItem.p2_avatar,
-              partner_name: matchItem.p2_partner_name,
-              partner_avatar: matchItem.p2_partner_avatar,
-              winner: matchItem.winner_side === 'side_b',
-              sets: setsB,
-            },
-          ]
-        })(),
-    })
-    }
+            ]
+          })(),
+        })
+      }
     })
     matchDays.value = days
     tournamentsWithMatches.value = Object.values(buckets).filter(t => t.matches.length > 0)
-
     if (!activeDate.value) activeDate.value = todayKey
-
     scrollToActive()
+  } catch (err) {
+    console.error('Lỗi khi tải dữ liệu trận đấu:', err)
+    if (!silent) ElMessage.error(t('common.errorLoading'))
+  } finally {
+    if (!silent) matchesLoading.value = false
+  }
+}
 
+const fetchNewsAndRankings = async () => {
+  newsLoading.value = true
+  rankingsLoading.value = true
+  try {
     const [news, rankings] = await Promise.all([
       newsService.getAllPosts({ limit: 3 }),
       playerService.getRankings(),
     ])
     latestNews.value = news || []
     topPlayers.value = (rankings || []).slice(0, 5)
-
   } catch (err) {
-    console.error('Lỗi khi tải dữ liệu trận đấu:', err)
-    if (!silent) ElMessage.error(t('common.errorLoading'))
+    console.error('Lỗi khi tải tin tức / thống kê:', err)
+    ElMessage.error(t('common.errorLoading'))
   } finally {
-    if (!silent) loading.value = false
+    newsLoading.value = false
+    rankingsLoading.value = false
   }
 }
 
@@ -273,10 +265,14 @@ let pollingTimer = null
 
 onMounted(async () => {
   authStore.hydrate()
-  await fetchAllMatchesData()
+  await fetchMatchesData()
+
+  // Đợi UI cập nhật các trận cho ngày hiện tại trước khi tải tin tức & thống kê
+  await nextTick()
+  await fetchNewsAndRankings()
 
   pollingTimer = setInterval(async () => {
-    await fetchAllMatchesData(true)
+    await fetchMatchesData(true)
   }, 30_000)
 })
 
@@ -322,7 +318,7 @@ onUnmounted(() => {
 
     <div class="container neo-layout">
       
-      <main class="main-column" v-loading="loading">
+      <main class="main-column" v-loading="matchesLoading">
         
         <div class="list-header-controls">
           <div class="neo-search-box">
@@ -387,11 +383,11 @@ onUnmounted(() => {
                       <el-icon v-if="pSide.winner" class="winner-tick"><Check /></el-icon>
                     </div>
                     <div class="p-score-wrap">
-                      <span v-for="(s, i) in pSide.sets" :key="i" class="p-score" style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;">
+                      <span v-for="(s, i) in pSide.sets" :key="i" class="p-score" style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 1rem; font-weight: 600;">
                         {{ s.val !== null ? s.val : '-' }}
-                        <sup v-if="s.tb !== null && s.tb !== undefined" style="position: absolute; top: -2px; right: -2px; font-size: 0.55rem; font-weight: 900; color: #ef4444; background: #fee2e2; border-radius: 3px; padding: 0 1px; line-height: 1;">
-                          {{ s.tb }}
-                        </sup>
+                        <template v-if="s.tb !== null && s.tb !== undefined">
+                          <span class="tiebreak" style="margin-left: 2px; font-size: 0.75rem; color: #ef4444; background: #fee2e2; border-radius: 3px; padding: 0 2px; line-height: 1;">({{ s.tb }})</span>
+                        </template>
                       </span>
                     </div>
                   </div>
@@ -410,7 +406,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="!loading && filteredTournaments.length === 0" class="neo-empty-state">
+          <div v-if="!matchesLoading && filteredTournaments.length === 0" class="neo-empty-state">
             <el-empty :description="t('matches.noMatches')" />
           </div>
 
@@ -419,7 +415,7 @@ onUnmounted(() => {
 
       <aside class="sidebar-column">
         
-        <div class="neo-widget">
+        <div class="neo-widget" v-loading="newsLoading">
           <div class="w-header">
             <h3>{{ t('matches.news') }}</h3>
             <a href="/news" class="w-link">{{ t('matches.viewAll') }} <el-icon><ArrowRight /></el-icon></a>
@@ -444,7 +440,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="neo-widget">
+        <div class="neo-widget" v-loading="rankingsLoading">
           <div class="w-header">
             <h3>{{ t('matches.sgtStats') }}</h3>
             <a href="/rankings" class="w-link">{{ t('matches.seeAll') }} <el-icon><ArrowRight /></el-icon></a>
