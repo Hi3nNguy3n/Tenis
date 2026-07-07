@@ -48,6 +48,7 @@ const loadMatches = async () => {
 // --- TAB CHANGE HANDLER (Lazy Load) ---
 const handleTabChange = async (tab) => {
   activeTab.value = tab
+  playerPage.value = 1 // Reset trang khi đổi tab
   
   if ((tab === 'results' || tab === 'h2h') && !matchesLoaded.value) {
     tabLoading.value = true
@@ -244,9 +245,13 @@ watch([h2hPlayerA, h2hPlayerB], () => {
 
 // --- VẬN ĐỘNG VIÊN & XẾP HẠNG (Main player list with Search) ---
 const visiblePlayers = computed(() => {
+  let list = players.value
+  if (activeTab.value === 'newbie') {
+    list = list.filter(p => p.skill_level === 'Beginner')
+  }
   const keyword = searchQuery.value.trim().toLowerCase()
-  if (!keyword) return players.value
-  return players.value.filter(p => p.full_name?.toLowerCase().includes(keyword))
+  if (!keyword) return list
+  return list.filter(p => p.full_name?.toLowerCase().includes(keyword))
 })
 
 const totalPlayerPages = computed(() => Math.max(1, Math.ceil(visiblePlayers.value.length / PLAYER_PAGE_SIZE)))
@@ -318,6 +323,12 @@ onMounted(async () => {
           Vận động viên & Xếp hạng
         </button>
         <button 
+          :class="['tab-btn', { active: activeTab === 'newbie' }]"
+          @click="handleTabChange('newbie')"
+        >
+          Học viên mới
+        </button>
+        <button 
           :class="['tab-btn', { active: activeTab === 'results' }]"
           @click="handleTabChange('results')"
         >
@@ -332,7 +343,7 @@ onMounted(async () => {
       </div>
 
       <!-- Search Section (Only displayed on main list tab) -->
-      <div class="search-section" v-if="activeTab === 'ranking'">
+      <div class="search-section" v-if="activeTab === 'ranking' || activeTab === 'newbie'">
         <div class="clean-search-bar">
           <el-icon class="search-icon"><Search /></el-icon>
           <input
@@ -375,8 +386,8 @@ onMounted(async () => {
       <div class="content-layout">
         <main class="grid-column">
           
-          <!-- TAB 1: VẬN ĐỘNG VIÊN & XẾP HẠNG -->
-          <div v-if="activeTab === 'ranking'" class="tab-content">
+          <!-- TAB 1: VẬN ĐỘNG VIÊN & XẾP HẠNG & HỌC VIÊN MỚI -->
+          <div v-if="activeTab === 'ranking' || activeTab === 'newbie'" class="tab-content">
             <div class="talent-grid">
               <div v-for="p in paginatedPlayers" :key="p.player_id || p.id" class="talent-card group">
                 <RouterLink :to="`/players/${p.player_id || p.id}`" class="talent-image-box">
@@ -438,7 +449,7 @@ onMounted(async () => {
           </div>
 
           <!-- TAB 2: KẾT QUẢ GẦN ĐÂY -->
-            <div v-if="activeTab === 'ranking' && visiblePlayers.length > PLAYER_PAGE_SIZE" class="list-pagination">
+            <div v-if="(activeTab === 'ranking' || activeTab === 'newbie') && visiblePlayers.length > PLAYER_PAGE_SIZE" class="list-pagination">
               <el-pagination
                 v-model:current-page="playerPage"
                 :page-size="PLAYER_PAGE_SIZE"
@@ -787,7 +798,7 @@ onMounted(async () => {
   background: rgba(15, 23, 42, 0.03);
   padding: 6px;
   border-radius: 99px;
-  max-width: 580px;
+  max-width: 720px;
   margin: 0 auto 3rem;
   border: 1px solid var(--border-light);
 }
