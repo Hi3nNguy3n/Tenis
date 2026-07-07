@@ -119,11 +119,18 @@ const removeVietnameseTones = (str) => {
 }
 
 const filteredPlayers = computed(() => {
+  // 1. Phân loại theo Tab (newbie lọc skill_level === 'Beginner', active hiển thị đầy đủ)
+  let list = players.value
+  if (activeMainTab.value === 'newbie') {
+    list = list.filter(player => player.player_profile?.skill_level === 'Beginner')
+  }
+
+  // 2. Lọc theo thanh tìm kiếm
   if (!search.value.trim()) {
-    return players.value
+    return list
   }
   const searchNormalized = removeVietnameseTones(search.value.trim())
-  return players.value.filter(player => {
+  return list.filter(player => {
     const fullNameNormalized = removeVietnameseTones(player.user?.full_name || '')
     const emailNormalized = removeVietnameseTones(player.user?.email || '')
     const phoneNormalized = removeVietnameseTones(player.user?.phone || '')
@@ -266,7 +273,7 @@ const fetchDeletedPlayers = async () => {
 }
 
 const handleMainTabChange = (tab) => {
-  if (tab === 'active') {
+  if (tab === 'active' || tab === 'newbie') {
     fetchPlayers()
   } else if (tab === 'deleted') {
     fetchDeletedPlayers()
@@ -278,7 +285,7 @@ let filterTimeout = null
 watch([skillFilter, statusFilter, activeMainTab], () => {
   if (filterTimeout) clearTimeout(filterTimeout)
   filterTimeout = setTimeout(() => {
-    if (activeMainTab.value === 'active') {
+    if (activeMainTab.value === 'active' || activeMainTab.value === 'newbie') {
       fetchPlayers()
     } else {
       fetchDeletedPlayers()
@@ -289,7 +296,7 @@ watch([skillFilter, statusFilter, activeMainTab], () => {
 // Force data refresh when navigating back to this page
 watch(() => route.path, (newPath) => {
   if (newPath === '/admin/players') {
-    if (activeMainTab.value === 'active') {
+    if (activeMainTab.value === 'active' || activeMainTab.value === 'newbie') {
       fetchPlayers()
     } else {
       fetchDeletedPlayers()
@@ -735,6 +742,116 @@ const getRegStatusType = (status) => {
           <div v-if="filteredPlayers.length > 0" class="players-pagination">
             <div class="pagination-summary">
               Hiển thị {{ paginatedPlayers.length }} / {{ filteredPlayers.length }} vận động viên
+            </div>
+            <el-pagination
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :page-sizes="[10, 20, 50]"
+              :total="filteredPlayers.length"
+              layout="sizes, prev, pager, next, jumper"
+              background
+              @size-change="handlePageSizeChange"
+            />
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="NEWBIE - NGƯỜI MỚI" name="newbie">
+          <el-table 
+            :data="paginatedPlayers" 
+            v-loading="loading" 
+            class="saas-table"
+            :header-cell-style="{ background: 'transparent', color: '#64748b', fontWeight: '700', borderBottom: '2px solid #f1f5f9' }"
+            :cell-style="{ background: 'transparent' }"
+          >
+            <el-table-column :label="$t('admin.player')" min-width="250">
+              <template #default="{ row }">
+                <div class="saas-user-cell clickable" @click="openDetailDialog(row)">
+                  <div class="saas-avatar">
+                    <img 
+                      :src="row.user.avatar_url || `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`" 
+                      @error="$event.target.src = `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`"
+                      referrerpolicy="no-referrer"
+                    />
+                  </div>
+                  <div class="saas-user-meta">
+                    <span class="user-name">{{ row.user.full_name }}</span>
+                    <span class="user-email">{{ row.user.email }}</span>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.phone')" width="140">
+              <template #default="{ row }">
+                {{ formatPhone(row.user.phone) }}
+              </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.skillLevel')" width="160">
+              <template #default="{ row }">
+                <el-tag 
+                  :type="getSkillType(row.player_profile?.skill_level)" 
+                  effect="light" 
+                  class="saas-tag"
+                >
+                  {{ formatSkillLevel(row.player_profile?.skill_level) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+
+             <el-table-column :label="$t('admin.elo')" width="100" align="center">
+                <template #default="{ row }">
+                  <span class="elo-badge">{{ formatElo(row.player_profile?.elo_points || 1000) }}</span>
+                </template>
+             </el-table-column>
+
+            <el-table-column :label="$t('admin.accountStatus')" width="140">
+               <template #default="{ row }">
+                 <div class="status-indicator" :class="{ 'is-active': row.user.is_active }">
+                   <span class="dot"></span>
+                   <span>{{ row.user.is_active ? $t('admin.active') : $t('admin.locked') }}</span>
+                 </div>
+               </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.action')" width="220" fixed="right" align="center">
+              <template #default="{ row }">
+                <div class="action-btns">
+                  <el-button 
+                    size="small" 
+                    circle
+                    type="info" 
+                    @click="openDetailDialog(row)"
+                    title="Xem chi tiết"
+                  >
+                    <el-icon><User /></el-icon>
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="primary" 
+                    @click="openEditDialog(row)"
+                    class="saas-edit-btn"
+                  >
+                    <el-icon><EditPen /></el-icon>
+                    <span>{{ $t('admin.edit') }}</span>
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="danger" 
+                    circle
+                    @click="deletePlayer(row)"
+                    title="Xóa vận động viên"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div v-if="filteredPlayers.length > 0" class="players-pagination">
+            <div class="pagination-summary">
+              Hiển thị {{ paginatedPlayers.length }} / {{ filteredPlayers.length }} vận động viên người mới
             </div>
             <el-pagination
               v-model:current-page="currentPage"
