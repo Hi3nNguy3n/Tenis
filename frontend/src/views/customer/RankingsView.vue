@@ -413,7 +413,11 @@ onMounted(async () => {
             <strong>{{ player.full_name }}</strong>
             <small>{{ player.province || 'Chưa cập nhật CLB' }}</small>
           </div>
-          <span class="featured-points">{{ player.elo_points }}</span>
+          <span class="featured-points">
+            {{ player.elo_points }}
+            <span v-if="player.recent_elo_change === 1" class="elo-trend-up">▲</span>
+            <span v-if="player.recent_elo_change === -1" class="elo-trend-down">▼</span>
+          </span>
         </article>
       </div>
     </section>
@@ -522,7 +526,11 @@ onMounted(async () => {
                   {{ player.skill_level || 'N/A' }}
                 </td>
                 <td class="col-pts text-center">
-                  <strong class="points-val">{{ player.elo_points }}</strong>
+                  <strong class="points-val">
+                    {{ player.elo_points }}
+                    <span v-if="player.recent_elo_change === 1" class="elo-trend-up">▲</span>
+                    <span v-if="player.recent_elo_change === -1" class="elo-trend-down">▼</span>
+                  </strong>
                 </td>
                 <td class="col-matches hidden-mobile text-center">
                   {{ player.matches_played || 0 }}
@@ -1330,5 +1338,21 @@ onMounted(async () => {
   /* Chống tràn cho sidebar widget */
   .ws-body { padding: 0.75rem; }
   .match-summary { font-size: 0.65rem; }
+}
+
+.elo-trend-up {
+  color: #22c55e;
+  font-size: 0.8rem;
+  margin-left: 4px;
+  vertical-align: middle;
+  font-weight: bold;
+}
+
+.elo-trend-down {
+  color: #ef4444;
+  font-size: 0.8rem;
+  margin-left: 4px;
+  vertical-align: middle;
+  font-weight: bold;
 }
 </style>
