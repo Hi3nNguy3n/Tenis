@@ -131,24 +131,34 @@ def admin_update_player(
         raise HTTPException(status_code=404, detail="Player not found")
     return {"message": "Player updated"}
 
+@router.get("/simple-list")
+def get_players_simple_list(db: Session = Depends(get_db)):
+    return crud_player.get_players_simple_list(db)
+
 @router.get("/rankings")
 def get_global_rankings(
     category: Optional[str] = Query(None, description="Lọc theo nội dung (Singles/Doubles)"),
     province: Optional[str] = Query(None, description="Lọc theo tỉnh thành"),
-    limit: Optional[int] = Query(None, ge=1, le=200),
+    skill: Optional[str] = Query(None, description="Lọc theo trình độ (Beginner/Intermediate...)"),
+    search: Optional[str] = Query(None, description="Từ khóa tìm kiếm theo tên, email, sđt"),
+    page: Optional[int] = Query(1, ge=1, description="Trang hiện tại"),
+    size: Optional[int] = Query(12, ge=1, le=200, description="Số mục mỗi trang"),
     db: Session = Depends(get_db)
 ):
-    players_data = crud_player.get_player_rankings(db, category, province, limit)
+    offset = (page - 1) * size
+    items, total = crud_player.get_player_rankings_paginated(
+        db, category=category, province=province, skill=skill, search=search, limit=size, offset=offset
+    )
 
     results = []
-    for rank, (p, u) in enumerate(players_data, start=1):
+    for index, (p, u) in enumerate(items):
         win_rate = 0
         if p.matches_played > 0:
             win_rate = round((p.wins / p.matches_played) * 100, 1)
 
         recent_change = get_recent_match_result(db, p.id)
         results.append({
-            "rank": rank,
+            "rank": offset + index + 1,
             "player_id": u.id,
             "full_name": u.full_name,
             "avatar_url": u.avatar_url,
@@ -162,7 +172,18 @@ def get_global_rankings(
             "category": p.preferred_category,
             "recent_elo_change": recent_change
         })
-    return results
+
+    import math
+    total_pages = math.ceil(total / size) if size > 0 else 1
+
+    return {
+        "total": total,
+        "page": page,
+        "size": size,
+        "total_pages": total_pages,
+        "items": results
+    }
+
 
 @router.get("/me/history")
 def get_my_match_history(

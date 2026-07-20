@@ -160,6 +160,63 @@ def get_player_rankings(db: Session, category: str = None, province: str = None,
         query = query.limit(limit)
     return query.all()
 
+def get_player_rankings_paginated(
+    db: Session, 
+    category: str = None, 
+    province: str = None, 
+    skill: str = None, 
+    search: str = None, 
+    limit: int = 12, 
+    offset: int = 0
+):
+    query = db.query(Player, User).join(User, Player.user_id == User.id).outerjoin(
+        Role, User.role_id == Role.id
+    ).filter(
+        User.is_active == True,
+        User.account_type != "admin",
+        or_(Role.id.is_(None), Role.role_key != "admin"),
+        Player.deleted_at.is_(None),
+        User.deleted_at.is_(None)
+    )
+    if category:
+        query = query.filter(Player.preferred_category == category)
+    if province:
+        query = query.filter(User.province == province)
+    if skill:
+        query = query.filter(Player.skill_level == skill)
+    if search:
+        search_term = f"%{search.strip()}%"
+        query = query.filter(or_(
+            User.full_name.ilike(search_term),
+            User.email.ilike(search_term),
+            User.phone.ilike(search_term)
+        ))
+
+    total = query.count()
+    items = query.order_by(desc(Player.elo_points), desc(Player.wins)).offset(offset).limit(limit).all()
+    return items, total
+
+def get_players_simple_list(db: Session):
+    players_data = db.query(Player, User).join(User, Player.user_id == User.id).outerjoin(
+        Role, User.role_id == Role.id
+    ).filter(
+        User.is_active == True,
+        User.account_type != "admin",
+        or_(Role.id.is_(None), Role.role_key != "admin"),
+        Player.deleted_at.is_(None),
+        User.deleted_at.is_(None)
+    ).order_by(User.full_name).all()
+    
+    return [
+        {
+            "player_id": u.id,
+            "full_name": u.full_name,
+            "avatar_url": u.avatar_url,
+            "skill_level": p.skill_level or "Unranked"
+        }
+        for p, u in players_data
+    ]
+
 # --- CÁC HÀM PHỤ TRỢ CHO LỊCH SỬ THI ĐẤU ---
 def get_player_registrations(db: Session, player_id: int):
     reg_ids = db.query(Registration.id).filter(Registration.player_id == player_id).all()

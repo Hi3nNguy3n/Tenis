@@ -23,11 +23,14 @@ import { t } from '../../utils/locale'
 const loading = ref(true)
 const tabLoading = ref(false)
 const players = ref([])
+const totalPlayers = ref(0)
 const recentWinners = ref([])
 const searchQuery = ref('')
 const playerPage = ref(1)
 const PLAYER_PAGE_SIZE = 12
 const activeTab = ref('ranking') // Default to 'ranking' (Vận động viên & Xếp hạng)
+const searchDebounceTimer = ref(null)
+const allPlayersSimple = ref([])
 
 // --- AUTH STORE ---
 const authStore = useAuthStore()
@@ -38,10 +41,22 @@ const matchesLoaded = ref(false)
 
 const loadMatches = async () => {
   try {
-    const data = await apiClient.get('/api/tournaments/matches/all')
+    const data = await apiClient.get('/api/tournaments/matches/all', {
+      params: { status: 'completed', limit: 15 }
+    })
     matches.value = Array.isArray(data) ? data : []
   } catch (err) {
     console.error('Error loading matches:', err)
+  }
+}
+
+const loadSimplePlayersList = async () => {
+  if (allPlayersSimple.value.length) return
+  try {
+    const data = await apiClient.get('/api/players/simple-list')
+    allPlayersSimple.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    console.error('Error loading simple players list:', err)
   }
 }
 
@@ -50,7 +65,9 @@ const handleTabChange = async (tab) => {
   activeTab.value = tab
   playerPage.value = 1 // Reset trang khi đổi tab
   
-  if ((tab === 'results' || tab === 'h2h') && !matchesLoaded.value) {
+  if (tab === 'ranking' || tab === 'newbie') {
+    await loadPlayers(1)
+  } else if ((tab === 'results' || tab === 'h2h') && !matchesLoaded.value) {
     tabLoading.value = true
     await loadMatches()
     matchesLoaded.value = true
@@ -58,6 +75,7 @@ const handleTabChange = async (tab) => {
   }
 
   if (tab === 'h2h') {
+    await loadSimplePlayersList()
     await fetchH2HCompare()
   }
 }
@@ -105,36 +123,43 @@ const challengeForm = ref({
   challenged_partner_id: null
 })
 
-const myPlayer = computed(() => {
-  if (!players.value || !Array.isArray(players.value)) return null
-  return players.value.find(p => p.full_name === authStore.user?.full_name)
+const availablePlayersSource = computed(() => {
+  return allPlayersSimple.value.length ? allPlayersSimple.value : players.value
 })
-const myPlayerId = computed(() => myPlayer.value?.player_id || null)
+
+const myPlayer = computed(() => {
+  if (!availablePlayersSource.value || !Array.isArray(availablePlayersSource.value)) return null
+  return availablePlayersSource.value.find(p => (p.full_name || p.name) === authStore.user?.full_name)
+})
+const myPlayerId = computed(() => myPlayer.value?.player_id || myPlayer.value?.id || null)
 
 const myPartnerOptions = computed(() => {
-  if (!players.value || !Array.isArray(players.value)) return []
-  return players.value.filter(p => {
-    const isMe = p.player_id === myPlayerId.value
-    const isOpponent = p.player_id === selectedOpponent.value?.player_id
+  if (!availablePlayersSource.value || !Array.isArray(availablePlayersSource.value)) return []
+  return availablePlayersSource.value.filter(p => {
+    const pid = p.player_id || p.id
+    const isMe = pid === myPlayerId.value
+    const isOpponent = pid === selectedOpponent.value?.player_id
     return !isMe && !isOpponent
   })
 })
 
 const opponentPartnerOptions = computed(() => {
-  if (!players.value || !Array.isArray(players.value)) return []
-  return players.value.filter(p => {
-    const isMe = p.player_id === myPlayerId.value
-    const isOpponent = p.player_id === selectedOpponent.value?.player_id
-    const isMyPartner = p.player_id === challengeForm.value.challenger_partner_id
+  if (!availablePlayersSource.value || !Array.isArray(availablePlayersSource.value)) return []
+  return availablePlayersSource.value.filter(p => {
+    const pid = p.player_id || p.id
+    const isMe = pid === myPlayerId.value
+    const isOpponent = pid === selectedOpponent.value?.player_id
+    const isMyPartner = pid === challengeForm.value.challenger_partner_id
     return !isMe && !isOpponent && !isMyPartner
   })
 })
 
-const openChallenge = (p) => {
+const openChallenge = async (p) => {
   if (!authStore.user) {
     ElMessage.warning('Vui lòng đăng nhập để gửi lời thách đấu!')
     return
   }
+  await loadSimplePlayersList()
   selectedOpponent.value = p
   challengeForm.value = { 
     date: '', 
@@ -159,7 +184,7 @@ const sendChallengeRequest = async () => {
 
   try {
     await apiClient.post('/api/challenges/', {
-      challenged_id: selectedOpponent.value.player_id,
+      challenged_id: selectedOpponent.value.player_id || selectedOpponent.value.id,
       proposed_date: challengeForm.value.date,
       notes: challengeForm.value.notes,
       match_type: challengeForm.value.match_type,
@@ -188,9 +213,9 @@ const h2hWinsA = ref(0)
 const h2hWinsB = ref(0)
 const h2hLoading = ref(false)
 
-const playerAObject = computed(() => players.value.find(p => p.player_id === h2hPlayerA.value))
-const playerBObject = computed(() => players.value.find(p => p.player_id === h2hPlayerB.value))
-const h2hPlayersList = computed(() => players.value)
+const playerAObject = computed(() => availablePlayersSource.value.find(p => (p.player_id || p.id) === h2hPlayerA.value))
+const playerBObject = computed(() => availablePlayersSource.value.find(p => (p.player_id || p.id) === h2hPlayerB.value))
+const h2hPlayersList = computed(() => availablePlayersSource.value)
 
 const fetchH2HCompare = async () => {
   if (!h2hPlayerA.value || !h2hPlayerB.value) return
@@ -243,48 +268,56 @@ watch([h2hPlayerA, h2hPlayerB], () => {
   fetchH2HCompare()
 })
 
-// --- VẬN ĐỘNG VIÊN & XẾP HẠNG (Main player list with Search) ---
-const visiblePlayers = computed(() => {
-  let list = players.value
-  if (activeTab.value === 'newbie') {
-    list = list.filter(p => p.skill_level === 'Beginner')
-  }
-  const keyword = searchQuery.value.trim().toLowerCase()
-  if (!keyword) return list
-  return list.filter(p => p.full_name?.toLowerCase().includes(keyword))
-})
-
-const totalPlayerPages = computed(() => Math.max(1, Math.ceil(visiblePlayers.value.length / PLAYER_PAGE_SIZE)))
-
-const paginatedPlayers = computed(() => {
-  const start = (playerPage.value - 1) * PLAYER_PAGE_SIZE
-  return visiblePlayers.value.slice(start, start + PLAYER_PAGE_SIZE)
-})
+// --- VẬN ĐỘNG VIÊN & XẾP HẠNG (Server-side paginated list) ---
+const visiblePlayers = computed(() => players.value)
 
 watch(searchQuery, () => {
-  playerPage.value = 1
+  if (searchDebounceTimer.value) clearTimeout(searchDebounceTimer.value)
+  searchDebounceTimer.value = setTimeout(() => {
+    playerPage.value = 1
+    loadPlayers(1)
+  }, 350)
 })
 
-watch(totalPlayerPages, (total) => {
-  if (playerPage.value > total) playerPage.value = total
-})
+const handlePageChange = async (newPage) => {
+  await loadPlayers(newPage)
+  window.scrollTo({ top: 300, behavior: 'smooth' })
+}
 
-const loadPlayers = async () => {
+const loadPlayers = async (page = 1) => {
   try {
-    const rankings = await apiClient.get('/api/players/rankings')
-    const normalized = Array.isArray(rankings) ? rankings : []
-    
-    const nonAdminPlayers = normalized.filter(p => !p.full_name?.toLowerCase().includes('admin'))
+    const params = {
+      page,
+      size: PLAYER_PAGE_SIZE
+    }
+    if (searchQuery.value.trim()) {
+      params.search = searchQuery.value.trim()
+    }
+    if (activeTab.value === 'newbie') {
+      params.skill = 'Beginner'
+    }
 
-    const enriched = await Promise.all(nonAdminPlayers.map(async (p, index) => {
+    const res = await apiClient.get('/api/players/rankings', { params })
+    
+    const items = Array.isArray(res) ? res : (res.items || [])
+    const total = Array.isArray(res) ? items.length : (res.total || 0)
+    
+    totalPlayers.value = total
+    playerPage.value = page
+    
+    const nonAdminPlayers = items.filter(p => !p.full_name?.toLowerCase().includes('admin'))
+
+    players.value = nonAdminPlayers.map((p) => {
       return {
         ...p,
-        displayRank: index + 1,
-        avatar_url: p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name)}&background=random`
+        displayRank: p.rank || '--',
+        avatar_url: p.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name || 'P')}&background=random`
       }
-    }))
-    players.value = enriched
-    recentWinners.value = players.value.slice(0, 8)
+    })
+
+    if (page === 1 && activeTab.value === 'ranking' && !searchQuery.value.trim()) {
+      recentWinners.value = players.value.slice(0, 8)
+    }
   } catch (err) { 
     console.error('Error loading players:', err) 
   }
@@ -292,7 +325,7 @@ const loadPlayers = async () => {
 
 onMounted(async () => {
   authStore.hydrate()
-  await loadPlayers() // Only load players on mount (Lazy Load)
+  await loadPlayers(1) // Only load page 1 on mount
   
   if (myPlayerId.value) {
     h2hPlayerA.value = myPlayerId.value
@@ -389,7 +422,7 @@ onMounted(async () => {
           <!-- TAB 1: VẬN ĐỘNG VIÊN & XẾP HẠNG & HỌC VIÊN MỚI -->
           <div v-if="activeTab === 'ranking' || activeTab === 'newbie'" class="tab-content">
             <div class="talent-grid">
-              <div v-for="p in paginatedPlayers" :key="p.player_id || p.id" class="talent-card group">
+              <div v-for="p in visiblePlayers" :key="p.player_id || p.id" class="talent-card group">
                 <RouterLink :to="`/players/${p.player_id || p.id}`" class="talent-image-box">
                   <img :src="p.avatar_url" alt="" class="talent-img" referrerpolicy="no-referrer" />
                 </RouterLink>
@@ -448,16 +481,17 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- TAB 2: KẾT QUẢ GẦN ĐÂY -->
-            <div v-if="(activeTab === 'ranking' || activeTab === 'newbie') && visiblePlayers.length > PLAYER_PAGE_SIZE" class="list-pagination">
-              <el-pagination
-                v-model:current-page="playerPage"
-                :page-size="PLAYER_PAGE_SIZE"
-                :total="visiblePlayers.length"
-                layout="prev, pager, next"
-                background
-              />
-            </div>
+          <!-- PAGINATION -->
+          <div v-if="(activeTab === 'ranking' || activeTab === 'newbie') && totalPlayers > PLAYER_PAGE_SIZE" class="list-pagination" style="margin-top: 2rem; display: flex; justify-content: center;">
+            <el-pagination
+              v-model:current-page="playerPage"
+              :page-size="PLAYER_PAGE_SIZE"
+              :total="totalPlayers"
+              @current-change="handlePageChange"
+              layout="prev, pager, next"
+              background
+            />
+          </div>
           <div v-if="activeTab === 'results'" class="tab-content results-tab-content">
             <div class="results-list">
               <div v-for="match in finishedMatches" :key="match.id" class="result-match-card">
