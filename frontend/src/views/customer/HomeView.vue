@@ -273,7 +273,8 @@ const processNewsData = (newsData) => {
 }
 
 const processRankingsData = (rankingsData) => {
-  const filteredRankings = (rankingsData || []).filter(p => !p.full_name?.toLowerCase().includes('admin'))
+  const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.items || [])
+  const filteredRankings = list.filter(p => !p.full_name?.toLowerCase().includes('admin'))
   rawRankings.value = filteredRankings.map((p, index) => ({
     ...p,
     rank: index + 1

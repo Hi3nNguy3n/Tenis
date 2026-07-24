@@ -18,7 +18,7 @@ const activeScoreTab = ref('sgt')
 const scorePage = ref(1)
 const SCORE_PAGE_SIZE = 1
 const rankingPage = ref(1)
-const RANKING_PAGE_SIZE = 15
+const RANKING_PAGE_SIZE = 12
 
 const filters = ref({
   category: '',
@@ -86,15 +86,16 @@ const fetchRankings = async () => {
   try {
     // Sử dụng URLSearchParams để tự động xử lý và nối chuỗi param an toàn
     const params = new URLSearchParams()
+    params.append('size', '200') // Lấy toàn bộ danh sách (tối đa 200) để phân trang ở giao diện
     if (filters.value.category) params.append('category', filters.value.category)
     if (filters.value.province) params.append('province', filters.value.province)
 
     const queryString = params.toString()
-    const url = queryString ? `/api/players/rankings?${queryString}` : '/api/players/rankings'
+    const url = `/api/players/rankings?${queryString}`
 
     // Gọi API
     const response = await apiClient.get(url)
-    const normalized = Array.isArray(response) ? response : []
+    const normalized = Array.isArray(response) ? response : (response?.items || [])
     
     // Đánh lại số thứ tự (Rank)
     rankings.value = normalized.map((player, index) => ({

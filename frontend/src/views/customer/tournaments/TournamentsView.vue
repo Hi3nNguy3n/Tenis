@@ -46,7 +46,8 @@ onMounted(async () => {
 
   try {
     const rankings = await playerService.getRankings()
-    topPlayers.value = (rankings || []).slice(0, 5)
+    const rankingList = Array.isArray(rankings) ? rankings : (rankings?.items || [])
+    topPlayers.value = rankingList.slice(0, 5)
   } catch (err) {
     console.error('Lỗi tải xếp hạng:', err)
   }
