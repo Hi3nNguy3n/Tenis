@@ -36,7 +36,8 @@ const fetchSidebarData = async () => {
       .filter(item => item.id !== post.value.id && item.status === 'published')
       .slice(0, 4) 
 
-    topPlayers.value = (rankingsData || []).slice(0, 5) 
+    const rankingList = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.items || [])
+    topPlayers.value = rankingList.slice(0, 5) 
     sidebarLoaded.value = true
   } catch (err) {
     console.error('Lỗi tải dữ liệu phụ:', err)

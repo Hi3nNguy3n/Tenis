@@ -74,7 +74,7 @@ const loadPlayers = async () => {
   try {
     const data = await apiClient.get('/api/players/rankings')
     // Đánh lại số thứ tự rank sau khi lấy về (giống trang Rankings)
-    const normalized = Array.isArray(data) ? data : (data.data || [])
+    const normalized = Array.isArray(data) ? data : (data?.items || data?.data || [])
     players.value = normalized.map((player, index) => ({
       ...player,
       displayRank: index + 1

@@ -204,7 +204,8 @@ const fetchNewsAndRankings = async () => {
       playerService.getRankings(),
     ])
     latestNews.value = news || []
-    topPlayers.value = (rankings || []).slice(0, 5)
+    const rankingList = Array.isArray(rankings) ? rankings : (rankings?.items || [])
+    topPlayers.value = rankingList.slice(0, 5)
   } catch (err) {
     console.error('Lỗi khi tải tin tức / thống kê:', err)
     ElMessage.error(t('common.errorLoading'))

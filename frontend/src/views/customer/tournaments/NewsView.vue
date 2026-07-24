@@ -39,7 +39,8 @@ const isVideo = (url) => {
 const fetchRankings = async () => {
   try {
     const rankingsData = await playerService.getRankings().catch(() => [])
-    topPlayers.value = (rankingsData || []).slice(0, 5)
+    const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.items || [])
+    topPlayers.value = list.slice(0, 5)
   } catch (err) {
     console.error('Lỗi tải bảng xếp hạng:', err)
   }

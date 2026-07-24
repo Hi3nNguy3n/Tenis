@@ -25,7 +25,7 @@ const fetchData = async () => {
   isLoading.value = true
   try {
     const data = await apiClient.get('/api/players/rankings')
-    players.value = data
+    players.value = Array.isArray(data) ? data : (data?.items || [])
   } catch (err) {
     ElMessage.error(t('admin.loadRankingsError') + ': ' + err.message)
   } finally {
