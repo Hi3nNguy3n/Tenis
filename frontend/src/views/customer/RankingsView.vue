@@ -18,7 +18,7 @@ const activeScoreTab = ref('sgt')
 const scorePage = ref(1)
 const SCORE_PAGE_SIZE = 1
 const rankingPage = ref(1)
-const RANKING_PAGE_SIZE = 15
+const RANKING_PAGE_SIZE = 12
 
 const filters = ref({
   category: '',
@@ -86,15 +86,16 @@ const fetchRankings = async () => {
   try {
     // Sử dụng URLSearchParams để tự động xử lý và nối chuỗi param an toàn
     const params = new URLSearchParams()
+    params.append('size', '200') // Lấy toàn bộ danh sách (tối đa 200) để phân trang ở giao diện
     if (filters.value.category) params.append('category', filters.value.category)
     if (filters.value.province) params.append('province', filters.value.province)
 
     const queryString = params.toString()
-    const url = queryString ? `/api/players/rankings?${queryString}` : '/api/players/rankings'
+    const url = `/api/players/rankings?${queryString}`
 
     // Gọi API
     const response = await apiClient.get(url)
-    const normalized = Array.isArray(response) ? response : []
+    const normalized = Array.isArray(response) ? response : (response?.items || [])
     
     // Đánh lại số thứ tự (Rank)
     rankings.value = normalized.map((player, index) => ({
@@ -413,7 +414,11 @@ onMounted(async () => {
             <strong>{{ player.full_name }}</strong>
             <small>{{ player.province || 'Chưa cập nhật CLB' }}</small>
           </div>
-          <span class="featured-points">{{ player.elo_points }}</span>
+          <span class="featured-points">
+            {{ player.elo_points }}
+            <span v-if="player.recent_elo_change === 1" class="elo-trend-up">▲</span>
+            <span v-if="player.recent_elo_change === -1" class="elo-trend-down">▼</span>
+          </span>
         </article>
       </div>
     </section>
@@ -522,7 +527,11 @@ onMounted(async () => {
                   {{ player.skill_level || 'N/A' }}
                 </td>
                 <td class="col-pts text-center">
-                  <strong class="points-val">{{ player.elo_points }}</strong>
+                  <strong class="points-val">
+                    {{ player.elo_points }}
+                    <span v-if="player.recent_elo_change === 1" class="elo-trend-up">▲</span>
+                    <span v-if="player.recent_elo_change === -1" class="elo-trend-down">▼</span>
+                  </strong>
                 </td>
                 <td class="col-matches hidden-mobile text-center">
                   {{ player.matches_played || 0 }}
@@ -1330,5 +1339,21 @@ onMounted(async () => {
   /* Chống tràn cho sidebar widget */
   .ws-body { padding: 0.75rem; }
   .match-summary { font-size: 0.65rem; }
+}
+
+.elo-trend-up {
+  color: #22c55e;
+  font-size: 0.8rem;
+  margin-left: 4px;
+  vertical-align: middle;
+  font-weight: bold;
+}
+
+.elo-trend-down {
+  color: #ef4444;
+  font-size: 0.8rem;
+  margin-left: 4px;
+  vertical-align: middle;
+  font-weight: bold;
 }
 </style>

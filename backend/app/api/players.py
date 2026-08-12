@@ -62,6 +62,40 @@ def upload_avatar(
         logger.exception("Player avatar upload failed")
         raise HTTPException(status_code=500, detail=INTERNAL_ERROR_MESSAGE)
 
+def get_recent_match_result(db: Session, player_id: int) -> int:
+    # Tra ve: 1 neu thang, -1 neu thua, 0 neu khong co/chua completed
+    from app.models.models import Registration, Match
+    from sqlalchemy import or_, desc
+    
+    reg_ids = [r[0] for r in db.query(Registration.id).filter(Registration.player_id == player_id).all()]
+    
+    query = db.query(Match).filter(Match.status == "completed")
+    conditions = [
+        Match.player_a_id == player_id,
+        Match.player_b_id == player_id,
+        Match.player_a2_id == player_id,
+        Match.player_b2_id == player_id
+    ]
+    if reg_ids:
+        conditions.append(Match.side_a_registration_id.in_(reg_ids))
+        conditions.append(Match.side_b_registration_id.in_(reg_ids))
+        
+    recent_match = query.filter(or_(*conditions)).order_by(desc(Match.start_time), desc(Match.created_at)).first()
+    if not recent_match:
+        return 0
+        
+    is_side_a = False
+    if recent_match.tournament_id and (recent_match.side_a_registration_id or recent_match.side_b_registration_id):
+        is_side_a = recent_match.side_a_registration_id in reg_ids
+        if is_side_a:
+            return 1 if recent_match.winner_side == "side_a" or recent_match.winner_registration_id == recent_match.side_a_registration_id else -1
+        else:
+            return 1 if recent_match.winner_side == "side_b" or recent_match.winner_registration_id == recent_match.side_b_registration_id else -1
+    else:
+        is_side_a = (recent_match.player_a_id == player_id) or (recent_match.player_a2_id == player_id)
+        my_side = "side_a" if is_side_a else "side_b"
+        return 1 if recent_match.winner_side == my_side else -1
+
 @router.get("/list")
 def list_players(
     search: Optional[str] = Query(None),
@@ -73,10 +107,12 @@ def list_players(
     
     results = []
     for p, u in players_data:
+        recent_change = get_recent_match_result(db, p.id)
         results.append({
             "id": p.id,
             "user": u,
-            "player_profile": p
+            "player_profile": p,
+            "recent_elo_change": recent_change
         })
     return results
 
@@ -95,23 +131,34 @@ def admin_update_player(
         raise HTTPException(status_code=404, detail="Player not found")
     return {"message": "Player updated"}
 
+@router.get("/simple-list")
+def get_players_simple_list(db: Session = Depends(get_db)):
+    return crud_player.get_players_simple_list(db)
+
 @router.get("/rankings")
 def get_global_rankings(
     category: Optional[str] = Query(None, description="Lọc theo nội dung (Singles/Doubles)"),
     province: Optional[str] = Query(None, description="Lọc theo tỉnh thành"),
-    limit: Optional[int] = Query(None, ge=1, le=200),
+    skill: Optional[str] = Query(None, description="Lọc theo trình độ (Beginner/Intermediate...)"),
+    search: Optional[str] = Query(None, description="Từ khóa tìm kiếm theo tên, email, sđt"),
+    page: Optional[int] = Query(1, ge=1, description="Trang hiện tại"),
+    size: Optional[int] = Query(12, ge=1, le=200, description="Số mục mỗi trang"),
     db: Session = Depends(get_db)
 ):
-    players_data = crud_player.get_player_rankings(db, category, province, limit)
+    offset = (page - 1) * size
+    items, total = crud_player.get_player_rankings_paginated(
+        db, category=category, province=province, skill=skill, search=search, limit=size, offset=offset
+    )
 
     results = []
-    for rank, (p, u) in enumerate(players_data, start=1):
+    for index, (p, u) in enumerate(items):
         win_rate = 0
         if p.matches_played > 0:
             win_rate = round((p.wins / p.matches_played) * 100, 1)
 
+        recent_change = get_recent_match_result(db, p.id)
         results.append({
-            "rank": rank,
+            "rank": offset + index + 1,
             "player_id": u.id,
             "full_name": u.full_name,
             "avatar_url": u.avatar_url,
@@ -122,9 +169,21 @@ def get_global_rankings(
             "win_rate": win_rate,
             "skill_level": p.skill_level or "Unranked",
             "province": u.province,
-            "category": p.preferred_category
+            "category": p.preferred_category,
+            "recent_elo_change": recent_change
         })
-    return results
+
+    import math
+    total_pages = math.ceil(total / size) if size > 0 else 1
+
+    return {
+        "total": total,
+        "page": page,
+        "size": size,
+        "total_pages": total_pages,
+        "items": results
+    }
+
 
 @router.get("/me/history")
 def get_my_match_history(
@@ -488,6 +547,24 @@ def get_h2h_compare(user_a_id: int, user_b_id: int, db: Session = Depends(get_db
 
     return {"wins_a": wins_a, "wins_b": wins_b}
 
+@router.get("/deleted", dependencies=[Depends(get_current_admin)])
+def list_deleted_players(
+    search: Optional[str] = Query(None),
+    skill: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    players_data = crud_player.get_deleted_players_list(db, search, skill)
+    results = []
+    for p, u in players_data:
+        recent_change = get_recent_match_result(db, p.id)
+        results.append({
+            "id": p.id,
+            "user": u,
+            "player_profile": p,
+            "recent_elo_change": recent_change
+        })
+    return results
+
 # 2. API Lấy hồ sơ công khai của 1 người
 @router.get("/{player_id}", response_model=PlayerProfileDetailResponse)
 def get_public_profile(player_id: int, db: Session = Depends(get_db)):
@@ -522,10 +599,26 @@ def admin_create_player(
     
     return {"message": "Tạo tài khoản VĐV thành công!", "user_id": user.id}
 
-@router.delete("/{player_id}", dependencies=[Depends(get_current_admin)])
+@router.delete("/{player_id}")
 @audit_log(module="PLAYER", action="DELETE", event_name="Admin xóa mềm VĐV")
-def delete_player(player_id: int, db: Session = Depends(get_db)):
+def delete_player(
+    player_id: int, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
     player = crud_player.delete_player_db(db, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Không tìm thấy vận động viên")
-    return {"message": "Đã xóa vận động viên thành công"}
+    return {"message": "Đã xóa vận động viên thành công", "id": player.user_id}
+
+@router.post("/{player_id}/restore")
+@audit_log(module="PLAYER", action="RESTORE", event_name="Admin khôi phục tài khoản VĐV")
+def restore_player(
+    player_id: int, 
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin)
+):
+    player = crud_player.restore_player_db(db, player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Không tìm thấy vận động viên")
+    return {"message": "Đã khôi phục tài khoản vận động viên thành công", "id": player.user_id}

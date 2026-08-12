@@ -59,6 +59,90 @@ const parseJson = (jsonStr) => {
   }
 }
 
+const showRawJson = ref({})
+
+const attributeMap = {
+  // Common fields
+  id: 'ID',
+  user_id: 'ID Người thực hiện / VĐV',
+  full_name: 'Họ và tên',
+  email: 'Email',
+  phone: 'Số điện thoại',
+  avatar_url: 'Ảnh đại diện',
+  province: 'Khu vực/Tỉnh thành',
+  date_of_birth: 'Ngày sinh',
+  gender: 'Giới tính',
+  is_active: 'Trạng thái hoạt động',
+  is_verified: 'Đã xác minh',
+  role_id: 'ID Vai trò',
+  message: 'Thông báo / Kết quả',
+  
+  // Player specific fields
+  play_hand: 'Tay thuận',
+  skill_level: 'Trình độ',
+  preferred_category: 'Sở trường',
+  elo_points: 'Điểm ELO',
+  wins: 'Số trận thắng',
+  losses: 'Số trận thua',
+  matches_played: 'Tổng số trận',
+  bio: 'Tiểu sử',
+  admin_notes: 'Ghi chú quản trị',
+  height_cm: 'Chiều cao (cm)',
+  weight_kg: 'Cân nặng (kg)',
+  
+  // news / tournament / court fields
+  title: 'Tiêu đề bài viết',
+  summary: 'Tóm tắt bài viết',
+  content: 'Nội dung chi tiết',
+  status: 'Trạng thái',
+  name: 'Tên',
+  location: 'Địa điểm',
+  court_name: 'Tên sân',
+  location_name: 'Vị trí sân',
+  surface_type: 'Loại mặt sân',
+  entry_fee: 'Lệ phí giải đấu',
+  draw_size: 'Quy mô giải đấu',
+  start_date: 'Ngày bắt đầu',
+  end_date: 'Ngày kết thúc'
+}
+
+const formatLogData = (dataStr) => {
+  if (!dataStr) return []
+  try {
+    const dataObj = typeof dataStr === 'object' ? dataStr : JSON.parse(dataStr)
+    if (!dataObj || typeof dataObj !== 'object') return []
+    
+    return Object.entries(dataObj)
+      .filter(([key]) => key !== '_sa_instance_state' && key !== 'password_hash')
+      .map(([key, val]) => {
+        let displayVal = val
+        if (val === null || val === undefined) {
+          displayVal = 'N/A'
+        } else if (typeof val === 'boolean') {
+          displayVal = val ? 'Có / Kích hoạt' : 'Không / Khóa'
+        } else if (key === 'gender') {
+          displayVal = val === 'male' ? 'Nam' : (val === 'female' ? 'Nữ' : val)
+        } else if (key === 'play_hand') {
+          const hands = { 'right': 'Tay phải', 'left': 'Tay trái', 'both': 'Cả hai tay' }
+          displayVal = hands[val] || val
+        } else if (key === 'preferred_category') {
+          displayVal = val === 'Singles' ? 'Đơn' : (val === 'Doubles' ? 'Đôi' : val)
+        } else if (key === 'skill_level') {
+          const skills = { 'Beginner': 'Người mới chơi', 'Intermediate': 'Trung bình', 'Advanced': 'Khá/Tốt', 'Professional': 'Chuyên nghiệp' }
+          displayVal = skills[val] || val
+        }
+        
+        return {
+          key,
+          label: attributeMap[key] || key,
+          val: displayVal
+        }
+      })
+  } catch (e) {
+    return [{ key: 'raw', label: 'Dữ liệu thô', val: dataStr }]
+  }
+}
+
 // Format ngày giờ
 const formatDateTime = (dateStr) => {
   if (!dateStr) return ''
@@ -173,10 +257,51 @@ const updateCount = computed(() => logs.value.filter(l => l.action_type === 'UPD
           <template #default="props">
             <div class="audit-expand-viewport">
               <div class="expand-header-saas">
-                <el-icon class="mr-2"><View /></el-icon>
-                <span>Dữ liệu chi tiết sự thay đổi</span>
+                <div class="header-title-flex">
+                  <el-icon class="mr-2"><View /></el-icon>
+                  <span>Dữ liệu chi tiết sự thay đổi</span>
+                </div>
+                <div class="header-toggle-flex">
+                  <span class="toggle-label mr-2">Xem JSON gốc:</span>
+                  <el-switch
+                    v-model="showRawJson[props.row.id]"
+                    inline-prompt
+                    active-text="Bật"
+                    inactive-text="Tắt"
+                  />
+                </div>
               </div>
-              <div class="audit-grid-saas">
+
+              <!-- View Mode: Table (Default) -->
+              <div v-if="!showRawJson[props.row.id]" class="audit-details-table-wrap">
+                <table class="details-table-premium">
+                  <thead>
+                    <tr>
+                      <th class="col-field">Trường thông tin</th>
+                      <th class="col-value">Nội dung ghi nhận</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="item in formatLogData(props.row.new_data)" :key="item.key">
+                      <td class="details-field-label">{{ item.label }}</td>
+                      <td class="details-field-value">
+                        <!-- Hiển thị ảnh nếu thuộc tính là avatar_url -->
+                        <div v-if="item.key === 'avatar_url' && item.val !== 'N/A'" class="avatar-preview-inline">
+                          <img :src="item.val" class="inline-avatar-img" />
+                          <span class="avatar-link">{{ item.val }}</span>
+                        </div>
+                        <span v-else>{{ item.val }}</span>
+                      </td>
+                    </tr>
+                    <tr v-if="formatLogData(props.row.new_data).length === 0">
+                      <td colspan="2" class="empty-table-details">Không có dữ liệu chi tiết ghi nhận</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- View Mode: Raw JSON -->
+              <div v-else class="audit-grid-saas">
                 <div class="audit-block-saas">
                   <div class="block-label">Dữ liệu cũ (Old Data)</div>
                   <div class="code-container">
@@ -325,7 +450,111 @@ const updateCount = computed(() => logs.value.filter(l => l.action_type === 'UPD
 
 /* Expanded Audit Details */
 .audit-expand-viewport { padding: 32px; background: #fafafa; border-radius: 24px; margin: 10px; border: 1px solid #f1f5f9; }
-.expand-header-saas { margin-bottom: 24px; display: flex; align-items: center; font-weight: 900; color: #1e293b; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.expand-header-saas {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 900;
+  color: #1e293b;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 100%;
+}
+
+.header-title-flex {
+  display: flex;
+  align-items: center;
+}
+
+.header-toggle-flex {
+  display: flex;
+  align-items: center;
+}
+
+.toggle-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  text-transform: none;
+  font-weight: 700;
+}
+
+.audit-details-table-wrap {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+  padding: 8px;
+}
+
+.details-table-premium {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.details-table-premium th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 800;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: left;
+  padding: 12px 20px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.details-table-premium td {
+  padding: 14px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.details-table-premium tr:last-child td {
+  border-bottom: none;
+}
+
+.details-field-label {
+  font-weight: 700;
+  color: #0f172a;
+  width: 30%;
+}
+
+.details-field-value {
+  font-weight: 500;
+  color: #475569;
+  word-break: break-all;
+}
+
+.empty-table-details {
+  text-align: center;
+  color: #94a3b8;
+  font-style: italic;
+  padding: 24px 0 !important;
+}
+
+.avatar-preview-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inline-avatar-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+}
+
+.avatar-link {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-family: monospace;
+}
 
 .audit-grid-saas { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 .audit-block-saas { display: flex; flex-direction: column; gap: 12px; }

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import random
 import logging
+import dns.resolver
 
 from app.db.redis_client import get_redis
 from app.db.database import get_db
@@ -21,36 +22,70 @@ INTERNAL_ERROR_MESSAGE = "Đã xảy ra lỗi hệ thống. Vui lòng liên hệ
 # ==========================================
 # 1. API GỬI OTP ĐĂNG KÝ
 # ==========================================
+# API GỬI OTP ĐĂNG KÝ
 @router.post("/send-otp")
 async def send_otp(request: SendOTPRequest, db: Session = Depends(get_db), r = Depends(get_redis)):
     email_key = request.email.lower().strip()
+    import re
+    email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    if not re.match(email_regex, email_key):
+        raise HTTPException(status_code=400, detail="Định dạng email không hợp lệ.")
+    # Kiểm tra MX record và SMTP handshake để xác thực hòm thư tồn tại thực tế
+    domain = email_key.split("@")[-1]
+    try:
+        mx_records = dns.resolver.resolve(domain, "MX")
+        mx_records = sorted(mx_records, key=lambda record: record.preference)
+        mx_server = str(mx_records[0].exchange).rstrip('.')
+    except Exception:
+        raise HTTPException(status_code=400, detail="Domain email không tồn tại hoặc không hỗ trợ nhận mail.")
+
+    email_exists = True
+    try:
+        from app.core.config import settings
+        import smtplib
+        import socket
+        sender_email = settings.MAIL_FROM or "check@saigontennistours.com"
+        
+        # Kết nối tới MX server với timeout ngắn (3.5 giây)
+        server = smtplib.SMTP(timeout=3.5)
+        server.connect(mx_server, 25)
+        server.helo(server.local_hostname or 'localhost')
+        server.mail(sender_email)
+        code, message = server.rcpt(email_key)
+        server.quit()
+        
+        # Mã lỗi >= 500 nghĩa là hòm thư không tồn tại thực sự (ví dụ: 550 Mailbox not found)
+        if code >= 500:
+            email_exists = False
+    except (socket.timeout, socket.error, smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected):
+        # Nếu bị chặn cổng 25 hoặc lỗi kết nối, fallback về True để tránh chặn oan người dùng hợp lệ
+        email_exists = True
+    except Exception:
+        email_exists = True
+
+    if not email_exists:
+        raise HTTPException(status_code=400, detail="Địa chỉ email không tồn tại hoặc không thể nhận thư.")
     purpose = (request.purpose or "signup").strip().lower()
     existing_user = crud_auth.get_user_by_email(db, email_key)
     if purpose != "signup" and not existing_user:
-        raise HTTPException(status_code=404, detail="Email khong ton tai trong he thong.")
+        raise HTTPException(status_code=404, detail="Email không tồn tại trong hệ thống.")
     if purpose == "signup" and existing_user:
         raise HTTPException(status_code=400, detail="Email này đã được sử dụng trong hệ thống.")
-
-    # Tạo mã OTP ngẫu nhiên
     otp_code = str(random.randint(100000, 999999))
-    
-    # Lưu OTP vào Redis với thời hạn 300s (5 phút)
-    r.setex(f"otp:{email_key}", 300, otp_code) 
-    
-    # Gửi email qua SMTP/app password
+    r.setex(f"otp:{email_key}", 300, otp_code)
     subject = "Mã xác nhận OTP - Saigontennistours"
-    html_content = f"""
-    <div style="font-family: Arial, sans-serif; padding: 20px;">
+    html_content = f"""<div style=\"font-family: Arial, sans-serif; padding: 20px;\">
         <h2>Xin chào,</h2>
         <p>Bạn vừa yêu cầu mã OTP để xác thực tài khoản tại Saigontennistours.</p>
-        <p>Mã xác nhận của bạn là: <strong style="font-size: 24px; color: #10b981;">{otp_code}</strong></p>
+        <p>Mã xác nhận của bạn là: <strong style=\"font-size: 24px; color: #10b981;\">{otp_code}</strong></p>
         <p>Mã này sẽ hết hạn sau 5 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>
-    </div>
-    """
-    await send_email(email_to=request.email, subject=subject, html_content=html_content)
-    
+    </div>"""
+    try:
+        await send_email(email_to=request.email, subject=subject, html_content=html_content)
+    except Exception as e:
+        logger.exception("Failed to send OTP email")
+        raise HTTPException(status_code=500, detail="Không thể gửi OTP, vui lòng thử lại sau.")
     return {"message": "Mã OTP đã được gửi đến email của bạn!"}
-
 # ==========================================
 # 2. API XÁC NHẬN ĐĂNG KÝ (CHECK REDIS)
 # ==========================================

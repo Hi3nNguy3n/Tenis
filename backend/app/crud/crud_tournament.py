@@ -126,7 +126,7 @@ def update_tournament_info(db: Session, tournament_id: int, tournament_in: Tourn
     
     log_action(db, admin_id, "TOURNAMENT", "UPDATE", "Tournament", db_tour.id, None, {"name": db_tour.name}, "Cập nhật giải đấu")
     return db_tour
-def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optional[int] = None, draw_size: Optional[int] = None, round_names: Optional[List[str]] = None):
+def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optional[int] = None, draw_size: Optional[int] = None, round_names: Optional[List[str]] = None, draw_mode: str = "manual", representative_name: Optional[str] = None):
     query = db.query(Registration).filter(
         Registration.tournament_id == tournament_id,
         Registration.status.in_(["pending", "approved", "confirmed", "paid", "checked_in"]),
@@ -200,14 +200,68 @@ def generate_knockout_draw(db: Session, tournament_id: int, category_id: Optiona
                 if linked:
                     break
 
-    for m in matches_by_round[0]:
-        m.side_a_registration_id = None
-        m.side_b_registration_id = None
+    if draw_mode == "random":
+        if not regs:
+            raise HTTPException(status_code=400, detail="Không tìm thấy VĐV nào đăng ký hợp lệ để bốc thăm ngẫu nhiên.")
+        
+        # Xáo trộn ngẫu nhiên danh sách đăng ký
+        random.shuffle(regs)
+        count = len(regs)
+        
+        # Tạo slots tương ứng với vòng đầu tiên
+        total_slots = 2 * round_match_counts[0]
+        slots = [None] * total_slots
+        for i in range(min(count, total_slots)):
+            slots[i] = regs[i]
+            
+        slot_idx = 0
+        for m in matches_by_round[0]:
+            reg_a = slots[slot_idx] if slot_idx < len(slots) else None
+            reg_b = slots[slot_idx + 1] if slot_idx + 1 < len(slots) else None
+            slot_idx += 2
+            
+            m.side_a_registration_id = reg_a.id if reg_a else None
+            m.side_b_registration_id = reg_b.id if reg_b else None
+            
+            # Tự động giải quyết các nhánh thắng miễn đấu (BYE)
+            if reg_a and not reg_b:
+                m.status = "completed"
+                m.winner_side = "side_a"
+                m.winner_registration_id = reg_a.id
+                m.result_note = "BYE"
+            elif not reg_a and reg_b:
+                m.status = "completed"
+                m.winner_side = "side_b"
+                m.winner_registration_id = reg_b.id
+                m.result_note = "BYE"
+        
+        db.flush()
+        
+        # Tiến cử các VĐV được miễn đấu vòng đầu (BYE) lên vòng 2
+        for m in matches_by_round[0]:
+            if m.status == "completed" and m.next_match_id and m.winner_registration_id:
+                next_m = db.query(Match).filter(Match.id == m.next_match_id).first()
+                if next_m:
+                    if m.match_no % 2 != 0:
+                        next_m.side_a_registration_id = m.winner_registration_id
+                    else:
+                        next_m.side_b_registration_id = m.winner_registration_id
+                        
+        # Ghi log audit
+        if representative_name:
+            log_action(db, None, "TOURNAMENT", "GENERATE", "Tournament", tournament_id, None, 
+                       {"representative": representative_name, "mode": "random", "format": "knockout"}, 
+                       f"Bốc thăm Knockout ngẫu nhiên bằng máy dưới sự đại diện của: {representative_name}")
+    else:
+        # Chế độ thủ công: Chỉ tạo các khung trống rỗng
+        for m in matches_by_round[0]:
+            m.side_a_registration_id = None
+            m.side_b_registration_id = None
 
     db.commit()
 
     return {
-        "message": "Da tao khung nhanh dau thanh cong. Vui long tu ghep cap thi dau bang tay.",
+        "message": "Bốc thăm ngẫu nhiên bằng máy thành công!" if draw_mode == "random" else "Đã tạo khung nhánh đấu thành công. Vui lòng tự ghép cặp thi đấu bằng tay.",
         "total_slots": participant_count,
         "first_round_matches": round_match_counts[0],
         "participant_count": participant_count,
@@ -285,6 +339,18 @@ def get_tournament_matches_detail(db: Session, tournament_id: int, category_id: 
             "winner_side": m.winner_side,
             "score_a": m.set1_a,
             "score_b": m.set1_b,
+            "set1_a": m.set1_a,
+            "set1_b": m.set1_b,
+            "set2_a": m.set2_a,
+            "set2_b": m.set2_b,
+            "set3_a": m.set3_a,
+            "set3_b": m.set3_b,
+            "tie_break_1_a": m.tie_break_1_a,
+            "tie_break_1_b": m.tie_break_1_b,
+            "tie_break_2_a": m.tie_break_2_a,
+            "tie_break_2_b": m.tie_break_2_b,
+            "tie_break_3_a": m.tie_break_3_a,
+            "tie_break_3_b": m.tie_break_3_b,
             "p1_user_id": p1_user_id,
             "p2_user_id": p2_user_id,
             "referee_id": m.referee_id,
@@ -488,7 +554,9 @@ def update_match_admin_db(db: Session, match_id: int, payload: AdminMatchUpdate)
     for field in [
         "round_code", "match_no", "stage_type", "side_a_registration_id", "side_b_registration_id",
         "status", "court_id", "start_time", "referee_name", "referee_phone",
-        "live_stream_url", "video_url", "image_url", "winner_side", "next_match_id", "show_on_homepage"
+        "live_stream_url", "video_url", "image_url", "winner_side", "next_match_id", "show_on_homepage",
+        "set1_a", "set1_b", "set2_a", "set2_b", "set3_a", "set3_b",
+        "tie_break_1_a", "tie_break_1_b", "tie_break_2_a", "tie_break_2_b", "tie_break_3_a", "tie_break_3_b"
     ]:
         if field in data:
             setattr(match, field, data[field])
@@ -542,7 +610,7 @@ def schedule_match_db(db: Session, match_id: int, payload: MatchScheduleUpdate):
     db.commit()
     return {"message": "Đã cập nhật lịch thi đấu"}
 
-def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_homepage: Optional[bool] = None):
+def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_homepage: Optional[bool] = None, status: Optional[str] = None):
     query = db.query(Match, Tournament, Court).outerjoin(
         Tournament, Match.tournament_id == Tournament.id
     ).outerjoin(
@@ -550,6 +618,10 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
     )
     if show_on_homepage is not None:
         query = query.filter(Match.show_on_homepage == show_on_homepage)
+    if status:
+        status_list = [s.strip().lower() for s in status.split(",") if s.strip()]
+        if status_list:
+            query = query.filter(Match.status.in_(status_list))
     query = query.order_by(desc(Match.start_time))
     if limit:
         query = query.limit(limit)
@@ -638,20 +710,142 @@ def get_all_matches_detail(db: Session, limit: Optional[int] = None, show_on_hom
             "p2_partner_avatar": p2_data["partner_avatar"],
             "winner_side": m.winner_side,
             "score": m.score_summary,
+            "set1_a": m.set1_a,
+            "set1_b": m.set1_b,
+            "set2_a": m.set2_a,
+            "set2_b": m.set2_b,
+            "set3_a": m.set3_a,
+            "set3_b": m.set3_b,
+            "tie_break_1_a": m.tie_break_1_a,
+            "tie_break_1_b": m.tie_break_1_b,
+            "tie_break_2_a": m.tie_break_2_a,
+            "tie_break_2_b": m.tie_break_2_b,
+            "tie_break_3_a": m.tie_break_3_a,
+            "tie_break_3_b": m.tie_break_3_b,
             "video_url": getattr(m, 'video_url', None),
             "show_on_homepage": getattr(m, 'show_on_homepage', False),
         })
     return results
 
+def get_match_detail(db: Session, match_id: int):
+    query = db.query(Match, Tournament, Court).outerjoin(
+        Tournament, Match.tournament_id == Tournament.id
+    ).outerjoin(
+        Court, Match.court_id == Court.id
+    ).filter(Match.id == match_id)
+    
+    row = query.first()
+    if not row:
+        return None
+        
+    m, t, c = row
+    
+    def get_match_players_data(m, side):
+        if side == "a":
+            reg_id = m.side_a_registration_id
+            p_id = m.player_a_id
+            p2_id = m.player_a2_id
+        else:
+            reg_id = m.side_b_registration_id
+            p_id = m.player_b_id
+            p2_id = m.player_b2_id
+
+        data = {"name": None, "avatar": None, "partner_name": None, "partner_avatar": None}
+
+        if reg_id:
+            reg = db.query(Registration).filter(Registration.id == reg_id).first()
+            if reg:
+                user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == reg.player_id).first()
+                data["name"] = user.full_name if user else None
+                data["avatar"] = user.avatar_url if user else None
+                data["partner_name"] = reg.partner_name
+                
+                if reg.partner_user_id:
+                    p_user = db.query(User).filter(User.id == reg.partner_user_id).first()
+                    if p_user:
+                        data["partner_avatar"] = p_user.avatar_url
+                elif getattr(reg, "partner_player_id", None):
+                    p_user = db.query(User).join(Player).filter(Player.id == reg.partner_player_id).first()
+                    if p_user:
+                        data["partner_avatar"] = p_user.avatar_url
+            return data
+
+        if p_id:
+            user = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == p_id).first()
+            if user:
+                data["name"] = user.full_name
+                data["avatar"] = user.avatar_url
+
+        if p2_id:
+            user2 = db.query(User).join(Player, Player.user_id == User.id).filter(Player.id == p2_id).first()
+            if user2:
+                data["partner_name"] = user2.full_name
+                data["partner_avatar"] = user2.avatar_url
+
+        return data
+
+    if m.match_date:
+        match_date = m.match_date
+    elif m.start_time:
+        match_date = m.start_time.date()
+    else:
+        match_date = t.start_date if t else None
+
+    p1_data = get_match_players_data(m, "a")
+    p2_data = get_match_players_data(m, "b")
+
+    return {
+        "id": m.id,
+        "tournament_id": t.id if t else None,
+        "tournament": t.name if t else "Giao hữu tự do",
+        "tournament_start_date": t.start_date.isoformat() if t and t.start_date else None,
+        "tournament_end_date": t.end_date.isoformat() if t and t.end_date else None,
+        "location": (t.location if t else None) or "Saigontennistours Club",
+        "round_code": m.round_code,
+        "court": c.court_name if c else "Chua gan san",
+        "court_id": m.court_id,
+        "date": match_date.isoformat() if match_date else None,
+        "start_time": m.start_time.isoformat() if m.start_time else None,
+        "start": m.start_time.strftime("%H:%M") if m.start_time else "--:--",
+        "status": m.status,
+        "p1_name": p1_data["name"],
+        "p1_avatar": p1_data["avatar"],
+        "p1_partner_name": p1_data["partner_name"],
+        "p1_partner_avatar": p1_data["partner_avatar"],
+        "p2_name": p2_data["name"],
+        "p2_avatar": p2_data["avatar"],
+        "p2_partner_name": p2_data["partner_name"],
+        "p2_partner_avatar": p2_data["partner_avatar"],
+        "winner_side": m.winner_side,
+        "score": m.score_summary,
+        "set1_a": m.set1_a,
+        "set1_b": m.set1_b,
+        "set2_a": m.set2_a,
+        "set2_b": m.set2_b,
+        "set3_a": m.set3_a,
+        "set3_b": m.set3_b,
+        "tie_break_1_a": m.tie_break_1_a,
+        "tie_break_1_b": m.tie_break_1_b,
+        "tie_break_2_a": m.tie_break_2_a,
+        "tie_break_2_b": m.tie_break_2_b,
+        "tie_break_3_a": m.tie_break_3_a,
+        "tie_break_3_b": m.tie_break_3_b,
+        "best_of_sets": m.best_of_sets,
+        "referee_name": m.referee_name,
+        "referee_phone": m.referee_phone,
+        "video_url": getattr(m, 'video_url', None),
+        "show_on_homepage": getattr(m, 'show_on_homepage', False),
+    }
+
 def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchScoreUpdate):
-    # 1. Tìm trận �ấu và kiỒm tra trạng thái
+    # 1. Tìm trận  ấu và kiỒm tra trạng thái
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match or match.status == "completed":
         raise HTTPException(status_code=400, detail="Trận đấu không tồn tại hoặc đã kết thúc.")
 
-    # 0. KiỒm tra xem trận �ấu có �ược phép tính ELO không
+    # 0. KiỒm tra xem trận  ấu có  ược phép tính ELO không
     if not getattr(match, 'elo_affected', False):
-        # Nếu không tính ELO, chúng ta ch�0 cập nhật trạng thái trận �ấu
+        # Nếu không tính ELO, chúng ta ch0 cập nhật trạng thái trận đấu
         match.status = "completed"
         match.score_summary = payload.score
         match.winner_side = payload.winner_side
@@ -659,6 +853,23 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchSco
             match.referee_id = payload.referee_id
         match.referee_name = payload.referee_name
         match.referee_phone = payload.referee_phone
+        
+        # Cập nhật điểm set
+        if payload.set1_a is not None: match.set1_a = payload.set1_a
+        if payload.set1_b is not None: match.set1_b = payload.set1_b
+        if payload.set2_a is not None: match.set2_a = payload.set2_a
+        if payload.set2_b is not None: match.set2_b = payload.set2_b
+        if payload.set3_a is not None: match.set3_a = payload.set3_a
+        if payload.set3_b is not None: match.set3_b = payload.set3_b
+        
+        # Cập nhật điểm tie-break
+        if payload.tie_break_1_a is not None: match.tie_break_1_a = payload.tie_break_1_a
+        if payload.tie_break_1_b is not None: match.tie_break_1_b = payload.tie_break_1_b
+        if payload.tie_break_2_a is not None: match.tie_break_2_a = payload.tie_break_2_a
+        if payload.tie_break_2_b is not None: match.tie_break_2_b = payload.tie_break_2_b
+        if payload.tie_break_3_a is not None: match.tie_break_3_a = payload.tie_break_3_a
+        if payload.tie_break_3_b is not None: match.tie_break_3_b = payload.tie_break_3_b
+        
         db.commit()
         return {"message": "Cập nhật tỷ số thành công (Không tính ELO)"}
 
@@ -697,6 +908,18 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchSco
             match.referee_id = payload.referee_id
         match.referee_name = payload.referee_name
         match.referee_phone = payload.referee_phone
+        if payload.set1_a is not None: match.set1_a = payload.set1_a
+        if payload.set1_b is not None: match.set1_b = payload.set1_b
+        if payload.set2_a is not None: match.set2_a = payload.set2_a
+        if payload.set2_b is not None: match.set2_b = payload.set2_b
+        if payload.set3_a is not None: match.set3_a = payload.set3_a
+        if payload.set3_b is not None: match.set3_b = payload.set3_b
+        if payload.tie_break_1_a is not None: match.tie_break_1_a = payload.tie_break_1_a
+        if payload.tie_break_1_b is not None: match.tie_break_1_b = payload.tie_break_1_b
+        if payload.tie_break_2_a is not None: match.tie_break_2_a = payload.tie_break_2_a
+        if payload.tie_break_2_b is not None: match.tie_break_2_b = payload.tie_break_2_b
+        if payload.tie_break_3_a is not None: match.tie_break_3_a = payload.tie_break_3_a
+        if payload.tie_break_3_b is not None: match.tie_break_3_b = payload.tie_break_3_b
         
         _advance_winner_to_next_match(db, match, win_reg_id)
         
@@ -767,6 +990,18 @@ def calculate_elo_and_update_match(db: Session, match_id: int, payload: MatchSco
         match.referee_id = payload.referee_id
     match.referee_name = payload.referee_name
     match.referee_phone = payload.referee_phone
+    if payload.set1_a is not None: match.set1_a = payload.set1_a
+    if payload.set1_b is not None: match.set1_b = payload.set1_b
+    if payload.set2_a is not None: match.set2_a = payload.set2_a
+    if payload.set2_b is not None: match.set2_b = payload.set2_b
+    if payload.set3_a is not None: match.set3_a = payload.set3_a
+    if payload.set3_b is not None: match.set3_b = payload.set3_b
+    if payload.tie_break_1_a is not None: match.tie_break_1_a = payload.tie_break_1_a
+    if payload.tie_break_1_b is not None: match.tie_break_1_b = payload.tie_break_1_b
+    if payload.tie_break_2_a is not None: match.tie_break_2_a = payload.tie_break_2_a
+    if payload.tie_break_2_b is not None: match.tie_break_2_b = payload.tie_break_2_b
+    if payload.tie_break_3_a is not None: match.tie_break_3_a = payload.tie_break_3_a
+    if payload.tie_break_3_b is not None: match.tie_break_3_b = payload.tie_break_3_b
 
     # 7. Xử lý logic thĒng hạng nếu là trận �ấu giải[cite: 33]
     message_suffix = ""
@@ -1028,7 +1263,7 @@ def save_mail_campaign(
     db.refresh(new_campaign)
     return new_campaign
 
-def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int, num_groups: int = 1, draw_size: Optional[int] = None):
+def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int, num_groups: int = 1, draw_size: Optional[int] = None, draw_mode: str = "manual", representative_name: Optional[str] = None):
     """Generate round-robin group matches.
 
     When draw_size is provided, it is treated as the number of teams/pairs in
@@ -1048,9 +1283,18 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
         query = query.filter(Registration.tournament_category_id == category_id)
     players = query.all()
 
-    participant_count = draw_size if draw_size and draw_size > 0 else len(players)
-    if participant_count < 2:
-        raise HTTPException(status_code=400, detail="Không đủ số đội để tạo lịch thi đấu vòng tròn.")
+    if draw_mode == "random":
+        if not players:
+            raise HTTPException(status_code=400, detail="Không tìm thấy VĐV nào đăng ký hợp lệ để bốc thăm ngẫu nhiên.")
+        # Xáo trộn ngẫu nhiên VĐV trước khi xếp bảng
+        random.shuffle(players)
+        participant_count = len(players)
+        slots = [{"registration": p, "is_bye": False} for p in players]
+    else:
+        participant_count = draw_size if draw_size and draw_size > 0 else len(players)
+        if participant_count < 2:
+            raise HTTPException(status_code=400, detail="Không đủ số đội để tạo lịch thi đấu vòng tròn.")
+        slots = [{"registration": None, "is_bye": False} for _ in range(participant_count)]
 
     match_del_query = db.query(Match).filter(
         Match.tournament_id == tournament_id,
@@ -1060,10 +1304,6 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
         match_del_query = match_del_query.filter(Match.tournament_category_id == category_id)
     match_del_query.delete()
     db.flush()
-
-    # Manual setup mode: round-robin only creates empty match frames.
-    # Admins assign players/pairs later from the draw management screen.
-    slots = [{"registration": None, "is_bye": False} for _ in range(participant_count)]
 
     groups = [slots[i::num_groups] for i in range(num_groups)]
 
@@ -1104,13 +1344,52 @@ def generate_round_robin_draw(db: Session, tournament_id: int, category_id: int,
 
             group_players.insert(1, group_players.pop())
 
+    # Ghi log audit
+    if draw_mode == "random" and representative_name:
+        log_action(db, None, "TOURNAMENT", "GENERATE", "Tournament", tournament_id, None, 
+                   {"representative": representative_name, "mode": "random", "format": "round_robin"}, 
+                   f"Bốc thăm Vòng bảng ngẫu nhiên bằng máy dưới sự đại diện của: {representative_name}")
+
     db.commit()
     return {
-        "message": "Da tao lich thi dau vong tron thanh cong.",
+        "message": "Bốc thăm ngẫu nhiên bằng máy thành công!" if draw_mode == "random" else "Da tao lich thi dau vong tron thanh cong.",
         "total_slots": participant_count,
         "num_groups": num_groups,
         "matches_created": match_no - 1
     }
+
+def parse_score_string(score_str: str):
+    # Tra ve tuple (sets_a, sets_b, games_a, games_b)
+    if not score_str:
+        return 0, 0, 0, 0
+    score_str = score_str.strip()
+    if not score_str:
+        return 0, 0, 0, 0
+    sets_a = 0
+    sets_b = 0
+    games_a = 0
+    games_b = 0
+    set_tokens = score_str.split()
+    for token in set_tokens:
+        if "-" not in token:
+            continue
+        try:
+            parts = token.split("-")
+            if len(parts) != 2:
+                continue
+            str_a = parts[0].split("(")[0].strip()
+            str_b = parts[1].split("(")[0].strip()
+            val_a = int(str_a)
+            val_b = int(str_b)
+            games_a += val_a
+            games_b += val_b
+            if val_a > val_b:
+                sets_a += 1
+            elif val_b > val_a:
+                sets_b += 1
+        except Exception:
+            continue
+    return sets_a, sets_b, games_a, games_b
 
 def calculate_tournament_standings(db: Session, tournament_id: int, category_id: Optional[int] = None):
     """Hàm lõi tính �iỒm (Dùng cho cả Vòng tròn và Xếp hạng t�"ng thỒ)"""
@@ -1206,7 +1485,8 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
                     "partner_player_id": partner_user_id,
                     "played": 0, "won": 0, "lost": 0, "points": 0,
                     "sets_won": 0, "sets_lost": 0, 
-                    "games_won": 0, "games_lost": 0
+                    "games_won": 0, "games_lost": 0,
+                    "tb_won": 0, "tb_lost": 0
                 }
 
         p1_games = safe_int(match.set1_a) + safe_int(match.set2_a) + safe_int(match.set3_a)
@@ -1221,6 +1501,15 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
         if safe_int(match.set3_a) > safe_int(match.set3_b): p1_sets += 1
         elif safe_int(match.set3_b) > safe_int(match.set3_a): p2_sets += 1
 
+        # Neu khong co diem set/game nao o database phi chuan (bi NULL), tu dong parse tu chuoi ty so
+        if p1_games == 0 and p2_games == 0 and p1_sets == 0 and p2_sets == 0:
+            score_str = match.score_summary or match.result_note
+            p1_sets, p2_sets, p1_games, p2_games = parse_score_string(score_str)
+
+        # Tính toán điểm tie-break
+        p1_tb = safe_int(match.tie_break_1_a) + safe_int(match.tie_break_2_a) + safe_int(match.tie_break_3_a)
+        p2_tb = safe_int(match.tie_break_1_b) + safe_int(match.tie_break_2_b) + safe_int(match.tie_break_3_b)
+
         is_p1_winner = match.winner_registration_id == p1_id
         standings[group][p1_id]["played"] += 1
         standings[group][p1_id]["won"] += 1 if is_p1_winner else 0
@@ -1230,6 +1519,8 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
         standings[group][p1_id]["sets_lost"] += p2_sets
         standings[group][p1_id]["games_won"] += p1_games
         standings[group][p1_id]["games_lost"] += p2_games
+        standings[group][p1_id]["tb_won"] += p1_tb
+        standings[group][p1_id]["tb_lost"] += p2_tb
 
         is_p2_winner = match.winner_registration_id == p2_id
         standings[group][p2_id]["played"] += 1
@@ -1240,16 +1531,19 @@ def calculate_tournament_standings(db: Session, tournament_id: int, category_id:
         standings[group][p2_id]["sets_lost"] += p1_sets
         standings[group][p2_id]["games_won"] += p2_games
         standings[group][p2_id]["games_lost"] += p1_games
+        standings[group][p2_id]["tb_won"] += p2_tb
+        standings[group][p2_id]["tb_lost"] += p1_tb
 
     result = []
     for group_name, players in standings.items():
         for p_id, stats in players.items():
             stats["set_diff"] = stats["sets_won"] - stats["sets_lost"]
             stats["game_diff"] = stats["games_won"] - stats["games_lost"]
+            stats["tb_diff"] = stats["tb_won"] - stats["tb_lost"]
 
         sorted_players = sorted(
             players.items(), 
-            key=lambda x: (x[1]['points'], x[1]['set_diff'], x[1]['game_diff']), 
+            key=lambda x: (x[1]['points'], x[1]['set_diff'], x[1]['game_diff'], x[1]['tb_diff']), 
             reverse=True
         )
         

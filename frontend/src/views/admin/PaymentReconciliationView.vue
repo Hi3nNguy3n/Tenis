@@ -47,7 +47,7 @@ const handleExport = () => {
   isExporting.value = true
   
   try {
-    const headers = ['ID', 'Mã Giao Dịch', 'Người Nộp', 'Nội Dung', 'Mã Đơn', 'Số Tiền', 'Phương Thức', 'Trạng Thái', 'Ngày Thanh Toán']
+    const headers = ['ID', 'Mã Giao Dịch', 'Người Nộp', 'Nội Dung', 'Mã Đơn', 'Số Tiền', 'Phương Thức', 'Ghi Chú', 'Trạng Thái', 'Ngày Thanh Toán']
     const rows = payments.value.map(p => [
       p.id,
       p.transaction_ref,
@@ -56,8 +56,9 @@ const handleExport = () => {
       p.registration_id,
       p.amount,
       p.payment_method,
+      `"${p.notes || ''}"`,
       p.status,
-      p.paid_at ? new Date(p.paid_at).toLocaleString('vi-VN') : 'N/A'
+      p.paid_at ? parseDate(p.paid_at).toLocaleString('vi-VN') : 'N/A'
     ])
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
@@ -76,8 +77,23 @@ const handleExport = () => {
 
 const parseDate = (val) => {
   if (!val) return null
-  const d = new Date(val)
+  
+  let dateStr = val
+  if (typeof val === 'string') {
+    // Nếu là chuỗi thời gian chưa kèm timezone, tự động append 'Z' (giờ UTC)
+    // giúp trình duyệt ở Việt Nam (UTC+7) hiển thị đúng giờ Việt Nam (cộng thêm 7 tiếng).
+    if (!val.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(val) && !/[+-]\d{4}$/.test(val)) {
+      if (val.includes('T')) {
+        dateStr = val + 'Z'
+      } else if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(val)) {
+        dateStr = val.replace(' ', 'T') + 'Z'
+      }
+    }
+  }
+  
+  const d = new Date(dateStr)
   if (!isNaN(d.getTime())) return d
+  
   if (typeof val === 'string' && val.includes('/')) {
     const p = val.split(/[\/\s:]/)
     if (p.length >= 3) {
@@ -175,6 +191,13 @@ onMounted(() => {
              <div class="amount-cell">
                {{ new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(row.amount) }}
              </div>
+           </template>
+        </el-table-column>
+
+        <el-table-column label="GHI CHÚ" min-width="150">
+           <template #default="{ row }">
+             <span v-if="row.notes" style="color: #475569; font-size: 0.85rem; font-weight: 500;">{{ row.notes }}</span>
+             <span v-else style="color: #cbd5e1; font-style: italic; font-size: 0.8rem;">---</span>
            </template>
         </el-table-column>
 

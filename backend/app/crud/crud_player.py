@@ -160,6 +160,63 @@ def get_player_rankings(db: Session, category: str = None, province: str = None,
         query = query.limit(limit)
     return query.all()
 
+def get_player_rankings_paginated(
+    db: Session, 
+    category: str = None, 
+    province: str = None, 
+    skill: str = None, 
+    search: str = None, 
+    limit: int = 12, 
+    offset: int = 0
+):
+    query = db.query(Player, User).join(User, Player.user_id == User.id).outerjoin(
+        Role, User.role_id == Role.id
+    ).filter(
+        User.is_active == True,
+        User.account_type != "admin",
+        or_(Role.id.is_(None), Role.role_key != "admin"),
+        Player.deleted_at.is_(None),
+        User.deleted_at.is_(None)
+    )
+    if category:
+        query = query.filter(Player.preferred_category == category)
+    if province:
+        query = query.filter(User.province == province)
+    if skill:
+        query = query.filter(Player.skill_level == skill)
+    if search:
+        search_term = f"%{search.strip()}%"
+        query = query.filter(or_(
+            User.full_name.ilike(search_term),
+            User.email.ilike(search_term),
+            User.phone.ilike(search_term)
+        ))
+
+    total = query.count()
+    items = query.order_by(desc(Player.elo_points), desc(Player.wins)).offset(offset).limit(limit).all()
+    return items, total
+
+def get_players_simple_list(db: Session):
+    players_data = db.query(Player, User).join(User, Player.user_id == User.id).outerjoin(
+        Role, User.role_id == Role.id
+    ).filter(
+        User.is_active == True,
+        User.account_type != "admin",
+        or_(Role.id.is_(None), Role.role_key != "admin"),
+        Player.deleted_at.is_(None),
+        User.deleted_at.is_(None)
+    ).order_by(User.full_name).all()
+    
+    return [
+        {
+            "player_id": u.id,
+            "full_name": u.full_name,
+            "avatar_url": u.avatar_url,
+            "skill_level": p.skill_level or "Unranked"
+        }
+        for p, u in players_data
+    ]
+
 # --- CÁC HÀM PHỤ TRỢ CHO LỊCH SỬ THI ĐẤU ---
 def get_player_registrations(db: Session, player_id: int):
     reg_ids = db.query(Registration.id).filter(Registration.player_id == player_id).all()
@@ -306,3 +363,36 @@ def get_player_by_id(db: Session, player_id: int):
             **{field: float(getattr(p, field) or 0) for field in PLAYER_STAT_FIELDS}
         }
     }
+
+def get_deleted_players_list(db: Session, search: str = None, skill: str = None):
+    query = db.query(Player, User).join(User, Player.user_id == User.id).filter(
+        Player.deleted_at.is_not(None),
+        User.deleted_at.is_not(None)
+    )
+    
+    if search:
+        query = query.filter(or_(
+            User.full_name.ilike(f"%{search}%"),
+            User.email.ilike(f"%{search}%"),
+            User.phone.ilike(f"%{search}%")
+        ))
+    if skill:
+        query = query.filter(Player.skill_level == skill)
+        
+    return query.all()
+
+def restore_player_db(db: Session, player_id: int):
+    # player_id ở đây đại diện cho User ID theo quy chuẩn hiện tại
+    player = db.query(Player).join(User, Player.user_id == User.id).filter(User.id == player_id).first()
+    if not player:
+        return None
+    
+    player.deleted_at = None
+    
+    user = db.query(User).filter(User.id == player.user_id).first()
+    if user:
+        user.deleted_at = None
+        user.is_active = True # Mở khóa tài khoản
+        
+    db.commit()
+    return player

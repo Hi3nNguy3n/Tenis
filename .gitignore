@@ -32,3 +32,4 @@ chat_service/alembic/__pycache__/
 .agent/
 .sandbox/
 .python-version
+ERRORS.md

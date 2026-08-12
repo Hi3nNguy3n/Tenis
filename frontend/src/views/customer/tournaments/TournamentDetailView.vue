@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, ref, watch, nextTick } from 'vue'
+import { onMounted, computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTournamentStore } from '../../../stores/tournament'
 import { useAuthStore } from '../../../stores/auth'
@@ -50,7 +50,7 @@ const renderTournamentDescription = (value) => {
 
 watch(tournamentId, async (newId) => {
   if (newId) {
-    // Reset state
+    // Reset state trong component
     activeTab.value = normalizeRouteTab(route.query.tab)
     publicMatches.value = []
     standingsData.value = []
@@ -58,6 +58,9 @@ watch(tournamentId, async (newId) => {
     selectedCategoryId.value = null
     myRegistration.value = null
     myRegistrations.value = []
+    
+    // Reset dữ liệu trong Pinia store để tránh hiển thị thông tin cũ hoặc dùng sai category ID
+    tournamentStore.currentTournament = null
     
     await tournamentStore.fetchTournamentById(newId)
     
@@ -67,6 +70,10 @@ watch(tournamentId, async (newId) => {
     }
   }
 }, { immediate: true })
+
+onUnmounted(() => {
+  tournamentStore.currentTournament = null
+})
 
 const checkRegistration = async () => {
   try {
@@ -449,44 +456,52 @@ const goToRegister = () => {
   router.push({ name: 'tournament-register', params: { id: tournamentId.value } })
 }
 
-const formatDate = (val) => {
-  if (!val) return t('tournaments.notUpdated')
-  const d = new Date(val)
-  if (!isNaN(d.getTime())) {
-    return d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    })
+const parseDate = (val) => {
+  if (!val) return null
+  
+  let dateStr = val
+  if (typeof val === 'string') {
+    // Tự động append 'Z' nếu thiếu múi giờ để hiển thị đúng giờ Việt Nam (UTC+7)
+    if (!val.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(val) && !/[+-]\d{4}$/.test(val)) {
+      if (val.includes('T')) {
+        dateStr = val + 'Z'
+      } else if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(val)) {
+        dateStr = val.replace(' ', 'T') + 'Z'
+      }
+    }
   }
-  // Thử parse thủ công nếu là định dạng dd/mm/yyyy
+  
+  const d = new Date(dateStr)
+  if (!isNaN(d.getTime())) return d
+  
   if (typeof val === 'string' && val.includes('/')) {
     const p = val.split(/[\/\s:]/)
     if (p.length >= 3) {
       const d2 = new Date(p[2], p[1]-1, p[0])
-      if (!isNaN(d2.getTime())) {
-        return d2.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        })
-      }
+      if (!isNaN(d2.getTime())) return d2
     }
   }
-  return t('tournaments.notUpdated')
+  return null
+}
+
+const formatDate = (val) => {
+  const d = parseDate(val)
+  return d ? d.toLocaleDateString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }) : t('tournaments.notUpdated')
 }
 
 const formatDateTime = (val) => {
-  if (!val) return '---'
-  const d = new Date(val)
-  if (isNaN(d.getTime())) return formatDate(val)
-  return d.toLocaleString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
+  const d = parseDate(val)
+  return d ? d.toLocaleString(currentLocale.value === 'vi' ? 'vi-VN' : 'en-US', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit'
-  })
+  }) : '---'
 }
 
 const selectedCategory = computed(() => {
@@ -669,12 +684,25 @@ const parseSets = (scoreSummary) => {
         <div class="hero-glow glow-2" v-if="!tournament.banner_url"></div>
         
         <div class="container hero-inner">
-          <div class="hero-meta-top">
-            <span class="neo-badge" :class="tournament.status">
-              <span class="badge-dot"></span>
-              {{ tournament.status.toUpperCase() }}
-            </span>
-            <span class="tour-type">{{ selectedCategoryName }}</span>
+          <div class="hero-meta-top" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="neo-badge" :class="tournament.status">
+                <span class="badge-dot"></span>
+                {{ tournament.status.toUpperCase() }}
+              </span>
+              <span class="tour-type">{{ selectedCategoryName }}</span>
+            </div>
+            <div v-if="isRegistrationOpen" class="desktop-register-btn-wrap">
+              <button 
+                class="neo-btn-primary desktop-reg-btn" 
+                @click="goToRegister" 
+                :disabled="isTournamentFull"
+                :class="{ 'is-disabled': isTournamentFull }"
+              >
+                <span v-if="isTournamentFull">{{ t('tournaments.fullyBooked') }}</span>
+                <span v-else>{{ t('tournaments.registerNow') }} <el-icon><ArrowRight /></el-icon></span>
+              </button>
+            </div>
           </div>
           
           <h1 class="hero-title">{{ tournament.name }}</h1>
@@ -948,7 +976,7 @@ const parseSets = (scoreSummary) => {
                         }"
                       >
                         <template v-for="m in [node.match]" :key="m.id">
-                          <div :id="'match-node-' + m.id" class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
+                          <div :id="'match-node-' + m.id" class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m), 'is-completed': m.status === 'completed' || m.winner_side }">
                             <div class="m-v2-header">
                               <div class="m-v2-header-left">
                                 <span class="m-v2-no">#{{ m.match_no }}</span>
@@ -1056,7 +1084,7 @@ const parseSets = (scoreSummary) => {
                       }"
                     >
                       <template v-for="m in [node.match]" :key="m.id">
-                          <div :id="'match-node-' + m.id" class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m) }">
+                          <div :id="'match-node-' + m.id" class="match-node-v2" :class="{ 'has-extra-meta': hasMatchMeta(m), 'is-completed': m.status === 'completed' || m.winner_side }">
                             <div class="m-v2-header">
                               <div class="m-v2-header-left">
                                 <span class="m-v2-no">#{{ m.match_no }}</span>
@@ -1238,21 +1266,57 @@ const parseSets = (scoreSummary) => {
                               <span class="m-v2-status" :class="getMatchStatusClass(m)">{{ getMatchStatusLabel(m) }}</span>
                             </div>
 
-                            <div class="schedule-sides">
-                              <div class="schedule-side" :class="{ 'is-win': m.winner_side === 'side_a' }">
-                                <span v-for="name in getScheduleSidePlayers(m, 'a')" :key="`a-${m.id}-${name}`" class="schedule-player-name">
-                                  {{ name }}
-                                </span>
+                            <div class="schedule-sides-premium">
+                              <!-- Player A Row -->
+                              <div class="side-row" :class="{ 'is-winner': m.winner_side === 'side_a' }">
+                                <div class="player-names-wrap">
+                                  <span v-for="name in getScheduleSidePlayers(m, 'a')" :key="`a-${m.id}-${name}`" class="player-name">
+                                    {{ name }}
+                                  </span>
+                                </div>
+                                <div class="sets-scores-wrap" v-if="m.status === 'completed' || m.status === 'ongoing'">
+                                  <div class="set-score-unit" v-if="m.set1_a !== null || m.set1_b !== null">
+                                    <span class="set-val">{{ m.set1_a !== null ? m.set1_a : '-' }}</span>
+                                    <sup class="tb-val" v-if="m.tie_break_1_a !== null && m.tie_break_1_a !== undefined">{{ m.tie_break_1_a }}</sup>
+                                  </div>
+                                  <div class="set-score-unit" v-if="m.set2_a !== null || m.set2_b !== null">
+                                    <span class="set-val">{{ m.set2_a !== null ? m.set2_a : '-' }}</span>
+                                    <sup class="tb-val" v-if="m.tie_break_2_a !== null && m.tie_break_2_a !== undefined">{{ m.tie_break_2_a }}</sup>
+                                  </div>
+                                  <div class="set-score-unit" v-if="m.set3_a !== null || m.set3_b !== null">
+                                    <span class="set-val">{{ m.set3_a !== null ? m.set3_a : '-' }}</span>
+                                    <sup class="tb-val" v-if="m.tie_break_3_a !== null && m.tie_break_3_a !== undefined">{{ m.tie_break_3_a }}</sup>
+                                  </div>
+                                </div>
+                                <div class="sets-scores-wrap" v-else>
+                                  <span class="vs-text"></span>
+                                </div>
                               </div>
-                              <div class="schedule-score" v-if="m.status === 'completed'">
-                                <template v-if="m.score_summary">{{ m.score_summary }}</template>
-                                <template v-else>{{ m.score_a ?? '-' }} - {{ m.score_b ?? '-' }}</template>
-                              </div>
-                              <div class="schedule-score" v-else>VS</div>
-                              <div class="schedule-side" :class="{ 'is-win': m.winner_side === 'side_b' }">
-                                <span v-for="name in getScheduleSidePlayers(m, 'b')" :key="`b-${m.id}-${name}`" class="schedule-player-name">
-                                  {{ name }}
-                                </span>
+
+                              <!-- Player B Row -->
+                              <div class="side-row" :class="{ 'is-winner': m.winner_side === 'side_b' }">
+                                <div class="player-names-wrap">
+                                  <span v-for="name in getScheduleSidePlayers(m, 'b')" :key="`b-${m.id}-${name}`" class="player-name">
+                                    {{ name }}
+                                  </span>
+                                </div>
+                                <div class="sets-scores-wrap" v-if="m.status === 'completed' || m.status === 'ongoing'">
+                                  <div class="set-score-unit" v-if="m.set1_a !== null || m.set1_b !== null">
+                                    <span class="set-val">{{ m.set1_b !== null ? m.set1_b : '-' }}</span>
+                                    <sup class="tb-val" v-if="m.tie_break_1_b !== null && m.tie_break_1_b !== undefined">{{ m.tie_break_1_b }}</sup>
+                                  </div>
+                                  <div class="set-score-unit" v-if="m.set2_a !== null || m.set2_b !== null">
+                                    <span class="set-val">{{ m.set2_b !== null ? m.set2_b : '-' }}</span>
+                                    <sup class="tb-val" v-if="m.tie_break_2_b !== null && m.tie_break_2_b !== undefined">{{ m.tie_break_2_b }}</sup>
+                                  </div>
+                                  <div class="set-score-unit" v-if="m.set3_a !== null || m.set3_b !== null">
+                                    <span class="set-val">{{ m.set3_b !== null ? m.set3_b : '-' }}</span>
+                                    <sup class="tb-val" v-if="m.tie_break_3_b !== null && m.tie_break_3_b !== undefined">{{ m.tie_break_3_b }}</sup>
+                                  </div>
+                                </div>
+                                <div class="sets-scores-wrap" v-else>
+                                  <span class="vs-text">VS</span>
+                                </div>
                               </div>
                             </div>
 
@@ -1302,7 +1366,8 @@ const parseSets = (scoreSummary) => {
                               <th class="col-rank">#</th>
                               <th>{{ t('tournaments.athlete') }}</th>
                               <th class="text-center">W-L</th>
-                              <th class="text-center">+/-</th>
+                              <th class="text-center">{{ currentLocale === 'vi' ? 'Hiệu số' : '+/-' }}</th>
+                              <th class="text-center">TB</th>
                               <th class="text-center">PTS</th>
                             </tr>
                           </thead>
@@ -1337,6 +1402,11 @@ const parseSets = (scoreSummary) => {
                               <td class="text-center diff-cell">
                                 <el-tooltip content="Hiệu số Game" placement="top">
                                   <span :class="row.game_diff >= 0 ? 'pos' : 'neg'">{{ row.game_diff >= 0 ? '+' : '' }}{{ row.game_diff }}</span>
+                                </el-tooltip>
+                              </td>
+                              <td class="text-center diff-cell">
+                                <el-tooltip content="Hiệu số điểm Tie-break" placement="top">
+                                  <span :class="row.tb_diff > 0 ? 'pos' : (row.tb_diff < 0 ? 'neg' : '')" style="font-size: 0.85rem; font-weight: 700; color: #d97706;">{{ row.tb_diff > 0 ? '+' : '' }}{{ row.tb_diff }}</span>
                                 </el-tooltip>
                               </td>
                               <td class="text-center pts-cell">
@@ -1378,8 +1448,8 @@ const parseSets = (scoreSummary) => {
                           <tr>
                             <th width="60" class="text-center">#</th>
                             <th>{{ t('tournaments.athlete') }}</th>
-                            <th>{{ t('tournaments.category') }}</th>
-                            <th class="text-right">{{ t('tournaments.registrationTime') || 'Thời gian đăng ký' }}</th>
+                            <th>{{ currentLocale === 'vi' ? 'Trạng thái thanh toán' : 'Payment Status' }}</th>
+                            <th>{{ t('tournaments.registrationTime') || 'Thời gian đăng ký' }}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1409,9 +1479,11 @@ const parseSets = (scoreSummary) => {
                               </div>
                             </td>
                             <td>
-                              <span class="category-text">{{ reg.category_name || (reg.registrant_type === 'team' ? 'Đôi' : 'Đơn') }}</span>
+                              <el-tag :type="reg.payment_status === 'paid' ? 'success' : 'warning'" size="small" effect="light" style="font-weight: 700;">
+                                {{ reg.payment_status === 'paid' ? (currentLocale === 'vi' ? 'Đã thanh toán' : 'Paid') : (currentLocale === 'vi' ? 'Chưa thanh toán' : 'Unpaid') }}
+                              </el-tag>
                             </td>
-                            <td class="text-right time-cell">
+                            <td class="time-cell">
                               {{ formatDateTime(reg.registered_at) }}
                             </td>
                           </tr>
@@ -1764,7 +1836,7 @@ const parseSets = (scoreSummary) => {
 .hd-divider { width: 1px; height: 30px; background: rgba(255,255,255,0.2); }
 .main-overlap { position: relative; z-index: 10; margin-top: -4rem; }
 .detail-wide-shell { width: min(100% - 48px, 1680px); max-width: none; }
-.neo-grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(280px, 1fr); gap: 2rem; align-items: start; }
+.neo-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; align-items: start; }
 .neo-col-main { min-width: 0; width: 100%; }
 .neo-tabs-container { background: var(--bg-surface); border-radius: 24px; padding: 2rem; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05); min-height: 620px; overflow: hidden; }
 :deep(.neo-tabs .el-tabs__nav-wrap::after) { display: none; }
@@ -2146,10 +2218,100 @@ const parseSets = (scoreSummary) => {
 .schedule-title > span:first-child { color: #94a3b8; font-weight: 800; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
 .schedule-title strong { color: #0f172a; font-size: 0.9rem; }
 .schedule-sides { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.schedule-sides-premium {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #eef2f7;
+  min-width: 0;
+}
+.schedule-sides-premium .side-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  transition: all 0.2s;
+  gap: 16px;
+}
+.schedule-sides-premium .side-row.is-winner {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.schedule-sides-premium .player-names-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.schedule-sides-premium .player-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.schedule-sides-premium .side-row.is-winner .player-name {
+  color: #15803d;
+  font-weight: 800;
+}
+.schedule-sides-premium .sets-scores-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.schedule-sides-premium .set-score-unit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: #f1f5f9;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+}
+.schedule-sides-premium .side-row.is-winner .set-score-unit {
+  background: #dcfce7;
+}
+.schedule-sides-premium .set-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+.schedule-sides-premium .side-row.is-winner .set-val {
+  color: #15803d;
+}
+.schedule-sides-premium .tb-val {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 0.55rem;
+  font-weight: 900;
+  color: #ef4444;
+  background: #fee2e2;
+  border-radius: 3px;
+  padding: 0 1px;
+  line-height: 1;
+}
+.schedule-sides-premium .vs-text {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #94a3b8;
+}
 .schedule-side { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border: 1px solid #eef2f7; }
-.schedule-player-name { font-size: 0.92rem; line-height: 1.25; font-weight: 850; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-player-name { font-size: 0.92rem; line-height: 1.25; font-weight: 700; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .schedule-side.is-win { background: #f0fdf4; border-color: #bbf7d0; }
-.schedule-side.is-win .schedule-player-name { color: #15803d; }
+.schedule-side.is-win .schedule-player-name { color: #15803d; font-weight: 800 !important; }
+.schedule-row.is-done .schedule-player-name { font-weight: 400; color: #64748b; }
+.schedule-row.is-done .schedule-side.is-win .schedule-player-name { font-weight: 800 !important; color: #15803d; }
 .schedule-score { min-width: 48px; text-align: center; font-weight: 900; color: #2563eb; font-family: 'JetBrains Mono', monospace; }
 .schedule-meta { font-size: 0.8rem; color: #64748b; }
 
@@ -2160,6 +2322,8 @@ const parseSets = (scoreSummary) => {
 .p-avatar-mini { border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 .p-info { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .p-name-link { font-weight: 700; color: #1e293b; text-decoration: none; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.match-node-v2.is-completed .p-name-link { font-weight: 400; color: #64748b; }
+.match-node-v2.is-completed .m-v2-player.is-win .p-name-link { font-weight: 800 !important; color: #15803d; }
 .p-name-link.no-link { pointer-events: none; }
 .p-win-icon { color: #22c55e; font-size: 0.9rem; flex-shrink: 0; }
 .p-partner { font-size: 0.7rem; color: #64748b; font-style: italic; white-space: nowrap; }
@@ -2221,7 +2385,7 @@ const parseSets = (scoreSummary) => {
 .diff-cell span.pos { color: #16a34a; }
 .diff-cell span.neg { color: #dc2626; }
 .pts-cell { color: var(--accent); font-size: 1.05rem; }
-.neo-col-sidebar { position: relative; }
+.neo-col-sidebar { display: none; }
 .sticky { position: sticky; top: 24px; }
 .neo-action-card { background: var(--bg-surface); border-radius: var(--radius-xl); padding: 2rem; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.1); border: 1px solid var(--border-light); }
 .ac-header { margin-bottom: 2rem; }
@@ -2783,5 +2947,28 @@ const parseSets = (scoreSummary) => {
   z-index: 100 !important;
   transform: scale(1.02);
   transition: transform 0.3s ease;
+}
+.desktop-register-btn-wrap {
+  display: block;
+}
+.desktop-reg-btn {
+  width: auto !important;
+  padding: 10px 24px !important;
+  font-size: 0.85rem !important;
+  border-radius: var(--radius-md) !important;
+  background: var(--accent) !important;
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2) !important;
+}
+.desktop-reg-btn:hover:not(.is-disabled) {
+  background: #1d4ed8 !important;
+}
+@media (max-width: 768px) {
+  .desktop-register-btn-wrap {
+    display: none;
+  }
+}
+.pg-table th.text-center {
+  text-align: center !important;
 }
 </style>

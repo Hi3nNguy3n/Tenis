@@ -3,11 +3,13 @@ import { onMounted, ref, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { playerService } from '../../services/playerService'
 import apiClient from '../../services/apiClient' 
-import { Plus, Camera, User, Search, Filter, EditPen, Delete } from '@element-plus/icons-vue' 
+import { Plus, Camera, User, Search, Filter, EditPen, Delete, Refresh } from '@element-plus/icons-vue' 
 import { t } from '../../utils/locale'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
+
+const activeMainTab = ref('active')
 
 const players = ref([])
 const loading = ref(false)
@@ -17,6 +19,11 @@ const skillFilter = ref('')
 const statusFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
+
+const deletedPlayers = ref([])
+const loadingDeleted = ref(false)
+const currentPageDeleted = ref(1)
+const pageSizeDeleted = ref(10)
 
 const createErrors = ref({
   email: '',
@@ -112,11 +119,18 @@ const removeVietnameseTones = (str) => {
 }
 
 const filteredPlayers = computed(() => {
+  // 1. Phân loại theo Tab (newbie lọc skill_level === 'Beginner', active hiển thị đầy đủ)
+  let list = players.value
+  if (activeMainTab.value === 'newbie') {
+    list = list.filter(player => player.player_profile?.skill_level === 'Beginner')
+  }
+
+  // 2. Lọc theo thanh tìm kiếm
   if (!search.value.trim()) {
-    return players.value
+    return list
   }
   const searchNormalized = removeVietnameseTones(search.value.trim())
-  return players.value.filter(player => {
+  return list.filter(player => {
     const fullNameNormalized = removeVietnameseTones(player.user?.full_name || '')
     const emailNormalized = removeVietnameseTones(player.user?.email || '')
     const phoneNormalized = removeVietnameseTones(player.user?.phone || '')
@@ -241,19 +255,84 @@ const fetchPlayers = async () => {
   }
 }
 
+const fetchDeletedPlayers = async () => {
+  if (activeMainTab.value !== 'deleted') return
+  loadingDeleted.value = true
+  try {
+    const params = {
+      skill: skillFilter.value || undefined
+    }
+    const data = await playerService.getDeleted(params)
+    deletedPlayers.value = Array.isArray(data) ? data : (data.items || [])
+  } catch (err) {
+    const errMsg = err.response?.data?.detail || err.message || err
+    ElMessage.error('Lỗi khi tải danh sách đã xóa: ' + errMsg)
+  } finally {
+    loadingDeleted.value = false
+  }
+}
+
+const handleMainTabChange = (tab) => {
+  if (tab === 'active' || tab === 'newbie') {
+    fetchPlayers()
+  } else if (tab === 'deleted') {
+    fetchDeletedPlayers()
+  }
+}
+
 // Debounced search watcher for all filters
 let filterTimeout = null
-watch([skillFilter, statusFilter], () => {
+watch([skillFilter, statusFilter, activeMainTab], () => {
   if (filterTimeout) clearTimeout(filterTimeout)
   filterTimeout = setTimeout(() => {
-    fetchPlayers()
+    if (activeMainTab.value === 'active' || activeMainTab.value === 'newbie') {
+      fetchPlayers()
+    } else {
+      fetchDeletedPlayers()
+    }
   }, 300)
 })
 
 // Force data refresh when navigating back to this page
 watch(() => route.path, (newPath) => {
   if (newPath === '/admin/players') {
-    fetchPlayers()
+    if (activeMainTab.value === 'active' || activeMainTab.value === 'newbie') {
+      fetchPlayers()
+    } else {
+      fetchDeletedPlayers()
+    }
+  }
+})
+
+const filteredDeletedPlayers = computed(() => {
+  if (!search.value.trim()) {
+    return deletedPlayers.value
+  }
+  const searchNormalized = removeVietnameseTones(search.value.trim())
+  return deletedPlayers.value.filter(player => {
+    const fullNameNormalized = removeVietnameseTones(player.user?.full_name || '')
+    const emailNormalized = removeVietnameseTones(player.user?.email || '')
+    const phoneNormalized = removeVietnameseTones(player.user?.phone || '')
+    return fullNameNormalized.includes(searchNormalized) || 
+           emailNormalized.includes(searchNormalized) || 
+           phoneNormalized.includes(searchNormalized)
+  })
+})
+
+const paginatedDeletedPlayers = computed(() => {
+  const start = (currentPageDeleted.value - 1) * pageSizeDeleted.value
+  return filteredDeletedPlayers.value.slice(start, start + pageSizeDeleted.value)
+})
+
+const handlePageSizeChangeDeleted = (size) => {
+  pageSizeDeleted.value = size
+  currentPageDeleted.value = 1
+}
+
+watch(filteredDeletedPlayers, () => {
+  const totalPages = Math.max(1, Math.ceil(filteredDeletedPlayers.value.length / pageSizeDeleted.value))
+  if (currentPageDeleted.value > totalPages) {
+    currentPageDeleted.value = totalPages
   }
 })
 
@@ -369,10 +448,35 @@ const deletePlayer = async (row) => {
     )
     await playerService.delete(row.user.id)
     ElMessage.success('Đã xóa vận động viên thành công!')
-    fetchPlayers()
+    await fetchPlayers()
+    await fetchDeletedPlayers()
+    activeMainTab.value = 'deleted'
   } catch (err) {
     if (err !== 'cancel') {
       ElMessage.error(err.message || 'Lỗi khi xóa vận động viên')
+    }
+  }
+}
+
+const restorePlayer = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `Bạn có chắc chắn muốn khôi phục tài khoản cho vận động viên ${row.user?.full_name}? Tài khoản sẽ được kích hoạt lại trạng thái hoạt động.`,
+      'Xác nhận khôi phục',
+      {
+        confirmButtonText: 'Đồng ý',
+        cancelButtonText: 'Hủy',
+        type: 'success',
+      }
+    )
+    await playerService.restore(row.user.id)
+    ElMessage.success('Khôi phục tài khoản vận động viên thành công!')
+    await fetchPlayers()
+    await fetchDeletedPlayers()
+    activeMainTab.value = 'active'
+  } catch (err) {
+    if (err !== 'cancel') {
+      ElMessage.error(err.message || 'Lỗi khi khôi phục tài khoản')
     }
   }
 }
@@ -538,115 +642,327 @@ const getRegStatusType = (status) => {
       </div>
     </div>
 
-    <!-- Data Table Section -->
+    <!-- Data Table Section with Tabs -->
     <div class="saas-content">
-      <el-table 
-        :data="paginatedPlayers" 
-        v-loading="loading" 
-        class="saas-table"
-        :header-cell-style="{ background: 'transparent', color: '#64748b', fontWeight: '700', borderBottom: '2px solid #f1f5f9' }"
-        :cell-style="{ background: 'transparent' }"
-      >
-        <el-table-column :label="$t('admin.player')" min-width="250">
-          <template #default="{ row }">
-            <div class="saas-user-cell clickable" @click="openDetailDialog(row)">
-              <div class="saas-avatar">
-                <img 
-                  :src="row.user.avatar_url || `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`" 
-                  @error="$event.target.src = `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`"
-                  referrerpolicy="no-referrer"
-                />
-              </div>
-              <div class="saas-user-meta">
-                <span class="user-name">{{ row.user.full_name }}</span>
-                <span class="user-email">{{ row.user.email }}</span>
-              </div>
+      <el-tabs v-model="activeMainTab" class="saas-main-tabs" @tab-change="handleMainTabChange">
+        <el-tab-pane label="Đang hoạt động" name="active">
+          <el-table 
+            :data="paginatedPlayers" 
+            v-loading="loading" 
+            class="saas-table"
+            :header-cell-style="{ background: 'transparent', color: '#64748b', fontWeight: '700', borderBottom: '2px solid #f1f5f9' }"
+            :cell-style="{ background: 'transparent' }"
+          >
+            <el-table-column :label="$t('admin.player')" min-width="250">
+              <template #default="{ row }">
+                <div class="saas-user-cell clickable" @click="openDetailDialog(row)">
+                  <div class="saas-avatar">
+                    <img 
+                      :src="row.user.avatar_url || `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`" 
+                      @error="$event.target.src = `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`"
+                      referrerpolicy="no-referrer"
+                    />
+                  </div>
+                  <div class="saas-user-meta">
+                    <span class="user-name">{{ row.user.full_name }}</span>
+                    <span class="user-email">{{ row.user.email }}</span>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.phone')" width="140">
+              <template #default="{ row }">
+                {{ formatPhone(row.user.phone) }}
+              </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.skillLevel')" width="160">
+              <template #default="{ row }">
+                <el-tag 
+                  :type="getSkillType(row.player_profile?.skill_level)" 
+                  effect="light" 
+                  class="saas-tag"
+                >
+                  {{ formatSkillLevel(row.player_profile?.skill_level) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+
+             <el-table-column :label="$t('admin.elo')" width="100" align="center">
+                <template #default="{ row }">
+                  <span class="elo-badge">{{ formatElo(row.player_profile?.elo_points || 1000) }}</span>
+                </template>
+             </el-table-column>
+
+            <el-table-column :label="$t('admin.accountStatus')" width="140">
+               <template #default="{ row }">
+                 <div class="status-indicator" :class="{ 'is-active': row.user.is_active }">
+                   <span class="dot"></span>
+                   <span>{{ row.user.is_active ? $t('admin.active') : $t('admin.locked') }}</span>
+                 </div>
+               </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.action')" width="220" fixed="right" align="center">
+              <template #default="{ row }">
+                <div class="action-btns">
+                  <el-button 
+                    size="small" 
+                    circle
+                    type="info" 
+                    @click="openDetailDialog(row)"
+                    title="Xem chi tiết"
+                  >
+                    <el-icon><User /></el-icon>
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="primary" 
+                    @click="openEditDialog(row)"
+                    class="saas-edit-btn"
+                  >
+                    <el-icon><EditPen /></el-icon>
+                    <span>{{ $t('admin.edit') }}</span>
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="danger" 
+                    circle
+                    @click="deletePlayer(row)"
+                    title="Xóa vận động viên"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div v-if="filteredPlayers.length > 0" class="players-pagination">
+            <div class="pagination-summary">
+              Hiển thị {{ paginatedPlayers.length }} / {{ filteredPlayers.length }} vận động viên
             </div>
-          </template>
-        </el-table-column>
+            <el-pagination
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :page-sizes="[10, 20, 50]"
+              :total="filteredPlayers.length"
+              layout="sizes, prev, pager, next, jumper"
+              background
+              @size-change="handlePageSizeChange"
+            />
+          </div>
+        </el-tab-pane>
 
-        <el-table-column :label="$t('admin.phone')" width="140">
-          <template #default="{ row }">
-            {{ formatPhone(row.user.phone) }}
-          </template>
-        </el-table-column>
+        <el-tab-pane label="NEWBIE - NGƯỜI MỚI" name="newbie">
+          <el-table 
+            :data="paginatedPlayers" 
+            v-loading="loading" 
+            class="saas-table"
+            :header-cell-style="{ background: 'transparent', color: '#64748b', fontWeight: '700', borderBottom: '2px solid #f1f5f9' }"
+            :cell-style="{ background: 'transparent' }"
+          >
+            <el-table-column :label="$t('admin.player')" min-width="250">
+              <template #default="{ row }">
+                <div class="saas-user-cell clickable" @click="openDetailDialog(row)">
+                  <div class="saas-avatar">
+                    <img 
+                      :src="row.user.avatar_url || `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`" 
+                      @error="$event.target.src = `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`"
+                      referrerpolicy="no-referrer"
+                    />
+                  </div>
+                  <div class="saas-user-meta">
+                    <span class="user-name">{{ row.user.full_name }}</span>
+                    <span class="user-email">{{ row.user.email }}</span>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
 
-        <el-table-column :label="$t('admin.skillLevel')" width="160">
-          <template #default="{ row }">
-            <el-tag 
-              :type="getSkillType(row.player_profile?.skill_level)" 
-              effect="light" 
-              class="saas-tag"
-            >
-              {{ formatSkillLevel(row.player_profile?.skill_level) }}
-            </el-tag>
-          </template>
-        </el-table-column>
+            <el-table-column :label="$t('admin.phone')" width="140">
+              <template #default="{ row }">
+                {{ formatPhone(row.user.phone) }}
+              </template>
+            </el-table-column>
 
-         <el-table-column :label="$t('admin.elo')" width="100" align="center">
-            <template #default="{ row }">
-              <span class="elo-badge">{{ formatElo(row.player_profile?.elo_points || 1000) }}</span>
-            </template>
-         </el-table-column>
+            <el-table-column :label="$t('admin.skillLevel')" width="160">
+              <template #default="{ row }">
+                <el-tag 
+                  :type="getSkillType(row.player_profile?.skill_level)" 
+                  effect="light" 
+                  class="saas-tag"
+                >
+                  {{ formatSkillLevel(row.player_profile?.skill_level) }}
+                </el-tag>
+              </template>
+            </el-table-column>
 
-        <el-table-column :label="$t('admin.accountStatus')" width="140">
-           <template #default="{ row }">
-             <div class="status-indicator" :class="{ 'is-active': row.user.is_active }">
-               <span class="dot"></span>
-               <span>{{ row.user.is_active ? $t('admin.active') : $t('admin.locked') }}</span>
-             </div>
-           </template>
-        </el-table-column>
+             <el-table-column :label="$t('admin.elo')" width="100" align="center">
+                <template #default="{ row }">
+                  <span class="elo-badge">{{ formatElo(row.player_profile?.elo_points || 1000) }}</span>
+                </template>
+             </el-table-column>
 
-        <el-table-column :label="$t('admin.action')" width="220" fixed="right" align="center">
-          <template #default="{ row }">
-            <div class="action-btns">
-              <el-button 
-                size="small" 
-                circle
-                type="info" 
-                @click="openDetailDialog(row)"
-                title="Xem chi tiết"
-              >
-                <el-icon><User /></el-icon>
-              </el-button>
-              <el-button 
-                size="small" 
-                type="primary" 
-                @click="openEditDialog(row)"
-                class="saas-edit-btn"
-              >
-                <el-icon><EditPen /></el-icon>
-                <span>{{ $t('admin.edit') }}</span>
-              </el-button>
-              <el-button 
-                size="small" 
-                type="danger" 
-                circle
-                @click="deletePlayer(row)"
-                title="Xóa vận động viên"
-              >
-                <el-icon><Delete /></el-icon>
-              </el-button>
+            <el-table-column :label="$t('admin.accountStatus')" width="140">
+               <template #default="{ row }">
+                 <div class="status-indicator" :class="{ 'is-active': row.user.is_active }">
+                   <span class="dot"></span>
+                   <span>{{ row.user.is_active ? $t('admin.active') : $t('admin.locked') }}</span>
+                 </div>
+               </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.action')" width="220" fixed="right" align="center">
+              <template #default="{ row }">
+                <div class="action-btns">
+                  <el-button 
+                    size="small" 
+                    circle
+                    type="info" 
+                    @click="openDetailDialog(row)"
+                    title="Xem chi tiết"
+                  >
+                    <el-icon><User /></el-icon>
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="primary" 
+                    @click="openEditDialog(row)"
+                    class="saas-edit-btn"
+                  >
+                    <el-icon><EditPen /></el-icon>
+                    <span>{{ $t('admin.edit') }}</span>
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="danger" 
+                    circle
+                    @click="deletePlayer(row)"
+                    title="Xóa vận động viên"
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div v-if="filteredPlayers.length > 0" class="players-pagination">
+            <div class="pagination-summary">
+              Hiển thị {{ paginatedPlayers.length }} / {{ filteredPlayers.length }} vận động viên người mới
             </div>
-          </template>
-        </el-table-column>
-      </el-table>
+            <el-pagination
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :page-sizes="[10, 20, 50]"
+              :total="filteredPlayers.length"
+              layout="sizes, prev, pager, next, jumper"
+              background
+              @size-change="handlePageSizeChange"
+            />
+          </div>
+        </el-tab-pane>
 
-      <div v-if="filteredPlayers.length > 0" class="players-pagination">
-        <div class="pagination-summary">
-          Hiển thị {{ paginatedPlayers.length }} / {{ filteredPlayers.length }} vận động viên
-        </div>
-        <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[10, 20, 50]"
-          :total="filteredPlayers.length"
-          layout="sizes, prev, pager, next, jumper"
-          background
-          @size-change="handlePageSizeChange"
-        />
-      </div>
+        <el-tab-pane label="Vận động viên đã xóa" name="deleted">
+          <el-table 
+            :data="paginatedDeletedPlayers" 
+            v-loading="loadingDeleted" 
+            class="saas-table"
+            :header-cell-style="{ background: 'transparent', color: '#64748b', fontWeight: '700', borderBottom: '2px solid #f1f5f9' }"
+            :cell-style="{ background: 'transparent' }"
+          >
+            <el-table-column :label="$t('admin.player')" min-width="250">
+              <template #default="{ row }">
+                <div class="saas-user-cell clickable" @click="openDetailDialog(row)">
+                  <div class="saas-avatar">
+                    <img 
+                      :src="row.user.avatar_url || `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`" 
+                      @error="$event.target.src = `https://ui-avatars.com/api/?name=${row.user.full_name}&background=f1f5f9&color=64748b`"
+                      referrerpolicy="no-referrer"
+                    />
+                  </div>
+                  <div class="saas-user-meta">
+                    <span class="user-name">{{ row.user.full_name }}</span>
+                    <span class="user-email">{{ row.user.email }}</span>
+                  </div>
+                </div>
+              </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.phone')" width="140">
+              <template #default="{ row }">
+                {{ formatPhone(row.user.phone) }}
+              </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.skillLevel')" width="160">
+              <template #default="{ row }">
+                <el-tag 
+                  :type="getSkillType(row.player_profile?.skill_level)" 
+                  effect="light" 
+                  class="saas-tag"
+                >
+                  {{ formatSkillLevel(row.player_profile?.skill_level) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+
+             <el-table-column :label="$t('admin.elo')" width="100" align="center">
+                <template #default="{ row }">
+                  <span class="elo-badge">{{ formatElo(row.player_profile?.elo_points || 1000) }}</span>
+                </template>
+             </el-table-column>
+
+            <el-table-column label="Ngày xóa" width="160">
+              <template #default="{ row }">
+                <span>{{ row.user.deleted_at ? new Date(row.user.deleted_at).toLocaleString('vi-VN') : 'N/A' }}</span>
+              </template>
+            </el-table-column>
+
+            <el-table-column :label="$t('admin.action')" width="220" fixed="right" align="center">
+              <template #default="{ row }">
+                <div class="action-btns">
+                  <el-button 
+                    size="small" 
+                    circle
+                    type="info" 
+                    @click="openDetailDialog(row)"
+                    title="Xem chi tiết"
+                  >
+                    <el-icon><User /></el-icon>
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="success" 
+                    @click="restorePlayer(row)"
+                    class="saas-restore-btn"
+                  >
+                    <el-icon><Refresh /></el-icon>
+                    <span>Khôi phục</span>
+                  </el-button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div v-if="filteredDeletedPlayers.length > 0" class="players-pagination">
+            <div class="pagination-summary">
+              Hiển thị {{ paginatedDeletedPlayers.length }} / {{ filteredDeletedPlayers.length }} vận động viên đã xóa
+            </div>
+            <el-pagination
+              v-model:current-page="currentPageDeleted"
+              v-model:page-size="pageSizeDeleted"
+              :page-sizes="[10, 20, 50]"
+              :total="filteredDeletedPlayers.length"
+              layout="sizes, prev, pager, next, jumper"
+              background
+              @size-change="handlePageSizeChangeDeleted"
+            />
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </div>
 
     <!-- Dialogs -->
@@ -1622,5 +1938,47 @@ const getRegStatusType = (status) => {
     max-width: none;
     text-align: left;
   }
+}
+
+.saas-restore-btn {
+  background: #ecfdf5 !important;
+  border: 1px solid #a7f3d0 !important;
+  color: #047857 !important;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  padding: 8px 16px !important;
+  transition: all 0.2s !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.saas-restore-btn:hover {
+  background: #10b981 !important;
+  color: #fff !important;
+  border-color: #10b981 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.saas-main-tabs :deep(.el-tabs__item) {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #64748b;
+  padding: 12px 20px;
+}
+
+.saas-main-tabs :deep(.el-tabs__item.is-active) {
+  color: #059669;
+}
+
+.saas-main-tabs :deep(.el-tabs__active-bar) {
+  background-color: #059669;
+  height: 3px;
+  border-radius: 3px;
+}
+
+.saas-main-tabs :deep(.el-tabs__nav-wrap::after) {
+  background-color: #f1f5f9;
 }
 </style>

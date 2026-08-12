@@ -88,6 +88,8 @@ class GenerateDrawRequest(BaseModel):
     num_groups: int = 1           # Số bảng đấu
     draw_size: Optional[int] = None # Kích thước nhánh đấu (8, 16, 32...)
     round_names: Optional[List[str]] = None
+    draw_mode: str = "manual"     # "manual" hoặc "random"
+    representative_name: Optional[str] = None # Tên người đại diện bốc thăm
     
 class AssignMatchPlayersRequest(BaseModel):
     side_a_registration_id: Optional[int] = None
@@ -108,6 +110,18 @@ class MatchScoreUpdate(BaseModel):
     referee_id: Optional[int] = None
     referee_name: Optional[str] = None
     referee_phone: Optional[str] = None
+    set1_a: Optional[int] = None
+    set1_b: Optional[int] = None
+    set2_a: Optional[int] = None
+    set2_b: Optional[int] = None
+    set3_a: Optional[int] = None
+    set3_b: Optional[int] = None
+    tie_break_1_a: Optional[int] = None
+    tie_break_1_b: Optional[int] = None
+    tie_break_2_a: Optional[int] = None
+    tie_break_2_b: Optional[int] = None
+    tie_break_3_a: Optional[int] = None
+    tie_break_3_b: Optional[int] = None
 
 class ManualMatchCreate(BaseModel):
     category_id: Optional[int] = None
@@ -144,6 +158,18 @@ class AdminMatchUpdate(BaseModel):
     next_match_id: Optional[int] = None
     advance_note: Optional[str] = None
     show_on_homepage: Optional[bool] = None
+    set1_a: Optional[int] = None
+    set1_b: Optional[int] = None
+    set2_a: Optional[int] = None
+    set2_b: Optional[int] = None
+    set3_a: Optional[int] = None
+    set3_b: Optional[int] = None
+    tie_break_1_a: Optional[int] = None
+    tie_break_1_b: Optional[int] = None
+    tie_break_2_a: Optional[int] = None
+    tie_break_2_b: Optional[int] = None
+    tie_break_3_a: Optional[int] = None
+    tie_break_3_b: Optional[int] = None
 
 class PlayoffRequest(BaseModel):
     category_id: int
