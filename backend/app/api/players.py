@@ -66,9 +66,9 @@ def get_recent_match_result(db: Session, player_id: int) -> int:
     # Tra ve: 1 neu thang, -1 neu thua, 0 neu khong co/chua completed
     from app.models.models import Registration, Match
     from sqlalchemy import or_, desc
-    
+
     reg_ids = [r[0] for r in db.query(Registration.id).filter(Registration.player_id == player_id).all()]
-    
+
     query = db.query(Match).filter(Match.status == "completed")
     conditions = [
         Match.player_a_id == player_id,
@@ -79,11 +79,11 @@ def get_recent_match_result(db: Session, player_id: int) -> int:
     if reg_ids:
         conditions.append(Match.side_a_registration_id.in_(reg_ids))
         conditions.append(Match.side_b_registration_id.in_(reg_ids))
-        
+
     recent_match = query.filter(or_(*conditions)).order_by(desc(Match.start_time), desc(Match.created_at)).first()
     if not recent_match:
         return 0
-        
+
     is_side_a = False
     if recent_match.tournament_id and (recent_match.side_a_registration_id or recent_match.side_b_registration_id):
         is_side_a = recent_match.side_a_registration_id in reg_ids
@@ -95,6 +95,75 @@ def get_recent_match_result(db: Session, player_id: int) -> int:
         is_side_a = (recent_match.player_a_id == player_id) or (recent_match.player_a2_id == player_id)
         my_side = "side_a" if is_side_a else "side_b"
         return 1 if recent_match.winner_side == my_side else -1
+
+def get_recent_match_results_batch(db: Session, player_ids: list) -> dict:
+    # Ban batch cua get_recent_match_result(): gom N player thanh 2 query thay vi 2*N query,
+    # de tranh N+1 khi DB o xa (latency mang cao lam 2*N round-trip rat cham).
+    from app.models.models import Registration, Match
+    from sqlalchemy import or_, desc
+
+    if not player_ids:
+        return {}
+
+    reg_rows = db.query(Registration.id, Registration.player_id).filter(
+        Registration.player_id.in_(player_ids)
+    ).all()
+    player_reg_ids: dict = {}
+    for reg_id, pid in reg_rows:
+        player_reg_ids.setdefault(pid, []).append(reg_id)
+    all_reg_ids = [reg_id for reg_id, _ in reg_rows]
+
+    conditions = [
+        Match.player_a_id.in_(player_ids),
+        Match.player_b_id.in_(player_ids),
+        Match.player_a2_id.in_(player_ids),
+        Match.player_b2_id.in_(player_ids),
+    ]
+    if all_reg_ids:
+        conditions.append(Match.side_a_registration_id.in_(all_reg_ids))
+        conditions.append(Match.side_b_registration_id.in_(all_reg_ids))
+
+    matches = (
+        db.query(Match)
+        .filter(Match.status == "completed")
+        .filter(or_(*conditions))
+        .order_by(desc(Match.start_time), desc(Match.created_at))
+        .all()
+    )
+
+    results: dict = {}
+    for pid in player_ids:
+        reg_ids = player_reg_ids.get(pid, [])
+        for m in matches:
+            involved = False
+            is_side_a = False
+            if m.tournament_id and (m.side_a_registration_id or m.side_b_registration_id):
+                if m.side_a_registration_id in reg_ids:
+                    involved, is_side_a = True, True
+                elif m.side_b_registration_id in reg_ids:
+                    involved, is_side_a = True, False
+            else:
+                if m.player_a_id == pid or m.player_a2_id == pid:
+                    involved, is_side_a = True, True
+                elif m.player_b_id == pid or m.player_b2_id == pid:
+                    involved, is_side_a = True, False
+
+            if not involved:
+                continue
+
+            if m.tournament_id and (m.side_a_registration_id or m.side_b_registration_id):
+                if is_side_a:
+                    results[pid] = 1 if m.winner_side == "side_a" or m.winner_registration_id == m.side_a_registration_id else -1
+                else:
+                    results[pid] = 1 if m.winner_side == "side_b" or m.winner_registration_id == m.side_b_registration_id else -1
+            else:
+                my_side = "side_a" if is_side_a else "side_b"
+                results[pid] = 1 if m.winner_side == my_side else -1
+            break
+
+        results.setdefault(pid, 0)
+
+    return results
 
 @router.get("/list")
 def list_players(
@@ -150,13 +219,15 @@ def get_global_rankings(
         db, category=category, province=province, skill=skill, search=search, limit=size, offset=offset
     )
 
+    recent_changes = get_recent_match_results_batch(db, [p.id for p, u in items])
+
     results = []
     for index, (p, u) in enumerate(items):
         win_rate = 0
         if p.matches_played > 0:
             win_rate = round((p.wins / p.matches_played) * 100, 1)
 
-        recent_change = get_recent_match_result(db, p.id)
+        recent_change = recent_changes.get(p.id, 0)
         results.append({
             "rank": offset + index + 1,
             "player_id": u.id,

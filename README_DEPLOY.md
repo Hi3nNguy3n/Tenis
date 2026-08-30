@@ -108,8 +108,10 @@ ALGORITHM=HS256
 
 ---
 
-### KỊCH BẢN B: Kết nối Database PostgreSQL BÊN NGOÀI (Ví dụ máy chủ 125.234.102.243)
+### KỊCH BẢN B: Kết nối Database PostgreSQL BÊN NGOÀI (Máy chủ DB: 169.58.108.141)
 Nếu bạn muốn sử dụng Database PostgreSQL đã chạy sẵn ở một Server/VPS khác.
+
+> **Lưu ý (2026-08-12)**: Host DB cũ `125.234.102.243` hiện không còn phản hồi (unreachable). Hệ thống đã được trỏ sang máy chủ DB mới `169.58.108.141`, nơi đã có sẵn 2 database `DB_saigontenis` và `DB_tenischat` với cùng user/mật khẩu `admin` / `admin@123`.
 
 #### 1. Cấu hình tệp `backend/.env`
 ```env
@@ -117,10 +119,10 @@ Nếu bạn muốn sử dụng Database PostgreSQL đã chạy sẵn ở một S
 POSTGRES_USER=admin
 POSTGRES_PASSWORD=admin123
 POSTGRES_DB=DB_saigontenis
-POSTGRES_HOST=125.234.102.243
+POSTGRES_HOST=169.58.108.141
 POSTGRES_PORT=5432
 # Lưu ý: Nếu password chứa ký tự đặc biệt như '@', hãy URL-encode nó (ví dụ: admin@123 -> admin%40123)
-DATABASE_URL=postgresql://admin:admin%40123@125.234.102.243:5432/DB_saigontenis
+DATABASE_URL=postgresql://admin:admin%40123@169.58.108.141:5432/DB_saigontenis
 
 # --- CÁC CẤU HÌNH KHÁC GIỮ NGUYÊN NHƯ KỊCH BẢN A ---
 ...
@@ -128,9 +130,15 @@ DATABASE_URL=postgresql://admin:admin%40123@125.234.102.243:5432/DB_saigontenis
 
 #### 2. Cấu hình tệp `chat_service/.env`
 ```env
-DATABASE_URL=postgresql://admin:admin%40123@125.234.102.243:5432/DB_tenischat
+DATABASE_URL=postgresql://admin:admin%40123@169.58.108.141:5432/DB_tenischat
 SECRET_KEY=09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
 ALGORITHM=HS256
+```
+
+#### 3. Áp dụng trên server production (saigontennistours.vn)
+File `.env` bị `.gitignore` nên `git pull` **sẽ không tự cập nhật** file `.env` đang có trên server. Sau khi pull code mới, vào server production và **tự tay** sửa lại 2 file `backend/.env` và `chat_service/.env` theo đúng nội dung ở trên (đổi `POSTGRES_HOST`/`DATABASE_URL` sang `169.58.108.141`), rồi chạy:
+```bash
+docker compose up -d --build backend chat_service
 ```
 
 *(Lưu ý: Nếu sử dụng Kịch bản B, bạn có thể comment hoặc xoá service `db` ra khỏi tệp `docker-compose.yml` ở thư mục gốc để tiết kiệm tài nguyên VPS).*
